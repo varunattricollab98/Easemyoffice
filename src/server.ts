@@ -66,9 +66,24 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
   return brandedErrorResponse();
 }
 
+function bridgeEnvToProcess(env: unknown): void {
+  // Cloudflare Workers do not expose configured vars/secrets on process.env by
+  // default — they arrive via the `env` binding passed to fetch(). Copy them onto
+  // process.env so server code that reads process.env.SUPABASE_URL /
+  // SUPABASE_SERVICE_ROLE_KEY / etc. works at runtime.
+  if (!env || typeof env !== "object") return;
+  if (typeof process === "undefined" || !process.env) return;
+  for (const [key, value] of Object.entries(env as Record<string, unknown>)) {
+    if (typeof value === "string" && !process.env[key]) {
+      process.env[key] = value;
+    }
+  }
+}
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
+      bridgeEnvToProcess(env);
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);
