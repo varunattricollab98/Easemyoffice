@@ -41,7 +41,13 @@ function AdminUsersPage() {
 
   const [form, setForm] = useState({ full_name: "", email: "", password: "", role: "sales", department: "" });
   const createM = useMutation({
-    mutationFn: () => createFn({ data: { ...form, role: form.role as (typeof ROLE_OPTIONS)[number], department: form.department || null } }),
+    mutationFn: async () => {
+      const res: any = await createFn({ data: { ...form, role: form.role as (typeof ROLE_OPTIONS)[number], department: form.department || null } });
+      if (!res || typeof res !== "object" || !res.id) {
+        throw new Error(typeof res?.error === "string" ? res.error : "Server did not create the user (request was rejected). Please try again.");
+      }
+      return res;
+    },
     onSuccess: () => {
       toast.success("User created");
       setForm({ full_name: "", email: "", password: "", role: "sales", department: "" });

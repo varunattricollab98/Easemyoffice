@@ -60,20 +60,19 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
       }
     );
 
-    const { data, error } = await supabase.auth.getClaims(token);
-    if (error || !data?.claims) {
-      throw new Response('Unauthorized: Invalid token', { status: 401 });
-    }
-
-    if (!data.claims.sub) {
-      throw new Response('Unauthorized: No user ID found in token', { status: 401 });
+    const { data: userData, error } = await supabase.auth.getUser(token);
+    if (error || !userData?.user?.id) {
+      throw new Response(
+        `Unauthorized: token validation failed${error ? ` (${error.message})` : ''}`,
+        { status: 401 },
+      );
     }
 
     return next({
       context: {
         supabase,
-        userId: data.claims.sub,
-        claims: data.claims,
+        userId: userData.user.id,
+        claims: userData.user,
       },
     })
   }
