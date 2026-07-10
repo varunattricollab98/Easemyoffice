@@ -252,7 +252,9 @@ function FollowUpComposer({ leadId }: { leadId: string }) {
       <Input placeholder="Next action (e.g. Call to confirm KYC)" value={action} onChange={(e) => setAction(e.target.value)} />
       <Input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} />
       <Button onClick={async () => {
-        if (!action.trim() || !user) return;
+        if (!action.trim()) return toast.error("Please enter an action first (e.g. Call to confirm KYC)");
+        if (!user) return toast.error("You must be signed in to schedule a follow-up");
+        if (!due) return toast.error("Please pick a date and time");
         const { error } = await supabase.from("follow_ups").insert({ lead_id: leadId, owner_id: user.id, action: action.trim(), due_at: new Date(due).toISOString() });
         if (error) return toast.error(error.message);
         setAction("");

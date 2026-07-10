@@ -56,10 +56,14 @@ export const listTeamUsers = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     try {
       await assertAdmin(null as never, context.userId);
-      const [{ data: profiles }, { data: roles }] = await Promise.all([
+      const [profRes, roleRes] = await Promise.all([
         supabaseAdmin.from("profiles").select("id, full_name, email, department, created_at").order("created_at", { ascending: false }),
         supabaseAdmin.from("user_roles").select("user_id, role"),
       ]);
+      if (profRes.error) throw new Error(`profiles query failed: ${profRes.error.message}`);
+      if (roleRes.error) throw new Error(`user_roles query failed: ${roleRes.error.message}`);
+      const profiles = profRes.data;
+      const roles = roleRes.data;
       const byUser = new Map<string, string[]>();
       (roles ?? []).forEach((r: any) => {
         const arr = byUser.get(r.user_id) ?? [];
