@@ -171,8 +171,9 @@ function AdminUsersPage() {
                 </tr>
               ))}
               {usersQ.isLoading && <tr><td className="px-4 py-6 text-muted-foreground" colSpan={6}>Loading…</td></tr>}
+              {usersQ.isError && <tr><td className="px-4 py-6 text-destructive" colSpan={6}>Failed to load users: {(usersQ.error as Error)?.message ?? "Unknown error"}</td></tr>}
               {usersQ.data?.error && <tr><td className="px-4 py-6 text-destructive" colSpan={6}>{usersQ.data.error}</td></tr>}
-              {usersQ.data && !usersQ.data.error && usersQ.data.users.length === 0 && <tr><td className="px-4 py-6 text-muted-foreground" colSpan={6}>No users yet.</td></tr>}
+              {usersQ.data && !usersQ.data.error && (usersQ.data.users?.length ?? 0) === 0 && <tr><td className="px-4 py-6 text-muted-foreground" colSpan={6}>No users yet.</td></tr>}
             </tbody>
           </table>
         </div>

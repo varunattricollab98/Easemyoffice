@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 export const BOOKING_HEADERS = [
@@ -104,7 +105,7 @@ async function ensureHeaders(spreadsheetId: string, headers: HeadersInit) {
 }
 
 export const setBookingsSheet = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([attachSupabaseAuth, requireSupabaseAuth])
   .inputValidator((d) => z.object({ url_or_id: z.string().min(8).max(500) }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: adminRow } = await supabaseAdmin
@@ -120,14 +121,14 @@ export const setBookingsSheet = createServerFn({ method: "POST" })
   });
 
 export const getBookingsSheet = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([attachSupabaseAuth, requireSupabaseAuth])
   .handler(async () => {
     const id = await getSheetId();
     return { id };
   });
 
 export const appendBooking = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([attachSupabaseAuth, requireSupabaseAuth])
   .inputValidator((d) => BookingSchema.parse(d))
   .handler(async ({ data, context }) => {
     // 1. Save to DB (always)
@@ -194,7 +195,7 @@ export const appendBooking = createServerFn({ method: "POST" })
   });
 
 export const listBookings = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([attachSupabaseAuth, requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { data: adminRow } = await supabaseAdmin
       .from("user_roles").select("role").eq("user_id", context.userId).eq("role", "admin").maybeSingle();
@@ -206,7 +207,7 @@ export const listBookings = createServerFn({ method: "GET" })
   });
 
 export const markBalancePaid = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([attachSupabaseAuth, requireSupabaseAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid(), amount: z.number().min(0).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: row, error: getErr } = await supabaseAdmin

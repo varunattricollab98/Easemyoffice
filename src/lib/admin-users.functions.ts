@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 const ROLES = ["admin", "sales", "documentation", "accounts", "renewals", "bd"] as const;
@@ -24,7 +25,7 @@ async function assertAdmin(supabase: ReturnType<typeof supabaseAdmin.from> exten
 }
 
 export const createTeamUser = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([attachSupabaseAuth, requireSupabaseAuth])
   .inputValidator((d) => CreateUserInput.parse(d))
   .handler(async ({ data, context }) => {
     await assertAdmin(null as never, context.userId);
@@ -51,7 +52,7 @@ export const createTeamUser = createServerFn({ method: "POST" })
   });
 
 export const listTeamUsers = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([attachSupabaseAuth, requireSupabaseAuth])
   .handler(async ({ context }) => {
     try {
       await assertAdmin(null as never, context.userId);
@@ -74,7 +75,7 @@ export const listTeamUsers = createServerFn({ method: "GET" })
   });
 
 export const sendPasswordReset = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([attachSupabaseAuth, requireSupabaseAuth])
   .inputValidator((d) => z.object({ email: z.string().trim().email().max(254) }).parse(d))
   .handler(async ({ data, context }) => {
     await assertAdmin(null as never, context.userId);
@@ -87,7 +88,7 @@ export const sendPasswordReset = createServerFn({ method: "POST" })
   });
 
 export const adminSetPassword = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([attachSupabaseAuth, requireSupabaseAuth])
   .inputValidator((d) =>
     z.object({ user_id: z.string().uuid(), password: z.string().min(8).max(72) }).parse(d),
   )
@@ -101,7 +102,7 @@ export const adminSetPassword = createServerFn({ method: "POST" })
   });
 
 export const setUserRole = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([attachSupabaseAuth, requireSupabaseAuth])
   .inputValidator((d) =>
     z.object({ user_id: z.string().uuid(), role: z.enum(ROLES) }).parse(d),
   )
