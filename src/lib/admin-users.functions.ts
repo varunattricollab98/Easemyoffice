@@ -51,7 +51,7 @@ export const createTeamUser = createServerFn({ method: "POST" })
     return { id: uid, email: data.email };
   });
 
-export const listTeamUsers = createServerFn({ method: "GET" })
+export const listTeamUsers = createServerFn({ method: "POST" })
   .middleware([attachSupabaseAuth, requireSupabaseAuth])
   .handler(async ({ context }) => {
     try {

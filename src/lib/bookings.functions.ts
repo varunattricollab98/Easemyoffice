@@ -120,7 +120,7 @@ export const setBookingsSheet = createServerFn({ method: "POST" })
     return { id };
   });
 
-export const getBookingsSheet = createServerFn({ method: "GET" })
+export const getBookingsSheet = createServerFn({ method: "POST" })
   .middleware([attachSupabaseAuth, requireSupabaseAuth])
   .handler(async () => {
     const id = await getSheetId();
@@ -194,7 +194,7 @@ export const appendBooking = createServerFn({ method: "POST" })
     return { ok: true, sheet_warning: sheetWarning };
   });
 
-export const listBookings = createServerFn({ method: "GET" })
+export const listBookings = createServerFn({ method: "POST" })
   .middleware([attachSupabaseAuth, requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { data: adminRow } = await supabaseAdmin
