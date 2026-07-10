@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { INTERESTS, SERVICES, STAGES, labelFor } from "@/lib/crm";
-import { Plus, Search, Phone, Mail } from "lucide-react";
+import { Plus, Search, Phone, Mail, Upload } from "lucide-react";
 import { NewLeadDialog } from "@/components/new-lead-dialog";
 import { formatDistanceToNow } from "date-fns";
 
@@ -75,7 +75,12 @@ function LeadsListPage() {
           <h1 className="text-2xl md:text-3xl font-bold">Leads</h1>
           <p className="text-sm text-muted-foreground">All your prospects in one place.</p>
         </div>
-        <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-2" /> New Lead</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" asChild>
+            <Link to="/leads/import"><Upload className="h-4 w-4 mr-2" /> Import</Link>
+          </Button>
+          <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-2" /> New Lead</Button>
+        </div>
       </div>
 
       <Card>
