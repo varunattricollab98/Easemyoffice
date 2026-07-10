@@ -74,3 +74,18 @@ The app is already configured for Cloudflare (`wrangler.jsonc`, `@cloudflare/vit
 - Keep the `service_role` key private — it must only ever live in Cloudflare's encrypted
   variables, never in the repository or the browser.
 - A custom domain (e.g. crm.yourcompany.com) can be added in Cloudflare later, still free.
+
+
+---
+
+## Deployment record (live)
+
+- **Live URL:** https://easemyoffice.thefunnyindianinsta.workers.dev
+- **Host:** Cloudflare Workers (free tier) — worker name `easemyoffice`
+- **Database/Auth:** Supabase (free tier) — project ref `cfzwdlibvxksrxcrsvpp`
+- **Environment variables set in Cloudflare:**
+  `VITE_SUPABASE_URL`, `SUPABASE_URL`, `VITE_SUPABASE_PROJECT_ID`,
+  `VITE_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_PUBLISHABLE_KEY`,
+  `SUPABASE_SERVICE_ROLE_KEY` (encrypted),
+  `VITE_SITE_URL`, `SITE_URL`
+- **First admin:** the first account to sign up becomes admin automatically.
