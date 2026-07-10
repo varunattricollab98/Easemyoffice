@@ -1,0 +1,4 @@
+project_id = "wrhrjbeuffydrtwellgv"
+
+[functions.send-scheduled-reports]
+verify_jwt = false
