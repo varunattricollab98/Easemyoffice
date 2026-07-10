@@ -1,8 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { createClient } from "@supabase/supabase-js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { ArrowLeft, UserPlus } from "lucide-react";
-import { adminSetPassword, createTeamUser, listTeamUsers, sendPasswordReset, setUserRole } from "@/lib/admin-users.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/users")({
   head: () => ({ meta: [{ title: "Team Users — Admin" }] }),
@@ -19,6 +18,16 @@ export const Route = createFileRoute("/_authenticated/admin/users")({
 });
 
 const ROLE_OPTIONS = ["sales", "bd", "documentation", "accounts", "renewals", "admin"] as const;
+type Role = (typeof ROLE_OPTIONS)[number];
+
+// A throwaway Supabase client used only to create new users via signUp, so it
+// does NOT replace the current admin's session. Uses the public publishable key
+// (safe in the browser). This avoids needing the server-side service role key.
+const signupClient = createClient(
+  import.meta.env.VITE_SUPABASE_URL as string,
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
+  { auth: { persistSession: false, autoRefreshToken: false } },
+);
 
 function AdminUsersPage() {
   const { isAdmin, loading } = useAuth();
@@ -28,28 +37,59 @@ function AdminUsersPage() {
     if (!loading && !isAdmin) navigate({ to: "/dashboard" });
   }, [loading, isAdmin, navigate]);
 
-  const fetchList = useServerFn(listTeamUsers);
-  const createFn = useServerFn(createTeamUser);
-  const setRoleFn = useServerFn(setUserRole);
-  const resetFn = useServerFn(sendPasswordReset);
-  const setPwFn = useServerFn(adminSetPassword);
-
-  const getToken = async () => (await supabase.auth.getSession()).data.session?.access_token;
-
   const usersQ = useQuery({
     queryKey: ["admin-team-users"],
-    queryFn: async () => fetchList({ data: { _token: await getToken() } }),
     enabled: !!isAdmin,
+    queryFn: async () => {
+      const [{ data: profiles, error: pErr }, { data: roles, error: rErr }] = await Promise.all([
+        supabase.from("profiles").select("id, full_name, email, department, created_at").order("created_at", { ascending: false }),
+        supabase.from("user_roles").select("user_id, role"),
+      ]);
+      if (pErr) throw new Error(pErr.message);
+      if (rErr) throw new Error(rErr.message);
+      const byUser = new Map<string, string[]>();
+      (roles ?? []).forEach((r: any) => {
+        const arr = byUser.get(r.user_id) ?? [];
+        arr.push(r.role);
+        byUser.set(r.user_id, arr);
+      });
+      return (profiles ?? []).map((p: any) => ({ ...p, roles: byUser.get(p.id) ?? [] }));
+    },
   });
 
-  const [form, setForm] = useState({ full_name: "", email: "", password: "", role: "sales", department: "" });
+  const [form, setForm] = useState({ full_name: "", email: "", password: "", role: "sales" as Role, department: "" });
+
   const createM = useMutation({
     mutationFn: async () => {
-      const res: any = await createFn({ data: { ...form, role: form.role as (typeof ROLE_OPTIONS)[number], department: form.department || null, _token: await getToken() } });
-      if (!res || typeof res !== "object" || !res.id) {
-        throw new Error(typeof res?.error === "string" ? res.error : "Server did not create the user (request was rejected). Please try again.");
+      if (!form.full_name.trim()) throw new Error("Please enter a full name");
+      if (!form.email.trim()) throw new Error("Please enter an email");
+      if (form.password.length < 8) throw new Error("Password must be at least 8 characters");
+
+      // 1) Create the auth user (browser-side signUp, admin session stays intact).
+      const { data, error } = await signupClient.auth.signUp({
+        email: form.email.trim(),
+        password: form.password,
+        options: { data: { full_name: form.full_name.trim() } },
+      });
+      if (error) throw new Error(error.message);
+      const uid = data.user?.id;
+      if (!uid) {
+        throw new Error("User was not created. In Supabase, turn OFF 'Confirm email' (Authentication → Providers → Email), then try again.");
       }
-      return res;
+
+      // 2) The DB trigger assigns a default 'sales' role. If a different role was
+      //    chosen, replace it. Allowed by the 'admins manage user_roles' policy.
+      if (form.role !== "sales") {
+        await supabase.from("user_roles").delete().eq("user_id", uid);
+        const { error: rErr } = await supabase.from("user_roles").insert({ user_id: uid, role: form.role });
+        if (rErr) throw new Error(rErr.message);
+      }
+
+      // 3) Optional department on the profile.
+      if (form.department.trim()) {
+        await supabase.from("profiles").update({ department: form.department.trim() }).eq("id", uid);
+      }
+      return { id: uid };
     },
     onSuccess: () => {
       toast.success("User created");
@@ -60,24 +100,29 @@ function AdminUsersPage() {
   });
 
   const roleM = useMutation({
-    mutationFn: async (v: { user_id: string; role: (typeof ROLE_OPTIONS)[number] }) => setRoleFn({ data: { ...v, _token: await getToken() } }),
+    mutationFn: async (v: { user_id: string; role: Role }) => {
+      await supabase.from("user_roles").delete().eq("user_id", v.user_id);
+      const { error } = await supabase.from("user_roles").insert({ user_id: v.user_id, role: v.role });
+      if (error) throw new Error(error.message);
+    },
     onSuccess: () => { toast.success("Role updated"); qc.invalidateQueries({ queryKey: ["admin-team-users"] }); },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const resetM = useMutation({
-    mutationFn: async (email: string) => resetFn({ data: { email, _token: await getToken() } }),
+    mutationFn: async (email: string) => {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw new Error(error.message);
+    },
     onSuccess: () => toast.success("Password reset email sent"),
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const setPwM = useMutation({
-    mutationFn: async (v: { user_id: string; password: string }) => setPwFn({ data: { ...v, _token: await getToken() } }),
-    onSuccess: () => toast.success("Password updated"),
-    onError: (e: Error) => toast.error(e.message),
-  });
-
   if (loading || !isAdmin) return <div className="p-8 text-muted-foreground">Loading…</div>;
+
+  const users = usersQ.data ?? [];
 
   return (
     <div className="p-4 md:p-8 max-w-[1100px] mx-auto space-y-6">
@@ -103,7 +148,7 @@ function AdminUsersPage() {
           <div><Label className="text-xs">Temp password (≥8)</Label>
             <Input type="text" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></div>
           <div><Label className="text-xs">Role</Label>
-            <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
+            <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v as Role })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {ROLE_OPTIONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
@@ -137,16 +182,14 @@ function AdminUsersPage() {
               </tr>
             </thead>
             <tbody>
-              {(usersQ.data?.users ?? []).map((u: any) => (
+              {users.map((u: any) => (
                 <tr key={u.id} className="border-t">
                   <td className="px-4 py-2">{u.full_name ?? "—"}</td>
                   <td className="px-4 py-2 text-muted-foreground">{u.email}</td>
                   <td className="px-4 py-2">{u.department ?? "—"}</td>
                   <td className="px-4 py-2">{(u.roles ?? []).join(", ") || "—"}</td>
                   <td className="px-4 py-2">
-                    <Select
-                      onValueChange={(v) => roleM.mutate({ user_id: u.id, role: v as (typeof ROLE_OPTIONS)[number] })}
-                    >
+                    <Select onValueChange={(v) => roleM.mutate({ user_id: u.id, role: v as Role })}>
                       <SelectTrigger className="h-8 w-[140px]"><SelectValue placeholder="Change…" /></SelectTrigger>
                       <SelectContent>
                         {ROLE_OPTIONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
@@ -154,35 +197,20 @@ function AdminUsersPage() {
                     </Select>
                   </td>
                   <td className="px-4 py-2">
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={resetM.isPending || !u.email}
-                        onClick={() => resetM.mutate(u.email)}
-                      >
-                        Send reset
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          const pw = window.prompt(`Set new password for ${u.email} (min 8 chars):`);
-                          if (!pw) return;
-                          if (pw.length < 8) return toast.error("Password must be at least 8 characters");
-                          setPwM.mutate({ user_id: u.id, password: pw });
-                        }}
-                      >
-                        Set password
-                      </Button>
-                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={resetM.isPending || !u.email}
+                      onClick={() => resetM.mutate(u.email)}
+                    >
+                      Send reset
+                    </Button>
                   </td>
                 </tr>
               ))}
               {usersQ.isLoading && <tr><td className="px-4 py-6 text-muted-foreground" colSpan={6}>Loading…</td></tr>}
               {usersQ.isError && <tr><td className="px-4 py-6 text-destructive" colSpan={6}>Failed to load users: {(usersQ.error as Error)?.message ?? "Unknown error"}</td></tr>}
-              {usersQ.data?.error && <tr><td className="px-4 py-6 text-destructive" colSpan={6}>{usersQ.data.error}</td></tr>}
-              {usersQ.data && !usersQ.data.error && (usersQ.data.users?.length ?? 0) === 0 && <tr><td className="px-4 py-6 text-muted-foreground" colSpan={6}>No users yet.</td></tr>}
+              {!usersQ.isLoading && !usersQ.isError && users.length === 0 && <tr><td className="px-4 py-6 text-muted-foreground" colSpan={6}>No users yet.</td></tr>}
             </tbody>
           </table>
         </div>
