@@ -1,11 +1,34 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 const ROLES = ["admin", "sales", "documentation", "accounts", "renewals", "bd"] as const;
+
+// Validate the caller's Supabase access token (passed explicitly from the client)
+// against the Supabase auth server, then confirm they are an admin. This avoids
+// relying on request-header middleware, which was not reliably forwarding the token.
+async function requireAdmin(token: unknown): Promise<string> {
+  if (typeof token !== "string" || !token) {
+    throw new Error("Not authenticated: missing session token. Please sign out and back in.");
+  }
+  const { data, error } = await supabaseAdmin.auth.getUser(token);
+  if (error || !data?.user?.id) {
+    throw new Error(`Not authenticated: ${error?.message ?? "invalid session token"}`);
+  }
+  const uid = data.user.id;
+  const { data: adminRow, error: roleErr } = await supabaseAdmin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", uid)
+    .eq("role", "admin")
+    .maybeSingle();
+  if (roleErr) throw new Error(`Role check failed: ${roleErr.message}`);
+  if (!adminRow) throw new Error("Forbidden: admin only");
+  return uid;
+}
+
 const CreateUserInput = z.object({
+  _token: z.string().optional(),
   full_name: z.string().trim().min(1).max(120),
   email: z.string().trim().email().max(254),
   password: z.string().min(8).max(72),
@@ -13,22 +36,10 @@ const CreateUserInput = z.object({
   department: z.string().trim().max(60).optional().nullable(),
 });
 
-async function assertAdmin(supabase: ReturnType<typeof supabaseAdmin.from> extends infer _ ? any : never, userId: string) {
-  const { data, error } = await supabaseAdmin
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", userId)
-    .eq("role", "admin")
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!data) throw new Error("Forbidden: admin only");
-}
-
 export const createTeamUser = createServerFn({ method: "POST" })
-  .middleware([attachSupabaseAuth, requireSupabaseAuth])
   .inputValidator((d) => CreateUserInput.parse(d))
-  .handler(async ({ data, context }) => {
-    await assertAdmin(null as never, context.userId);
+  .handler(async ({ data }) => {
+    await requireAdmin(data._token);
 
     const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
       email: data.email,
@@ -52,13 +63,11 @@ export const createTeamUser = createServerFn({ method: "POST" })
   });
 
 export const listTeamUsers = createServerFn({ method: "POST" })
-  .middleware([attachSupabaseAuth, requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator((d) => z.object({ _token: z.string().optional() }).parse(d))
+  .handler(async ({ data }) => {
     try {
-      await assertAdmin(null as never, context.userId);
-      // Source of truth = auth.users (always populated by signup/createUser),
-      // enriched with profiles + roles. This avoids showing an empty list even
-      // if a profile row is missing.
+      await requireAdmin(data._token);
+      // Source of truth = auth.users (always populated), enriched with profiles + roles.
       const { data: authList, error: authErr } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
       if (authErr) throw new Error(`auth list failed: ${authErr.message}`);
       const [profRes, roleRes] = await Promise.all([
@@ -93,10 +102,9 @@ export const listTeamUsers = createServerFn({ method: "POST" })
   });
 
 export const sendPasswordReset = createServerFn({ method: "POST" })
-  .middleware([attachSupabaseAuth, requireSupabaseAuth])
-  .inputValidator((d) => z.object({ email: z.string().trim().email().max(254) }).parse(d))
-  .handler(async ({ data, context }) => {
-    await assertAdmin(null as never, context.userId);
+  .inputValidator((d) => z.object({ _token: z.string().optional(), email: z.string().trim().email().max(254) }).parse(d))
+  .handler(async ({ data }) => {
+    await requireAdmin(data._token);
     const origin = process.env.SITE_URL || process.env.VITE_SITE_URL || "";
     const { error } = await supabaseAdmin.auth.resetPasswordForEmail(data.email, {
       redirectTo: origin ? `${origin}/reset-password` : undefined,
@@ -106,12 +114,11 @@ export const sendPasswordReset = createServerFn({ method: "POST" })
   });
 
 export const adminSetPassword = createServerFn({ method: "POST" })
-  .middleware([attachSupabaseAuth, requireSupabaseAuth])
   .inputValidator((d) =>
-    z.object({ user_id: z.string().uuid(), password: z.string().min(8).max(72) }).parse(d),
+    z.object({ _token: z.string().optional(), user_id: z.string().uuid(), password: z.string().min(8).max(72) }).parse(d),
   )
-  .handler(async ({ data, context }) => {
-    await assertAdmin(null as never, context.userId);
+  .handler(async ({ data }) => {
+    await requireAdmin(data._token);
     const { error } = await supabaseAdmin.auth.admin.updateUserById(data.user_id, {
       password: data.password,
     });
@@ -120,12 +127,11 @@ export const adminSetPassword = createServerFn({ method: "POST" })
   });
 
 export const setUserRole = createServerFn({ method: "POST" })
-  .middleware([attachSupabaseAuth, requireSupabaseAuth])
   .inputValidator((d) =>
-    z.object({ user_id: z.string().uuid(), role: z.enum(ROLES) }).parse(d),
+    z.object({ _token: z.string().optional(), user_id: z.string().uuid(), role: z.enum(ROLES) }).parse(d),
   )
-  .handler(async ({ data, context }) => {
-    await assertAdmin(null as never, context.userId);
+  .handler(async ({ data }) => {
+    await requireAdmin(data._token);
     await supabaseAdmin.from("user_roles").delete().eq("user_id", data.user_id);
     const { error } = await supabaseAdmin.from("user_roles").insert({ user_id: data.user_id, role: data.role });
     if (error) throw new Error(error.message);

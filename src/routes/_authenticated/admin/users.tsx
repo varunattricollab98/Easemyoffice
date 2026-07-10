@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useServerFn } from "@tanstack/react-start";
+import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,16 +34,18 @@ function AdminUsersPage() {
   const resetFn = useServerFn(sendPasswordReset);
   const setPwFn = useServerFn(adminSetPassword);
 
+  const getToken = async () => (await supabase.auth.getSession()).data.session?.access_token;
+
   const usersQ = useQuery({
     queryKey: ["admin-team-users"],
-    queryFn: () => fetchList(),
+    queryFn: async () => fetchList({ data: { _token: await getToken() } }),
     enabled: !!isAdmin,
   });
 
   const [form, setForm] = useState({ full_name: "", email: "", password: "", role: "sales", department: "" });
   const createM = useMutation({
     mutationFn: async () => {
-      const res: any = await createFn({ data: { ...form, role: form.role as (typeof ROLE_OPTIONS)[number], department: form.department || null } });
+      const res: any = await createFn({ data: { ...form, role: form.role as (typeof ROLE_OPTIONS)[number], department: form.department || null, _token: await getToken() } });
       if (!res || typeof res !== "object" || !res.id) {
         throw new Error(typeof res?.error === "string" ? res.error : "Server did not create the user (request was rejected). Please try again.");
       }
@@ -57,19 +60,19 @@ function AdminUsersPage() {
   });
 
   const roleM = useMutation({
-    mutationFn: (v: { user_id: string; role: (typeof ROLE_OPTIONS)[number] }) => setRoleFn({ data: v }),
+    mutationFn: async (v: { user_id: string; role: (typeof ROLE_OPTIONS)[number] }) => setRoleFn({ data: { ...v, _token: await getToken() } }),
     onSuccess: () => { toast.success("Role updated"); qc.invalidateQueries({ queryKey: ["admin-team-users"] }); },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const resetM = useMutation({
-    mutationFn: (email: string) => resetFn({ data: { email } }),
+    mutationFn: async (email: string) => resetFn({ data: { email, _token: await getToken() } }),
     onSuccess: () => toast.success("Password reset email sent"),
     onError: (e: Error) => toast.error(e.message),
   });
 
   const setPwM = useMutation({
-    mutationFn: (v: { user_id: string; password: string }) => setPwFn({ data: v }),
+    mutationFn: async (v: { user_id: string; password: string }) => setPwFn({ data: { ...v, _token: await getToken() } }),
     onSuccess: () => toast.success("Password updated"),
     onError: (e: Error) => toast.error(e.message),
   });
