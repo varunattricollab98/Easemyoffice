@@ -56,21 +56,35 @@ export const listTeamUsers = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     try {
       await assertAdmin(null as never, context.userId);
+      // Source of truth = auth.users (always populated by signup/createUser),
+      // enriched with profiles + roles. This avoids showing an empty list even
+      // if a profile row is missing.
+      const { data: authList, error: authErr } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+      if (authErr) throw new Error(`auth list failed: ${authErr.message}`);
       const [profRes, roleRes] = await Promise.all([
-        supabaseAdmin.from("profiles").select("id, full_name, email, department, created_at").order("created_at", { ascending: false }),
+        supabaseAdmin.from("profiles").select("id, full_name, email, department"),
         supabaseAdmin.from("user_roles").select("user_id, role"),
       ]);
       if (profRes.error) throw new Error(`profiles query failed: ${profRes.error.message}`);
       if (roleRes.error) throw new Error(`user_roles query failed: ${roleRes.error.message}`);
-      const profiles = profRes.data;
-      const roles = roleRes.data;
+      const profById = new Map((profRes.data ?? []).map((p: any) => [p.id, p]));
       const byUser = new Map<string, string[]>();
-      (roles ?? []).forEach((r: any) => {
+      (roleRes.data ?? []).forEach((r: any) => {
         const arr = byUser.get(r.user_id) ?? [];
         arr.push(r.role);
         byUser.set(r.user_id, arr);
       });
-      const users = (profiles ?? []).map((p: any) => ({ ...p, roles: byUser.get(p.id) ?? [] }));
+      const users = (authList?.users ?? []).map((u: any) => {
+        const p: any = profById.get(u.id) ?? {};
+        return {
+          id: u.id,
+          email: u.email ?? p.email ?? null,
+          full_name: p.full_name ?? u.user_metadata?.full_name ?? null,
+          department: p.department ?? null,
+          roles: byUser.get(u.id) ?? [],
+          created_at: u.created_at,
+        };
+      });
       return { users, error: null as string | null };
     } catch (e: any) {
       console.error("listTeamUsers failed:", e);
