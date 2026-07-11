@@ -76,6 +76,23 @@ function TasksPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["tasks"] }); toast.success("Task deleted"); },
   });
 
+  const { data: team = [] } = useQuery({
+    queryKey: ["team-members"],
+    queryFn: async () => {
+      const { data } = await supabase.from("profiles").select("id, full_name, email").order("full_name", { ascending: true });
+      return data ?? [];
+    },
+  });
+
+  const reassign = useMutation({
+    mutationFn: async ({ id, owner_id }: { id: string; owner_id: string }) => {
+      const { error } = await supabase.from("tasks").update({ owner_id }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["tasks"] }); toast.success("Task assigned"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   return (
     <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -134,6 +151,16 @@ function TasksPage() {
                           <SelectItem value="todo">To do</SelectItem>
                           <SelectItem value="in_progress">In progress</SelectItem>
                           <SelectItem value="done">Done</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select value={t.owner_id ?? ""} onValueChange={(v) => reassign.mutate({ id: t.id, owner_id: v })}>
+                        <SelectTrigger className="h-7 w-40 text-xs">
+                          <SelectValue placeholder="Assign to…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(team as any[]).map((m) => (
+                            <SelectItem key={m.id} value={m.id}>{m.full_name || m.email || "User"}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
