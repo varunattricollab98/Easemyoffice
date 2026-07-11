@@ -30,7 +30,7 @@ const signupClient = createClient(
 );
 
 function AdminUsersPage() {
-  const { isAdmin, loading } = useAuth();
+  const { isAdmin, loading, user } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
   useEffect(() => {
@@ -120,6 +120,19 @@ function AdminUsersPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const removeM = useMutation({
+    mutationFn: async (userId: string) => {
+      // Strip access + remove from the team list. (Fully deleting the login
+      // itself requires the server admin key, which this hosting can't use —
+      // do that from Supabase → Authentication → Users if needed.)
+      await supabase.from("user_roles").delete().eq("user_id", userId);
+      const { error } = await supabase.from("profiles").delete().eq("id", userId);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => { toast.success("User removed from team"); qc.invalidateQueries({ queryKey: ["admin-team-users"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   if (loading || !isAdmin) return <div className="p-8 text-muted-foreground">Loading…</div>;
 
   const users = usersQ.data ?? [];
@@ -179,6 +192,7 @@ function AdminUsersPage() {
                 <th className="text-left px-4 py-2">Roles</th>
                 <th className="text-left px-4 py-2">Set role</th>
                 <th className="text-left px-4 py-2">Password</th>
+                <th className="text-left px-4 py-2">Remove</th>
               </tr>
             </thead>
             <tbody>
@@ -206,11 +220,27 @@ function AdminUsersPage() {
                       Send reset
                     </Button>
                   </td>
+                  <td className="px-4 py-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive hover:text-destructive"
+                      disabled={u.id === user?.id || removeM.isPending}
+                      title={u.id === user?.id ? "You can't remove yourself" : "Remove user from team"}
+                      onClick={() => {
+                        if (window.confirm(`Remove ${u.email || "this user"} from the team? They will lose all access.`)) {
+                          removeM.mutate(u.id);
+                        }
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  </td>
                 </tr>
               ))}
-              {usersQ.isLoading && <tr><td className="px-4 py-6 text-muted-foreground" colSpan={6}>Loading…</td></tr>}
-              {usersQ.isError && <tr><td className="px-4 py-6 text-destructive" colSpan={6}>Failed to load users: {(usersQ.error as Error)?.message ?? "Unknown error"}</td></tr>}
-              {!usersQ.isLoading && !usersQ.isError && users.length === 0 && <tr><td className="px-4 py-6 text-muted-foreground" colSpan={6}>No users yet.</td></tr>}
+              {usersQ.isLoading && <tr><td className="px-4 py-6 text-muted-foreground" colSpan={7}>Loading…</td></tr>}
+              {usersQ.isError && <tr><td className="px-4 py-6 text-destructive" colSpan={7}>Failed to load users: {(usersQ.error as Error)?.message ?? "Unknown error"}</td></tr>}
+              {!usersQ.isLoading && !usersQ.isError && users.length === 0 && <tr><td className="px-4 py-6 text-muted-foreground" colSpan={7}>No users yet.</td></tr>}
             </tbody>
           </table>
         </div>
