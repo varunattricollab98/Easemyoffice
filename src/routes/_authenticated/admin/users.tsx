@@ -65,27 +65,37 @@ function AdminUsersPage() {
       if (!form.email.trim()) throw new Error("Please enter an email");
       if (form.password.length < 8) throw new Error("Password must be at least 8 characters");
 
-      // 1) Create the auth user (browser-side signUp, admin session stays intact).
-      const { data, error } = await signupClient.auth.signUp({
+      // Preferred path: the admin edge function (fully server-side & reliable —
+      // pre-confirms the email and assigns exactly the chosen role).
+      const { data, error } = await supabase.functions.invoke("manage-users", {
+        body: {
+          action: "create",
+          email: form.email.trim(),
+          password: form.password,
+          full_name: form.full_name.trim(),
+          role: form.role,
+          department: form.department.trim(),
+        },
+      });
+      if (!error && data?.ok) return { id: data.id };
+      if (!error && data && data.ok === false) throw new Error(data.error);
+
+      // Fallback (edge function not deployed yet): browser-side signUp.
+      const { data: sd, error: se } = await signupClient.auth.signUp({
         email: form.email.trim(),
         password: form.password,
         options: { data: { full_name: form.full_name.trim() } },
       });
-      if (error) throw new Error(error.message);
-      const uid = data.user?.id;
+      if (se) throw new Error(se.message);
+      const uid = sd.user?.id;
       if (!uid) {
         throw new Error("User was not created. In Supabase, turn OFF 'Confirm email' (Authentication → Providers → Email), then try again.");
       }
-
-      // 2) The DB trigger assigns a default 'sales' role. If a different role was
-      //    chosen, replace it. Allowed by the 'admins manage user_roles' policy.
       if (form.role !== "sales") {
         await supabase.from("user_roles").delete().eq("user_id", uid);
         const { error: rErr } = await supabase.from("user_roles").insert({ user_id: uid, role: form.role });
         if (rErr) throw new Error(rErr.message);
       }
-
-      // 3) Optional department on the profile.
       if (form.department.trim()) {
         await supabase.from("profiles").update({ department: form.department.trim() }).eq("id", uid);
       }
@@ -122,14 +132,28 @@ function AdminUsersPage() {
 
   const removeM = useMutation({
     mutationFn: async (userId: string) => {
-      // Strip access + remove from the team list. (Fully deleting the login
-      // itself requires the server admin key, which this hosting can't use —
-      // do that from Supabase → Authentication → Users if needed.)
+      // Preferred: fully delete the login via the admin edge function, so the
+      // email can be reused later (cascades to profile + roles).
+      const { data, error } = await supabase.functions.invoke("manage-users", {
+        body: { action: "delete", user_id: userId },
+      });
+      if (!error && data?.ok) return { full: true };
+      if (!error && data && data.ok === false) throw new Error(data.error);
+
+      // Fallback (edge function not deployed yet): strip access only.
       await supabase.from("user_roles").delete().eq("user_id", userId);
-      const { error } = await supabase.from("profiles").delete().eq("id", userId);
-      if (error) throw new Error(error.message);
+      const { error: pErr } = await supabase.from("profiles").delete().eq("id", userId);
+      if (pErr) throw new Error(pErr.message);
+      return { full: false };
     },
-    onSuccess: () => { toast.success("User removed from team"); qc.invalidateQueries({ queryKey: ["admin-team-users"] }); },
+    onSuccess: (r: any) => {
+      toast.success(
+        r?.full
+          ? "User fully deleted"
+          : "Removed from team. The login still exists — deploy the 'manage-users' function (or delete it in Supabase → Authentication → Users) to reuse the email.",
+      );
+      qc.invalidateQueries({ queryKey: ["admin-team-users"] });
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
