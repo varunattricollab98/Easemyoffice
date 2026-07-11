@@ -157,6 +157,15 @@ function NewTaskDialog({ onClose, userId }: { onClose: () => void; userId: strin
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState("medium");
   const [dueAt, setDueAt] = useState("");
+  const [owner, setOwner] = useState(userId ?? "");
+
+  const { data: team = [] } = useQuery({
+    queryKey: ["team-members"],
+    queryFn: async () => {
+      const { data } = await supabase.from("profiles").select("id, full_name, email").order("full_name", { ascending: true });
+      return data ?? [];
+    },
+  });
 
   const create = useMutation({
     mutationFn: async () => {
@@ -164,7 +173,7 @@ function NewTaskDialog({ onClose, userId }: { onClose: () => void; userId: strin
         title, description: description || null,
         priority: priority as never, status: "todo" as never,
         due_at: dueAt ? new Date(dueAt).toISOString() : null,
-        owner_id: userId, created_by: userId,
+        owner_id: owner || userId, created_by: userId,
       });
       if (error) throw error;
     },
@@ -188,16 +197,26 @@ function NewTaskDialog({ onClose, userId }: { onClose: () => void; userId: strin
           <label className="text-sm font-medium">Description</label>
           <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
         </div>
+        <div>
+          <label className="text-sm font-medium">Assign to</label>
+          <Select value={owner} onValueChange={setOwner}>
+            <SelectTrigger><SelectValue placeholder="Choose team member" /></SelectTrigger>
+            <SelectContent>
+              {(team as any[]).map((m) => (
+                <SelectItem key={m.id} value={m.id}>{m.full_name || m.email || "User"}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-sm font-medium">Priority</label>
             <Select value={priority} onValueChange={setPriority}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="low">Low</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="urgent">Urgent</SelectItem>
+                <SelectItem value="high">High — remind every 30 min</SelectItem>
+                <SelectItem value="medium">Medium — remind hourly</SelectItem>
+                <SelectItem value="low">Low — remind daily</SelectItem>
               </SelectContent>
             </Select>
           </div>

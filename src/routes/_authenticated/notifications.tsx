@@ -44,7 +44,7 @@ function NotificationsPage() {
     queryKey: ["notif-assigned", user?.id],
     queryFn: async () => {
       const { data } = await supabase.from("notifications")
-        .select("id, title, body, lead_id, read, created_at")
+        .select("id, title, body, lead_id, task_id, read, created_at")
         .eq("read", false as never).order("created_at", { ascending: false }).limit(100);
       return data ?? [];
     },
@@ -109,7 +109,7 @@ function NotificationsPage() {
         ts: new Date(n.created_at).getTime(),
         channels: [],
         onDone: () => markNotifRead.mutate(n.id),
-        href: n.lead_id ? "/leads/$id" : undefined,
+        href: n.lead_id ? "/leads/$id" : n.task_id ? "/tasks" : undefined,
         params: n.lead_id ? { id: n.lead_id } : undefined,
       });
     });

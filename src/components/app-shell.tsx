@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { initials } from "@/lib/crm";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 // roles: undefined = visible to all authenticated users
 type NavItem = { to: string; label: string; icon: typeof Users; roles?: AppRole[] };
@@ -50,6 +52,19 @@ export function AppSidebar() {
   const loc = useLocation();
   const items = [...visibleFor(NAV, roles, isAdmin), ...visibleFor(ADMIN_NAV, roles, isAdmin)];
 
+  const { data: unreadCount = 0 } = useQuery({
+    queryKey: ["notif-unread-count"],
+    enabled: !!user?.id,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("read", false as never);
+      return count ?? 0;
+    },
+  });
+
   return (
     <aside className="hidden lg:flex w-64 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">
       <div className="px-5 py-5 border-b flex items-center gap-2">
@@ -79,7 +94,12 @@ export function AppSidebar() {
               )}
             >
               <Icon className="h-4 w-4" />
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {item.to === "/notifications" && unreadCount > 0 && (
+                <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-rose-600 text-white text-[11px] font-semibold">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
             </Link>
           );
         })}

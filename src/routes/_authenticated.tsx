@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { AppSidebar, MobileTabBar } from "@/components/app-shell";
 import { useGlobalShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { ShortcutsOverlay } from "@/components/shortcuts-overlay";
+import { NotificationsWatcher } from "@/components/notifications-watcher";
 import { runDailyBackupIfDue } from "@/lib/backup";
 
 export const Route = createFileRoute("/_authenticated")({
@@ -38,6 +39,7 @@ function AuthenticatedLayout() {
       </main>
       <MobileTabBar />
       <ShortcutsOverlay />
+      <NotificationsWatcher />
     </div>
   );
 }
