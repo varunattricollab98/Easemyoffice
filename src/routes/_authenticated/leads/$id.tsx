@@ -21,10 +21,18 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Phone, Mail, MessageCircle, Calendar, Plus, Check, Trash2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ArrowLeft, Phone, Mail, MessageCircle, Calendar, Plus, Check, Trash2, Send, Loader2 } from "lucide-react";
 import { INTERESTS, INTENT_FLAGS, SERVICES, SOURCES, STAGES, calcScore, deriveInterest, labelFor } from "@/lib/crm";
 import { useAuth } from "@/lib/auth";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
 
@@ -38,6 +46,7 @@ function LeadDetailPage() {
   const { user, isAdmin } = useAuth();
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const [emailOpen, setEmailOpen] = useState(false);
 
   const { data: lead, isLoading } = useQuery({
     queryKey: ["lead", id],
@@ -122,7 +131,7 @@ function LeadDetailPage() {
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => { window.location.href = `tel:${lead.mobile}`; logActivity("call", "Called " + lead.client_name); }}><Phone className="h-4 w-4 mr-1" /> Call</Button>
           <Button variant="outline" size="sm" onClick={() => { window.location.href = `https://wa.me/${lead.mobile.replace(/\D/g,"")}`; logActivity("whatsapp", "Opened WhatsApp"); }}><MessageCircle className="h-4 w-4 mr-1" /> WhatsApp</Button>
-          {lead.email && <Button variant="outline" size="sm" onClick={() => { window.location.href = `mailto:${lead.email}`; logActivity("email", "Emailed " + lead.email); }}><Mail className="h-4 w-4 mr-1" /> Email</Button>}
+          {lead.email && <Button variant="outline" size="sm" onClick={() => setEmailOpen(true)}><Mail className="h-4 w-4 mr-1" /> Email</Button>}
           {isAdmin && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -295,7 +304,166 @@ function LeadDetailPage() {
           </CardContent></Card>
         </TabsContent>
       </Tabs>
+
+      {lead.email && (
+        <EmailComposeDialog
+          lead={lead}
+          open={emailOpen}
+          onOpenChange={setEmailOpen}
+          onSent={(subject) => logActivity("email", `Emailed ${lead.email}`, subject)}
+        />
+      )}
     </div>
+  );
+}
+
+const EMAIL_TEMPLATES = [
+  { id: "quotation", label: "Quotation" },
+  { id: "welcome", label: "Welcome / Intro" },
+  { id: "followup", label: "Follow-up" },
+  { id: "documents", label: "Documents required" },
+  { id: "payment", label: "Payment reminder" },
+  { id: "thankyou", label: "Thank you" },
+  { id: "custom", label: "Blank (write my own)" },
+] as const;
+
+function buildTemplate(id: string, lead: any, senderName: string) {
+  const name = lead.client_name || "there";
+  const service = labelFor(SERVICES, lead.service_required);
+  const sign = `\n\nWarm regards,\n${senderName || "Team EaseMyOffice"}\nEaseMyOffice`;
+  switch (id) {
+    case "quotation":
+      return {
+        subject: `Quotation for ${service} — EaseMyOffice`,
+        body: `Dear ${name},\n\nThank you for your interest in our ${service} service. As discussed, here is our quotation:\n\n• Service: ${service}\n• Price: [enter amount]\n• Inclusions: [enter what's included]\n• Validity: 15 days\n\nPlease let me know if you have any questions — we'd be glad to help you get started.${sign}`,
+      };
+    case "welcome":
+      return {
+        subject: `Welcome to EaseMyOffice, ${name}!`,
+        body: `Dear ${name},\n\nThank you for choosing EaseMyOffice for your ${service} requirement. We're excited to work with you.\n\nI'll be your point of contact throughout the process. Feel free to reach out any time with questions.${sign}`,
+      };
+    case "followup":
+      return {
+        subject: `Following up — ${service}`,
+        body: `Dear ${name},\n\nI hope you're doing well. I wanted to follow up regarding your ${service} enquiry. Please let me know if you'd like to move ahead or if there's anything I can clarify.\n\nHappy to help however I can.${sign}`,
+      };
+    case "documents":
+      return {
+        subject: `Documents required for ${service}`,
+        body: `Dear ${name},\n\nTo proceed with your ${service}, please share the following documents:\n\n• [Document 1]\n• [Document 2]\n• [Document 3]\n\nYou can simply reply to this email with the files attached. Once received, we'll begin processing right away.${sign}`,
+      };
+    case "payment":
+      return {
+        subject: `Payment details for ${service}`,
+        body: `Dear ${name},\n\nThank you for confirming your ${service} order. Please find the payment details below:\n\n• Amount: [enter amount]\n• Payment link / account: [enter details]\n\nOnce the payment is completed, kindly share the confirmation so we can proceed.${sign}`,
+      };
+    case "thankyou":
+      return {
+        subject: `Thank you, ${name}`,
+        body: `Dear ${name},\n\nThank you for your time today. It was a pleasure speaking with you about your ${service} requirement. Please don't hesitate to reach out if you need anything further.${sign}`,
+      };
+    default:
+      return { subject: "", body: `Dear ${name},\n\n${sign}` };
+  }
+}
+
+function textToHtml(text: string) {
+  const esc = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1e293b;line-height:1.6;white-space:normal">${esc.replace(/\n/g, "<br>")}</div>`;
+}
+
+function EmailComposeDialog({
+  lead, open, onOpenChange, onSent,
+}: {
+  lead: any; open: boolean; onOpenChange: (v: boolean) => void; onSent: (subject: string) => void;
+}) {
+  const { profile, user } = useAuth();
+  const senderName = profile?.full_name ?? "";
+  const [templateId, setTemplateId] = useState<string>("quotation");
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const [sending, setSending] = useState(false);
+
+  // Load the selected template's content into the subject/body fields.
+  const applyTemplate = (id: string) => {
+    setTemplateId(id);
+    const t = buildTemplate(id, lead, senderName);
+    setSubject(t.subject);
+    setBody(t.body);
+  };
+
+  // Pre-fill with the Quotation template each time the dialog is opened.
+  useEffect(() => {
+    if (open) {
+      const t = buildTemplate("quotation", lead, senderName);
+      setTemplateId("quotation");
+      setSubject(t.subject);
+      setBody(t.body);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const send = async () => {
+    if (!subject.trim()) return toast.error("Please add a subject");
+    if (!body.trim()) return toast.error("Please write the email body");
+    setSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-client-email", {
+        body: {
+          to: lead.email,
+          subject: subject.trim(),
+          html: textToHtml(body),
+          text: body,
+          replyTo: user?.email,
+        },
+      });
+      if (error) throw new Error(error.message);
+      if (!data?.ok) throw new Error(data?.error || "Failed to send email");
+      toast.success(`Email sent to ${lead.email}`);
+      onSent(subject.trim());
+      onOpenChange(false);
+    } catch (e: any) {
+      toast.error(e.message || "Could not send email");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Send email to client</DialogTitle>
+          <DialogDescription>To: {lead.email}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Template</Label>
+            <Select value={templateId} onValueChange={applyTemplate}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {EMAIL_TEMPLATES.map((t) => <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Subject</Label>
+            <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Email subject" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Message</Label>
+            <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={12} placeholder="Write your message…" />
+            <div className="text-xs text-muted-foreground">Replies from the client will go to {user?.email || "your email"}.</div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={sending}>Cancel</Button>
+          <Button onClick={send} disabled={sending}>
+            {sending ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Sending…</> : <><Send className="h-4 w-4 mr-1" /> Send email</>}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

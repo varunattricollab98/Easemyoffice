@@ -1,0 +1,75 @@
+// Sends a one-off client-facing email from the CRM via Resend.
+// Called from the browser via supabase.functions.invoke("send-client-email", { body }).
+// Supabase verifies the caller's JWT automatically, so only logged-in users can send.
+//
+// Required Edge Function secrets (set in Supabase -> Edge Functions -> Secrets):
+//   RESEND_API_KEY   -> your Resend API key
+//   CRM_FROM_EMAIL   -> e.g. "EaseMyOffice <crm@easemyoffice.in>" (must be a
+//                        verified domain in Resend to email real clients)
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+const FROM_EMAIL =
+  Deno.env.get("CRM_FROM_EMAIL") ??
+  Deno.env.get("REPORTS_FROM_EMAIL") ??
+  "EaseMyOffice CRM <onboarding@resend.dev>";
+
+function isEmail(v: unknown): v is string {
+  return typeof v === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  try {
+    if (req.method !== "POST") throw new Error("Use POST");
+    const { to, subject, html, text, replyTo, cc } = await req.json().catch(() => ({}));
+
+    if (!isEmail(to)) throw new Error("A valid recipient email ('to') is required.");
+    if (!subject || typeof subject !== "string") throw new Error("A subject is required.");
+    if ((!html || typeof html !== "string") && (!text || typeof text !== "string"))
+      throw new Error("An email body is required.");
+    if (!RESEND_API_KEY)
+      throw new Error("Email is not configured yet. Add RESEND_API_KEY in Supabase Edge Function secrets.");
+
+    const payload: Record<string, unknown> = { from: FROM_EMAIL, to: [to], subject };
+    if (html) payload.html = html;
+    if (text) payload.text = text;
+    if (isEmail(replyTo)) payload.reply_to = replyTo;
+    if (isEmail(cc)) payload.cc = [cc];
+
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const bodyText = await res.text();
+    if (!res.ok) {
+      // Surface Resend's error message so the UI can show something useful.
+      throw new Error(`Email provider rejected the send (${res.status}): ${bodyText}`);
+    }
+
+    let id: string | null = null;
+    try { id = JSON.parse(bodyText)?.id ?? null; } catch { /* ignore */ }
+
+    return new Response(JSON.stringify({ ok: true, id }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (e) {
+    // Return 200 with an ok:false flag so the browser client can read the
+    // actual error message (Supabase's invoke() hides the body on non-2xx).
+    return new Response(JSON.stringify({ ok: false, error: (e as Error).message }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});
