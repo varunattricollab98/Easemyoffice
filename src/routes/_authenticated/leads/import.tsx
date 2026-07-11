@@ -135,9 +135,14 @@ function ImportLeadsPage() {
     setFileName(file.name);
     const text = await file.text();
     const all = parseCSV(text);
-    if (all.length < 2) { toast.error("That file has no data rows."); return; }
-    const headers = all[0].map((h) => h.trim());
-    const rows = all.slice(1);
+    // Skip leading blank/title rows: the header row is the first row that has at
+    // least 2 non-empty cells (handles sheets with an empty or merged title row 1).
+    let headerRowIdx = all.findIndex((r) => r.filter((c) => (c ?? "").trim() !== "").length >= 2);
+    if (headerRowIdx < 0) headerRowIdx = 0;
+    const headerRow = all[headerRowIdx] ?? [];
+    const rows = all.slice(headerRowIdx + 1);
+    if (headerRow.length === 0 || rows.length === 0) { toast.error("That file has no data rows."); return; }
+    const headers = headerRow.map((h) => h.trim());
     // auto-map: exact header matches first (avoids e.g. "Business Name" grabbing
     // the "Name" field), then looser "contains" matches. Each header used once.
     const auto: Record<string, string> = {};
