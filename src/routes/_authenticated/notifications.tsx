@@ -18,7 +18,7 @@ export const Route = createFileRoute("/_authenticated/notifications")({
 function NotificationsPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const [filter, setFilter] = useState<"all" | "overdue" | "due" | "payments">("all");
+  const [filter, setFilter] = useState<"all" | "assigned" | "overdue" | "due" | "payments">("all");
   const [doneIds, setDoneIds] = useState<Set<string>>(new Set());
 
   const { data: followups = [] } = useQuery({
@@ -36,6 +36,16 @@ function NotificationsPage() {
       const { data } = await supabase.from("bookings").select("id, client_name, contact_no, email_id, balance_amount, balance_due_date, booking_code, last_reminder_sent_at")
         .gt("balance_amount", 0).not("balance_due_date", "is", null)
         .order("balance_due_date", { ascending: true }).limit(100);
+      return data ?? [];
+    },
+  });
+
+  const { data: assigned = [] } = useQuery({
+    queryKey: ["notif-assigned", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase.from("notifications")
+        .select("id, title, body, lead_id, read, created_at")
+        .eq("read", false as never).order("created_at", { ascending: false }).limit(100);
       return data ?? [];
     },
   });
@@ -69,14 +79,40 @@ function NotificationsPage() {
     },
   });
 
+  const markNotifRead = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("notifications").update({ read: true as never }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, id) => {
+      setDoneIds((prev) => new Set(prev).add(`nt-${id}`));
+      qc.invalidateQueries({ queryKey: ["notif-assigned"] });
+      toast.success("Marked read");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const items = useMemo(() => {
     const list: Array<{
-      id: string; key: string; type: "overdue" | "due" | "payment";
+      id: string; key: string; type: "overdue" | "due" | "payment" | "assigned";
       title: string; sub: string; ts: number;
       channels: Array<"whatsapp" | "email">;
       onDone: () => void;
       href?: any; params?: any;
     }> = [];
+
+    assigned.forEach((n: any) => {
+      list.push({
+        id: `nt-${n.id}`, key: `nt-${n.id}`, type: "assigned",
+        title: n.title,
+        sub: `${n.body ? n.body + " · " : ""}${formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}`,
+        ts: new Date(n.created_at).getTime(),
+        channels: [],
+        onDone: () => markNotifRead.mutate(n.id),
+        href: n.lead_id ? "/leads/$id" : undefined,
+        params: n.lead_id ? { id: n.lead_id } : undefined,
+      });
+    });
 
     followups.forEach((f: any) => {
       const due = new Date(f.due_at);
@@ -109,12 +145,19 @@ function NotificationsPage() {
       });
     });
 
-    return list.filter((i) => !doneIds.has(i.key)).sort((a, b) => a.ts - b.ts);
-  }, [followups, payments, doneIds, markDone, markPaid]);
+    return list.filter((i) => !doneIds.has(i.key)).sort((a, b) => {
+      // Newest assignment alerts first, then due/overdue by soonest.
+      if (a.type === "assigned" && b.type === "assigned") return b.ts - a.ts;
+      if (a.type === "assigned") return -1;
+      if (b.type === "assigned") return 1;
+      return a.ts - b.ts;
+    });
+  }, [followups, payments, assigned, doneIds, markDone, markPaid, markNotifRead]);
 
   const filtered = items.filter((i) => filter === "all" || (filter === "payments" ? i.type === "payment" : i.type === filter));
   const counts = {
     all: items.length,
+    assigned: items.filter((i) => i.type === "assigned").length,
     overdue: items.filter((i) => i.type === "overdue").length,
     due: items.filter((i) => i.type === "due").length,
     payments: items.filter((i) => i.type === "payment").length,
@@ -128,7 +171,7 @@ function NotificationsPage() {
       </div>
 
       <div className="flex gap-2 flex-wrap">
-        {(["all", "overdue", "due", "payments"] as const).map((f) => (
+        {(["all", "assigned", "overdue", "due", "payments"] as const).map((f) => (
           <Button key={f} size="sm" variant={filter === f ? "default" : "outline"} onClick={() => setFilter(f)}>
             {f[0].toUpperCase() + f.slice(1)} <Badge variant="secondary" className="ml-2">{counts[f]}</Badge>
           </Button>
@@ -140,9 +183,10 @@ function NotificationsPage() {
           {filtered.length === 0 ? (
             <div className="p-10 text-center text-muted-foreground">All caught up! 🎉</div>
           ) : filtered.map((i) => {
-            const Icon = i.type === "overdue" ? AlertCircle : i.type === "payment" ? IndianRupee : Clock;
+            const Icon = i.type === "overdue" ? AlertCircle : i.type === "payment" ? IndianRupee : i.type === "assigned" ? Bell : Clock;
             const tone = i.type === "overdue" ? "text-rose-600 bg-rose-100 dark:bg-rose-950"
               : i.type === "payment" ? "text-amber-600 bg-amber-100 dark:bg-amber-950"
+              : i.type === "assigned" ? "text-indigo-600 bg-indigo-100 dark:bg-indigo-950"
               : "text-blue-600 bg-blue-100 dark:bg-blue-950";
 
             const inner = (
