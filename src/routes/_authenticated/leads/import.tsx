@@ -30,15 +30,15 @@ const LEAD_FIELDS: { key: string; label: string; required?: boolean }[] = [
 
 // Synonyms used to auto-guess the mapping from the CSV headers.
 const FIELD_SYNONYMS: Record<string, string[]> = {
-  client_name: ["client name", "name", "contact name", "client", "customer name"],
-  mobile: ["cont no", "cont. no.", "contact no", "contact no.", "mobile", "mobile no", "phone", "contact number", "contact"],
+  client_name: ["client name", "name", "contact name", "client", "customer name", "full name"],
+  mobile: ["cont no", "cont. no.", "contact no", "contact no.", "contact number", "mobile", "mobile no", "phone", "phone number", "contact"],
   email: ["email id", "email", "e-mail", "email address"],
   company_name: ["business name", "company name", "company", "business", "firm"],
-  city: ["city"],
+  city: ["city", "location"],
   state: ["state"],
-  source: ["booking source", "source", "lead source"],
-  service_required: ["service", "service required", "plan name", "vo plan"],
-  budget: ["vo amount", "total amount", "amount", "budget", "deal value", "value"],
+  source: ["booking source", "lead source", "source"],
+  service_required: ["service", "service required", "solution type", "solution", "plan name", "vo plan"],
+  budget: ["vo amount", "total amount", "revenue", "amount", "budget", "deal value", "value"],
 };
 
 function normalizeHeader(h: string): string {
@@ -138,15 +138,20 @@ function ImportLeadsPage() {
     if (all.length < 2) { toast.error("That file has no data rows."); return; }
     const headers = all[0].map((h) => h.trim());
     const rows = all.slice(1);
-    // auto-map
+    // auto-map: exact header matches first (avoids e.g. "Business Name" grabbing
+    // the "Name" field), then looser "contains" matches. Each header used once.
     const auto: Record<string, string> = {};
+    const used = new Set<string>();
     for (const f of LEAD_FIELDS) {
       const syns = FIELD_SYNONYMS[f.key] ?? [];
-      const match = headers.find((h) => {
-        const nh = normalizeHeader(h);
-        return syns.some((s) => nh === s || nh.includes(s));
-      });
-      if (match) auto[f.key] = match;
+      const match = headers.find((h) => !used.has(h) && syns.includes(normalizeHeader(h)));
+      if (match) { auto[f.key] = match; used.add(match); }
+    }
+    for (const f of LEAD_FIELDS) {
+      if (auto[f.key]) continue;
+      const syns = FIELD_SYNONYMS[f.key] ?? [];
+      const match = headers.find((h) => !used.has(h) && syns.some((s) => normalizeHeader(h).includes(s)));
+      if (match) { auto[f.key] = match; used.add(match); }
     }
     setMapping(auto);
     setParsed({ headers, rows });
