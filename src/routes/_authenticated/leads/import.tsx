@@ -182,19 +182,7 @@ function ImportLeadsPage() {
         if (skippedReasons.length < 8) skippedReasons.push(`Row ${i + 2}: missing ${!client_name ? "Client Name" : "Mobile"}`);
         return;
       }
-      const lead: any = {
-        client_name,
-        mobile,
-        email: get(cols, "email") || null,
-        company_name: get(cols, "company_name") || null,
-        city: get(cols, "city") || null,
-        state: get(cols, "state") || null,
-        source: mapSource(get(cols, "source")),
-        budget: parseAmount(get(cols, "budget")),
-        created_by: user?.id ?? null,
-      };
-      const svc = mapService(get(cols, "service_required"));
-      if (svc) lead.service_required = svc;
+      let notes: string | null = null;
       if (appendNotes) {
         const parts: string[] = [];
         parsed!.headers.forEach((h, idx) => {
@@ -202,8 +190,23 @@ function ImportLeadsPage() {
           const val = (cols[idx] ?? "").trim();
           if (val) parts.push(`${h}: ${val}`);
         });
-        if (parts.length) lead.notes = parts.join("\n");
+        if (parts.length) notes = parts.join("\n");
       }
+      // Keep every row's keys identical (so the bulk insert is uniform) and
+      // never send null for the required service_required column.
+      const lead = {
+        client_name,
+        mobile,
+        email: get(cols, "email") || null,
+        company_name: get(cols, "company_name") || null,
+        city: get(cols, "city") || null,
+        state: get(cols, "state") || null,
+        source: mapSource(get(cols, "source")),
+        service_required: mapService(get(cols, "service_required")) ?? "virtual_office",
+        budget: parseAmount(get(cols, "budget")),
+        notes,
+        created_by: user?.id ?? null,
+      };
       out.push(lead);
     });
     return { out, skipped, skippedReasons };
