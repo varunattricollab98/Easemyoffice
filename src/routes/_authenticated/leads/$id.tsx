@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +10,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Phone, Mail, MessageCircle, Calendar, Plus, Check } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { ArrowLeft, Phone, Mail, MessageCircle, Calendar, Plus, Check, Trash2 } from "lucide-react";
 import { INTERESTS, INTENT_FLAGS, SERVICES, SOURCES, STAGES, calcScore, deriveInterest, labelFor } from "@/lib/crm";
 import { useAuth } from "@/lib/auth";
 import { useState } from "react";
@@ -24,8 +35,9 @@ export const Route = createFileRoute("/_authenticated/leads/$id")({
 
 function LeadDetailPage() {
   const { id } = Route.useParams();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const qc = useQueryClient();
+  const navigate = useNavigate();
 
   const { data: lead, isLoading } = useQuery({
     queryKey: ["lead", id],
@@ -69,6 +81,21 @@ function LeadDetailPage() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const deleteLead = useMutation({
+    mutationFn: async () => {
+      // Follow-ups and timeline activities are removed automatically via the
+      // database's ON DELETE CASCADE on their lead_id foreign keys.
+      const { error } = await supabase.from("leads").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["leads"] });
+      toast.success("Lead deleted");
+      navigate({ to: "/leads" });
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const logActivity = async (type: string, title: string, body?: string) => {
     if (!user) return;
     await supabase.from("lead_activities").insert({ lead_id: id, actor_id: user.id, type: type as any, title, body });
@@ -96,6 +123,33 @@ function LeadDetailPage() {
           <Button variant="outline" size="sm" onClick={() => { window.location.href = `tel:${lead.mobile}`; logActivity("call", "Called " + lead.client_name); }}><Phone className="h-4 w-4 mr-1" /> Call</Button>
           <Button variant="outline" size="sm" onClick={() => { window.location.href = `https://wa.me/${lead.mobile.replace(/\D/g,"")}`; logActivity("whatsapp", "Opened WhatsApp"); }}><MessageCircle className="h-4 w-4 mr-1" /> WhatsApp</Button>
           {lead.email && <Button variant="outline" size="sm" onClick={() => { window.location.href = `mailto:${lead.email}`; logActivity("email", "Emailed " + lead.email); }}><Mail className="h-4 w-4 mr-1" /> Email</Button>}
+          {isAdmin && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" title="Delete lead (admin only)">
+                  <Trash2 className="h-4 w-4 mr-1" /> Delete
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete this lead?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This permanently removes <span className="font-medium">{lead.client_name}</span> ({lead.lead_code}) along with its
+                    timeline and follow-ups. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={() => deleteLead.mutate()}
+                  >
+                    Delete lead
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
         </div>
       </div>
 
