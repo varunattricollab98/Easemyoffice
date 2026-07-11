@@ -3,15 +3,17 @@ export const STAGES = [
   { id: "new_lead", label: "New Lead", color: "bg-slate-500" },
   { id: "contacted", label: "Contacted", color: "bg-blue-500" },
   { id: "interested", label: "Interested", color: "bg-cyan-500" },
-  { id: "documents_pending", label: "Documents Pending", color: "bg-amber-500" },
   { id: "quotation_shared", label: "Quotation Shared", color: "bg-violet-500" },
   { id: "negotiation", label: "Negotiation", color: "bg-fuchsia-500" },
+  { id: "followups", label: "Followups", color: "bg-indigo-500" },
   { id: "payment_pending", label: "Payment Pending", color: "bg-orange-500" },
   { id: "payment_received", label: "Payment Received", color: "bg-emerald-500" },
+  { id: "documents_pending", label: "Documents Pending", color: "bg-amber-500" },
   { id: "draft_shared", label: "Draft Shared", color: "bg-teal-500" },
   { id: "agreement_signed", label: "Agreement Signed", color: "bg-green-600" },
   { id: "completed", label: "Completed", color: "bg-green-700" },
   { id: "renewal_due", label: "Renewal Due", color: "bg-yellow-500" },
+  { id: "not_interested", label: "Not interested", color: "bg-zinc-500" },
   { id: "lost", label: "Lost", color: "bg-rose-500" },
 ] as const;
 

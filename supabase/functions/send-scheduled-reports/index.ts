@@ -15,11 +15,12 @@ const FROM_EMAIL = Deno.env.get("REPORTS_FROM_EMAIL") ?? "EaseMyOffice CRM <onbo
 
 const STAGES: Record<string, string> = {
   new_lead: "New Lead", contacted: "Contacted", interested: "Interested",
-  documents_pending: "Documents Pending", quotation_shared: "Quotation Shared",
-  negotiation: "Negotiation", payment_pending: "Payment Pending",
-  payment_received: "Payment Received", draft_shared: "Draft Shared",
-  agreement_signed: "Agreement Signed", completed: "Completed",
-  renewal_due: "Renewal Due", lost: "Lost",
+  quotation_shared: "Quotation Shared", negotiation: "Negotiation",
+  followups: "Followups", payment_pending: "Payment Pending",
+  payment_received: "Payment Received", documents_pending: "Documents Pending",
+  draft_shared: "Draft Shared", agreement_signed: "Agreement Signed",
+  completed: "Completed", renewal_due: "Renewal Due",
+  not_interested: "Not interested", lost: "Lost",
 };
 
 function csv(rows: Record<string, unknown>[]): string {
