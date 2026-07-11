@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import { useServerFn } from "@tanstack/react-start";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, ExternalLink } from "lucide-react";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
-import { appendBooking, getBookingsSheet, setBookingsSheet } from "@/lib/bookings.functions";
+import { supabase } from "@/integrations/supabase/client";
+import { syncBookingToSheet } from "@/lib/bookings.client";
 
 const SOURCES = ["Website", "Referral", "IndiaMART", "Google Ads", "Meta Ads", "WhatsApp", "Direct", "Other"];
 const SP_STATUSES = ["Active", "Pending", "Inactive"];
@@ -43,22 +43,8 @@ const num = (v: string) => {
 
 export function NewBookingDialog() {
   const { isAdmin, profile, user } = useAuth();
+  const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-
-  const append = useServerFn(appendBooking);
-  const getSheet = useServerFn(getBookingsSheet);
-  const setSheet = useServerFn(setBookingsSheet);
-
-  const sheetQ = useQuery({
-    queryKey: ["bookings-sheet"], queryFn: () => getSheet(), enabled: open && !!isAdmin,
-  });
-
-  const [sheetUrl, setSheetUrl] = useState("");
-  const setSheetM = useMutation({
-    mutationFn: () => setSheet({ data: { url_or_id: sheetUrl } }),
-    onSuccess: () => { toast.success("Sheet linked"); setSheetUrl(""); sheetQ.refetch(); },
-    onError: (e: Error) => toast.error(e.message),
-  });
 
   // Form state
   const [f, setF] = useState({
@@ -105,11 +91,14 @@ export function NewBookingDialog() {
   const balanceAmount = isPartial ? Math.max(0, +(afterTds - amountReceived).toFixed(2)) : 0;
 
   const submit = useMutation({
-    mutationFn: () => append({
-      data: {
-        date: f.date,
-        sales_agent: f.sales_agent,
-        booking_id: f.booking_id,
+    mutationFn: async () => {
+      // 1) Save to the database (client-side insert, allowed by RLS for
+      //    admin / sales / bd). This always happens.
+      const { error } = await supabase.from("bookings").insert({
+        external_booking_id: f.booking_id,
+        booking_date: f.date,
+        sales_agent_id: user?.id ?? null,
+        sales_agent_name: f.sales_agent,
         booking_source: f.booking_source,
         plan_name: f.plan_name,
         vo_plan: f.vo_plan,
@@ -126,10 +115,29 @@ export function NewBookingDialog() {
         amount_received: amountReceived,
         balance_amount: balanceAmount,
         balance_due_date: isPartial && f.balance_due_date ? f.balance_due_date : null,
-      },
-    }),
+        assigned_to: user?.id ?? null,
+        created_by: user?.id ?? null,
+      });
+      if (error) throw new Error(error.message);
+
+      // 2) Best-effort: append the same row to the connected Google Sheet.
+      const values = [
+        f.date, f.sales_agent, f.booking_id, f.booking_source, f.plan_name, f.vo_plan,
+        f.sp_name, f.area, f.city, f.state, f.sp_status,
+        vo, voGst, f.addon_services, addOn, addOnGst,
+        total, tdsPct, tdsAmt, afterTds,
+        f.payment_mode_ref, f.payment_id_utr, f.invoice_number,
+        spPay, addOnPay, profit,
+        f.sp_payment_status, f.vo_status,
+        f.business_name, f.client_name, f.email_id, f.contact_no, f.remarks, month,
+        amountReceived, balanceAmount, (isPartial && f.balance_due_date) ? f.balance_due_date : "",
+      ];
+      const sheet = await syncBookingToSheet(values);
+      return { sheet };
+    },
     onSuccess: (res) => {
-      toast.success("Booking saved" + (res?.sheet_warning ? ` (Sheet: ${res.sheet_warning})` : ""));
+      toast.success("Booking saved" + (res?.sheet?.ok ? " · added to Google Sheet ✓" : ""));
+      qc.invalidateQueries({ queryKey: ["bookings"] });
       setOpen(false);
       setF((s) => ({ ...s, booking_id: genBookingId(), plan_name: "", vo_plan: "", vo_amount: "",
         addon_services: "", addon_amount: "", payment_mode_ref: "", payment_id_utr: "", invoice_number: "",
@@ -155,25 +163,6 @@ export function NewBookingDialog() {
         <DialogHeader>
           <DialogTitle>New Booking</DialogTitle>
         </DialogHeader>
-
-        {isAdmin && !sheetQ.data?.id && (
-          <div className="rounded-md border bg-muted/30 p-3 space-y-2">
-            <div className="text-sm font-medium">Link a Google Sheet to receive bookings</div>
-            <div className="text-xs text-muted-foreground">
-              Paste the Sheet URL or ID. The connected Google account must have edit access. Connect Google Sheets in Lovable Connectors first.
-            </div>
-            <div className="flex gap-2">
-              <Input placeholder="https://docs.google.com/spreadsheets/d/…" value={sheetUrl} onChange={(e) => setSheetUrl(e.target.value)} />
-              <Button onClick={() => setSheetM.mutate()} disabled={!sheetUrl || setSheetM.isPending}>Save</Button>
-            </div>
-          </div>
-        )}
-        {sheetQ.data?.id && (
-          <a href={`https://docs.google.com/spreadsheets/d/${sheetQ.data.id}`} target="_blank" rel="noreferrer"
-            className="text-xs text-muted-foreground inline-flex items-center gap-1 hover:text-foreground">
-            <ExternalLink className="h-3 w-3" /> Connected sheet
-          </a>
-        )}
 
         <div className="grid gap-3 md:grid-cols-3">
           {T("date", "Date", { type: "date" })}

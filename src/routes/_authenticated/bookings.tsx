@@ -1,8 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { listBookings, markBalancePaid } from "@/lib/bookings.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,15 +17,34 @@ export const Route = createFileRoute("/_authenticated/bookings")({
 const fmtINR = (n: number) => `₹${(n ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 
 function BookingsPage() {
-  const list = useServerFn(listBookings);
-  const mark = useServerFn(markBalancePaid);
   const qc = useQueryClient();
   const [q, setQ] = useState("");
 
-  const { data, isLoading } = useQuery({ queryKey: ["bookings"], queryFn: () => list() });
+  const { data, isLoading } = useQuery({
+    queryKey: ["bookings"],
+    queryFn: async () => {
+      // RLS returns all bookings for admins, and only own bookings for sales.
+      const { data, error } = await supabase.from("bookings")
+        .select("*").order("created_at", { ascending: false }).limit(1000);
+      if (error) throw new Error(error.message);
+      return { bookings: data ?? [] };
+    },
+  });
 
   const markM = useMutation({
-    mutationFn: (id: string) => mark({ data: { id } }),
+    mutationFn: async (id: string) => {
+      const { data: row, error: gErr } = await supabase.from("bookings")
+        .select("balance_amount, amount_received").eq("id", id).maybeSingle();
+      if (gErr) throw new Error(gErr.message);
+      if (!row) throw new Error("Booking not found");
+      const bal = Number(row.balance_amount ?? 0);
+      const { error } = await supabase.from("bookings").update({
+        amount_received: Number(row.amount_received ?? 0) + bal,
+        balance_amount: 0,
+        balance_paid_at: new Date().toISOString(),
+      }).eq("id", id);
+      if (error) throw new Error(error.message);
+    },
     onSuccess: () => { toast.success("Marked as paid"); qc.invalidateQueries({ queryKey: ["bookings"] }); },
     onError: (e: Error) => toast.error(e.message),
   });
