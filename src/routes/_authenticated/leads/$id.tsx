@@ -52,6 +52,14 @@ function LeadDetailPage() {
     },
   });
 
+  const { data: assignableUsers } = useQuery({
+    queryKey: ["assignable-users"],
+    queryFn: async () => {
+      const { data } = await supabase.from("profiles").select("id, full_name, email").order("full_name", { ascending: true });
+      return data ?? [];
+    },
+  });
+
   const updateLead = useMutation({
     mutationFn: async (patch: any) => {
       const { error } = await supabase.from("leads").update(patch).eq("id", id);
@@ -137,6 +145,21 @@ function LeadDetailPage() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {INTERESTS.map((i) => <SelectItem key={i.id} value={i.id}>{i.emoji} {i.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Assigned to</Label>
+              <Select
+                value={lead.assigned_to ?? "unassigned"}
+                onValueChange={(v) => updateLead.mutate({ assigned_to: v === "unassigned" ? null : v })}
+              >
+                <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unassigned">Unassigned</SelectItem>
+                  {(assignableUsers ?? []).map((u: any) => (
+                    <SelectItem key={u.id} value={u.id}>{u.full_name || u.email || "User"}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
