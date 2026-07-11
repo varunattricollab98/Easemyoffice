@@ -85,7 +85,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAdmin: roles.includes("admin"),
     hasRole: (r) => roles.includes(r),
     signOut: async () => {
-      await supabase.auth.signOut();
+      // "local" scope signs out only the current device/browser, leaving other
+      // devices (e.g. phone) still logged in. This is the expected behavior for
+      // a day-to-day CRM. (Use a dedicated "sign out everywhere" action for the
+      // rare security case of revoking all sessions.)
+      await supabase.auth.signOut({ scope: "local" });
     },
     refresh: async () => {
       if (session?.user) await loadUserData(session.user.id);
