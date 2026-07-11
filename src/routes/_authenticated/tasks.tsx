@@ -34,7 +34,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 function TasksPage() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const qc = useQueryClient();
   const [filter, setFilter] = useState<"all" | "todo" | "in_progress" | "done">("all");
   const [open, setOpen] = useState(false);
@@ -153,21 +153,25 @@ function TasksPage() {
                           <SelectItem value="done">Done</SelectItem>
                         </SelectContent>
                       </Select>
-                      <Select value={t.owner_id ?? ""} onValueChange={(v) => reassign.mutate({ id: t.id, owner_id: v })}>
-                        <SelectTrigger className="h-7 w-40 text-xs">
-                          <SelectValue placeholder="Assign to…" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(team as any[]).map((m) => (
-                            <SelectItem key={m.id} value={m.id}>{m.full_name || m.email || "User"}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {isAdmin && (
+                        <Select value={t.owner_id ?? ""} onValueChange={(v) => reassign.mutate({ id: t.id, owner_id: v })}>
+                          <SelectTrigger className="h-7 w-40 text-xs">
+                            <SelectValue placeholder="Assign to…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(team as any[]).map((m) => (
+                              <SelectItem key={m.id} value={m.id}>{m.full_name || m.email || "User"}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </div>
                   </div>
-                  <Button size="icon" variant="ghost" onClick={() => del.mutate(t.id)}>
-                    <Trash2 className="h-4 w-4 text-muted-foreground" />
-                  </Button>
+                  {isAdmin && (
+                    <Button size="icon" variant="ghost" onClick={() => del.mutate(t.id)} title="Delete task (admin only)">
+                      <Trash2 className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             );
@@ -180,6 +184,7 @@ function TasksPage() {
 
 function NewTaskDialog({ onClose, userId }: { onClose: () => void; userId: string | null }) {
   const qc = useQueryClient();
+  const { isAdmin } = useAuth();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState("medium");
@@ -224,17 +229,19 @@ function NewTaskDialog({ onClose, userId }: { onClose: () => void; userId: strin
           <label className="text-sm font-medium">Description</label>
           <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
         </div>
-        <div>
-          <label className="text-sm font-medium">Assign to</label>
-          <Select value={owner} onValueChange={setOwner}>
-            <SelectTrigger><SelectValue placeholder="Choose team member" /></SelectTrigger>
-            <SelectContent>
-              {(team as any[]).map((m) => (
-                <SelectItem key={m.id} value={m.id}>{m.full_name || m.email || "User"}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {isAdmin && (
+          <div>
+            <label className="text-sm font-medium">Assign to</label>
+            <Select value={owner} onValueChange={setOwner}>
+              <SelectTrigger><SelectValue placeholder="Choose team member" /></SelectTrigger>
+              <SelectContent>
+                {(team as any[]).map((m) => (
+                  <SelectItem key={m.id} value={m.id}>{m.full_name || m.email || "User"}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-sm font-medium">Priority</label>
