@@ -21,11 +21,35 @@ const LEAD_FIELDS: { key: string; label: string; required?: boolean }[] = [
   { key: "mobile", label: "Mobile / Contact No.", required: true },
   { key: "email", label: "Email" },
   { key: "company_name", label: "Business / Company Name" },
-  { key: "city", label: "City" },
+  { key: "city", label: "City / Location" },
   { key: "state", label: "State" },
   { key: "source", label: "Source" },
-  { key: "service_required", label: "Service" },
+  { key: "service_required", label: "Service / Solution type" },
+  { key: "external_lead_id", label: "Lead ID" },
+  { key: "received_date", label: "Date Received" },
+  { key: "assigned_agent", label: "Assigned To" },
+  { key: "lead_status", label: "Lead Status" },
+  { key: "lead_outcome", label: "Lead Outcome" },
+  { key: "last_follow_up", label: "Last Follow-up" },
+  { key: "next_follow_up", label: "Next Follow-up" },
+  { key: "follow_up_3", label: "Follow-up 3" },
+  { key: "call_outcome", label: "Call Outcome" },
+  { key: "lost_reason", label: "Lost Reason" },
+  { key: "converted_date", label: "Converted Date" },
+  { key: "revenue", label: "Revenue (₹)" },
   { key: "budget", label: "Budget / Amount (₹)" },
+  { key: "latest_remark", label: "Latest Remark" },
+  { key: "remark_updated_on", label: "Remark Updated On" },
+  { key: "last_synced", label: "Last Synced" },
+];
+
+// Plain text fields (stored as-is). client_name/mobile/source/service_required/
+// revenue/budget get special handling below.
+const TEXT_FIELDS = [
+  "email", "company_name", "city", "state", "external_lead_id", "received_date",
+  "assigned_agent", "lead_status", "lead_outcome", "last_follow_up", "next_follow_up",
+  "follow_up_3", "call_outcome", "lost_reason", "converted_date", "latest_remark",
+  "remark_updated_on", "last_synced",
 ];
 
 // Synonyms used to auto-guess the mapping from the CSV headers.
@@ -38,7 +62,22 @@ const FIELD_SYNONYMS: Record<string, string[]> = {
   state: ["state"],
   source: ["booking source", "lead source", "source"],
   service_required: ["service", "service required", "solution type", "solution", "plan name", "vo plan"],
-  budget: ["vo amount", "total amount", "revenue", "amount", "budget", "deal value", "value"],
+  budget: ["vo amount", "total amount", "amount", "budget", "deal value", "value"],
+  external_lead_id: ["lead id", "leadid"],
+  received_date: ["date received", "received date", "received", "date"],
+  assigned_agent: ["assigned to", "assigned", "sales agent", "agent", "owner"],
+  lead_status: ["lead status", "status"],
+  lead_outcome: ["lead outcome", "outcome"],
+  last_follow_up: ["last followup", "last follow up", "last follow-up"],
+  next_follow_up: ["next followup", "next follow up", "next follow-up"],
+  follow_up_3: ["followup 3", "follow up 3", "follow-up 3", "followup3"],
+  call_outcome: ["call outcome"],
+  lost_reason: ["lost reason", "reason lost", "reason"],
+  converted_date: ["converted date", "conversion date", "converted"],
+  revenue: ["revenue"],
+  latest_remark: ["latest remark", "remark", "remarks"],
+  remark_updated_on: ["remark updated on", "remark updated"],
+  last_synced: ["last synced", "synced", "last sync"],
 };
 
 function normalizeHeader(h: string): string {
@@ -199,19 +238,19 @@ function ImportLeadsPage() {
       }
       // Keep every row's keys identical (so the bulk insert is uniform) and
       // never send null for the required service_required column.
-      const lead = {
+      const lead: Record<string, any> = {
         client_name,
         mobile,
-        email: get(cols, "email") || null,
-        company_name: get(cols, "company_name") || null,
-        city: get(cols, "city") || null,
-        state: get(cols, "state") || null,
         source: mapSource(get(cols, "source")),
         service_required: mapService(get(cols, "service_required")) ?? "virtual_office",
         budget: parseAmount(get(cols, "budget")),
+        revenue: parseAmount(get(cols, "revenue")),
         notes,
         created_by: user?.id ?? null,
       };
+      for (const key of TEXT_FIELDS) {
+        lead[key] = get(cols, key) || null;
+      }
       out.push(lead);
     });
     return { out, skipped, skippedReasons };

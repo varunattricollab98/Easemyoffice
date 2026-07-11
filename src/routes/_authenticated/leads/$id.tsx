@@ -144,6 +144,8 @@ function LeadDetailPage() {
         </Card>
       </div>
 
+      <ExtendedDetails lead={lead} />
+
       <Tabs defaultValue="timeline">
         <TabsList>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
@@ -226,6 +228,42 @@ function Info({ label, value }: { label: string; value: any }) {
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="font-medium">{value || "—"}</div>
     </div>
+  );
+}
+
+function ExtendedDetails({ lead }: { lead: any }) {
+  const revenue = lead.revenue != null && lead.revenue !== "" ? `₹${Number(lead.revenue).toLocaleString("en-IN")}` : null;
+  const fields: [string, any][] = [
+    ["Lead ID", lead.external_lead_id],
+    ["Date Received", lead.received_date],
+    ["Assigned To", lead.assigned_agent],
+    ["Lead Status", lead.lead_status],
+    ["Lead Outcome", lead.lead_outcome],
+    ["Call Outcome", lead.call_outcome],
+    ["Lost Reason", lead.lost_reason],
+    ["Converted Date", lead.converted_date],
+    ["Revenue", revenue],
+    ["Last Follow-up", lead.last_follow_up],
+    ["Next Follow-up", lead.next_follow_up],
+    ["Follow-up 3", lead.follow_up_3],
+    ["Latest Remark", lead.latest_remark],
+    ["Remark Updated On", lead.remark_updated_on],
+    ["Last Synced", lead.last_synced],
+  ];
+  const shown = fields.filter(([, v]) => v != null && String(v).trim() !== "");
+  if (shown.length === 0) return null;
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-base">Sales & pipeline details</CardTitle></CardHeader>
+      <CardContent className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
+        {shown.map(([label, value]) => (
+          <div key={label}>
+            <div className="text-xs text-muted-foreground">{label}</div>
+            <div className="font-medium whitespace-pre-wrap break-words">{String(value)}</div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   );
 }
 
