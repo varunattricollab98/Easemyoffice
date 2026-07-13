@@ -6,7 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { cn } from "@/lib/utils";
+import { Plus, Check, ChevronsUpDown } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,6 +43,46 @@ const num = (v: string) => {
   const n = parseFloat(v);
   return Number.isFinite(n) ? n : 0;
 };
+
+// Searchable plan picker — type to filter by code, SP name, city or area.
+function PlanCombobox({ plans, value, onPick }: { plans: any[]; value: string; onPick: (code: string) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal">
+          <span className="truncate">{value || "Select plan"}</span>
+          <ChevronsUpDown className="h-4 w-4 opacity-50 shrink-0" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="p-0 w-[320px] max-w-[90vw]" align="start">
+        <Command>
+          <CommandInput placeholder="Search code, SP, city…" />
+          <CommandList>
+            <CommandEmpty>No plan found.</CommandEmpty>
+            <CommandGroup>
+              {plans.map((p) => (
+                <CommandItem
+                  key={p.code}
+                  value={`${p.code} ${p.sp_name ?? ""} ${p.city ?? ""} ${p.area ?? ""}`}
+                  onSelect={() => { onPick(p.code); setOpen(false); }}
+                >
+                  <Check className={cn("mr-2 h-4 w-4", value === p.code ? "opacity-100" : "opacity-0")} />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm truncate">{p.code}</span>
+                    {(p.sp_name || p.city) && (
+                      <span className="text-xs text-muted-foreground truncate">{[p.sp_name, p.city].filter(Boolean).join(" · ")}</span>
+                    )}
+                  </div>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 export function NewBookingDialog() {
   const { isAdmin, profile, user } = useAuth();
@@ -245,10 +288,7 @@ export function NewBookingDialog() {
           <div>
             <Label className="text-xs">Plan Name</Label>
             {plans.length > 0 ? (
-              <Select value={f.plan_name} onValueChange={applyPlan}>
-                <SelectTrigger><SelectValue placeholder="Select plan" /></SelectTrigger>
-                <SelectContent>{plans.map((p) => <SelectItem key={p.code} value={p.code}>{p.code}</SelectItem>)}</SelectContent>
-              </Select>
+              <PlanCombobox plans={plans} value={f.plan_name} onPick={applyPlan} />
             ) : (
               <Input value={f.plan_name} onChange={(e) => setF({ ...f, plan_name: e.target.value })} />
             )}
