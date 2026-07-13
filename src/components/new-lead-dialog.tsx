@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -10,12 +11,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { SERVICES, SOURCES, INTERESTS } from "@/lib/crm";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
+import { AlertTriangle } from "lucide-react";
 
 interface Props { open: boolean; onOpenChange: (o: boolean) => void; onCreated?: (id: string) => void; }
 
 export function NewLeadDialog({ open, onOpenChange, onCreated }: Props) {
   const { user, isAdmin } = useAuth();
   const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [dupe, setDupe] = useState<any | null>(null);
+  const [checking, setChecking] = useState(false);
   const [form, setForm] = useState({
     client_name: "",
     mobile: "",
@@ -73,11 +78,39 @@ export function NewLeadDialog({ open, onOpenChange, onCreated }: Props) {
     onSuccess: (id) => {
       toast.success("Lead created");
       qc.invalidateQueries();
+      setDupe(null);
       onOpenChange(false);
       onCreated?.(id);
     },
     onError: (e: any) => toast.error(e.message ?? "Could not create lead"),
   });
+
+  // Before creating, look for an existing lead with the same mobile or email.
+  // (Only leads the current user can see are checked, per row-level security —
+  // admins see all; a salesperson sees their own.)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const mobile = form.mobile.trim();
+    const email = form.email.trim();
+    setChecking(true);
+    try {
+      let found: any = null;
+      if (mobile) {
+        const { data } = await supabase.from("leads")
+          .select("id, lead_code, client_name, mobile, email").eq("mobile", mobile).limit(1);
+        if (data && data.length) found = data[0];
+      }
+      if (!found && email) {
+        const { data } = await supabase.from("leads")
+          .select("id, lead_code, client_name, mobile, email").eq("email", email).limit(1);
+        if (data && data.length) found = data[0];
+      }
+      if (found) { setDupe(found); return; }
+      create.mutate();
+    } finally {
+      setChecking(false);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -86,7 +119,30 @@ export function NewLeadDialog({ open, onOpenChange, onCreated }: Props) {
           <DialogTitle>New Lead</DialogTitle>
           <DialogDescription>Quick capture — minimum required: name, mobile.</DialogDescription>
         </DialogHeader>
-        <form onSubmit={(e) => { e.preventDefault(); create.mutate(); }} className="grid gap-4 md:grid-cols-2">
+        {dupe && (
+          <div className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-3 space-y-2">
+            <div className="flex items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-300">
+              <AlertTriangle className="h-4 w-4" /> Possible duplicate lead
+            </div>
+            <div className="text-sm text-muted-foreground">
+              A lead with the same mobile/email already exists:{" "}
+              <span className="font-medium text-foreground">{dupe.client_name}</span> ({dupe.lead_code})
+              {dupe.mobile ? ` · ${dupe.mobile}` : ""}{dupe.email ? ` · ${dupe.email}` : ""}.
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" variant="outline"
+                onClick={() => { setDupe(null); onOpenChange(false); navigate({ to: "/leads/$id", params: { id: dupe.id } }); }}>
+                Open existing
+              </Button>
+              <Button type="button" size="sm" variant="outline" className="text-amber-700 dark:text-amber-300"
+                onClick={() => { setDupe(null); create.mutate(); }}>
+                Create anyway
+              </Button>
+              <Button type="button" size="sm" variant="ghost" onClick={() => setDupe(null)}>Dismiss</Button>
+            </div>
+          </div>
+        )}
+        <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
           <Field label="Client name *">
             <Input required value={form.client_name} onChange={(e) => setForm({ ...form, client_name: e.target.value })} />
           </Field>
@@ -157,8 +213,8 @@ export function NewLeadDialog({ open, onOpenChange, onCreated }: Props) {
           </div>
           <DialogFooter className="md:col-span-2">
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button type="submit" disabled={create.isPending}>
-              {create.isPending ? "Creating…" : "Create lead"}
+            <Button type="submit" disabled={create.isPending || checking}>
+              {checking ? "Checking…" : create.isPending ? "Creating…" : "Create lead"}
             </Button>
           </DialogFooter>
         </form>

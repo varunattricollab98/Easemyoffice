@@ -1,15 +1,18 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { INTERESTS, SERVICES, STAGES, labelFor } from "@/lib/crm";
-import { Plus, Search, Phone, Mail, Upload, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { INTERESTS, SERVICES, SOURCES, STAGES, labelFor } from "@/lib/crm";
+import { Plus, Search, Phone, Mail, Upload, Download, Trash2, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { NewLeadDialog } from "@/components/new-lead-dialog";
+import { useAuth } from "@/lib/auth";
+import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 
 type LeadSearch = {
@@ -42,7 +45,11 @@ function LeadsListPage() {
   const [open, setOpen] = useState(false);
   const search = Route.useSearch();
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
+  const qc = useQueryClient();
   const [q, setQ] = useState(search.q ?? "");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [exporting, setExporting] = useState(false);
   const stage = search.stage ?? "all";
   const interest = search.interest ?? "all";
   const service = search.service ?? "all";
@@ -66,6 +73,18 @@ function LeadsListPage() {
     if (page !== 1) navigate({ to: "/leads", search: { ...search, page: undefined } });
   };
 
+  const applyFilters = (query: any) => {
+    if (stage !== "all") query = query.eq("stage", stage as never);
+    if (interest !== "all") query = query.eq("interest", interest as never);
+    if (service !== "all") query = query.eq("service_required", service as never);
+    if (owner) query = query.eq("assigned_to", owner);
+    if (q.trim()) {
+      const term = `%${q.trim()}%`;
+      query = query.or(`client_name.ilike.${term},mobile.ilike.${term},company_name.ilike.${term},lead_code.ilike.${term},email.ilike.${term}`);
+    }
+    return query;
+  };
+
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["leads", q, stage, interest, service, owner, page, size],
     placeholderData: keepPreviousData,
@@ -76,17 +95,18 @@ function LeadsListPage() {
         .select("id, lead_code, client_name, company_name, mobile, email, stage, interest, service_required, source, score, assigned_to, next_follow_up_at, last_activity_at, created_at", { count: "exact" })
         .order("created_at", { ascending: false })
         .range(from, to);
-      if (stage !== "all") query = query.eq("stage", stage as never);
-      if (interest !== "all") query = query.eq("interest", interest as never);
-      if (service !== "all") query = query.eq("service_required", service as never);
-      if (owner) query = query.eq("assigned_to", owner);
-      if (q.trim()) {
-        const term = `%${q.trim()}%`;
-        query = query.or(`client_name.ilike.${term},mobile.ilike.${term},company_name.ilike.${term},lead_code.ilike.${term},email.ilike.${term}`);
-      }
+      query = applyFilters(query);
       const { data, error, count } = await query;
       if (error) throw error;
       return { rows: data ?? [], count: count ?? 0 };
+    },
+  });
+
+  const { data: assignableUsers = [] } = useQuery({
+    queryKey: ["assignable-users"],
+    queryFn: async () => {
+      const { data } = await supabase.from("profiles").select("id, full_name, email").order("full_name", { ascending: true });
+      return data ?? [];
     },
   });
 
@@ -95,6 +115,92 @@ function LeadsListPage() {
   const totalPages = Math.max(1, Math.ceil(total / size));
   const firstShown = total === 0 ? 0 : (page - 1) * size + 1;
   const lastShown = Math.min(page * size, total);
+
+  // ---- selection helpers ----
+  const selectedIds = [...selected];
+  const toggleOne = (id: string) =>
+    setSelected((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const allOnPageSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
+  const toggleAllOnPage = () =>
+    setSelected((prev) => {
+      const n = new Set(prev);
+      if (allOnPageSelected) rows.forEach((r) => n.delete(r.id));
+      else rows.forEach((r) => n.add(r.id));
+      return n;
+    });
+  const clearSel = () => setSelected(new Set());
+
+  // ---- bulk actions ----
+  const bulkAssign = useMutation({
+    mutationFn: async (userId: string) => {
+      const { error } = await supabase.from("leads")
+        .update({ assigned_to: userId === "unassigned" ? null : userId })
+        .in("id", selectedIds);
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success(`Assigned ${selected.size} lead(s)`); clearSel(); qc.invalidateQueries({ queryKey: ["leads"] }); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const bulkStage = useMutation({
+    mutationFn: async (newStage: string) => {
+      const { error } = await supabase.from("leads").update({ stage: newStage as never }).in("id", selectedIds);
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success(`Moved ${selected.size} lead(s)`); clearSel(); qc.invalidateQueries({ queryKey: ["leads"] }); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const bulkDelete = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("leads").delete().in("id", selectedIds);
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success(`Deleted ${selected.size} lead(s)`); clearSel(); qc.invalidateQueries({ queryKey: ["leads"] }); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  // ---- export (respects current filters, all matching rows) ----
+  const exportCsv = async () => {
+    setExporting(true);
+    try {
+      let query = supabase.from("leads")
+        .select("lead_code, client_name, company_name, mobile, alt_mobile, email, city, state, service_required, source, interest, stage, score, budget, assigned_to, next_follow_up_at, created_at")
+        .order("created_at", { ascending: false }).limit(5000);
+      query = applyFilters(query);
+      const { data: leadsData, error } = await query;
+      if (error) throw error;
+      const list = leadsData ?? [];
+      if (list.length === 0) { toast.error("No leads match to export"); return; }
+
+      const nameById = new Map((assignableUsers as any[]).map((u) => [u.id, u.full_name || u.email || ""]));
+      const out = list.map((l: any) => ({
+        "Lead Code": l.lead_code,
+        "Name": l.client_name,
+        "Company": l.company_name ?? "",
+        "Mobile": l.mobile,
+        "Alt Mobile": l.alt_mobile ?? "",
+        "Email": l.email ?? "",
+        "City": l.city ?? "",
+        "State": l.state ?? "",
+        "Service": labelFor(SERVICES, l.service_required),
+        "Source": labelFor(SOURCES, l.source),
+        "Interest": labelFor(INTERESTS, l.interest),
+        "Stage": labelFor(STAGES, l.stage),
+        "Score": l.score ?? 0,
+        "Budget": l.budget ?? "",
+        "Assigned To": l.assigned_to ? (nameById.get(l.assigned_to) ?? "") : "",
+        "Next Follow-up": l.next_follow_up_at ?? "",
+        "Created": l.created_at,
+      }));
+      downloadCsv(out, `leads-${new Date().toISOString().slice(0, 10)}.csv`);
+      toast.success(`Exported ${out.length} lead(s)`);
+    } catch (e: any) {
+      toast.error(e.message ?? "Export failed");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div className="p-4 md:p-8 space-y-5 max-w-7xl mx-auto">
@@ -106,6 +212,9 @@ function LeadsListPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={exportCsv} disabled={exporting}>
+            <Download className="h-4 w-4 mr-2" /> {exporting ? "Exporting…" : "Export"}
+          </Button>
           <Button variant="outline" asChild>
             <Link to="/leads/import"><Upload className="h-4 w-4 mr-2" /> Import</Link>
           </Button>
@@ -143,6 +252,35 @@ function LeadsListPage() {
         </CardContent>
       </Card>
 
+      {selected.size > 0 && (
+        <Card className="border-primary/40 bg-primary/5">
+          <CardContent className="p-3 flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium mr-1">{selected.size} selected</span>
+            <Select onValueChange={(v) => bulkAssign.mutate(v)}>
+              <SelectTrigger className="h-9 w-44"><SelectValue placeholder="Assign to…" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unassigned">Unassigned</SelectItem>
+                {(assignableUsers as any[]).map((u) => <SelectItem key={u.id} value={u.id}>{u.full_name || u.email || "User"}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select onValueChange={(v) => bulkStage.mutate(v)}>
+              <SelectTrigger className="h-9 w-44"><SelectValue placeholder="Change stage…" /></SelectTrigger>
+              <SelectContent>
+                {STAGES.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {isAdmin && (
+              <Button variant="outline" size="sm" className="text-destructive hover:text-destructive"
+                disabled={bulkDelete.isPending}
+                onClick={() => { if (window.confirm(`Delete ${selected.size} lead(s)? This permanently removes them and cannot be undone.`)) bulkDelete.mutate(); }}>
+                <Trash2 className="h-4 w-4 mr-1" /> Delete
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={clearSel}><X className="h-4 w-4 mr-1" /> Clear</Button>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
@@ -154,7 +292,13 @@ function LeadsListPage() {
             </div>
           ) : (
             <div className={isFetching ? "opacity-60 transition-opacity" : "transition-opacity"}>
-              {rows.map((l) => <LeadRow key={l.id} l={l} />)}
+              <div className="flex items-center gap-3 px-4 py-2 border-b bg-muted/30 text-xs text-muted-foreground">
+                <Checkbox checked={allOnPageSelected} onCheckedChange={toggleAllOnPage} aria-label="Select all on page" />
+                <span>Select all on this page</span>
+              </div>
+              {rows.map((l) => (
+                <LeadRow key={l.id} l={l} selected={selected.has(l.id)} onToggle={toggleOne} />
+              ))}
             </div>
           )}
         </CardContent>
@@ -178,16 +322,19 @@ function LeadsListPage() {
   );
 }
 
-function LeadRow({ l }: { l: any }) {
+function LeadRow({ l, selected, onToggle }: { l: any; selected: boolean; onToggle: (id: string) => void }) {
   const interestMeta = INTERESTS.find((i) => i.id === l.interest);
   const stageMeta = STAGES.find((s) => s.id === l.stage);
   const overdue = l.next_follow_up_at && new Date(l.next_follow_up_at) < new Date();
   return (
-    <div className="border-b last:border-b-0">
+    <div className="flex items-center border-b last:border-b-0">
+      <div className="pl-4 pr-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+        <Checkbox checked={selected} onCheckedChange={() => onToggle(l.id)} aria-label="Select lead" />
+      </div>
       <Link
         to="/leads/$id"
         params={{ id: l.id }}
-        className="grid grid-cols-12 gap-3 items-center px-4 py-3 hover:bg-accent/40"
+        className="flex-1 grid grid-cols-12 gap-3 items-center px-3 py-3 hover:bg-accent/40"
       >
         <div className="col-span-12 md:col-span-4 min-w-0">
           <div className="flex items-center gap-2">
@@ -310,4 +457,24 @@ function pageWindow(current: number, total: number): (number | "…")[] {
   if (end < total - 1) out.push("…");
   out.push(total);
   return out;
+}
+
+// Turn an array of flat objects into a CSV file and trigger a browser download.
+function downloadCsv(rows: Record<string, unknown>[], filename: string) {
+  const headers = Object.keys(rows[0]);
+  const esc = (v: unknown) => {
+    const s = v == null ? "" : String(v);
+    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const csv = [headers.join(","), ...rows.map((r) => headers.map((h) => esc(r[h])).join(","))].join("\n");
+  // BOM so Excel opens UTF-8 (₹ etc.) correctly.
+  const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
