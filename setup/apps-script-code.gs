@@ -84,7 +84,7 @@ function getPlans() {
   var headers = values[0].map(function (h) { return String(h).trim().toLowerCase(); });
   function idx(names) { for (var i = 0; i < headers.length; i++) { if (names.indexOf(headers[i]) >= 0) return i; } return -1; }
   var iCode = idx(["code", "plan", "plan name", "plan code"]);
-  var iVo = idx(["vo plan", "vi plan", "vo_plan"]);
+  var iVo = idx(["vo plan", "vi plan", "vo_plan", "plan type", "plan_type"]);
   var iSp = idx(["sp name", "sp_name", "space name"]);
   var iArea = idx(["area"]);
   var iCity = idx(["city"]);
