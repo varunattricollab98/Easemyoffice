@@ -94,18 +94,17 @@ export function NewLeadDialog({ open, onOpenChange, onCreated }: Props) {
     const email = form.email.trim();
     setChecking(true);
     try {
-      let found: any = null;
-      if (mobile) {
-        const { data } = await supabase.from("leads")
-          .select("id, lead_code, client_name, mobile, email").eq("mobile", mobile).limit(1);
-        if (data && data.length) found = data[0];
+      // Company-wide duplicate check via a SECURITY DEFINER function, so it
+      // catches a match owned by ANY teammate (not just the current user's).
+      // If the function isn't installed yet, we fail open and just create.
+      const { data, error } = await supabase.rpc("find_duplicate_lead", {
+        p_mobile: mobile || null,
+        p_email: email || null,
+      } as never);
+      if (!error && Array.isArray(data) && data.length > 0) {
+        setDupe(data[0]);
+        return;
       }
-      if (!found && email) {
-        const { data } = await supabase.from("leads")
-          .select("id, lead_code, client_name, mobile, email").eq("email", email).limit(1);
-        if (data && data.length) found = data[0];
-      }
-      if (found) { setDupe(found); return; }
       create.mutate();
     } finally {
       setChecking(false);
@@ -127,13 +126,15 @@ export function NewLeadDialog({ open, onOpenChange, onCreated }: Props) {
             <div className="text-sm text-muted-foreground">
               A lead with the same mobile/email already exists:{" "}
               <span className="font-medium text-foreground">{dupe.client_name}</span> ({dupe.lead_code})
-              {dupe.mobile ? ` · ${dupe.mobile}` : ""}{dupe.email ? ` · ${dupe.email}` : ""}.
+              {dupe.owner_name ? <> — owned by <span className="font-medium text-foreground">{dupe.owner_name}</span></> : null}.
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button type="button" size="sm" variant="outline"
-                onClick={() => { setDupe(null); onOpenChange(false); navigate({ to: "/leads/$id", params: { id: dupe.id } }); }}>
-                Open existing
-              </Button>
+              {(dupe.mine || isAdmin) && (
+                <Button type="button" size="sm" variant="outline"
+                  onClick={() => { setDupe(null); onOpenChange(false); navigate({ to: "/leads/$id", params: { id: dupe.id } }); }}>
+                  Open existing
+                </Button>
+              )}
               <Button type="button" size="sm" variant="outline" className="text-amber-700 dark:text-amber-300"
                 onClick={() => { setDupe(null); create.mutate(); }}>
                 Create anyway
