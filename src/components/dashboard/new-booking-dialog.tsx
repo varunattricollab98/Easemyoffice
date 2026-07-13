@@ -10,7 +10,7 @@ import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
-import { syncBookingToSheet } from "@/lib/bookings.client";
+import { syncBookingToSheet } from "@/lib/bookings-sheet";
 
 const SOURCES = ["Website", "Referral", "IndiaMART", "Google Ads", "Meta Ads", "WhatsApp", "Direct", "Other"];
 const SP_STATUSES = ["Active", "Pending", "Inactive"];
