@@ -12,3 +12,35 @@ export async function syncBookingToSheet(values: (string | number)[]): Promise<{
     return { ok: false, note: "sheet not connected" };
   }
 }
+
+export interface PlanRow {
+  code: string;
+  vo_plan?: string;
+  sp_name?: string;
+  area?: string;
+  city?: string;
+  state?: string;
+  sp_status?: string;
+  sp_payable?: string | number;
+}
+
+export interface SheetConfig {
+  nextBookingId?: string | null;
+  plans: PlanRow[];
+}
+
+// Reads the next available Booking ID + the plans master list from the Google
+// Sheet (via the get-sheet-config edge function). Fails open (empty) if the
+// sheet/function isn't set up, so the booking form still works normally.
+export async function getSheetConfig(): Promise<SheetConfig> {
+  try {
+    const { data, error } = await supabase.functions.invoke("get-sheet-config", { body: {} });
+    if (error || !data?.ok) return { plans: [] };
+    return {
+      nextBookingId: data.nextBookingId ?? null,
+      plans: Array.isArray(data.plans) ? data.plans : [],
+    };
+  } catch {
+    return { plans: [] };
+  }
+}

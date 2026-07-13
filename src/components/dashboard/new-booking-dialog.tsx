@@ -10,7 +10,7 @@ import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
-import { syncBookingToSheet } from "@/lib/bookings-sheet";
+import { getSheetConfig, syncBookingToSheet } from "@/lib/bookings-sheet";
 
 const SOURCES = ["Website", "Referral", "IndiaMART", "Google Ads", "Meta Ads", "WhatsApp", "Direct", "Other"];
 const SP_STATUSES = ["Active", "Pending", "Inactive"];
@@ -81,6 +81,41 @@ export function NewBookingDialog() {
       return data ?? [];
     },
   });
+
+  // Next Booking ID + plans master, read live from the Google Sheet.
+  const { data: sheetConfig } = useQuery({
+    queryKey: ["booking-sheet-config"],
+    enabled: open,
+    staleTime: 0,
+    queryFn: getSheetConfig,
+  });
+  const plans = sheetConfig?.plans ?? [];
+
+  // When the dialog opens, prefill the next Booking ID from the sheet (if any).
+  const [cfgApplied, setCfgApplied] = useState(false);
+  useEffect(() => {
+    if (!open) { if (cfgApplied) setCfgApplied(false); return; }
+    if (!cfgApplied && sheetConfig?.nextBookingId) {
+      setF((s) => ({ ...s, booking_id: sheetConfig.nextBookingId as string }));
+      setCfgApplied(true);
+    }
+  }, [open, sheetConfig, cfgApplied]);
+
+  // Selecting a plan code autofills its details from the sheet.
+  const applyPlan = (code: string) => {
+    const p = plans.find((x) => x.code === code);
+    setF((s) => ({
+      ...s,
+      plan_name: code,
+      vo_plan: p?.vo_plan || s.vo_plan,
+      sp_name: p?.sp_name || s.sp_name,
+      area: p?.area || s.area,
+      city: p?.city || s.city,
+      state: p?.state || s.state,
+      sp_status: p?.sp_status || s.sp_status,
+      sp_payable: (p?.sp_payable !== undefined && p?.sp_payable !== null && p?.sp_payable !== "") ? String(p.sp_payable) : s.sp_payable,
+    }));
+  };
 
   // Computed values
   const vo = num(f.vo_amount);
@@ -207,7 +242,17 @@ export function NewBookingDialog() {
               <SelectContent>{SOURCES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          {T("plan_name", "Plan Name")}
+          <div>
+            <Label className="text-xs">Plan Name</Label>
+            {plans.length > 0 ? (
+              <Select value={f.plan_name} onValueChange={applyPlan}>
+                <SelectTrigger><SelectValue placeholder="Select plan" /></SelectTrigger>
+                <SelectContent>{plans.map((p) => <SelectItem key={p.code} value={p.code}>{p.code}</SelectItem>)}</SelectContent>
+              </Select>
+            ) : (
+              <Input value={f.plan_name} onChange={(e) => setF({ ...f, plan_name: e.target.value })} />
+            )}
+          </div>
           {T("vo_plan", "VO Plan")}
 
           {T("sp_name", "SP Name")}
