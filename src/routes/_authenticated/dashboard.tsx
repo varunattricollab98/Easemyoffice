@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, LayoutDashboard, RotateCcw, Volume2, VolumeX, Check } from "lucide-react";
 import { WidgetGrid, KpiStrip, resetWidgetLayout } from "@/components/dashboard/widget-grid";
 import { NewBookingDialog } from "@/components/dashboard/new-booking-dialog";
+import { HeroOfMonth } from "@/components/dashboard/hero-of-month";
 import { LivePulsePill } from "@/components/dashboard/live-pulse-pill";
 import { AddWidgetPanel } from "@/components/dashboard/add-widget-panel";
 import { useQuietMode, useVisibleWidgets } from "@/lib/dashboard-prefs";
@@ -140,6 +141,9 @@ function DashboardPage() {
 
         {/* Customizable widget grid */}
         <WidgetGrid editing={editing} pulseTick={pulseTick} visible={visible} />
+
+        {/* Hero of the Month leaderboard */}
+        <HeroOfMonth />
 
         {/* Footer hint */}
         <p className="text-center text-[11px] text-muted-foreground pt-2">
