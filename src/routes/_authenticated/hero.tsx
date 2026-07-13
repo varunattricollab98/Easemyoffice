@@ -1,0 +1,226 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useMemo, useState } from "react";
+import { Trophy, Package, IndianRupee, Ticket } from "lucide-react";
+
+export const Route = createFileRoute("/_authenticated/hero")({
+  head: () => ({ meta: [{ title: "Hero of the Month — EaseMyOffice CRM" }] }),
+  component: HeroPage,
+});
+
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const fmtINR = (n: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n || 0);
+const MEDALS = ["🥇", "🥈", "🥉"];
+
+type AgentRow = { key: string; name: string; bookings: number; revenue: number; profit: number; avg: number };
+
+function HeroPage() {
+  const now = new Date();
+  const [month, setMonth] = useState(now.getMonth()); // 0-11
+  const [year, setYear] = useState(now.getFullYear());
+
+  const start = `${year}-${String(month + 1).padStart(2, "0")}-01`;
+  const endDateObj = new Date(year, month + 1, 1);
+  const end = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth() + 1).padStart(2, "0")}-01`;
+
+  const years = useMemo(() => {
+    const y = now.getFullYear();
+    return [y + 1, y, y - 1, y - 2];
+  }, [now]);
+
+  const { data: bookings = [], isLoading } = useQuery({
+    queryKey: ["hero-bookings", start, end],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("bookings")
+        .select("id, sales_agent_id, sales_agent_name, plan_name, total_amount, profit, booking_date")
+        .gte("booking_date", start).lt("booking_date", end).limit(5000);
+      if (error) throw new Error(error.message);
+      return data ?? [];
+    },
+  });
+
+  const { data: profiles = [] } = useQuery({
+    queryKey: ["hero-profiles"],
+    queryFn: async () => {
+      const { data } = await supabase.from("profiles").select("id, full_name, email");
+      return data ?? [];
+    },
+  });
+
+  const agents = useMemo<AgentRow[]>(() => {
+    const nameOf = (id: string | null, fallback?: string) => {
+      if (fallback) return fallback;
+      const p = (profiles as any[]).find((x) => x.id === id);
+      return p?.full_name || p?.email || "Unknown";
+    };
+    const map = new Map<string, AgentRow>();
+    (bookings as any[]).forEach((b) => {
+      const key = b.sales_agent_id || b.sales_agent_name || "unknown";
+      const r = map.get(key) ?? { key, name: nameOf(b.sales_agent_id, b.sales_agent_name), bookings: 0, revenue: 0, profit: 0, avg: 0 };
+      r.bookings++;
+      r.revenue += Number(b.total_amount ?? 0);
+      r.profit += Number(b.profit ?? 0);
+      map.set(key, r);
+    });
+    const rows = Array.from(map.values());
+    rows.forEach((r) => { r.avg = r.bookings > 0 ? r.revenue / r.bookings : 0; });
+    return rows.sort((a, b) => b.bookings - a.bookings || b.revenue - a.revenue);
+  }, [bookings, profiles]);
+
+  const totals = useMemo(() => {
+    const t = (bookings as any[]).reduce(
+      (acc, b) => { acc.count++; acc.sales += Number(b.total_amount ?? 0); acc.profit += Number(b.profit ?? 0); return acc; },
+      { count: 0, sales: 0, profit: 0 },
+    );
+    return { ...t, avgTicket: t.count > 0 ? t.sales / t.count : 0 };
+  }, [bookings]);
+
+  const topPlans = useMemo(() => {
+    const map = new Map<string, { plan: string; bookings: number; revenue: number }>();
+    (bookings as any[]).forEach((b) => {
+      const plan = (b.plan_name || "—").trim() || "—";
+      const e = map.get(plan) ?? { plan, bookings: 0, revenue: 0 };
+      e.bookings++; e.revenue += Number(b.total_amount ?? 0);
+      map.set(plan, e);
+    });
+    return Array.from(map.values()).sort((a, b) => b.bookings - a.bookings).slice(0, 6);
+  }, [bookings]);
+
+  const hero = agents[0];
+  const maxRevenue = Math.max(1, ...agents.map((a) => a.revenue));
+
+  return (
+    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2"><Trophy className="h-7 w-7 text-amber-500" /> Hero of the Month</h1>
+          <p className="text-sm text-muted-foreground">Who's leading the pack — bookings, revenue &amp; profit.</p>
+        </div>
+        <div className="flex gap-2">
+          <Select value={String(month)} onValueChange={(v) => setMonth(Number(v))}>
+            <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+            <SelectContent>{MONTHS.map((m, i) => <SelectItem key={m} value={String(i)}>{m}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
+            <SelectTrigger className="w-[100px]"><SelectValue /></SelectTrigger>
+            <SelectContent>{years.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Hero card */}
+      {hero && hero.bookings > 0 && (
+        <Card className="bg-gradient-to-br from-amber-100 to-amber-50 dark:from-amber-950/40 dark:to-amber-950/10 border-amber-300">
+          <CardContent className="p-5 flex flex-wrap items-center gap-5">
+            <div className="text-5xl">🏆</div>
+            <div className="flex-1 min-w-[200px]">
+              <div className="text-xs uppercase tracking-wide text-amber-700 dark:text-amber-400 font-semibold">Hero of {MONTHS[month]} {year}</div>
+              <div className="text-2xl font-bold">{hero.name}</div>
+              <div className="text-sm text-muted-foreground mt-1">
+                {hero.bookings} bookings · {fmtINR(hero.revenue)} revenue · {fmtINR(hero.profit)} profit
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Kpi icon={Package} label="Bookings" value={String(totals.count)} tone="blue" />
+        <Kpi icon={IndianRupee} label="Total sales" value={fmtINR(totals.sales)} tone="emerald" />
+        <Kpi icon={Trophy} label="Profit" value={fmtINR(totals.profit)} tone="amber" />
+        <Kpi icon={Ticket} label="Avg ticket" value={fmtINR(totals.avgTicket)} tone="violet" />
+      </div>
+
+      {/* Leaderboard */}
+      <Card>
+        <CardHeader><CardTitle className="text-base">Top Performers — {MONTHS[month]} {year}</CardTitle></CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="text-sm text-muted-foreground text-center py-8">Loading…</div>
+          ) : agents.length === 0 ? (
+            <div className="text-sm text-muted-foreground text-center py-8">No bookings this month yet.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-xs text-muted-foreground border-b">
+                  <tr>
+                    <th className="text-left py-2 w-16">Rank</th>
+                    <th className="text-left">Salesperson</th>
+                    <th className="text-right">Bookings</th>
+                    <th className="text-right">Revenue</th>
+                    <th className="text-right">Profit</th>
+                    <th className="text-right">Avg booking</th>
+                    <th className="text-left pl-4 w-[22%]">Revenue share</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {agents.map((a, i) => (
+                    <tr key={a.key} className={`hover:bg-muted/30 ${i === 0 ? "bg-amber-50/60 dark:bg-amber-950/20" : ""}`}>
+                      <td className="py-2 text-lg">{MEDALS[i] ?? <span className="text-sm text-muted-foreground pl-1">#{i + 1}</span>}</td>
+                      <td className="font-medium">{a.name}</td>
+                      <td className="text-right font-medium">{a.bookings}</td>
+                      <td className="text-right">{fmtINR(a.revenue)}</td>
+                      <td className="text-right text-emerald-600">{fmtINR(a.profit)}</td>
+                      <td className="text-right">{fmtINR(a.avg)}</td>
+                      <td className="pl-4">
+                        <div className="h-2 bg-muted rounded overflow-hidden">
+                          <div className="h-full bg-amber-500" style={{ width: `${(a.revenue / maxRevenue) * 100}%` }} />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Top plans */}
+      <Card>
+        <CardHeader><CardTitle className="text-base">Top Plans</CardTitle></CardHeader>
+        <CardContent>
+          {topPlans.length === 0 ? (
+            <div className="text-sm text-muted-foreground text-center py-6">No data.</div>
+          ) : (
+            <div className="space-y-2">
+              {topPlans.map((p) => (
+                <div key={p.plan} className="flex items-center gap-3">
+                  <div className="w-40 shrink-0 truncate text-sm font-medium">{p.plan}</div>
+                  <div className="flex-1 h-6 bg-muted rounded relative overflow-hidden">
+                    <div className="absolute inset-y-0 left-0 bg-blue-500/70 rounded" style={{ width: `${(p.bookings / (topPlans[0]?.bookings || 1)) * 100}%` }} />
+                    <div className="absolute inset-0 flex items-center px-2 text-xs font-medium">{p.bookings} bookings · {fmtINR(p.revenue)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function Kpi({ icon: Icon, label, value, tone }: { icon: any; label: string; value: string; tone: string }) {
+  const tones: Record<string, string> = {
+    blue: "from-blue-500/10 to-blue-500/5 text-blue-600",
+    emerald: "from-emerald-500/10 to-emerald-500/5 text-emerald-600",
+    amber: "from-amber-500/10 to-amber-500/5 text-amber-600",
+    violet: "from-violet-500/10 to-violet-500/5 text-violet-600",
+  };
+  return (
+    <Card className={`bg-gradient-to-br ${tones[tone]}`}>
+      <CardContent className="p-4 flex items-center gap-3">
+        <Icon className="h-7 w-7" />
+        <div>
+          <div className="text-xs text-muted-foreground">{label}</div>
+          <div className="text-xl font-bold">{value}</div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

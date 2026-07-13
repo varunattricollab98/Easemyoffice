@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,6 +50,7 @@ export function NewBookingDialog() {
   const [f, setF] = useState({
     date: todayISO(),
     sales_agent: "",
+    sales_agent_id: "",
     booking_id: genBookingId(),
     booking_source: "Website",
     plan_name: "",
@@ -68,8 +69,18 @@ export function NewBookingDialog() {
   });
 
   useEffect(() => {
-    setF((s) => ({ ...s, sales_agent: profile?.full_name ?? user?.email ?? "" }));
+    setF((s) => ({ ...s, sales_agent: profile?.full_name ?? user?.email ?? "", sales_agent_id: user?.id ?? "" }));
   }, [profile, user]);
+
+  // Team members available to be picked as the sales agent (admin only).
+  const { data: teamUsers = [] } = useQuery({
+    queryKey: ["booking-team-users"],
+    enabled: open && !!isAdmin,
+    queryFn: async () => {
+      const { data } = await supabase.from("profiles").select("id, full_name, email").order("full_name", { ascending: true });
+      return data ?? [];
+    },
+  });
 
   // Computed values
   const vo = num(f.vo_amount);
@@ -97,7 +108,7 @@ export function NewBookingDialog() {
       const { error } = await supabase.from("bookings").insert({
         external_booking_id: f.booking_id,
         booking_date: f.date,
-        sales_agent_id: user?.id ?? null,
+        sales_agent_id: f.sales_agent_id || user?.id || null,
         sales_agent_name: f.sales_agent,
         booking_source: f.booking_source,
         plan_name: f.plan_name,
@@ -166,7 +177,27 @@ export function NewBookingDialog() {
 
         <div className="grid gap-3 md:grid-cols-3">
           {T("date", "Date", { type: "date" })}
-          {T("sales_agent", "Sales Agent", { readOnly: !isAdmin })}
+          <div>
+            <Label className="text-xs">Sales Agent</Label>
+            {isAdmin ? (
+              <Select
+                value={f.sales_agent_id}
+                onValueChange={(v) => {
+                  const u = (teamUsers as any[]).find((x) => x.id === v);
+                  setF({ ...f, sales_agent_id: v, sales_agent: u?.full_name || u?.email || "" });
+                }}
+              >
+                <SelectTrigger><SelectValue placeholder="Select agent" /></SelectTrigger>
+                <SelectContent>
+                  {(teamUsers as any[]).map((u) => (
+                    <SelectItem key={u.id} value={u.id}>{u.full_name || u.email}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input value={f.sales_agent} readOnly className="bg-muted/40" />
+            )}
+          </div>
           {T("booking_id", "Booking ID")}
 
           <div>
