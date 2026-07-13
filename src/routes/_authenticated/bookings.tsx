@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Search, CheckCircle2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { BookingDetailDialog } from "@/components/bookings/booking-detail-dialog";
 
 export const Route = createFileRoute("/_authenticated/bookings")({
   component: BookingsPage,
@@ -19,6 +20,7 @@ const fmtINR = (n: number) => `₹${(n ?? 0).toLocaleString("en-IN", { maximumFr
 function BookingsPage() {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
+  const [selected, setSelected] = useState<any | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["bookings"],
@@ -127,11 +129,14 @@ function BookingsPage() {
                     )}
                   </TableCell>
                   <TableCell>
-                    {!isPaid && balance > 0 && (
-                      <Button size="sm" variant="outline" disabled={markM.isPending} onClick={() => markM.mutate(b.id)}>
-                        Mark Paid
-                      </Button>
-                    )}
+                    <div className="flex justify-end gap-2">
+                      <Button size="sm" variant="outline" onClick={() => setSelected(b)}>Open</Button>
+                      {!isPaid && balance > 0 && (
+                        <Button size="sm" variant="outline" disabled={markM.isPending} onClick={() => markM.mutate(b.id)}>
+                          Mark Paid
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               );
@@ -139,6 +144,8 @@ function BookingsPage() {
           </TableBody>
         </Table>
       </Card>
+
+      <BookingDetailDialog booking={selected} open={!!selected} onOpenChange={(v) => { if (!v) setSelected(null); }} />
     </div>
   );
 }
