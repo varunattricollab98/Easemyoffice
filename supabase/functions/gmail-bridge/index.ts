@@ -40,6 +40,17 @@ Deno.serve(async (req) => {
       return json({ ok: true, emails: parsed.emails ?? [] });
     }
 
+    if (action === "thread") {
+      if (!body.threadId) throw new Error("threadId is required");
+      const url = `${WEBHOOK_URL}?action=thread&threadId=${encodeURIComponent(body.threadId)}&token=${encodeURIComponent(TOKEN)}`;
+      const res = await fetch(url, { method: "GET", redirect: "follow" });
+      const text = await res.text();
+      let parsed: any = {};
+      try { parsed = JSON.parse(text); } catch { throw new Error(`Bad response from Gmail: ${text.slice(0, 150)}`); }
+      if (!parsed.ok) throw new Error(parsed.error || "Could not load email");
+      return json({ ok: true, subject: parsed.subject, url: parsed.url, messages: parsed.messages ?? [] });
+    }
+
     if (action === "claim") {
       if (!body.threadId) throw new Error("threadId is required");
       const res = await fetch(WEBHOOK_URL, {

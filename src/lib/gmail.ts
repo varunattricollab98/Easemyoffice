@@ -24,6 +24,26 @@ export async function fetchInbox(max = 30): Promise<{ ok: boolean; emails: Inbox
   }
 }
 
+export interface ThreadMessage {
+  from: string;
+  to: string;
+  date: string;
+  subject: string;
+  body: string;
+}
+
+// Load the full text of one email thread (all messages) for reading in the CRM.
+export async function fetchThread(threadId: string): Promise<{ ok: boolean; subject?: string; url?: string; messages: ThreadMessage[]; error?: string }> {
+  try {
+    const { data, error } = await supabase.functions.invoke("gmail-bridge", { body: { action: "thread", threadId } });
+    if (error) return { ok: false, messages: [], error: error.message };
+    if (!data?.ok) return { ok: false, messages: [], error: data?.error || "could not load" };
+    return { ok: true, subject: data.subject, url: data.url, messages: Array.isArray(data.messages) ? data.messages : [] };
+  } catch (e: any) {
+    return { ok: false, messages: [], error: e?.message || "could not load" };
+  }
+}
+
 // Label a Gmail thread as "<Name> lead" and mark it read.
 export async function claimEmailInGmail(threadId: string, label: string): Promise<{ ok: boolean; error?: string }> {
   try {

@@ -12,9 +12,21 @@ function json(o) {
   return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
 }
 
+function getThread(threadId) {
+  var t = GmailApp.getThreadById(threadId);
+  if (!t) return json({ ok: false, error: "thread not found" });
+  var messages = t.getMessages().map(function (m) {
+    var body = "";
+    try { body = m.getPlainBody(); } catch (err) { body = ""; }
+    return { from: m.getFrom(), to: m.getTo(), date: m.getDate().toISOString(), subject: m.getSubject(), body: body };
+  });
+  return json({ ok: true, subject: t.getFirstMessageSubject(), url: "https://mail.google.com/mail/u/0/#inbox/" + t.getId(), messages: messages });
+}
+
 function doGet(e) {
   try {
     if (TOKEN && e.parameter.token !== TOKEN) return json({ ok: false, error: "unauthorized" });
+    if (e.parameter.action === "thread") return getThread(e.parameter.threadId);
     var cache = CacheService.getScriptCache();
     var hit = cache.get("inbox_v1");
     if (hit) return ContentService.createTextOutput(hit).setMimeType(ContentService.MimeType.JSON);

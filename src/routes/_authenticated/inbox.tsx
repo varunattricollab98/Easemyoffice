@@ -7,10 +7,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { Mail, ExternalLink, UserPlus, Search, RefreshCcw } from "lucide-react";
-import { fetchInbox, claimEmailInGmail, parseFrom, claimedOwner, type InboxEmail } from "@/lib/gmail";
+import { Mail, ExternalLink, UserPlus, Search, RefreshCcw, BookOpen } from "lucide-react";
+import { fetchInbox, fetchThread, claimEmailInGmail, parseFrom, claimedOwner, type InboxEmail } from "@/lib/gmail";
 
 export const Route = createFileRoute("/_authenticated/inbox")({
   head: () => ({ meta: [{ title: "Lead Inbox — EaseMyOffice CRM" }] }),
@@ -25,6 +26,13 @@ function LeadInboxPage() {
   const myName = profile?.full_name ?? "";
   const [filter, setFilter] = useState<Filter>(isAdmin ? "all" : "unclaimed");
   const [q, setQ] = useState("");
+  const [reading, setReading] = useState<InboxEmail | null>(null);
+
+  const threadQ = useQuery({
+    queryKey: ["gmail-thread", reading?.threadId],
+    enabled: !!reading,
+    queryFn: () => fetchThread(reading!.threadId),
+  });
 
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["lead-inbox"],
@@ -146,14 +154,17 @@ function LeadInboxPage() {
                     <div className="text-[11px] text-muted-foreground mt-0.5">{address} · {formatDistanceToNow(new Date(e.date), { addSuffix: true })}</div>
                   </div>
                   <div className="flex flex-col items-end gap-2 shrink-0">
-                    <a href={e.url} target="_blank" rel="noreferrer" className="text-xs text-primary inline-flex items-center gap-1 hover:underline">
-                      <ExternalLink className="h-3 w-3" /> Open in Gmail
-                    </a>
+                    <Button size="sm" variant="outline" onClick={() => setReading(e)}>
+                      <BookOpen className="h-4 w-4 mr-1" /> Read
+                    </Button>
                     {!owner && (
                       <Button size="sm" disabled={claim.isPending} onClick={() => claim.mutate(e)}>
                         <UserPlus className="h-4 w-4 mr-1" /> Claim as my lead
                       </Button>
                     )}
+                    <a href={e.url} target="_blank" rel="noreferrer" className="text-xs text-primary inline-flex items-center gap-1 hover:underline">
+                      <ExternalLink className="h-3 w-3" /> Open in Gmail
+                    </a>
                   </div>
                 </div>
               );
@@ -161,6 +172,43 @@ function LeadInboxPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Read the full email inside the CRM */}
+      <Dialog open={!!reading} onOpenChange={(v) => { if (!v) setReading(null); }}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base pr-6">{reading?.subject || "(no subject)"}</DialogTitle>
+          </DialogHeader>
+          {threadQ.isLoading ? (
+            <div className="py-10 text-center text-sm text-muted-foreground">Loading email…</div>
+          ) : !threadQ.data?.ok ? (
+            <div className="py-10 text-center text-sm text-destructive">Couldn't load this email{threadQ.data?.error ? `: ${threadQ.data.error}` : ""}.</div>
+          ) : (
+            <div className="space-y-3">
+              {(threadQ.data.messages ?? []).map((m, i) => (
+                <div key={i} className="rounded-md border p-3">
+                  <div className="text-xs text-muted-foreground mb-2">
+                    <span className="font-medium text-foreground">{m.from}</span> · {new Date(m.date).toLocaleString()}
+                  </div>
+                  <div className="text-sm whitespace-pre-wrap break-words">{m.body || "(no text content)"}</div>
+                </div>
+              ))}
+              <div className="flex flex-wrap justify-end gap-3 pt-1">
+                {reading && !claimedOwner(reading.labels) && (
+                  <Button size="sm" disabled={claim.isPending} onClick={() => { claim.mutate(reading); setReading(null); }}>
+                    <UserPlus className="h-4 w-4 mr-1" /> Claim as my lead
+                  </Button>
+                )}
+                {(threadQ.data.url || reading?.url) && (
+                  <a href={threadQ.data.url || reading?.url} target="_blank" rel="noreferrer" className="text-sm text-primary inline-flex items-center gap-1 hover:underline">
+                    <ExternalLink className="h-3.5 w-3.5" /> Open in Gmail to reply
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
