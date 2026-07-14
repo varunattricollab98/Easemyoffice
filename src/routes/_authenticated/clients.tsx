@@ -5,8 +5,9 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Building2, Mail, Phone, ChevronDown, ChevronRight, Users2, Wallet } from "lucide-react";
+import { Search, Building2, Mail, Phone, ChevronDown, ChevronRight, Users2, Wallet, Crown, Gem } from "lucide-react";
 import { useState, useMemo, Fragment } from "react";
+import { ClientDetailDialog } from "@/components/clients/client-detail-dialog";
 
 export const Route = createFileRoute("/_authenticated/clients")({
   head: () => ({ meta: [{ title: "Client Database — EaseMyOffice CRM" }] }),
@@ -15,13 +16,15 @@ export const Route = createFileRoute("/_authenticated/clients")({
 
 const fmtINR = (n: number) => `₹${(n ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 
-// Normalise an Indian phone number to its last 10 digits for de-duplication.
+// ── Category thresholds (₹ lifetime paid). Adjust to your business numbers. ──
+const PREMIUM_MIN = 50000;
+const SEMI_MIN = 20000;
+
 function normPhone(v?: string) {
   const digits = String(v ?? "").replace(/\D/g, "");
   return digits.length >= 10 ? digits.slice(-10) : digits;
 }
 
-// A single de-duplicated client, aggregated from one or many bookings.
 type ClientRow = {
   key: string;
   name: string;
@@ -30,17 +33,30 @@ type ClientRow = {
   phones: string[];
   bookingIds: string[];
   count: number;
+  paymentCount: number;
   totalPaid: number;
   totalBalance: number;
   firstDate: string;
   lastDate: string;
   bookings: any[];
+  tier: "Premium" | "Semi-premium" | "Normal";
+  style: "Full payment" | "Part payments" | "Has dues";
 };
 
-// Group all booking rows into one record per unique client.
-// Identity priority: phone number → email → client name (so the same person
-// booking again / renewing lands on the same client, avoiding duplicates).
-function buildClients(bookings: any[]): ClientRow[] {
+function tierOf(totalPaid: number): ClientRow["tier"] {
+  if (totalPaid >= PREMIUM_MIN) return "Premium";
+  if (totalPaid >= SEMI_MIN) return "Semi-premium";
+  return "Normal";
+}
+
+function styleOf(totalBalance: number, count: number, paymentCount: number): ClientRow["style"] {
+  if (totalBalance > 0) return "Has dues";
+  if (paymentCount > count) return "Part payments"; // more than one payment per booking → pays in parts / negotiates
+  return "Full payment"; // pays the whole amount at once
+}
+
+// Group booking rows into one record per unique client (phone → email → name).
+function buildClients(bookings: any[], payCountByBooking: Map<string, number>): ClientRow[] {
   const map = new Map<string, ClientRow>();
 
   for (const b of bookings) {
@@ -52,23 +68,14 @@ function buildClients(bookings: any[]): ClientRow[] {
     let c = map.get(key);
     if (!c) {
       c = {
-        key,
-        name: b.client_name || "—",
-        company: b.business_name || "",
-        email: b.email_id || "",
-        phones: [],
-        bookingIds: [],
-        count: 0,
-        totalPaid: 0,
-        totalBalance: 0,
-        firstDate: b.booking_date,
-        lastDate: b.booking_date,
-        bookings: [],
+        key, name: b.client_name || "—", company: b.business_name || "", email: b.email_id || "",
+        phones: [], bookingIds: [], count: 0, paymentCount: 0, totalPaid: 0, totalBalance: 0,
+        firstDate: b.booking_date, lastDate: b.booking_date, bookings: [],
+        tier: "Normal", style: "Full payment",
       };
       map.set(key, c);
     }
 
-    // Keep the most recent booking's name/company/email as the canonical one.
     if (b.booking_date >= c.lastDate) {
       c.lastDate = b.booking_date;
       if (b.client_name) c.name = b.client_name;
@@ -77,7 +84,6 @@ function buildClients(bookings: any[]): ClientRow[] {
     }
     if (b.booking_date < c.firstDate) c.firstDate = b.booking_date;
 
-    // Collect every distinct phone number seen for this client.
     for (const p of [b.contact_no, b.alt_contact_no, b.alt_contact_no_2]) {
       const t = String(p ?? "").trim();
       if (t && !c.phones.includes(t)) c.phones.push(t);
@@ -85,21 +91,42 @@ function buildClients(bookings: any[]): ClientRow[] {
 
     c.bookingIds.push(b.external_booking_id || b.booking_code);
     c.count += 1;
+    c.paymentCount += payCountByBooking.get(b.id) ?? 0;
     c.totalPaid += Number(b.amount_received ?? 0);
     c.totalBalance += Number(b.balance_amount ?? 0);
     c.bookings.push(b);
   }
 
   const list = Array.from(map.values());
-  for (const c of list) c.bookings.sort((a, b) => (a.booking_date < b.booking_date ? 1 : -1));
-  // Highest lifetime value first.
+  for (const c of list) {
+    c.bookings.sort((a, b) => (a.booking_date < b.booking_date ? 1 : -1));
+    c.tier = tierOf(c.totalPaid);
+    c.style = styleOf(c.totalBalance, c.count, c.paymentCount);
+  }
   list.sort((a, b) => b.totalPaid - a.totalPaid);
   return list;
+}
+
+function TierBadge({ tier }: { tier: ClientRow["tier"] }) {
+  if (tier === "Premium")
+    return <Badge className="bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-100 gap-1"><Crown className="h-3 w-3" />Premium</Badge>;
+  if (tier === "Semi-premium")
+    return <Badge className="bg-violet-100 text-violet-800 border-violet-300 hover:bg-violet-100 gap-1"><Gem className="h-3 w-3" />Semi-premium</Badge>;
+  return <Badge variant="secondary">Normal</Badge>;
+}
+
+function StyleBadge({ style }: { style: ClientRow["style"] }) {
+  if (style === "Full payment")
+    return <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-100">Full payment</Badge>;
+  if (style === "Part payments")
+    return <Badge className="bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-100">Part payments</Badge>;
+  return <Badge className="bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-100">Has dues</Badge>;
 }
 
 function ClientsPage() {
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [detail, setDetail] = useState<ClientRow | null>(null);
 
   const { data: bookings = [], isLoading } = useQuery({
     queryKey: ["clients-bookings"],
@@ -113,13 +140,24 @@ function ClientsPage() {
     },
   });
 
-  const clients = useMemo(() => buildClients(bookings), [bookings]);
+  // How many payment installments per booking (for the "payment style" tag).
+  const { data: payCounts = new Map<string, number>() } = useQuery({
+    queryKey: ["clients-payment-counts"],
+    queryFn: async () => {
+      const { data } = await supabase.from("booking_payments").select("booking_id").limit(20000);
+      const m = new Map<string, number>();
+      for (const r of (data ?? []) as any[]) m.set(r.booking_id, (m.get(r.booking_id) ?? 0) + 1);
+      return m;
+    },
+  });
+
+  const clients = useMemo(() => buildClients(bookings, payCounts), [bookings, payCounts]);
 
   const filtered = useMemo(() => {
     const t = search.trim().toLowerCase();
     if (!t) return clients;
     return clients.filter((c) =>
-      [c.name, c.company, c.email, ...c.phones, ...c.bookingIds].some((v) =>
+      [c.name, c.company, c.email, c.tier, c.style, ...c.phones, ...c.bookingIds].some((v) =>
         String(v ?? "").toLowerCase().includes(t),
       ),
     );
@@ -140,16 +178,15 @@ function ClientsPage() {
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">Client Database</h1>
           <p className="text-sm text-muted-foreground">
-            One record per client — all bookings &amp; renewals merged, with total amount paid over time.
+            One record per client — all bookings &amp; renewals merged. Click a name to see the full history.
           </p>
         </div>
         <div className="relative w-72 max-w-full">
           <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input className="pl-9" placeholder="Search name, company, phone, email, booking ID…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Input className="pl-9" placeholder="Search name, company, phone, email, category…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
       </div>
 
-      {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <Card className="p-4">
           <div className="flex items-center gap-2 text-sm text-muted-foreground"><Users2 className="h-4 w-4" /> Unique Clients</div>
@@ -171,12 +208,12 @@ function ClientsPage() {
             <TableRow>
               <TableHead className="w-8"></TableHead>
               <TableHead>Client</TableHead>
+              <TableHead>Category</TableHead>
               <TableHead>Contact</TableHead>
               <TableHead>Email</TableHead>
               <TableHead className="text-center">Bookings</TableHead>
               <TableHead className="text-right">Total Paid</TableHead>
-              <TableHead className="text-right">Balance Due</TableHead>
-              <TableHead>Since</TableHead>
+              <TableHead className="text-right">Balance</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -186,13 +223,21 @@ function ClientsPage() {
               const isOpen = expanded.has(c.key);
               return (
                 <Fragment key={c.key}>
-                  <TableRow className="cursor-pointer hover:bg-muted/40" onClick={() => toggle(c.key)}>
-                    <TableCell className="align-top pt-4">
+                  <TableRow className="hover:bg-muted/40">
+                    <TableCell className="align-top pt-4 cursor-pointer" onClick={() => toggle(c.key)}>
                       {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                     </TableCell>
                     <TableCell>
-                      <div className="font-medium">{c.name}</div>
-                      {c.company && <div className="text-xs text-muted-foreground flex items-center gap-1"><Building2 className="h-3 w-3" />{c.company}</div>}
+                      <button className="text-left group" onClick={() => setDetail(c)}>
+                        <div className="font-medium text-primary group-hover:underline">{c.name}</div>
+                        {c.company && <div className="text-xs text-muted-foreground flex items-center gap-1"><Building2 className="h-3 w-3" />{c.company}</div>}
+                      </button>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1 items-start">
+                        <TierBadge tier={c.tier} />
+                        <StyleBadge style={c.style} />
+                      </div>
                     </TableCell>
                     <TableCell className="text-sm">
                       {c.phones.length === 0 ? "—" : (
@@ -204,12 +249,11 @@ function ClientsPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-sm">
-                      {c.email ? <span className="flex items-center gap-1.5"><Mail className="h-3 w-3 text-muted-foreground" />{c.email}</span> : "—"}
+                      {c.email ? <button className="flex items-center gap-1.5 text-primary hover:underline" onClick={() => setDetail(c)}><Mail className="h-3 w-3" />{c.email}</button> : "—"}
                     </TableCell>
                     <TableCell className="text-center"><Badge variant="secondary">{c.count}</Badge></TableCell>
                     <TableCell className="text-right font-semibold text-emerald-600">{fmtINR(c.totalPaid)}</TableCell>
                     <TableCell className={`text-right ${c.totalBalance > 0 ? "text-amber-600 font-medium" : "text-muted-foreground"}`}>{fmtINR(c.totalBalance)}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{c.firstDate}</TableCell>
                   </TableRow>
 
                   {isOpen && (
@@ -262,6 +306,8 @@ function ClientsPage() {
           </TableBody>
         </Table>
       </Card>
+
+      <ClientDetailDialog client={detail} open={!!detail} onOpenChange={(v) => !v && setDetail(null)} />
     </div>
   );
 }
