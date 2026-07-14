@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { Mail, ExternalLink, UserPlus, Search, RefreshCcw } from "lucide-react";
+import { Mail, ExternalLink, UserPlus, Search, RefreshCcw, ChevronLeft, ChevronRight } from "lucide-react";
 import { fetchInbox, fetchThread, claimEmailInGmail, parseFrom, claimedOwner, type InboxEmail } from "@/lib/gmail";
 
 function esc(s: unknown) {
@@ -55,7 +55,9 @@ function LeadInboxPage() {
   const myName = profile?.full_name ?? "";
   const [filter, setFilter] = useState<Filter>(isAdmin ? "all" : "unclaimed");
   const [q, setQ] = useState("");
+  const [page, setPage] = useState(0);
   const [reading, setReading] = useState<InboxEmail | null>(null);
+  const PAGE_SIZE = 40;
 
   const threadQ = useQuery({
     queryKey: ["gmail-thread", reading?.threadId],
@@ -64,14 +66,16 @@ function LeadInboxPage() {
   });
 
   const { data, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ["lead-inbox"],
+    queryKey: ["lead-inbox", page],
     staleTime: 60 * 1000,
     refetchOnWindowFocus: false,
-    queryFn: () => fetchInbox(40),
+    placeholderData: (prev) => prev,
+    queryFn: () => fetchInbox(PAGE_SIZE, page * PAGE_SIZE),
   });
 
   const emails = data?.emails ?? [];
   const connected = data?.ok ?? false;
+  const hasMore = data?.hasMore ?? false;
 
   const claim = useMutation({
     mutationFn: async (email: InboxEmail) => {
@@ -198,6 +202,33 @@ function LeadInboxPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Pagination: 40 per page, navigate to older/newer emails */}
+      {connected && (page > 0 || hasMore) && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="text-xs text-muted-foreground">
+            Showing {emails.length} email{emails.length !== 1 ? "s" : ""} on this page {isFetching && "· loading…"}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" disabled={page === 0 || isFetching} onClick={() => setPage((p) => Math.max(0, p - 1))}>
+              <ChevronLeft className="h-4 w-4 mr-1" /> Newer
+            </Button>
+            <div className="flex items-center gap-1 text-sm">
+              <span className="text-muted-foreground">Page</span>
+              <Input
+                type="number"
+                min={1}
+                value={page + 1}
+                onChange={(ev) => { const n = parseInt(ev.target.value, 10); if (!isNaN(n) && n >= 1) setPage(n - 1); }}
+                className="w-14 h-8 text-center px-1"
+              />
+            </div>
+            <Button variant="outline" size="sm" disabled={!hasMore || isFetching} onClick={() => setPage((p) => p + 1)}>
+              Older <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Read the full email inside the CRM */}
       <Dialog open={!!reading} onOpenChange={(v) => { if (!v) setReading(null); }}>

@@ -11,16 +11,17 @@ export interface InboxEmail {
   url: string;
 }
 
-// Fetch recent lead emails from the shared Gmail inbox (via the gmail-bridge
-// edge function). Fails soft (empty list) if not connected.
-export async function fetchInbox(max = 30): Promise<{ ok: boolean; emails: InboxEmail[]; error?: string }> {
+// Fetch a page of lead emails from the shared Gmail inbox (via the gmail-bridge
+// edge function). `start` is the offset (for pagination). Fails soft if not connected.
+export async function fetchInbox(max = 40, start = 0): Promise<{ ok: boolean; emails: InboxEmail[]; hasMore: boolean; error?: string }> {
   try {
-    const { data, error } = await supabase.functions.invoke("gmail-bridge", { body: { action: "inbox", max } });
-    if (error) return { ok: false, emails: [], error: `Function call failed: ${error.message || "invoke error"}` };
-    if (!data?.ok) return { ok: false, emails: [], error: data?.error || "unknown error" };
-    return { ok: true, emails: Array.isArray(data.emails) ? data.emails : [] };
+    const { data, error } = await supabase.functions.invoke("gmail-bridge", { body: { action: "inbox", max, start } });
+    if (error) return { ok: false, emails: [], hasMore: false, error: `Function call failed: ${error.message || "invoke error"}` };
+    if (!data?.ok) return { ok: false, emails: [], hasMore: false, error: data?.error || "unknown error" };
+    const emails = Array.isArray(data.emails) ? data.emails : [];
+    return { ok: true, emails, hasMore: data.hasMore ?? emails.length >= max };
   } catch (e: any) {
-    return { ok: false, emails: [], error: e?.message || "unknown error" };
+    return { ok: false, emails: [], hasMore: false, error: e?.message || "unknown error" };
   }
 }
 

@@ -30,12 +30,14 @@ function doGet(e) {
   try {
     if (TOKEN && e.parameter.token !== TOKEN) return json({ ok: false, error: "unauthorized" });
     if (e.parameter.action === "thread") return getThread(e.parameter.threadId);
+    var start = Math.max(parseInt(e.parameter.start || "0", 10) || 0, 0);
+    var max = Math.min(parseInt(e.parameter.max || "40", 10) || 40, 100);
     var cache = CacheService.getScriptCache();
-    var hit = cache.get("inbox_v1");
+    var cacheKey = "inbox_" + start + "_" + max;
+    var hit = cache.get(cacheKey);
     if (hit) return ContentService.createTextOutput(hit).setMimeType(ContentService.MimeType.JSON);
 
-    var max = Math.min(parseInt(e.parameter.max || "30", 10) || 30, 60);
-    var threads = GmailApp.getInboxThreads(0, max);
+    var threads = GmailApp.getInboxThreads(start, max);
     var emails = threads.map(function (t) {
       var msgs = t.getMessages();
       var first = msgs[0];
@@ -53,8 +55,8 @@ function doGet(e) {
         url: "https://mail.google.com/mail/u/0/#inbox/" + t.getId()
       };
     });
-    var payload = JSON.stringify({ ok: true, emails: emails });
-    try { cache.put("inbox_v1", payload, 60); } catch (err) {}
+    var payload = JSON.stringify({ ok: true, emails: emails, start: start, hasMore: emails.length >= max });
+    try { cache.put(cacheKey, payload, 30); } catch (err) {}
     return ContentService.createTextOutput(payload).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
     return json({ ok: false, error: String(err) });
@@ -72,8 +74,13 @@ function doPost(e) {
       var label = GmailApp.getUserLabelByName(name) || GmailApp.createLabel(name);
       t.addLabel(label);
       t.markRead();
-      // Bust the cached inbox so the new label shows immediately.
-      try { CacheService.getScriptCache().remove("inbox_v1"); } catch (err) {}
+      // Bust the cached inbox pages so the new label shows immediately.
+      try {
+        var c = CacheService.getScriptCache();
+        var keys = ["inbox_v1"];
+        for (var s = 0; s <= 400; s += 40) keys.push("inbox_" + s + "_40");
+        c.removeAll(keys);
+      } catch (err) {}
       return json({ ok: true });
     }
     return json({ ok: false, error: "unknown action" });

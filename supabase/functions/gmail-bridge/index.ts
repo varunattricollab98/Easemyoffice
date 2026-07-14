@@ -30,14 +30,16 @@ Deno.serve(async (req) => {
     const action = body.action || "inbox";
 
     if (action === "inbox") {
-      const max = Math.min(Number(body.max) || 30, 60);
-      const url = `${WEBHOOK_URL}?action=inbox&max=${max}&token=${encodeURIComponent(TOKEN)}`;
+      const max = Math.min(Number(body.max) || 40, 100);
+      const start = Math.max(Number(body.start) || 0, 0);
+      const url = `${WEBHOOK_URL}?action=inbox&max=${max}&start=${start}&token=${encodeURIComponent(TOKEN)}`;
       const res = await fetch(url, { method: "GET", redirect: "follow" });
       const text = await res.text();
       let parsed: any = {};
       try { parsed = JSON.parse(text); } catch { throw new Error(`Bad response from Gmail: ${text.slice(0, 150)}`); }
       if (parsed.ok === false) throw new Error(parsed.error || "Gmail rejected the request");
-      return json({ ok: true, emails: parsed.emails ?? [] });
+      const emails = parsed.emails ?? [];
+      return json({ ok: true, emails, hasMore: parsed.hasMore ?? emails.length >= max, start });
     }
 
     if (action === "thread") {
