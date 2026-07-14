@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { Mail, ExternalLink, UserPlus, Search, RefreshCcw, BookOpen } from "lucide-react";
+import { Mail, ExternalLink, UserPlus, Search, RefreshCcw } from "lucide-react";
 import { fetchInbox, fetchThread, claimEmailInGmail, parseFrom, claimedOwner, type InboxEmail } from "@/lib/gmail";
 
 export const Route = createFileRoute("/_authenticated/inbox")({
@@ -138,8 +138,8 @@ function LeadInboxPage() {
               const owner = claimedOwner(e.labels);
               const { name, address } = parseFrom(e.from);
               return (
-                <div key={e.threadId} className="flex items-start gap-3 px-4 py-3 border-b last:border-b-0">
-                  <div className="flex-1 min-w-0">
+                <div key={e.threadId} className="flex items-start gap-3 px-4 py-3 border-b last:border-b-0 hover:bg-accent/30 transition-colors">
+                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setReading(e)} title="Click to read">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium truncate">{name || address || "Unknown sender"}</span>
                       {e.unread && <span className="h-2 w-2 rounded-full bg-primary" title="Unread" />}
@@ -154,9 +154,6 @@ function LeadInboxPage() {
                     <div className="text-[11px] text-muted-foreground mt-0.5">{address} · {formatDistanceToNow(new Date(e.date), { addSuffix: true })}</div>
                   </div>
                   <div className="flex flex-col items-end gap-2 shrink-0">
-                    <Button size="sm" variant="outline" onClick={() => setReading(e)}>
-                      <BookOpen className="h-4 w-4 mr-1" /> Read
-                    </Button>
                     {!owner && (
                       <Button size="sm" disabled={claim.isPending} onClick={() => claim.mutate(e)}>
                         <UserPlus className="h-4 w-4 mr-1" /> Claim as my lead
