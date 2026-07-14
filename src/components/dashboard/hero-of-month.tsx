@@ -16,6 +16,7 @@ export function HeroOfMonth() {
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth());
   const [year, setYear] = useState(now.getFullYear());
+  const [rankBy, setRankBy] = useState<"bookings" | "profit">("bookings");
 
   const start = `${year}-${String(month + 1).padStart(2, "0")}-01`;
   const endDateObj = new Date(year, month + 1, 1);
@@ -58,8 +59,12 @@ export function HeroOfMonth() {
     });
     const rows = Array.from(map.values());
     rows.forEach((r) => { r.avg = r.bookings > 0 ? r.revenue / r.bookings : 0; });
-    return rows.sort((a, b) => b.bookings - a.bookings || b.revenue - a.revenue);
-  }, [bookings, profiles]);
+    return rows.sort((a, b) =>
+      rankBy === "profit"
+        ? (b.profit - a.profit || b.bookings - a.bookings)
+        : (b.bookings - a.bookings || b.revenue - a.revenue),
+    );
+  }, [bookings, profiles, rankBy]);
 
   const totals = useMemo(() => {
     const t = (bookings as any[]).reduce(
@@ -85,9 +90,16 @@ export function HeroOfMonth() {
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between gap-3 space-y-0">
+      <CardHeader className="flex-col sm:flex-row sm:items-center justify-between gap-3 space-y-0">
         <CardTitle className="text-base flex items-center gap-2"><Trophy className="h-5 w-5 text-amber-500" /> Hero of the Month</CardTitle>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Select value={rankBy} onValueChange={(v) => setRankBy(v as "bookings" | "profit")}>
+            <SelectTrigger className="h-8 w-[150px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="bookings">Rank by Bookings</SelectItem>
+              <SelectItem value="profit">Rank by Profit</SelectItem>
+            </SelectContent>
+          </Select>
           <Select value={String(month)} onValueChange={(v) => setMonth(Number(v))}>
             <SelectTrigger className="h-8 w-[130px]"><SelectValue /></SelectTrigger>
             <SelectContent>{MONTHS.map((m, i) => <SelectItem key={m} value={String(i)}>{m}</SelectItem>)}</SelectContent>
@@ -103,7 +115,7 @@ export function HeroOfMonth() {
           <div className="rounded-lg bg-gradient-to-br from-amber-100 to-amber-50 dark:from-amber-950/40 dark:to-amber-950/10 border border-amber-300 p-4 flex flex-wrap items-center gap-4">
             <div className="text-4xl">🏆</div>
             <div className="flex-1 min-w-[180px]">
-              <div className="text-xs uppercase tracking-wide text-amber-700 dark:text-amber-400 font-semibold">Hero of {MONTHS[month]} {year}</div>
+              <div className="text-xs uppercase tracking-wide text-amber-700 dark:text-amber-400 font-semibold">Hero of {MONTHS[month]} {year} · by {rankBy === "profit" ? "profit" : "bookings"}</div>
               <div className="text-xl font-bold">{hero.name}</div>
               <div className="text-sm text-muted-foreground">{hero.bookings} bookings · {fmtINR(hero.revenue)} revenue · {fmtINR(hero.profit)} profit</div>
             </div>

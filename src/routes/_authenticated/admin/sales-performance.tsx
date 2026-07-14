@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useMemo } from "react";
 import { Users, Trophy, IndianRupee, Percent } from "lucide-react";
+import { HeroOfMonth } from "@/components/dashboard/hero-of-month";
 
 export const Route = createFileRoute("/_authenticated/admin/sales-performance")({
   head: () => ({ meta: [{ title: "Sales Performance — EaseMyOffice CRM" }] }),
@@ -118,7 +119,15 @@ function SalesPerformancePage() {
     <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-4">
       <div>
         <h1 className="text-2xl md:text-3xl font-bold">Sales Performance</h1>
-        <p className="text-sm text-muted-foreground">Per-person leads, conversions, revenue &amp; follow-up health.</p>
+        <p className="text-sm text-muted-foreground">Bookings, conversions, revenue &amp; follow-up health.</p>
+      </div>
+
+      {/* Bookings dashboard: KPIs, Hero of the Month (rank by bookings/profit), top performers, top plans */}
+      <HeroOfMonth />
+
+      <div className="pt-2">
+        <h2 className="text-lg font-semibold">Lead performance</h2>
+        <p className="text-sm text-muted-foreground">Leads, conversions &amp; follow-up health per person.</p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
