@@ -20,7 +20,10 @@ const FROM_EMAIL =
   "EaseMyOffice CRM <onboarding@resend.dev>";
 
 function isEmail(v: unknown): v is string {
-  return typeof v === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+  if (typeof v !== "string") return false;
+  const at = v.indexOf("@");
+  const dot = v.lastIndexOf(".");
+  return at > 0 && dot > at + 1 && dot < v.length - 1 && v.indexOf(" ") === -1;
 }
 
 Deno.serve(async (req) => {
