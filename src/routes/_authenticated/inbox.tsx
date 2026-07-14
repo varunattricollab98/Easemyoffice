@@ -114,9 +114,14 @@ function LeadInboxPage() {
           {isLoading ? (
             <div className="p-8 text-center text-sm text-muted-foreground">Loading inbox…</div>
           ) : !connected ? (
-            <div className="p-10 text-center space-y-1">
+            <div className="p-10 text-center space-y-2">
               <div className="text-muted-foreground">Gmail inbox isn't connected yet.</div>
-              <div className="text-xs text-muted-foreground">Ask your admin to finish the Lead Inbox setup (Apps Script + gmail-bridge function).</div>
+              {data?.error && (
+                <div className="text-xs font-mono text-rose-600 bg-rose-50 dark:bg-rose-950/30 inline-block px-3 py-1.5 rounded max-w-full break-words">
+                  {data.error}
+                </div>
+              )}
+              <div className="text-xs text-muted-foreground">Finish setup: Apps Script + the <code>gmail-bridge</code> function + its two secrets.</div>
             </div>
           ) : rows.length === 0 ? (
             <div className="p-10 text-center text-sm text-muted-foreground">No emails match this filter.</div>

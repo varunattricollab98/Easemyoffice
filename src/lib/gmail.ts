@@ -16,11 +16,11 @@ export interface InboxEmail {
 export async function fetchInbox(max = 30): Promise<{ ok: boolean; emails: InboxEmail[]; error?: string }> {
   try {
     const { data, error } = await supabase.functions.invoke("gmail-bridge", { body: { action: "inbox", max } });
-    if (error) return { ok: false, emails: [], error: "not connected" };
-    if (!data?.ok) return { ok: false, emails: [], error: data?.error || "not connected" };
+    if (error) return { ok: false, emails: [], error: `Function call failed: ${error.message || "invoke error"}` };
+    if (!data?.ok) return { ok: false, emails: [], error: data?.error || "unknown error" };
     return { ok: true, emails: Array.isArray(data.emails) ? data.emails : [] };
-  } catch {
-    return { ok: false, emails: [], error: "not connected" };
+  } catch (e: any) {
+    return { ok: false, emails: [], error: e?.message || "unknown error" };
   }
 }
 
