@@ -33,11 +33,13 @@ function json(payload: unknown, status = 200) {
 }
 
 function esc(s: unknown) {
-  return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return String(s ?? "").split("&").join("&amp;").split("<").join("&lt;").split(">").join("&gt;");
 }
 
 async function sendEmail(to: string, subject: string, message: string) {
-  const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#0f172a">${esc(message).replace(/\n/g, "<br>")}</div>`;
+  // white-space:pre-wrap preserves the line breaks the user typed, so we don't
+  // need any newline regex (which breaks when copy-pasted out of chat).
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;white-space:pre-wrap;color:#0f172a">${esc(message)}</div>`;
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
