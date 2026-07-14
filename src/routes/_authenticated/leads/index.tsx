@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { INTERESTS, SERVICES, SOURCES, STAGES, labelFor } from "@/lib/crm";
 import { Plus, Search, Phone, Mail, Upload, Download, Trash2, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
@@ -50,6 +52,8 @@ function LeadsListPage() {
   const [q, setQ] = useState(search.q ?? "");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState(false);
+  const [bulkReasonStage, setBulkReasonStage] = useState<string | null>(null);
+  const [bulkReason, setBulkReason] = useState("");
   const stage = search.stage ?? "all";
   const interest = search.interest ?? "all";
   const service = search.service ?? "all";
@@ -267,9 +271,8 @@ function LeadsListPage() {
             </Select>
             <Select onValueChange={(v) => {
               if (v === "lost" || v === "not_interested") {
-                const reason = window.prompt(`Reason for marking ${selected.size} lead(s) as ${labelFor(STAGES, v)}? (required)`);
-                if (!reason || !reason.trim()) { toast.error("A reason is required — cancelled."); return; }
-                bulkStage.mutate({ stage: v, reason: reason.trim() });
+                setBulkReason("");
+                setBulkReasonStage(v);
               } else {
                 bulkStage.mutate({ stage: v });
               }
@@ -328,6 +331,34 @@ function LeadsListPage() {
       )}
 
       <NewLeadDialog open={open} onOpenChange={setOpen} onCreated={(id) => navigate({ to: "/leads/$id", params: { id } })} />
+
+      <Dialog open={!!bulkReasonStage} onOpenChange={(o) => { if (!o) setBulkReasonStage(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reason required</DialogTitle>
+            <DialogDescription>
+              Why are these <span className="font-medium text-foreground">{selected.size}</span> lead(s) marked{" "}
+              <span className="font-medium text-foreground">{bulkReasonStage ? labelFor(STAGES, bulkReasonStage) : ""}</span>? This is mandatory.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            autoFocus
+            rows={3}
+            value={bulkReason}
+            onChange={(e) => setBulkReason(e.target.value)}
+            placeholder="e.g. Chose a competitor · budget too high · no response…"
+          />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setBulkReasonStage(null)}>Cancel</Button>
+            <Button
+              disabled={!bulkReason.trim() || bulkStage.isPending}
+              onClick={() => { bulkStage.mutate({ stage: bulkReasonStage!, reason: bulkReason.trim() }); setBulkReasonStage(null); }}
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

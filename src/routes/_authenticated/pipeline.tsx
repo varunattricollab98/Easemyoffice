@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { PipelineSkeleton } from "@/components/skeletons";
 import { usePagePerf } from "@/lib/perf";
@@ -50,6 +52,8 @@ function PipelinePage() {
   const [search, setSearch] = useState("");
   const [interestFilter, setInterestFilter] = useState<string>("all");
   const [overdueOnly, setOverdueOnly] = useState(false);
+  const [pendingMove, setPendingMove] = useState<{ id: string; client: string; fromStage: string; fromLabel: string; toStage: string; toLabel: string } | null>(null);
+  const [reasonText, setReasonText] = useState("");
   const isMobile = useIsMobile();
 
   // Mobile: load ONLY the active stage. Desktop: load all (capped 500).
@@ -151,18 +155,30 @@ function PipelinePage() {
         duration: 8000,
       });
 
-    // Lost / Not interested require a mandatory reason.
+    // Lost / Not interested require a mandatory reason — open a styled dialog.
     if (toStage === "lost" || toStage === "not_interested") {
-      const reason = window.prompt(`Reason for marking "${lead.client_name}" as ${toLabel}? (required)`);
-      if (!reason || !reason.trim()) {
-        toast.error("A reason is required — move cancelled.");
-        return;
-      }
-      move.mutate({ id, stage: toStage, reason: reason.trim() }, { onSuccess: notify });
+      setReasonText("");
+      setPendingMove({ id, client: lead.client_name, fromStage, fromLabel, toStage, toLabel });
       return;
     }
 
     move.mutate({ id, stage: toStage }, { onSuccess: notify });
+  };
+
+  const confirmReasonMove = () => {
+    if (!pendingMove || !reasonText.trim()) return;
+    const { id, fromStage, fromLabel, toStage, toLabel } = pendingMove;
+    move.mutate(
+      { id, stage: toStage, reason: reasonText.trim() },
+      {
+        onSuccess: () =>
+          toast.success(`Moved to ${toLabel}`, {
+            action: { label: "Undo", onClick: () => undoMove(id, fromStage, fromLabel) },
+            duration: 8000,
+          }),
+      },
+    );
+    setPendingMove(null);
   };
 
   const activeIdx = STAGES.findIndex((s) => s.id === activeStage);
@@ -256,6 +272,30 @@ function PipelinePage() {
           </div>
         </DndContext>
       </div>
+
+      <Dialog open={!!pendingMove} onOpenChange={(o) => { if (!o) setPendingMove(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reason required</DialogTitle>
+            <DialogDescription>
+              Please note why <span className="font-medium text-foreground">{pendingMove?.client}</span> is marked{" "}
+              <span className="font-medium text-foreground">{pendingMove?.toLabel}</span>. This is mandatory.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            autoFocus
+            rows={3}
+            value={reasonText}
+            onChange={(e) => setReasonText(e.target.value)}
+            placeholder="e.g. Chose a competitor · budget too high · no response…"
+            onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") confirmReasonMove(); }}
+          />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setPendingMove(null)}>Cancel</Button>
+            <Button disabled={!reasonText.trim() || move.isPending} onClick={confirmReasonMove}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
