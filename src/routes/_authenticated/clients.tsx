@@ -23,8 +23,8 @@ const fmtINR = (n: number) => `₹${(n ?? 0).toLocaleString("en-IN", { maximumFr
 //    Premium:       more than 8 bookings / above ₹90k
 const PREMIUM_AMT = 90000;   // > this → Premium (by amount)
 const SEMI_AMT = 30000;      // > this → Semi-premium (by amount)
-const PREMIUM_COUNT = 8;     // > this many bookings → Premium
-const SEMI_COUNT = 2;        // >= this many bookings → Semi-premium
+const PREMIUM_COUNT = 8;     // > this many bookings → Premium (i.e. 9+)
+const SEMI_COUNT = 8;        // >= this many bookings → Semi-premium (i.e. exactly 8); fewer is judged by amount
 
 function normPhone(v?: string) {
   const digits = String(v ?? "").replace(/\D/g, "");
@@ -249,10 +249,19 @@ function ClientsPage() {
                       </button>
                     </TableCell>
                     <TableCell>
-                      <div className="flex flex-col gap-1 items-start">
-                        <TierBadge tier={c.tier} />
-                        <StyleBadge style={c.style} />
-                        <DiscountBadge amount={c.totalDiscount} />
+                      <div className="flex flex-col gap-1.5 items-start">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground w-16 shrink-0">Tier</span>
+                          <TierBadge tier={c.tier} />
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground w-16 shrink-0">Pays</span>
+                          <StyleBadge style={c.style} />
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground w-16 shrink-0">Discount</span>
+                          <DiscountBadge amount={c.totalDiscount} />
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell className="text-sm">
