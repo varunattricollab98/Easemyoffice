@@ -95,8 +95,10 @@ function PipelinePage() {
   }, [filtered]);
 
   const move = useMutation({
-    mutationFn: async ({ id, stage }: { id: string; stage: string }) => {
-      const { error } = await supabase.from("leads").update({ stage: stage as never }).eq("id", id);
+    mutationFn: async ({ id, stage, reason }: { id: string; stage: string; reason?: string }) => {
+      const patch: Record<string, unknown> = { stage };
+      if (reason !== undefined) patch.lost_reason = reason;
+      const { error } = await supabase.from("leads").update(patch as never).eq("id", id);
       if (error) throw error;
     },
     onMutate: async ({ id, stage }) => {
@@ -142,17 +144,25 @@ function PipelinePage() {
     const fromStage = lead.stage;
     const fromLabel = STAGES.find((s) => s.id === fromStage)?.label ?? fromStage;
     const toLabel = STAGES.find((s) => s.id === toStage)?.label ?? toStage;
-    move.mutate(
-      { id, stage: toStage },
-      {
-        onSuccess: () => {
-          toast.success(`Moved to ${toLabel}`, {
-            action: { label: "Undo", onClick: () => undoMove(id, fromStage, fromLabel) },
-            duration: 8000,
-          });
-        },
-      },
-    );
+
+    const notify = () =>
+      toast.success(`Moved to ${toLabel}`, {
+        action: { label: "Undo", onClick: () => undoMove(id, fromStage, fromLabel) },
+        duration: 8000,
+      });
+
+    // Lost / Not interested require a mandatory reason.
+    if (toStage === "lost" || toStage === "not_interested") {
+      const reason = window.prompt(`Reason for marking "${lead.client_name}" as ${toLabel}? (required)`);
+      if (!reason || !reason.trim()) {
+        toast.error("A reason is required — move cancelled.");
+        return;
+      }
+      move.mutate({ id, stage: toStage, reason: reason.trim() }, { onSuccess: notify });
+      return;
+    }
+
+    move.mutate({ id, stage: toStage }, { onSuccess: notify });
   };
 
   const activeIdx = STAGES.findIndex((s) => s.id === activeStage);

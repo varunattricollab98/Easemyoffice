@@ -47,6 +47,8 @@ function LeadDetailPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [emailOpen, setEmailOpen] = useState(false);
+  const [reasonStage, setReasonStage] = useState<string | null>(null);
+  const [reasonText, setReasonText] = useState("");
 
   const { data: lead, isLoading } = useQuery({
     queryKey: ["lead", id],
@@ -195,7 +197,17 @@ function LeadDetailPage() {
           <CardContent className="space-y-3">
             <div className="space-y-1.5">
               <Label className="text-xs">Stage</Label>
-              <Select value={lead.stage} onValueChange={(v) => updateLead.mutate({ stage: v })}>
+              <Select
+                value={lead.stage}
+                onValueChange={(v) => {
+                  if (v === "lost" || v === "not_interested") {
+                    setReasonText(lead.lost_reason ?? "");
+                    setReasonStage(v);
+                  } else {
+                    updateLead.mutate({ stage: v });
+                  }
+                }}
+              >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {STAGES.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}
@@ -313,6 +325,39 @@ function LeadDetailPage() {
           onSent={(subject) => logActivity("email", `Emailed ${lead.email}`, subject)}
         />
       )}
+
+      <Dialog open={!!reasonStage} onOpenChange={(o) => { if (!o) setReasonStage(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reason required</DialogTitle>
+            <DialogDescription>
+              Please note why this lead is marked{" "}
+              <span className="font-medium text-foreground">{reasonStage === "lost" ? "Lost" : "Not interested"}</span>. This is mandatory.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            autoFocus
+            rows={3}
+            value={reasonText}
+            onChange={(e) => setReasonText(e.target.value)}
+            placeholder="e.g. Chose a competitor · budget too high · wrong fit · no response…"
+          />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setReasonStage(null)}>Cancel</Button>
+            <Button
+              disabled={!reasonText.trim() || updateLead.isPending}
+              onClick={() => {
+                const stage = reasonStage!;
+                updateLead.mutate({ stage, lost_reason: reasonText.trim() });
+                logActivity("stage_change", `Marked ${stage === "lost" ? "Lost" : "Not interested"}`, reasonText.trim());
+                setReasonStage(null);
+              }}
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -27,7 +27,17 @@ function buildThreadHtml(messages: { from: string; date: string; html?: string; 
       : `<pre style="white-space:pre-wrap;font:14px/1.6 Arial,sans-serif;color:#0f172a;margin:0">${esc(m.body)}</pre>`;
     return header + `<div>${content}</div>`;
   });
-  return `<div style="font-family:Arial,Helvetica,sans-serif;padding:10px 14px;color:#0f172a;max-width:100%">${parts.join('<hr style="border:none;border-top:1px dashed #cbd5e1;margin:24px 0">')}</div>`;
+  // Style injected into the sandboxed frame: draws a clear separator line above
+  // any older/quoted reply (Gmail wraps those in .gmail_quote / blockquote), so
+  // the fresh message is visually distinct from the older thread beneath it.
+  const style = "<style>"
+    + "img{max-width:100%;height:auto}body{margin:0}"
+    + "blockquote.gmail_quote,div.gmail_quote{border-top:2px solid #94a3b8;margin-top:22px;padding-top:16px;position:relative}"
+    + "div.gmail_quote:before{content:'\\2014 older messages \\2014';display:block;font:11px Arial,sans-serif;color:#94a3b8;margin-bottom:8px;letter-spacing:.03em}"
+    + ".gmail_quote .gmail_quote,blockquote blockquote{border-top:0;margin-top:8px;padding-top:0}"
+    + ".gmail_quote .gmail_quote:before,blockquote blockquote:before{content:none}"
+    + "</style>";
+  return `${style}<div style="font-family:Arial,Helvetica,sans-serif;padding:10px 14px;color:#0f172a;max-width:100%">${parts.join('<hr style="border:none;border-top:1px dashed #cbd5e1;margin:24px 0">')}</div>`;
 }
 
 export const Route = createFileRoute("/_authenticated/inbox")({

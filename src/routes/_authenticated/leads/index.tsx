@@ -143,8 +143,10 @@ function LeadsListPage() {
   });
 
   const bulkStage = useMutation({
-    mutationFn: async (newStage: string) => {
-      const { error } = await supabase.from("leads").update({ stage: newStage as never }).in("id", selectedIds);
+    mutationFn: async ({ stage, reason }: { stage: string; reason?: string }) => {
+      const patch: Record<string, unknown> = { stage };
+      if (reason !== undefined) patch.lost_reason = reason;
+      const { error } = await supabase.from("leads").update(patch as never).in("id", selectedIds);
       if (error) throw error;
     },
     onSuccess: () => { toast.success(`Moved ${selected.size} lead(s)`); clearSel(); qc.invalidateQueries({ queryKey: ["leads"] }); },
@@ -263,7 +265,15 @@ function LeadsListPage() {
                 {(assignableUsers as any[]).map((u) => <SelectItem key={u.id} value={u.id}>{u.full_name || u.email || "User"}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select onValueChange={(v) => bulkStage.mutate(v)}>
+            <Select onValueChange={(v) => {
+              if (v === "lost" || v === "not_interested") {
+                const reason = window.prompt(`Reason for marking ${selected.size} lead(s) as ${labelFor(STAGES, v)}? (required)`);
+                if (!reason || !reason.trim()) { toast.error("A reason is required — cancelled."); return; }
+                bulkStage.mutate({ stage: v, reason: reason.trim() });
+              } else {
+                bulkStage.mutate({ stage: v });
+              }
+            }}>
               <SelectTrigger className="h-9 w-44"><SelectValue placeholder="Change stage…" /></SelectTrigger>
               <SelectContent>
                 {STAGES.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}
