@@ -190,9 +190,30 @@ function LeadInboxPage() {
                   <div className="text-xs text-muted-foreground mb-2">
                     <span className="font-medium text-foreground">{m.from}</span> · {new Date(m.date).toLocaleString()}
                   </div>
-                  <div className="text-sm whitespace-pre-wrap break-words">{m.body || "(no text content)"}</div>
+                  {m.html ? (
+                    // Rendered in a sandboxed iframe: shows the full formatted email
+                    // (tables, images, the quotation) but scripts are disabled for safety.
+                    <iframe
+                      title={`email-${i}`}
+                      sandbox=""
+                      srcDoc={m.html}
+                      className="w-full h-[55vh] rounded border bg-white"
+                    />
+                  ) : (
+                    <div className="text-sm whitespace-pre-wrap break-words">{m.body || "(no text content)"}</div>
+                  )}
+                  {m.attachments && m.attachments.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {m.attachments.map((a, j) => (
+                        <span key={j} className="text-xs inline-flex items-center gap-1 rounded border px-2 py-1 bg-muted/40">📎 {a.name}</span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
+              {(threadQ.data.messages ?? []).some((m) => (m.attachments?.length ?? 0) > 0) && (
+                <div className="text-xs text-muted-foreground">To download an attachment (e.g. a quotation PDF), use "Open in Gmail" below.</div>
+              )}
               <div className="flex flex-wrap justify-end gap-3 pt-1">
                 {reading && !claimedOwner(reading.labels) && (
                   <Button size="sm" disabled={claim.isPending} onClick={() => { claim.mutate(reading); setReading(null); }}>

@@ -30,6 +30,8 @@ export interface ThreadMessage {
   date: string;
   subject: string;
   body: string;
+  html?: string;
+  attachments?: { name: string; size: number }[];
 }
 
 // Load the full text of one email thread (all messages) for reading in the CRM.

@@ -16,9 +16,12 @@ function getThread(threadId) {
   var t = GmailApp.getThreadById(threadId);
   if (!t) return json({ ok: false, error: "thread not found" });
   var messages = t.getMessages().map(function (m) {
-    var body = "";
-    try { body = m.getPlainBody(); } catch (err) { body = ""; }
-    return { from: m.getFrom(), to: m.getTo(), date: m.getDate().toISOString(), subject: m.getSubject(), body: body };
+    var body = "", html = "";
+    try { body = m.getPlainBody(); } catch (err) {}
+    try { html = m.getBody(); } catch (err) {}
+    var atts = [];
+    try { atts = m.getAttachments().map(function (a) { return { name: a.getName(), size: a.getSize() }; }); } catch (err) {}
+    return { from: m.getFrom(), to: m.getTo(), date: m.getDate().toISOString(), subject: m.getSubject(), body: body, html: html, attachments: atts };
   });
   return json({ ok: true, subject: t.getFirstMessageSubject(), url: "https://mail.google.com/mail/u/0/#inbox/" + t.getId(), messages: messages });
 }
