@@ -189,27 +189,28 @@ function LeadInboxPage() {
 
       {/* Read the full email inside the CRM */}
       <Dialog open={!!reading} onOpenChange={(v) => { if (!v) setReading(null); }}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-base pr-6">{reading?.subject || "(no subject)"}</DialogTitle>
+        <DialogContent className="max-w-2xl h-[85vh] p-4 flex flex-col gap-3">
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="text-base pr-8">{reading?.subject || "(no subject)"}</DialogTitle>
           </DialogHeader>
           {threadQ.isLoading ? (
-            <div className="py-10 text-center text-sm text-muted-foreground">Loading email…</div>
+            <div className="flex-1 grid place-items-center text-sm text-muted-foreground">Loading email…</div>
           ) : !threadQ.data?.ok ? (
-            <div className="py-10 text-center text-sm text-destructive">Couldn't load this email{threadQ.data?.error ? `: ${threadQ.data.error}` : ""}.</div>
+            <div className="flex-1 grid place-items-center text-sm text-destructive text-center px-4">Couldn't load this email{threadQ.data?.error ? `: ${threadQ.data.error}` : ""}.</div>
           ) : (
-            <div className="space-y-3">
-              {/* Whole conversation in one continuous, scrollable view */}
+            <>
+              {/* Whole conversation in one continuous view; only this area scrolls,
+                  so the popup's close ✕ (top-right) always stays visible. */}
               <iframe
                 title="email"
                 sandbox=""
                 srcDoc={buildThreadHtml(threadQ.data.messages ?? [])}
-                className="w-full h-[68vh] rounded-md border bg-white"
+                className="w-full flex-1 min-h-0 rounded-md border bg-white"
               />
               {(() => {
                 const atts = (threadQ.data.messages ?? []).flatMap((m) => m.attachments ?? []);
                 return atts.length > 0 ? (
-                  <div className="space-y-1">
+                  <div className="space-y-1 shrink-0">
                     <div className="flex flex-wrap gap-2">
                       {atts.map((a, j) => (
                         <span key={j} className="text-xs inline-flex items-center gap-1 rounded border px-2 py-1 bg-muted/40">📎 {a.name}</span>
@@ -219,7 +220,7 @@ function LeadInboxPage() {
                   </div>
                 ) : null;
               })()}
-              <div className="flex flex-wrap justify-end gap-3 pt-1">
+              <div className="flex flex-wrap items-center justify-end gap-3 shrink-0">
                 {reading && !claimedOwner(reading.labels) && (
                   <Button size="sm" disabled={claim.isPending} onClick={() => { claim.mutate(reading); setReading(null); }}>
                     <UserPlus className="h-4 w-4 mr-1" /> Claim as my lead
@@ -230,8 +231,9 @@ function LeadInboxPage() {
                     <ExternalLink className="h-3.5 w-3.5" /> Open in Gmail to reply
                   </a>
                 )}
+                <Button size="sm" variant="outline" onClick={() => setReading(null)}>Close</Button>
               </div>
-            </div>
+            </>
           )}
         </DialogContent>
       </Dialog>
