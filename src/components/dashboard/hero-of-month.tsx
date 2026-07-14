@@ -1,9 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/lib/auth";
+import { toast } from "sonner";
 import { useMemo, useState } from "react";
-import { Trophy, Package, IndianRupee, Ticket } from "lucide-react";
+import { Trophy, Package, IndianRupee, Ticket, Target, Pencil } from "lucide-react";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const fmtINR = (n: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n || 0);
@@ -13,10 +17,14 @@ type AgentRow = { key: string; name: string; bookings: number; revenue: number; 
 
 // Hero of the Month leaderboard — rendered as a section inside the Dashboard.
 export function HeroOfMonth() {
+  const { isAdmin } = useAuth();
+  const qc = useQueryClient();
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth());
   const [year, setYear] = useState(now.getFullYear());
   const [rankBy, setRankBy] = useState<"bookings" | "profit">("bookings");
+  const [editingTarget, setEditingTarget] = useState(false);
+  const [targetDraft, setTargetDraft] = useState({ bookings: "", profit: "" });
 
   const start = `${year}-${String(month + 1).padStart(2, "0")}-01`;
   const endDateObj = new Date(year, month + 1, 1);
@@ -85,6 +93,28 @@ export function HeroOfMonth() {
     return Array.from(map.values()).sort((a, b) => b.bookings - a.bookings).slice(0, 6);
   }, [bookings]);
 
+  const { data: targets } = useQuery({
+    queryKey: ["sales-targets"],
+    queryFn: async () => {
+      const { data } = await supabase.from("app_settings").select("value").eq("key", "sales_targets").maybeSingle();
+      const v = (data?.value as any) || {};
+      return { bookings: Number(v.bookings) || 100, profit: Number(v.profit) || 500000 };
+    },
+  });
+  const bookingsTarget = targets?.bookings ?? 100;
+  const profitTarget = targets?.profit ?? 500000;
+  const bookingsPct = bookingsTarget > 0 ? Math.round((totals.count / bookingsTarget) * 100) : 0;
+
+  const saveTarget = useMutation({
+    mutationFn: async () => {
+      const payload = { bookings: Number(targetDraft.bookings) || 0, profit: Number(targetDraft.profit) || 0 };
+      const { error } = await supabase.from("app_settings").upsert({ key: "sales_targets", value: payload });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => { toast.success("Target updated"); setEditingTarget(false); qc.invalidateQueries({ queryKey: ["sales-targets"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const hero = agents[0];
   const maxRevenue = Math.max(1, ...agents.map((a) => a.revenue));
 
@@ -111,22 +141,68 @@ export function HeroOfMonth() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {hero && hero.bookings > 0 && (
-          <div className="rounded-lg bg-gradient-to-br from-amber-100 to-amber-50 dark:from-amber-950/40 dark:to-amber-950/10 border border-amber-300 p-4 flex flex-wrap items-center gap-4">
-            <div className="text-4xl">🏆</div>
-            <div className="flex-1 min-w-[180px]">
-              <div className="text-xs uppercase tracking-wide text-amber-700 dark:text-amber-400 font-semibold">Hero of {MONTHS[month]} {year} · by {rankBy === "profit" ? "profit" : "bookings"}</div>
-              <div className="text-xl font-bold">{hero.name}</div>
-              <div className="text-sm text-muted-foreground">{hero.bookings} bookings · {fmtINR(hero.revenue)} revenue · {fmtINR(hero.profit)} profit</div>
+        <div className="grid lg:grid-cols-3 gap-4">
+          {/* Left: hero + KPIs */}
+          <div className="lg:col-span-2 space-y-4">
+            {hero && hero.bookings > 0 && (
+              <div className="rounded-lg bg-gradient-to-br from-amber-100 to-amber-50 dark:from-amber-950/40 dark:to-amber-950/10 border border-amber-300 p-4 flex flex-wrap items-center gap-4">
+                <div className="text-4xl">🏆</div>
+                <div className="flex-1 min-w-[180px]">
+                  <div className="text-xs uppercase tracking-wide text-amber-700 dark:text-amber-400 font-semibold">Hero of {MONTHS[month]} {year} · by {rankBy === "profit" ? "profit" : "bookings"}</div>
+                  <div className="text-xl font-bold">{hero.name}</div>
+                  <div className="text-sm text-muted-foreground">{hero.bookings} bookings · {fmtINR(hero.revenue)} revenue · {fmtINR(hero.profit)} profit</div>
+                </div>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <Kpi icon={Package} label="Bookings" value={String(totals.count)} tone="blue" />
+              <Kpi icon={IndianRupee} label="Total sales" value={fmtINR(totals.sales)} tone="emerald" />
+              <Kpi icon={Trophy} label="Profit" value={fmtINR(totals.profit)} tone="amber" />
+              <Kpi icon={Ticket} label="Avg ticket" value={fmtINR(totals.avgTicket)} tone="violet" />
             </div>
           </div>
-        )}
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Kpi icon={Package} label="Bookings" value={String(totals.count)} tone="blue" />
-          <Kpi icon={IndianRupee} label="Total sales" value={fmtINR(totals.sales)} tone="emerald" />
-          <Kpi icon={Trophy} label="Profit" value={fmtINR(totals.profit)} tone="amber" />
-          <Kpi icon={Ticket} label="Avg ticket" value={fmtINR(totals.avgTicket)} tone="violet" />
+          {/* Right: Our Target */}
+          <div className="lg:col-span-1">
+            <div className="rounded-lg border h-full p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="font-semibold flex items-center gap-2"><Target className="h-4 w-4 text-amber-500" /> Our Target</div>
+                {isAdmin && !editingTarget && (
+                  <Button size="sm" variant="ghost" className="h-7 px-2"
+                    onClick={() => { setTargetDraft({ bookings: String(bookingsTarget), profit: String(profitTarget) }); setEditingTarget(true); }}>
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+              {editingTarget ? (
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-xs text-muted-foreground">Monthly bookings target</label>
+                    <Input type="number" value={targetDraft.bookings} onChange={(e) => setTargetDraft({ ...targetDraft, bookings: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Monthly profit target (₹)</label>
+                    <Input type="number" value={targetDraft.profit} onChange={(e) => setTargetDraft({ ...targetDraft, profit: e.target.value })} />
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button size="sm" variant="ghost" onClick={() => setEditingTarget(false)}>Cancel</Button>
+                    <Button size="sm" disabled={saveTarget.isPending} onClick={() => saveTarget.mutate()}>Save</Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2 text-sm">
+                  <div>🎯 <span className="font-medium">Monthly Target:</span> {bookingsTarget} Bookings</div>
+                  <div>📦 <span className="font-medium">Current:</span> {totals.count}/{bookingsTarget} ({bookingsPct}%)</div>
+                  <div className="h-2 bg-muted rounded overflow-hidden">
+                    <div className="h-full bg-emerald-500" style={{ width: `${Math.min(100, bookingsPct)}%` }} />
+                  </div>
+                  <div>💰 <span className="font-medium">Profit:</span> {fmtINR(totals.profit)} / {fmtINR(profitTarget)}</div>
+                  <div>🎯 <span className="font-medium">Profit Gap:</span> {fmtINR(Math.max(0, profitTarget - totals.profit))}</div>
+                  <div>🚀 <span className="font-medium">Remaining:</span> {Math.max(0, bookingsTarget - totals.count)} Bookings</div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {isLoading ? (
