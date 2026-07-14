@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,8 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { formatDistanceToNow } from "date-fns";
-import { AlarmClock, Plus, Send, X, Mail, Repeat } from "lucide-react";
+import { AlarmClock, Plus, Send, X, Mail, Repeat, Pause, Play } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/reminders")({
   head: () => ({ meta: [{ title: "Reminders — EaseMyOffice CRM" }] }),
@@ -27,7 +26,7 @@ type Reminder = {
   subject: string;
   message: string;
   send_at: string;
-  status: "scheduled" | "sent" | "cancelled" | "failed";
+  status: "scheduled" | "sent" | "cancelled" | "failed" | "paused";
   sent_at: string | null;
   error: string | null;
   created_by: string | null;
@@ -48,6 +47,20 @@ function repeatLabel(days: number) {
 const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 const fmt = (d: string) => { try { return new Date(d).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); } catch { return d; } };
 
+// Live countdown label, e.g. "in 2 minutes" / "in 1 minute" / "sending now…".
+// `_tick` is only here to force a re-render every minute.
+function countdown(sendAt: string, _tick: number) {
+  const diff = new Date(sendAt).getTime() - Date.now();
+  if (diff <= 0) return "sending now…";
+  const mins = Math.round(diff / 60000);
+  if (mins < 1) return "less than a minute left";
+  if (mins < 60) return `in ${mins} minute${mins === 1 ? "" : "s"}`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `in ${hrs} hour${hrs === 1 ? "" : "s"}`;
+  const days = Math.round(hrs / 24);
+  return `in ${days} day${days === 1 ? "" : "s"}`;
+}
+
 // value for <input type="datetime-local"> defaulting to +1 day from now
 function defaultSendAt() {
   const d = new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -61,15 +74,24 @@ function StatusBadge({ s }: { s: Reminder["status"] }) {
     sent: "bg-emerald-100 text-emerald-800 border-emerald-300",
     cancelled: "bg-slate-100 text-slate-700 border-slate-300",
     failed: "bg-rose-100 text-rose-800 border-rose-300",
+    paused: "bg-amber-100 text-amber-800 border-amber-300",
   };
-  return <Badge variant="outline" className={`${map[s]} capitalize`}>{s}</Badge>;
+  const label = s === "sent" ? "succeeded" : s;
+  return <Badge variant="outline" className={`${map[s]} capitalize`}>{label}</Badge>;
 }
 
 function RemindersPage() {
   const { user, isAdmin } = useAuth();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<"upcoming" | "all">("upcoming");
+  const [tab, setTab] = useState<"scheduled" | "succeeded" | "paused" | "all">("scheduled");
+  const [tick, setTick] = useState(0);
+
+  // Re-render every 30s so the countdown ("in 2 minutes") stays live.
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   const [form, setForm] = useState({ to_email: "", client_name: "", subject: "", message: "", send_at: defaultSendAt(), repeat: false, interval_days: "1", stop_days: "7" });
   const set = (k: keyof typeof form, v: string | boolean) => setForm((s) => ({ ...s, [k]: v }));
@@ -83,10 +105,19 @@ function RemindersPage() {
     },
   });
 
-  const shown = useMemo(
-    () => (tab === "upcoming" ? reminders.filter((r) => r.status === "scheduled") : reminders),
-    [reminders, tab],
-  );
+  const shown = useMemo(() => {
+    if (tab === "scheduled") return reminders.filter((r) => r.status === "scheduled");
+    if (tab === "succeeded") return reminders.filter((r) => r.status === "sent");
+    if (tab === "paused") return reminders.filter((r) => r.status === "paused");
+    return reminders;
+  }, [reminders, tab]);
+
+  const tabCount = (t: typeof tab) => {
+    if (t === "scheduled") return reminders.filter((r) => r.status === "scheduled").length;
+    if (t === "succeeded") return reminders.filter((r) => r.status === "sent").length;
+    if (t === "paused") return reminders.filter((r) => r.status === "paused").length;
+    return reminders.length;
+  };
 
   const create = useMutation({
     mutationFn: async () => {
@@ -138,6 +169,15 @@ function RemindersPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const setStatus = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: "paused" | "scheduled" }) => {
+      const { error } = await supabase.from("reminders").update({ status }).eq("id", id);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: (_d, v) => { toast.success(v.status === "paused" ? "Reminder paused" : "Reminder resumed"); qc.invalidateQueries({ queryKey: ["reminders"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   // Manual "Send now" — uses the existing send-client-email function, then marks it sent.
   const sendNow = useMutation({
     mutationFn: async (r: Reminder) => {
@@ -168,10 +208,10 @@ function RemindersPage() {
       </div>
 
       <Card>
-        <CardContent className="p-3 flex items-center gap-2">
-          {(["upcoming", "all"] as const).map((t) => (
+        <CardContent className="p-3 flex flex-wrap items-center gap-2">
+          {(["scheduled", "succeeded", "paused", "all"] as const).map((t) => (
             <Button key={t} size="sm" variant={tab === t ? "default" : "outline"} onClick={() => setTab(t)} className="capitalize">
-              {t} {t === "upcoming" && <span className="ml-1 opacity-70">({reminders.filter((r) => r.status === "scheduled").length})</span>}
+              {t} <span className="ml-1 opacity-70">({tabCount(t)})</span>
             </Button>
           ))}
         </CardContent>
@@ -205,7 +245,8 @@ function RemindersPage() {
                   </TableCell>
                   <TableCell className="text-sm">
                     <div>{r.repeat_interval_days > 0 && r.status === "scheduled" ? <span className="text-muted-foreground">Next: </span> : null}{fmt(r.send_at)}</div>
-                    {r.status === "scheduled" && <div className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(r.send_at), { addSuffix: true })}</div>}
+                    {r.status === "scheduled" && <div className="text-xs font-medium text-blue-600">{countdown(r.send_at, tick)}</div>}
+                    {r.status === "paused" && <div className="text-xs text-amber-600">Paused</div>}
                     {r.repeat_interval_days > 0 && (
                       <div className="text-xs text-violet-600 flex items-center gap-1 mt-0.5">
                         <Repeat className="h-3 w-3" />
@@ -217,11 +258,20 @@ function RemindersPage() {
                   </TableCell>
                   <TableCell><StatusBadge s={r.status} /></TableCell>
                   <TableCell className="text-right">
-                    {canManage && (r.status === "scheduled" || r.status === "failed") ? (
-                      <div className="flex justify-end gap-1.5">
+                    {canManage && (r.status === "scheduled" || r.status === "failed" || r.status === "paused") ? (
+                      <div className="flex justify-end gap-1.5 flex-wrap">
                         <Button size="sm" variant="outline" disabled={sendNow.isPending} onClick={() => sendNow.mutate(r)}>
                           <Send className="h-3.5 w-3.5 mr-1" /> Send now
                         </Button>
+                        {r.status === "paused" ? (
+                          <Button size="sm" variant="ghost" className="text-emerald-600 hover:text-emerald-700" disabled={setStatus.isPending} onClick={() => setStatus.mutate({ id: r.id, status: "scheduled" })}>
+                            <Play className="h-3.5 w-3.5 mr-1" /> Resume
+                          </Button>
+                        ) : (
+                          <Button size="sm" variant="ghost" className="text-amber-600 hover:text-amber-700" disabled={setStatus.isPending} onClick={() => setStatus.mutate({ id: r.id, status: "paused" })}>
+                            <Pause className="h-3.5 w-3.5 mr-1" /> Pause
+                          </Button>
+                        )}
                         <Button size="sm" variant="ghost" className="text-rose-600 hover:text-rose-700" disabled={cancel.isPending} onClick={() => cancel.mutate(r.id)}>
                           <X className="h-3.5 w-3.5 mr-1" /> Cancel
                         </Button>
