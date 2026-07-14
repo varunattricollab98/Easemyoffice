@@ -6,8 +6,19 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Trophy, Package, IndianRupee, Ticket, Target, Pencil } from "lucide-react";
+
+function barColor(pct: number) {
+  if (pct >= 75) return "bg-emerald-500";
+  if (pct >= 40) return "bg-amber-500";
+  return "bg-rose-500";
+}
+function targetStatus(pct: number) {
+  if (pct >= 75) return { text: "On track 🔥", cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" };
+  if (pct >= 40) return { text: "Keep pushing", cls: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300" };
+  return { text: "Behind ⚠", cls: "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300" };
+}
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const fmtINR = (n: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n || 0);
@@ -17,7 +28,7 @@ type AgentRow = { key: string; name: string; bookings: number; revenue: number; 
 
 // Hero of the Month leaderboard — rendered as a section inside the Dashboard.
 export function HeroOfMonth() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const qc = useQueryClient();
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth());
@@ -25,6 +36,7 @@ export function HeroOfMonth() {
   const [rankBy, setRankBy] = useState<"bookings" | "profit">("bookings");
   const [editingTarget, setEditingTarget] = useState(false);
   const [targetDraft, setTargetDraft] = useState({ bookings: "", profit: "" });
+  const [indivDraft, setIndivDraft] = useState<Record<string, { bookings: string; profit: string }>>({});
 
   const start = `${year}-${String(month + 1).padStart(2, "0")}-01`;
   const endDateObj = new Date(year, month + 1, 1);
@@ -93,6 +105,7 @@ export function HeroOfMonth() {
     return Array.from(map.values()).sort((a, b) => b.bookings - a.bookings).slice(0, 6);
   }, [bookings]);
 
+  // Org (cumulative) target — shown to admins.
   const { data: targets } = useQuery({
     queryKey: ["sales-targets"],
     queryFn: async () => {
@@ -101,17 +114,73 @@ export function HeroOfMonth() {
       return { bookings: Number(v.bookings) || 100, profit: Number(v.profit) || 500000 };
     },
   });
-  const bookingsTarget = targets?.bookings ?? 100;
-  const profitTarget = targets?.profit ?? 500000;
-  const bookingsPct = bookingsTarget > 0 ? Math.round((totals.count / bookingsTarget) * 100) : 0;
+  const orgBookingsTarget = targets?.bookings ?? 100;
+  const orgProfitTarget = targets?.profit ?? 500000;
+
+  // The signed-in user's own target — shown to salespeople.
+  const { data: myTarget } = useQuery({
+    queryKey: ["my-target", user?.id],
+    enabled: !!user?.id && !isAdmin,
+    queryFn: async () => {
+      const { data } = await supabase.from("user_targets").select("bookings, profit").eq("user_id", user!.id).maybeSingle();
+      return data ? { bookings: Number(data.bookings) || 0, profit: Number(data.profit) || 0 } : null;
+    },
+  });
+
+  // For admins assigning individual targets.
+  const { data: allTargets = [] } = useQuery({
+    queryKey: ["all-user-targets"],
+    enabled: isAdmin,
+    queryFn: async () => { const { data } = await supabase.from("user_targets").select("user_id, bookings, profit"); return data ?? []; },
+  });
+  const { data: targetTeam = [] } = useQuery({
+    queryKey: ["target-team-users"],
+    enabled: isAdmin && editingTarget,
+    queryFn: async () => { const { data } = await supabase.from("profiles").select("id, full_name, email").order("full_name", { ascending: true }); return data ?? []; },
+  });
+
+  // Seed the per-person draft when the editor opens.
+  useEffect(() => {
+    if (editingTarget && (targetTeam as any[]).length) {
+      const map: Record<string, { bookings: string; profit: string }> = {};
+      (targetTeam as any[]).forEach((u) => {
+        const t = (allTargets as any[]).find((x) => x.user_id === u.id);
+        map[u.id] = { bookings: t ? String(t.bookings) : "", profit: t ? String(t.profit) : "" };
+      });
+      setIndivDraft(map);
+    }
+  }, [editingTarget, targetTeam, allTargets]);
+
+  // Admin sees the cumulative target; a salesperson sees their own.
+  const displayBookingsTarget = isAdmin ? orgBookingsTarget : (myTarget?.bookings || orgBookingsTarget);
+  const displayProfitTarget = isAdmin ? orgProfitTarget : (myTarget?.profit || orgProfitTarget);
+  const bPct = displayBookingsTarget > 0 ? Math.round((totals.count / displayBookingsTarget) * 100) : 0;
+  const pPct = displayProfitTarget > 0 ? Math.round((totals.profit / displayProfitTarget) * 100) : 0;
+  const status = targetStatus(bPct);
 
   const saveTarget = useMutation({
     mutationFn: async () => {
       const payload = { bookings: Number(targetDraft.bookings) || 0, profit: Number(targetDraft.profit) || 0 };
       const { error } = await supabase.from("app_settings").upsert({ key: "sales_targets", value: payload });
       if (error) throw new Error(error.message);
+      const rows = (targetTeam as any[]).map((u) => ({
+        user_id: u.id,
+        bookings: Number(indivDraft[u.id]?.bookings) || 0,
+        profit: Number(indivDraft[u.id]?.profit) || 0,
+        updated_by: user?.id ?? null,
+      }));
+      if (rows.length) {
+        const { error: e2 } = await supabase.from("user_targets").upsert(rows);
+        if (e2) throw new Error(e2.message);
+      }
     },
-    onSuccess: () => { toast.success("Target updated"); setEditingTarget(false); qc.invalidateQueries({ queryKey: ["sales-targets"] }); },
+    onSuccess: () => {
+      toast.success("Targets updated");
+      setEditingTarget(false);
+      qc.invalidateQueries({ queryKey: ["sales-targets"] });
+      qc.invalidateQueries({ queryKey: ["all-user-targets"] });
+      qc.invalidateQueries({ queryKey: ["my-target"] });
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -162,43 +231,62 @@ export function HeroOfMonth() {
             </div>
           </div>
 
-          {/* Right: Our Target */}
+          {/* Right: Target panel */}
           <div className="lg:col-span-1">
             <div className="rounded-lg border h-full p-4">
               <div className="flex items-center justify-between mb-3">
-                <div className="font-semibold flex items-center gap-2"><Target className="h-4 w-4 text-amber-500" /> Our Target</div>
+                <div className="font-semibold flex items-center gap-2"><Target className="h-4 w-4 text-amber-500" /> {isAdmin ? "Our Target" : "My Target"}</div>
                 {isAdmin && !editingTarget && (
                   <Button size="sm" variant="ghost" className="h-7 px-2"
-                    onClick={() => { setTargetDraft({ bookings: String(bookingsTarget), profit: String(profitTarget) }); setEditingTarget(true); }}>
+                    onClick={() => { setTargetDraft({ bookings: String(orgBookingsTarget), profit: String(orgProfitTarget) }); setEditingTarget(true); }}>
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
                 )}
               </div>
+
               {editingTarget ? (
-                <div className="space-y-2">
-                  <div>
-                    <label className="text-xs text-muted-foreground">Monthly bookings target</label>
-                    <Input type="number" value={targetDraft.bookings} onChange={(e) => setTargetDraft({ ...targetDraft, bookings: e.target.value })} />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Monthly profit target (₹)</label>
-                    <Input type="number" value={targetDraft.profit} onChange={(e) => setTargetDraft({ ...targetDraft, profit: e.target.value })} />
-                  </div>
+                <div className="space-y-3">
+                  <div className="text-xs font-semibold text-muted-foreground">Team (cumulative) target</div>
+                  <div><label className="text-xs text-muted-foreground">Bookings</label><Input type="number" value={targetDraft.bookings} onChange={(e) => setTargetDraft({ ...targetDraft, bookings: e.target.value })} /></div>
+                  <div><label className="text-xs text-muted-foreground">Profit (₹)</label><Input type="number" value={targetDraft.profit} onChange={(e) => setTargetDraft({ ...targetDraft, profit: e.target.value })} /></div>
+                  {(targetTeam as any[]).length > 0 && (
+                    <>
+                      <div className="text-xs font-semibold text-muted-foreground pt-1">Individual targets</div>
+                      <div className="grid grid-cols-[1fr_60px_82px] gap-2 text-[11px] text-muted-foreground">
+                        <span>Member</span><span>Bookings</span><span>Profit ₹</span>
+                      </div>
+                      <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                        {(targetTeam as any[]).map((u) => (
+                          <div key={u.id} className="grid grid-cols-[1fr_60px_82px] gap-2 items-center">
+                            <span className="text-xs truncate">{u.full_name || u.email}</span>
+                            <Input className="h-8" type="number" value={indivDraft[u.id]?.bookings ?? ""} onChange={(e) => setIndivDraft((d) => ({ ...d, [u.id]: { ...(d[u.id] ?? { bookings: "", profit: "" }), bookings: e.target.value } }))} />
+                            <Input className="h-8" type="number" value={indivDraft[u.id]?.profit ?? ""} onChange={(e) => setIndivDraft((d) => ({ ...d, [u.id]: { ...(d[u.id] ?? { bookings: "", profit: "" }), profit: e.target.value } }))} />
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
                   <div className="flex gap-2 justify-end">
                     <Button size="sm" variant="ghost" onClick={() => setEditingTarget(false)}>Cancel</Button>
-                    <Button size="sm" disabled={saveTarget.isPending} onClick={() => saveTarget.mutate()}>Save</Button>
+                    <Button size="sm" disabled={saveTarget.isPending} onClick={() => saveTarget.mutate()}>{saveTarget.isPending ? "Saving…" : "Save"}</Button>
                   </div>
                 </div>
               ) : (
                 <div className="space-y-2 text-sm">
-                  <div>🎯 <span className="font-medium">Monthly Target:</span> {bookingsTarget} Bookings</div>
-                  <div>📦 <span className="font-medium">Current:</span> {totals.count}/{bookingsTarget} ({bookingsPct}%)</div>
-                  <div className="h-2 bg-muted rounded overflow-hidden">
-                    <div className="h-full bg-emerald-500" style={{ width: `${Math.min(100, bookingsPct)}%` }} />
+                  <div className="flex items-center justify-between gap-2">
+                    <div>🎯 <span className="font-medium">Target:</span> {displayBookingsTarget} Bookings</div>
+                    <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${status.cls}`}>{status.text}</span>
                   </div>
-                  <div>💰 <span className="font-medium">Profit:</span> {fmtINR(totals.profit)} / {fmtINR(profitTarget)}</div>
-                  <div>🎯 <span className="font-medium">Profit Gap:</span> {fmtINR(Math.max(0, profitTarget - totals.profit))}</div>
-                  <div>🚀 <span className="font-medium">Remaining:</span> {Math.max(0, bookingsTarget - totals.count)} Bookings</div>
+                  <div>📦 <span className="font-medium">Bookings:</span> {totals.count}/{displayBookingsTarget} ({bPct}%)</div>
+                  <div className="h-2.5 bg-muted rounded-full overflow-hidden">
+                    <div className={`h-full ${barColor(bPct)} transition-all duration-500`} style={{ width: `${Math.min(100, bPct)}%` }} />
+                  </div>
+                  <div>💰 <span className="font-medium">Profit:</span> {fmtINR(totals.profit)} / {fmtINR(displayProfitTarget)} ({pPct}%)</div>
+                  <div className="h-2.5 bg-muted rounded-full overflow-hidden">
+                    <div className={`h-full ${barColor(pPct)} transition-all duration-500`} style={{ width: `${Math.min(100, pPct)}%` }} />
+                  </div>
+                  <div>🎯 <span className="font-medium">Profit Gap:</span> {fmtINR(Math.max(0, displayProfitTarget - totals.profit))}</div>
+                  <div>🚀 <span className="font-medium">Remaining:</span> {Math.max(0, displayBookingsTarget - totals.count)} Bookings</div>
                 </div>
               )}
             </div>
