@@ -13,6 +13,23 @@ import { formatDistanceToNow } from "date-fns";
 import { Mail, ExternalLink, UserPlus, Search, RefreshCcw } from "lucide-react";
 import { fetchInbox, fetchThread, claimEmailInGmail, parseFrom, claimedOwner, type InboxEmail } from "@/lib/gmail";
 
+function esc(s: unknown) {
+  return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// Stitch every message in the thread into one continuous HTML document, so the
+// whole conversation reads in a single scroll (no separate boxes per message).
+function buildThreadHtml(messages: { from: string; date: string; html?: string; body: string }[]) {
+  const parts = (messages || []).map((m) => {
+    const header = `<div style="font:12px/1.5 Arial,sans-serif;color:#64748b;margin:20px 0 8px">📧 <b style="color:#0f172a">${esc(m.from)}</b> · ${esc(new Date(m.date).toLocaleString())}</div>`;
+    const content = m.html && m.html.trim()
+      ? m.html
+      : `<pre style="white-space:pre-wrap;font:14px/1.6 Arial,sans-serif;color:#0f172a;margin:0">${esc(m.body)}</pre>`;
+    return header + `<div>${content}</div>`;
+  });
+  return `<div style="font-family:Arial,Helvetica,sans-serif;padding:10px 14px;color:#0f172a;max-width:100%">${parts.join('<hr style="border:none;border-top:1px dashed #cbd5e1;margin:24px 0">')}</div>`;
+}
+
 export const Route = createFileRoute("/_authenticated/inbox")({
   head: () => ({ meta: [{ title: "Lead Inbox — EaseMyOffice CRM" }] }),
   component: LeadInboxPage,
@@ -182,35 +199,26 @@ function LeadInboxPage() {
             <div className="py-10 text-center text-sm text-destructive">Couldn't load this email{threadQ.data?.error ? `: ${threadQ.data.error}` : ""}.</div>
           ) : (
             <div className="space-y-3">
-              {(threadQ.data.messages ?? []).map((m, i) => (
-                <div key={i} className="rounded-md border p-3">
-                  <div className="text-xs text-muted-foreground mb-2">
-                    <span className="font-medium text-foreground">{m.from}</span> · {new Date(m.date).toLocaleString()}
-                  </div>
-                  {m.html ? (
-                    // Rendered in a sandboxed iframe: shows the full formatted email
-                    // (tables, images, the quotation) but scripts are disabled for safety.
-                    <iframe
-                      title={`email-${i}`}
-                      sandbox=""
-                      srcDoc={m.html}
-                      className="w-full h-[55vh] rounded border bg-white"
-                    />
-                  ) : (
-                    <div className="text-sm whitespace-pre-wrap break-words">{m.body || "(no text content)"}</div>
-                  )}
-                  {m.attachments && m.attachments.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {m.attachments.map((a, j) => (
+              {/* Whole conversation in one continuous, scrollable view */}
+              <iframe
+                title="email"
+                sandbox=""
+                srcDoc={buildThreadHtml(threadQ.data.messages ?? [])}
+                className="w-full h-[68vh] rounded-md border bg-white"
+              />
+              {(() => {
+                const atts = (threadQ.data.messages ?? []).flatMap((m) => m.attachments ?? []);
+                return atts.length > 0 ? (
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap gap-2">
+                      {atts.map((a, j) => (
                         <span key={j} className="text-xs inline-flex items-center gap-1 rounded border px-2 py-1 bg-muted/40">📎 {a.name}</span>
                       ))}
                     </div>
-                  )}
-                </div>
-              ))}
-              {(threadQ.data.messages ?? []).some((m) => (m.attachments?.length ?? 0) > 0) && (
-                <div className="text-xs text-muted-foreground">To download an attachment (e.g. a quotation PDF), use "Open in Gmail" below.</div>
-              )}
+                    <div className="text-xs text-muted-foreground">To download an attachment (e.g. a quotation PDF), use "Open in Gmail" below.</div>
+                  </div>
+                ) : null;
+              })()}
               <div className="flex flex-wrap justify-end gap-3 pt-1">
                 {reading && !claimedOwner(reading.labels) && (
                   <Button size="sm" disabled={claim.isPending} onClick={() => { claim.mutate(reading); setReading(null); }}>
