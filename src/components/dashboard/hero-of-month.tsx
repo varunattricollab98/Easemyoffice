@@ -19,6 +19,12 @@ function targetStatus(pct: number) {
   if (pct >= 40) return { text: "Keep pushing", cls: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300" };
   return { text: "Behind ⚠", cls: "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300" };
 }
+function compactINR(n: number) {
+  if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
+  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
+  if (n >= 1000) return `₹${(n / 1000).toFixed(1)}K`;
+  return `₹${Math.round(n)}`;
+}
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const fmtINR = (n: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n || 0);
@@ -34,6 +40,7 @@ export function HeroOfMonth() {
   const [month, setMonth] = useState(now.getMonth());
   const [year, setYear] = useState(now.getFullYear());
   const [rankBy, setRankBy] = useState<"bookings" | "profit">("bookings");
+  const [metric, setMetric] = useState<"bookings" | "revenue" | "profit">("bookings");
   const [editingTarget, setEditingTarget] = useState(false);
   const [targetDraft, setTargetDraft] = useState({ bookings: "", profit: "" });
   const [indivDraft, setIndivDraft] = useState<Record<string, { bookings: string; profit: string }>>({});
@@ -104,6 +111,43 @@ export function HeroOfMonth() {
     });
     return Array.from(map.values()).sort((a, b) => b.bookings - a.bookings).slice(0, 6);
   }, [bookings]);
+
+  // Last 6 months (ending at the selected month) — RLS scopes this to the
+  // signed-in user's own bookings for a salesperson, or all for an admin.
+  const trendStartObj = new Date(year, month - 5, 1);
+  const trendStart = `${trendStartObj.getFullYear()}-${String(trendStartObj.getMonth() + 1).padStart(2, "0")}-01`;
+  const trendEndObj = new Date(year, month + 1, 1);
+  const trendEnd = `${trendEndObj.getFullYear()}-${String(trendEndObj.getMonth() + 1).padStart(2, "0")}-01`;
+  const { data: trendBookings = [] } = useQuery({
+    queryKey: ["hero-trend", trendStart, trendEnd],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("bookings")
+        .select("booking_date, total_amount, profit").gte("booking_date", trendStart).lt("booking_date", trendEnd).limit(5000);
+      if (error) throw new Error(error.message);
+      return data ?? [];
+    },
+  });
+  const trendMonths = useMemo(() => {
+    const buckets: { key: string; label: string; bookings: number; revenue: number; profit: number }[] = [];
+    const idx = new Map<string, number>();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(year, month - i, 1);
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      idx.set(key, buckets.length);
+      buckets.push({ key, label: d.toLocaleDateString(undefined, { month: "short" }), bookings: 0, revenue: 0, profit: 0 });
+    }
+    (trendBookings as any[]).forEach((b) => {
+      if (!b.booking_date) return;
+      const d = new Date(b.booking_date);
+      const i = idx.get(`${d.getFullYear()}-${d.getMonth()}`);
+      if (i == null) return;
+      buckets[i].bookings++;
+      buckets[i].revenue += Number(b.total_amount ?? 0);
+      buckets[i].profit += Number(b.profit ?? 0);
+    });
+    return buckets;
+  }, [trendBookings, year, month]);
+  const maxTrend = Math.max(1, ...trendMonths.map((x) => (x as any)[metric] as number));
 
   // Org (cumulative) target — shown to admins.
   const { data: targets } = useQuery({
@@ -348,6 +392,39 @@ export function HeroOfMonth() {
             </div>
           </div>
         )}
+
+        {/* Monthly performance trend (last 6 months) */}
+        <div className="pt-1">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <div className="text-sm font-medium">
+              {isAdmin ? "Team monthly trend" : "My monthly trend"}
+              <span className="text-xs text-muted-foreground font-normal"> · last 6 months</span>
+            </div>
+            <Select value={metric} onValueChange={(v) => setMetric(v as "bookings" | "revenue" | "profit")}>
+              <SelectTrigger className="h-8 w-[130px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="bookings">Bookings</SelectItem>
+                <SelectItem value="revenue">Revenue</SelectItem>
+                <SelectItem value="profit">Profit</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-6 gap-2">
+            {trendMonths.map((b) => {
+              const val = (b as any)[metric] as number;
+              const h = val > 0 ? Math.max(4, Math.round((val / maxTrend) * 100)) : 0;
+              return (
+                <div key={b.key} className="flex flex-col items-center gap-1">
+                  <div className="text-[10px] font-medium tabular-nums">{metric === "bookings" ? val : compactINR(val)}</div>
+                  <div className="w-full h-28 bg-muted/40 rounded-md flex items-end overflow-hidden">
+                    <div className="w-full bg-gradient-to-t from-primary to-primary/60 rounded-t-md transition-all duration-500" style={{ height: `${h}%` }} />
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">{b.label}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
