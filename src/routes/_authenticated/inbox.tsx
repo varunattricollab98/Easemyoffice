@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -76,6 +76,21 @@ function LeadInboxPage() {
   const emails = data?.emails ?? [];
   const connected = data?.ok ?? false;
   const hasMore = data?.hasMore ?? false;
+
+  // Warm up the next page in the background so "Older" opens instantly.
+  useEffect(() => {
+    if (connected && hasMore) {
+      qc.prefetchQuery({
+        queryKey: ["lead-inbox", page + 1],
+        queryFn: () => fetchInbox(PAGE_SIZE, (page + 1) * PAGE_SIZE),
+        staleTime: 60 * 1000,
+      });
+    }
+  }, [connected, hasMore, page, qc]);
+
+  // Prefetch a thread's full content when the user hovers a row, so the reader opens instantly.
+  const prefetchThread = (threadId: string) =>
+    qc.prefetchQuery({ queryKey: ["gmail-thread", threadId], queryFn: () => fetchThread(threadId), staleTime: 60 * 1000 });
 
   const claim = useMutation({
     mutationFn: async (email: InboxEmail) => {
@@ -172,7 +187,7 @@ function LeadInboxPage() {
               const { name, address } = parseFrom(e.from);
               return (
                 <div key={e.threadId} className="flex items-start gap-3 px-4 py-3 border-b last:border-b-0 hover:bg-accent/30 transition-colors">
-                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setReading(e)} title="Click to read">
+                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setReading(e)} onMouseEnter={() => prefetchThread(e.threadId)} title="Click to read">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium truncate">{name || address || "Unknown sender"}</span>
                       {e.unread && <span className="h-2 w-2 rounded-full bg-primary" title="Unread" />}
@@ -183,7 +198,7 @@ function LeadInboxPage() {
                       )}
                     </div>
                     <div className="text-sm truncate">{e.subject || "(no subject)"}</div>
-                    <div className="text-xs text-muted-foreground truncate">{e.snippet}</div>
+                    {e.snippet && <div className="text-xs text-muted-foreground truncate">{e.snippet}</div>}
                     <div className="text-[11px] text-muted-foreground mt-0.5">{address} · {formatDistanceToNow(new Date(e.date), { addSuffix: true })}</div>
                   </div>
                   <div className="flex flex-col items-end gap-2 shrink-0">
