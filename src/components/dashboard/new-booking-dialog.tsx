@@ -57,6 +57,7 @@ export function NewBookingDialog() {
     vo_plan: "",
     sp_name: "", area: "", city: "", state: "", sp_status: "Active",
     vo_amount: "", addon_services: "", addon_amount: "",
+    quoted_amount: "",
     tds_pct: "0",
     payment_mode_ref: "", payment_id_utr: "", invoice_number: "",
     sp_payable: "", addon_payable: "",
@@ -127,6 +128,9 @@ export function NewBookingDialog() {
   const addOn = num(f.addon_amount);
   const addOnGst = +(addOn * 0.18).toFixed(2);
   const total = +(vo + voGst + addOn + addOnGst).toFixed(2);
+  // Discount = originally quoted price minus the final deal value (never negative).
+  const quoted = num(f.quoted_amount);
+  const discount = quoted > 0 ? Math.max(0, +(quoted - total).toFixed(2)) : 0;
   const tdsPct = num(f.tds_pct);
   const tdsAmt = +((total * tdsPct) / 100).toFixed(2);
   const afterTds = +(total - tdsAmt).toFixed(2);
@@ -155,7 +159,8 @@ export function NewBookingDialog() {
         sp_name: f.sp_name, area: f.area, city: f.city, state: f.state, sp_status: f.sp_status,
         vo_amount: vo, vo_gst: voGst,
         addon_services: f.addon_services, addon_amount: addOn, addon_gst: addOnGst,
-        total_amount: total, tds_pct: tdsPct, tds_amount: tdsAmt, amount_after_tds: afterTds,
+        total_amount: total, quoted_amount: quoted, discount_amount: discount,
+        tds_pct: tdsPct, tds_amount: tdsAmt, amount_after_tds: afterTds,
         payment_mode_ref: f.payment_mode_ref, payment_id_utr: f.payment_id_utr, invoice_number: f.invoice_number,
         sp_payable: spPay, addon_payable: addOnPay, profit,
         sp_payment_status: f.sp_payment_status, vo_status: f.vo_status,
@@ -191,7 +196,7 @@ export function NewBookingDialog() {
       qc.invalidateQueries({ queryKey: ["bookings"] });
       setOpen(false);
       setF((s) => ({ ...s, booking_id: genBookingId(), plan_name: "", vo_plan: "", vo_amount: "",
-        addon_services: "", addon_amount: "", payment_mode_ref: "", payment_id_utr: "", invoice_number: "",
+        addon_services: "", addon_amount: "", quoted_amount: "", payment_mode_ref: "", payment_id_utr: "", invoice_number: "",
         sp_payable: "", addon_payable: "", business_name: "", client_name: "", email_id: "", contact_no: "", alt_contact_no: "", alt_contact_no_2: "", remarks: "",
         payment_type: "full", amount_received: "", balance_due_date: "" }));
     },
@@ -298,6 +303,10 @@ export function NewBookingDialog() {
 
           <div><Label className="text-xs">Add on GST 18% (auto)</Label><Input value={addOnGst} readOnly className="bg-muted/40" /></div>
           <div><Label className="text-xs">Total Amount ₹ (auto)</Label><Input value={total} readOnly className="bg-muted/40 font-medium" /></div>
+          {T("quoted_amount", "Quoted Price ₹ (before discount)", { type: "number", min: 0, step: "0.01" })}
+          <div><Label className="text-xs">Discount Given ₹ (auto)</Label>
+            <Input value={discount} readOnly className={`bg-muted/40 font-medium ${discount > 0 ? "text-amber-600" : ""}`} /></div>
+
           {T("tds_pct", "TDS %", { type: "number", min: 0, max: 100, step: "0.01" })}
 
           <div><Label className="text-xs">TDS Amount ₹ (auto)</Label><Input value={tdsAmt} readOnly className="bg-muted/40" /></div>

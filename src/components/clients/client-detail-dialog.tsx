@@ -70,7 +70,9 @@ export function ClientDetailDialog({ client, open, onOpenChange }: { client: any
       items.push({ date: a.created_at, kind: "activity", title: a.title || String(a.type || "Activity").replace(/_/g, " "), detail: a.body || undefined });
     }
     for (const b of client?.bookings ?? []) {
-      items.push({ date: b.booking_date, kind: "booking", title: `Booking ${b.external_booking_id || b.booking_code} created`, detail: `${b.plan_name || "Plan"} · total ${fmtINR(Number(b.amount_after_tds))}` });
+      const disc = Number(b.discount_amount ?? 0);
+      const detail = `${b.plan_name || "Plan"} · total ${fmtINR(Number(b.amount_after_tds))}` + (disc > 0 ? ` · discount ${fmtINR(disc)}` : "");
+      items.push({ date: b.booking_date, kind: "booking", title: `Booking ${b.external_booking_id || b.booking_code} created`, detail });
     }
     // number payments 1st/2nd/... in date order
     const paySorted = [...(payments as any[])].sort((a, b) => (a.paid_at < b.paid_at ? -1 : 1));
@@ -121,8 +123,10 @@ export function ClientDetailDialog({ client, open, onOpenChange }: { client: any
             <div className="text-lg font-bold">{client.count}</div>
           </div>
           <div className="rounded-lg border p-3">
-            <div className="text-xs text-muted-foreground">Client Since</div>
-            <div className="text-lg font-bold">{fmtDate(client.firstDate)}</div>
+            <div className="text-xs text-muted-foreground">{Number(client.totalDiscount) > 0 ? "Total Discount Given" : "Client Since"}</div>
+            {Number(client.totalDiscount) > 0
+              ? <div className="text-lg font-bold text-orange-600">{fmtINR(Number(client.totalDiscount))}</div>
+              : <div className="text-lg font-bold">{fmtDate(client.firstDate)}</div>}
           </div>
         </div>
 

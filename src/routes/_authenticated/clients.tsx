@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Building2, Mail, Phone, ChevronDown, ChevronRight, Users2, Wallet, Crown, Gem } from "lucide-react";
+import { Search, Building2, Mail, Phone, ChevronDown, ChevronRight, Users2, Wallet, Crown, Gem, Tag } from "lucide-react";
 import { useState, useMemo, Fragment } from "react";
 import { ClientDetailDialog } from "@/components/clients/client-detail-dialog";
 
@@ -16,9 +16,15 @@ export const Route = createFileRoute("/_authenticated/clients")({
 
 const fmtINR = (n: number) => `₹${(n ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 
-// ── Category thresholds (₹ lifetime paid). Adjust to your business numbers. ──
-const PREMIUM_MIN = 50000;
-const SEMI_MIN = 20000;
+// ── Category thresholds. A client is ranked by EITHER lifetime amount paid
+//    OR number of bookings — whichever puts them in the higher tier.
+//    Normal:        1 booking  / ₹10k–30k
+//    Semi-premium:  2–8 bookings / above ₹30k up to ₹90k
+//    Premium:       more than 8 bookings / above ₹90k
+const PREMIUM_AMT = 90000;   // > this → Premium (by amount)
+const SEMI_AMT = 30000;      // > this → Semi-premium (by amount)
+const PREMIUM_COUNT = 8;     // > this many bookings → Premium
+const SEMI_COUNT = 2;        // >= this many bookings → Semi-premium
 
 function normPhone(v?: string) {
   const digits = String(v ?? "").replace(/\D/g, "");
@@ -36,6 +42,7 @@ type ClientRow = {
   paymentCount: number;
   totalPaid: number;
   totalBalance: number;
+  totalDiscount: number;
   firstDate: string;
   lastDate: string;
   bookings: any[];
@@ -43,10 +50,11 @@ type ClientRow = {
   style: "Full payment" | "Part payments" | "Has dues";
 };
 
-function tierOf(totalPaid: number): ClientRow["tier"] {
-  if (totalPaid >= PREMIUM_MIN) return "Premium";
-  if (totalPaid >= SEMI_MIN) return "Semi-premium";
-  return "Normal";
+function tierOf(totalPaid: number, count: number): ClientRow["tier"] {
+  const byAmount = totalPaid > PREMIUM_AMT ? 2 : totalPaid > SEMI_AMT ? 1 : 0;
+  const byCount = count > PREMIUM_COUNT ? 2 : count >= SEMI_COUNT ? 1 : 0;
+  const rank = Math.max(byAmount, byCount);
+  return rank === 2 ? "Premium" : rank === 1 ? "Semi-premium" : "Normal";
 }
 
 function styleOf(totalBalance: number, count: number, paymentCount: number): ClientRow["style"] {
@@ -69,7 +77,7 @@ function buildClients(bookings: any[], payCountByBooking: Map<string, number>): 
     if (!c) {
       c = {
         key, name: b.client_name || "—", company: b.business_name || "", email: b.email_id || "",
-        phones: [], bookingIds: [], count: 0, paymentCount: 0, totalPaid: 0, totalBalance: 0,
+        phones: [], bookingIds: [], count: 0, paymentCount: 0, totalPaid: 0, totalBalance: 0, totalDiscount: 0,
         firstDate: b.booking_date, lastDate: b.booking_date, bookings: [],
         tier: "Normal", style: "Full payment",
       };
@@ -94,13 +102,14 @@ function buildClients(bookings: any[], payCountByBooking: Map<string, number>): 
     c.paymentCount += payCountByBooking.get(b.id) ?? 0;
     c.totalPaid += Number(b.amount_received ?? 0);
     c.totalBalance += Number(b.balance_amount ?? 0);
+    c.totalDiscount += Number(b.discount_amount ?? 0);
     c.bookings.push(b);
   }
 
   const list = Array.from(map.values());
   for (const c of list) {
     c.bookings.sort((a, b) => (a.booking_date < b.booking_date ? 1 : -1));
-    c.tier = tierOf(c.totalPaid);
+    c.tier = tierOf(c.totalPaid, c.count);
     c.style = styleOf(c.totalBalance, c.count, c.paymentCount);
   }
   list.sort((a, b) => b.totalPaid - a.totalPaid);
@@ -113,6 +122,12 @@ function TierBadge({ tier }: { tier: ClientRow["tier"] }) {
   if (tier === "Semi-premium")
     return <Badge className="bg-violet-100 text-violet-800 border-violet-300 hover:bg-violet-100 gap-1"><Gem className="h-3 w-3" />Semi-premium</Badge>;
   return <Badge variant="secondary">Normal</Badge>;
+}
+
+function DiscountBadge({ amount }: { amount: number }) {
+  if (amount <= 0)
+    return <Badge variant="outline" className="text-muted-foreground">No discount</Badge>;
+  return <Badge className="bg-orange-100 text-orange-800 border-orange-300 hover:bg-orange-100 gap-1"><Tag className="h-3 w-3" />Discount {`₹${amount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`}</Badge>;
 }
 
 function StyleBadge({ style }: { style: ClientRow["style"] }) {
@@ -132,7 +147,7 @@ function ClientsPage() {
     queryKey: ["clients-bookings"],
     queryFn: async () => {
       const { data, error } = await supabase.from("bookings")
-        .select("id, booking_code, external_booking_id, booking_date, client_name, business_name, email_id, contact_no, alt_contact_no, alt_contact_no_2, plan_name, sales_agent_name, amount_after_tds, amount_received, balance_amount, balance_paid_at")
+        .select("id, booking_code, external_booking_id, booking_date, client_name, business_name, email_id, contact_no, alt_contact_no, alt_contact_no_2, plan_name, sales_agent_name, total_amount, quoted_amount, discount_amount, amount_after_tds, amount_received, balance_amount, balance_paid_at")
         .order("booking_date", { ascending: false })
         .limit(5000);
       if (error) throw new Error(error.message);
@@ -237,6 +252,7 @@ function ClientsPage() {
                       <div className="flex flex-col gap-1 items-start">
                         <TierBadge tier={c.tier} />
                         <StyleBadge style={c.style} />
+                        <DiscountBadge amount={c.totalDiscount} />
                       </div>
                     </TableCell>
                     <TableCell className="text-sm">
