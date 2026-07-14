@@ -52,10 +52,21 @@ function doPost(e) {
 function doGet(e) {
   try {
     if (TOKEN && e.parameter.token !== TOKEN) return json({ ok: false, error: "unauthorized" });
-    return json({ ok: true, nextBookingId: getNextBookingId(), plans: getPlans() });
+    // Booking ID is always computed fresh (so two people never get the same one);
+    // the plans list changes rarely, so it's cached for 5 minutes for speed.
+    return json({ ok: true, nextBookingId: getNextBookingId(), plans: getCachedPlans() });
   } catch (err) {
     return json({ ok: false, error: String(err) });
   }
+}
+
+function getCachedPlans() {
+  var cache = CacheService.getScriptCache();
+  var hit = cache.get("plans_v1");
+  if (hit) return JSON.parse(hit);
+  var plans = getPlans();
+  try { cache.put("plans_v1", JSON.stringify(plans), 300); } catch (err) {}
+  return plans;
 }
 
 function getNextBookingId() {

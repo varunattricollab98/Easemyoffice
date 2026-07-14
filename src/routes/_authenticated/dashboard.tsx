@@ -7,6 +7,7 @@ import { Plus, LayoutDashboard, RotateCcw, Volume2, VolumeX, Check } from "lucid
 import { WidgetGrid, KpiStrip, resetWidgetLayout } from "@/components/dashboard/widget-grid";
 import { NewBookingDialog } from "@/components/dashboard/new-booking-dialog";
 import { HeroOfMonth } from "@/components/dashboard/hero-of-month";
+import { getSheetConfig } from "@/lib/bookings-sheet";
 import { LivePulsePill } from "@/components/dashboard/live-pulse-pill";
 import { AddWidgetPanel } from "@/components/dashboard/add-widget-panel";
 import { useQuietMode, useVisibleWidgets } from "@/lib/dashboard-prefs";
@@ -39,6 +40,8 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
     qc.prefetchQuery(overdueFollowupsQuery());
     qc.prefetchQuery(pipelineCountsQuery());
     qc.prefetchQuery(activityTickerQuery());
+    // Warm the booking sheet config (plans + next ID) so the New Booking form opens instantly.
+    qc.prefetchQuery({ queryKey: ["booking-sheet-config"], queryFn: getSheetConfig, staleTime: 5 * 60 * 1000 });
   },
   component: DashboardPage,
 });

@@ -82,11 +82,14 @@ export function NewBookingDialog() {
     },
   });
 
-  // Next Booking ID + plans master, read live from the Google Sheet.
-  const { data: sheetConfig } = useQuery({
+  // Next Booking ID + plans master, read from the Google Sheet.
+  // Fetched on mount (so it's ready before the dialog opens) and cached for a
+  // few minutes, so opening the form is instant instead of waiting on Google.
+  const { data: sheetConfig, isLoading: cfgLoading } = useQuery({
     queryKey: ["booking-sheet-config"],
-    enabled: open,
-    staleTime: 0,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
     queryFn: getSheetConfig,
   });
   const plans = sheetConfig?.plans ?? [];
@@ -264,7 +267,11 @@ export function NewBookingDialog() {
                 </datalist>
               </>
             ) : (
-              <Input value={f.plan_name} onChange={(e) => setF({ ...f, plan_name: e.target.value })} />
+              <Input
+                value={f.plan_name}
+                placeholder={cfgLoading ? "Loading plans…" : "Plan name"}
+                onChange={(e) => setF({ ...f, plan_name: e.target.value })}
+              />
             )}
           </div>
           {T("vo_plan", "VO Plan")}
