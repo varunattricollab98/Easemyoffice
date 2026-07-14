@@ -67,18 +67,38 @@ Deno.serve(async (req) => {
 
     const { data: due, error } = await supabase
       .from("reminders")
-      .select("id, to_email, subject, message")
+      .select("id, to_email, subject, message, send_at, repeat_interval_days, repeat_until, occurrences_sent")
       .eq("status", "scheduled")
       .lte("send_at", nowIso)
       .order("send_at", { ascending: true })
       .limit(50);
     if (error) throw new Error(error.message);
 
+    const DAY = 86400000;
     let sent = 0, failed = 0;
     for (const r of due ?? []) {
       try {
         await sendEmail(r.to_email, r.subject, r.message);
-        await supabase.from("reminders").update({ status: "sent", sent_at: new Date().toISOString(), error: null }).eq("id", r.id);
+        const occ = (r.occurrences_sent ?? 0) + 1;
+        const interval = Number(r.repeat_interval_days ?? 0);
+
+        if (interval > 0) {
+          // Advance to the next occurrence strictly in the future.
+          let next = new Date(r.send_at).getTime();
+          const now = Date.now();
+          do { next += interval * DAY; } while (next <= now);
+          const untilMs = r.repeat_until ? new Date(r.repeat_until).getTime() : null;
+
+          if (untilMs !== null && next > untilMs) {
+            // Recurrence finished.
+            await supabase.from("reminders").update({ status: "sent", sent_at: new Date().toISOString(), occurrences_sent: occ, error: null }).eq("id", r.id);
+          } else {
+            // Keep it scheduled for the next run.
+            await supabase.from("reminders").update({ send_at: new Date(next).toISOString(), sent_at: new Date().toISOString(), occurrences_sent: occ, error: null }).eq("id", r.id);
+          }
+        } else {
+          await supabase.from("reminders").update({ status: "sent", sent_at: new Date().toISOString(), occurrences_sent: occ, error: null }).eq("id", r.id);
+        }
         sent++;
       } catch (e) {
         await supabase.from("reminders").update({ status: "failed", error: (e as Error).message }).eq("id", r.id);

@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { AlarmClock, Plus, Send, X, Mail } from "lucide-react";
+import { AlarmClock, Plus, Send, X, Mail, Repeat } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/reminders")({
   head: () => ({ meta: [{ title: "Reminders — EaseMyOffice CRM" }] }),
@@ -31,7 +31,19 @@ type Reminder = {
   sent_at: string | null;
   error: string | null;
   created_by: string | null;
+  repeat_interval_days: number;
+  repeat_until: string | null;
+  occurrences_sent: number;
 };
+
+// human label for a repeat interval
+function repeatLabel(days: number) {
+  if (!days || days <= 0) return "One-time";
+  if (days === 1) return "Every day";
+  if (days === 2) return "Alternate days";
+  if (days === 7) return "Weekly";
+  return `Every ${days} days`;
+}
 
 const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 const fmt = (d: string) => { try { return new Date(d).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); } catch { return d; } };
@@ -59,8 +71,8 @@ function RemindersPage() {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"upcoming" | "all">("upcoming");
 
-  const [form, setForm] = useState({ to_email: "", client_name: "", subject: "", message: "", send_at: defaultSendAt() });
-  const set = (k: keyof typeof form, v: string) => setForm((s) => ({ ...s, [k]: v }));
+  const [form, setForm] = useState({ to_email: "", client_name: "", subject: "", message: "", send_at: defaultSendAt(), repeat: false, interval_days: "1", stop_days: "7" });
+  const set = (k: keyof typeof form, v: string | boolean) => setForm((s) => ({ ...s, [k]: v }));
 
   const { data: reminders = [], isLoading } = useQuery({
     queryKey: ["reminders"],
@@ -83,13 +95,26 @@ function RemindersPage() {
       if (!form.subject.trim()) throw new Error("Subject is required.");
       if (!form.message.trim()) throw new Error("Message is required.");
       if (!form.send_at) throw new Error("Pick a date & time to send.");
+
+      const start = new Date(form.send_at);
+      let interval = 0;
+      let until: string | null = null;
+      if (form.repeat) {
+        interval = Math.max(1, parseInt(form.interval_days, 10) || 1);
+        const stopDays = Math.max(1, parseInt(form.stop_days, 10) || 1);
+        if (stopDays < interval) throw new Error("\"Stop after\" days should be at least the send interval.");
+        until = new Date(start.getTime() + stopDays * 86400000).toISOString();
+      }
+
       const { error } = await supabase.from("reminders").insert({
         to_email: form.to_email.trim(),
         client_name: form.client_name.trim(),
         subject: form.subject.trim(),
         message: form.message,
-        send_at: new Date(form.send_at).toISOString(),
+        send_at: start.toISOString(),
         status: "scheduled",
+        repeat_interval_days: interval,
+        repeat_until: until,
         created_by: user.id,
         assigned_to: user.id,
       });
@@ -98,7 +123,7 @@ function RemindersPage() {
     onSuccess: () => {
       toast.success("Reminder scheduled");
       setOpen(false);
-      setForm({ to_email: "", client_name: "", subject: "", message: "", send_at: defaultSendAt() });
+      setForm({ to_email: "", client_name: "", subject: "", message: "", send_at: defaultSendAt(), repeat: false, interval_days: "1", stop_days: "7" });
       qc.invalidateQueries({ queryKey: ["reminders"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -120,7 +145,12 @@ function RemindersPage() {
       const { data, error } = await supabase.functions.invoke("send-client-email", { body: { to: r.to_email, subject: r.subject, html, text: r.message } });
       if (error) throw new Error(error.message);
       if (!data?.ok) throw new Error(data?.error || "Could not send email");
-      const { error: uErr } = await supabase.from("reminders").update({ status: "sent", sent_at: new Date().toISOString(), error: null }).eq("id", r.id);
+      // For a repeating reminder, sending now is just an extra copy — keep it
+      // scheduled so the recurring series continues. One-time ones are marked sent.
+      const patch = r.repeat_interval_days > 0
+        ? { occurrences_sent: (r.occurrences_sent ?? 0) + 1, error: null }
+        : { status: "sent", sent_at: new Date().toISOString(), occurrences_sent: (r.occurrences_sent ?? 0) + 1, error: null };
+      const { error: uErr } = await supabase.from("reminders").update(patch).eq("id", r.id);
       if (uErr) throw new Error(uErr.message);
     },
     onSuccess: () => { toast.success("Reminder sent"); qc.invalidateQueries({ queryKey: ["reminders"] }); },
@@ -174,8 +204,15 @@ function RemindersPage() {
                     <div className="text-xs text-muted-foreground truncate">{r.message}</div>
                   </TableCell>
                   <TableCell className="text-sm">
-                    <div>{fmt(r.send_at)}</div>
+                    <div>{r.repeat_interval_days > 0 && r.status === "scheduled" ? <span className="text-muted-foreground">Next: </span> : null}{fmt(r.send_at)}</div>
                     {r.status === "scheduled" && <div className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(r.send_at), { addSuffix: true })}</div>}
+                    {r.repeat_interval_days > 0 && (
+                      <div className="text-xs text-violet-600 flex items-center gap-1 mt-0.5">
+                        <Repeat className="h-3 w-3" />
+                        {repeatLabel(r.repeat_interval_days)}{r.repeat_until ? ` · until ${fmt(r.repeat_until)}` : ""}
+                        {r.occurrences_sent > 0 ? ` · sent ${r.occurrences_sent}x` : ""}
+                      </div>
+                    )}
                     {r.status === "failed" && r.error && <div className="text-xs text-rose-600 truncate max-w-[220px]" title={r.error}>{r.error}</div>}
                   </TableCell>
                   <TableCell><StatusBadge s={r.status} /></TableCell>
@@ -226,9 +263,31 @@ function RemindersPage() {
               <Textarea rows={5} placeholder="Write the reminder the client will receive…" value={form.message} onChange={(e) => set("message", e.target.value)} />
             </div>
             <div>
-              <Label className="text-xs">Send at *</Label>
+              <Label className="text-xs">{form.repeat ? "First send at *" : "Send at *"}</Label>
               <Input type="datetime-local" value={form.send_at} onChange={(e) => set("send_at", e.target.value)} />
               <p className="text-[11px] text-muted-foreground mt-1">The reminder sends automatically at this time (checked every few minutes).</p>
+            </div>
+
+            {/* Recurring reminder options */}
+            <div className="rounded-lg border p-3 space-y-3">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input type="checkbox" className="h-4 w-4 accent-primary" checked={form.repeat} onChange={(e) => set("repeat", e.target.checked)} />
+                <span className="text-sm font-medium">Repeat this reminder</span>
+              </label>
+              {form.repeat && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Send every (days)</Label>
+                    <Input type="number" min={1} value={form.interval_days} onChange={(e) => set("interval_days", e.target.value)} />
+                    <p className="text-[11px] text-muted-foreground mt-1">1 = daily · 2 = alternate days · 7 = weekly</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Stop after (days)</Label>
+                    <Input type="number" min={1} value={form.stop_days} onChange={(e) => set("stop_days", e.target.value)} />
+                    <p className="text-[11px] text-muted-foreground mt-1">No more reminders sent after this many days.</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
