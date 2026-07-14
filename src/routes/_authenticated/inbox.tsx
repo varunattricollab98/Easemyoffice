@@ -20,23 +20,25 @@ function esc(s: unknown) {
 // Stitch every message in the thread into one continuous HTML document, so the
 // whole conversation reads in a single scroll (no separate boxes per message).
 function buildThreadHtml(messages: { from: string; date: string; html?: string; body: string }[]) {
+  const sep = '<div style="border-top:2px solid #94a3b8;margin:24px 0 12px;padding-top:12px;font:11px Arial,sans-serif;color:#64748b;letter-spacing:.05em;text-transform:uppercase">\u2014 older message \u2014</div>';
+  // Draw a separator line before quoted/older replies. Covers the common
+  // "On <date>, <name> wrote:" divider and the "-----Original Message-----" style,
+  // plus Gmail's .gmail_quote container.
+  const withSeparators = (html: string) =>
+    html
+      .replace(/(On\b[^<>]{3,160}?wrote:)/i, sep + "$1")
+      .replace(/(-{2,}\s*Original Message\s*-{2,})/i, sep + "$1")
+      .replace(/(<(?:div|blockquote)[^>]*class="[^"]*gmail_quote[^"]*"[^>]*>)/i, (mtch, p1) =>
+        html.includes("wrote:") ? p1 : sep + p1,
+      );
   const parts = (messages || []).map((m) => {
     const header = `<div style="font:12px/1.5 Arial,sans-serif;color:#64748b;margin:20px 0 8px">📧 <b style="color:#0f172a">${esc(m.from)}</b> · ${esc(new Date(m.date).toLocaleString())}</div>`;
     const content = m.html && m.html.trim()
-      ? m.html
+      ? withSeparators(m.html)
       : `<pre style="white-space:pre-wrap;font:14px/1.6 Arial,sans-serif;color:#0f172a;margin:0">${esc(m.body)}</pre>`;
     return header + `<div>${content}</div>`;
   });
-  // Style injected into the sandboxed frame: draws a clear separator line above
-  // any older/quoted reply (Gmail wraps those in .gmail_quote / blockquote), so
-  // the fresh message is visually distinct from the older thread beneath it.
-  const style = "<style>"
-    + "img{max-width:100%;height:auto}body{margin:0}"
-    + "blockquote.gmail_quote,div.gmail_quote{border-top:2px solid #94a3b8;margin-top:22px;padding-top:16px;position:relative}"
-    + "div.gmail_quote:before{content:'\\2014 older messages \\2014';display:block;font:11px Arial,sans-serif;color:#94a3b8;margin-bottom:8px;letter-spacing:.03em}"
-    + ".gmail_quote .gmail_quote,blockquote blockquote{border-top:0;margin-top:8px;padding-top:0}"
-    + ".gmail_quote .gmail_quote:before,blockquote blockquote:before{content:none}"
-    + "</style>";
+  const style = "<style>img{max-width:100%;height:auto}body{margin:0}blockquote{margin:0 0 0 8px}</style>";
   return `${style}<div style="font-family:Arial,Helvetica,sans-serif;padding:10px 14px;color:#0f172a;max-width:100%">${parts.join('<hr style="border:none;border-top:1px dashed #cbd5e1;margin:24px 0">')}</div>`;
 }
 
