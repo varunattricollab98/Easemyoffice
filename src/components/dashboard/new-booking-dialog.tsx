@@ -62,6 +62,7 @@ export function NewBookingDialog() {
     sp_payable: "", addon_payable: "",
     sp_payment_status: "Pending", vo_status: "Pending",
     business_name: "", client_name: "", email_id: "", contact_no: "",
+    alt_contact_no: "", alt_contact_no_2: "",
     remarks: "",
     payment_type: "full" as "full" | "partial",
     amount_received: "",
@@ -160,6 +161,7 @@ export function NewBookingDialog() {
         sp_payment_status: f.sp_payment_status, vo_status: f.vo_status,
         business_name: f.business_name, client_name: f.client_name,
         email_id: f.email_id, contact_no: f.contact_no,
+        alt_contact_no: f.alt_contact_no, alt_contact_no_2: f.alt_contact_no_2,
         remarks: f.remarks, sales_month: month,
         amount_received: amountReceived,
         balance_amount: balanceAmount,
@@ -190,7 +192,7 @@ export function NewBookingDialog() {
       setOpen(false);
       setF((s) => ({ ...s, booking_id: genBookingId(), plan_name: "", vo_plan: "", vo_amount: "",
         addon_services: "", addon_amount: "", payment_mode_ref: "", payment_id_utr: "", invoice_number: "",
-        sp_payable: "", addon_payable: "", business_name: "", client_name: "", email_id: "", contact_no: "", remarks: "",
+        sp_payable: "", addon_payable: "", business_name: "", client_name: "", email_id: "", contact_no: "", alt_contact_no: "", alt_contact_no_2: "", remarks: "",
         payment_type: "full", amount_received: "", balance_due_date: "" }));
     },
     onError: (e: Error) => toast.error(e.message),
@@ -329,6 +331,9 @@ export function NewBookingDialog() {
 
           {T("email_id", "Email Id", { type: "email" })}
           {T("contact_no", "Contact No. *", { inputMode: "tel" })}
+          {T("alt_contact_no", "Alternative Contact No.", { inputMode: "tel" })}
+
+          {T("alt_contact_no_2", "Alternative Contact No. 2", { inputMode: "tel" })}
           <div><Label className="text-xs">Sales Month (auto)</Label><Input value={month} readOnly className="bg-muted/40" /></div>
         </div>
 
