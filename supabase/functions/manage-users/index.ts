@@ -21,6 +21,9 @@ const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 const ROLES = ["sales", "bd", "documentation", "accounts", "renewals", "admin"];
 
+// Protected super-admin account — cannot be deleted or have its role changed.
+const PROTECTED_EMAIL = "varun@easemyoffice.in";
+
 function json(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
     status,
@@ -57,6 +60,13 @@ Deno.serve(async (req) => {
       const targetId = body.user_id as string;
       if (!targetId) throw new Error("user_id is required.");
       if (targetId === caller.id) throw new Error("You can't delete your own account.");
+
+      // Block deletion of the protected owner account.
+      const { data: targetProfile } = await admin.from("profiles").select("email").eq("id", targetId).maybeSingle();
+      if (targetProfile?.email === PROTECTED_EMAIL) {
+        throw new Error("This account is protected and cannot be deleted.");
+      }
+
       // Deleting the auth user cascades to profiles + user_roles (ON DELETE CASCADE).
       const { error } = await admin.auth.admin.deleteUser(targetId);
       if (error) throw new Error(error.message);
