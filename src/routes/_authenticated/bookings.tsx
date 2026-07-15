@@ -2,14 +2,16 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, CheckCircle2, AlertCircle } from "lucide-react";
+import { Search, CheckCircle2, AlertCircle, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { BookingDetailDialog } from "@/components/bookings/booking-detail-dialog";
+import { BulkUploadDialog } from "@/components/bookings/bulk-upload-dialog";
 
 export const Route = createFileRoute("/_authenticated/bookings")({
   component: BookingsPage,
@@ -18,9 +20,11 @@ export const Route = createFileRoute("/_authenticated/bookings")({
 const fmtINR = (n: number) => `₹${(n ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 
 function BookingsPage() {
+  const { isAdmin } = useAuth();
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<any | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["bookings"],
@@ -68,9 +72,16 @@ function BookingsPage() {
           <h1 className="text-2xl font-semibold">Bookings</h1>
           <p className="text-sm text-muted-foreground">All closed bookings synced from + New Booking.</p>
         </div>
-        <div className="relative w-72 max-w-full">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input className="pl-8" placeholder="Search booking, client, plan…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <div className="flex items-center gap-3">
+          {isAdmin && (
+            <Button variant="outline" onClick={() => setBulkOpen(true)}>
+              <Upload className="h-4 w-4 mr-1" /> Bulk Upload
+            </Button>
+          )}
+          <div className="relative w-72 max-w-full">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input className="pl-8" placeholder="Search booking, client, plan…" value={q} onChange={(e) => setQ(e.target.value)} />
+          </div>
         </div>
       </div>
 
@@ -146,6 +157,7 @@ function BookingsPage() {
       </Card>
 
       <BookingDetailDialog booking={selected} open={!!selected} onOpenChange={(v) => { if (!v) setSelected(null); }} />
+      {isAdmin && <BulkUploadDialog open={bulkOpen} onOpenChange={setBulkOpen} />}
     </div>
   );
 }
