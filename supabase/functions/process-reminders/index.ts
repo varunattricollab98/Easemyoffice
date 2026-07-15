@@ -24,6 +24,12 @@ const FROM_EMAIL =
 const CRON_SECRET = Deno.env.get("CRON_SECRET") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const BCC_EMAIL = Deno.env.get("CRM_BCC_EMAIL") ?? "";
+
+// Split a single/comma-separated recipient string into a clean list.
+function recipients(v: unknown): string[] {
+  return String(v ?? "").split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+}
 
 function json(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
@@ -39,14 +45,15 @@ function esc(s: unknown) {
   return String(s ?? "").split(amp).join(amp + "amp;").split("<").join(amp + "lt;").split(">").join(amp + "gt;");
 }
 
-async function sendEmail(to: string, subject: string, message: string, isHtml: boolean, attachments: { filename: string; path: string }[]) {
+async function sendEmail(toList: string[], subject: string, message: string, isHtml: boolean, attachments: { filename: string; path: string }[]) {
   // Rich HTML bodies are sent as-is; plain ones are wrapped with pre-wrap so
   // typed line breaks survive (no newline regex, which breaks on copy-paste).
   const html = isHtml
     ? message
     : `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;white-space:pre-wrap;color:#0f172a">${esc(message)}</div>`;
-  const payload: Record<string, unknown> = { from: FROM_EMAIL, to: [to], subject, html };
+  const payload: Record<string, unknown> = { from: FROM_EMAIL, to: toList, subject, html };
   if (!isHtml) payload.text = message;
+  if (BCC_EMAIL) payload.bcc = [BCC_EMAIL];
   if (attachments && attachments.length) payload.attachments = attachments;
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -93,7 +100,7 @@ Deno.serve(async (req) => {
           const { data: signed } = await supabase.storage.from("reminder-attachments").createSignedUrl(a.path, 3600);
           if (signed?.signedUrl) attList.push({ filename: a.name, path: signed.signedUrl });
         }
-        await sendEmail(r.to_email, r.subject, r.message, !!r.is_html, attList);
+        await sendEmail(recipients(r.to_email), r.subject, r.message, !!r.is_html, attList);
         const occ = (r.occurrences_sent ?? 0) + 1;
         const interval = Number(r.repeat_interval_days ?? 0);
 

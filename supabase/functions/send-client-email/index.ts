@@ -18,6 +18,9 @@ const FROM_EMAIL =
   Deno.env.get("CRM_FROM_EMAIL") ??
   Deno.env.get("REPORTS_FROM_EMAIL") ??
   "EaseMyOffice CRM <onboarding@resend.dev>";
+// Optional: BCC a copy of every send here (e.g. your shared inbox) so sent
+// mail is visible in Gmail and replies thread there.
+const BCC_EMAIL = Deno.env.get("CRM_BCC_EMAIL") ?? "";
 
 function isEmail(v: unknown): v is string {
   if (typeof v !== "string") return false;
@@ -26,25 +29,34 @@ function isEmail(v: unknown): v is string {
   return at > 0 && dot > at + 1 && dot < v.length - 1 && v.indexOf(" ") === -1;
 }
 
+// Accept a single address, a comma-separated string, or an array — return valid emails.
+function toEmailList(v: unknown): string[] {
+  const raw = Array.isArray(v) ? v : String(v ?? "").split(",");
+  return raw.map((s) => String(s).trim()).filter(isEmail);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     if (req.method !== "POST") throw new Error("Use POST");
-    const { to, subject, html, text, replyTo, cc, attachments } = await req.json().catch(() => ({}));
+    const { to, subject, html, text, replyTo, cc, bcc, attachments } = await req.json().catch(() => ({}));
 
-    if (!isEmail(to)) throw new Error("A valid recipient email ('to') is required.");
+    const toList = toEmailList(to);
+    if (!toList.length) throw new Error("A valid recipient email ('to') is required.");
     if (!subject || typeof subject !== "string") throw new Error("A subject is required.");
     if ((!html || typeof html !== "string") && (!text || typeof text !== "string"))
       throw new Error("An email body is required.");
     if (!RESEND_API_KEY)
       throw new Error("Email is not configured yet. Add RESEND_API_KEY in Supabase Edge Function secrets.");
 
-    const payload: Record<string, unknown> = { from: FROM_EMAIL, to: [to], subject };
+    const payload: Record<string, unknown> = { from: FROM_EMAIL, to: toList, subject };
     if (html) payload.html = html;
     if (text) payload.text = text;
     if (isEmail(replyTo)) payload.reply_to = replyTo;
     if (isEmail(cc)) payload.cc = [cc];
+    const bccList = [...toEmailList(bcc), ...toEmailList(BCC_EMAIL)];
+    if (bccList.length) payload.bcc = Array.from(new Set(bccList));
     if (Array.isArray(attachments) && attachments.length) {
       payload.attachments = attachments
         .filter((a: any) => a && a.filename && a.path)

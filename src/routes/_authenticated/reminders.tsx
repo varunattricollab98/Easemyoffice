@@ -49,6 +49,11 @@ function repeatLabel(days: number) {
 }
 
 const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+// Accept one or more comma-separated emails; all must be valid.
+const validRecipients = (v: string) => {
+  const parts = v.split(",").map((s) => s.trim()).filter(Boolean);
+  return parts.length > 0 && parts.every(isEmail);
+};
 const fmt = (d: string) => { try { return new Date(d).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); } catch { return d; } };
 const BUCKET = "reminder-attachments";
 
@@ -193,7 +198,7 @@ function RemindersPage() {
   const create = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Not signed in");
-      if (!isEmail(form.to_email)) throw new Error("Enter a valid client email address.");
+      if (!validRecipients(form.to_email)) throw new Error("Enter valid client email(s). Separate multiple with commas.");
       if (!form.subject.trim()) throw new Error("Subject is required.");
       if (!htmlToText(form.message).trim()) throw new Error("Message is required.");
       if (!form.send_at) throw new Error("Pick a date & time to send.");
@@ -244,7 +249,7 @@ function RemindersPage() {
   const sendNowCompose = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Not signed in");
-      if (!isEmail(form.to_email)) throw new Error("Enter a valid client email address.");
+      if (!validRecipients(form.to_email)) throw new Error("Enter valid client email(s). Separate multiple with commas.");
       if (!form.subject.trim()) throw new Error("Subject is required.");
       if (!htmlToText(form.message).trim()) throw new Error("Message is required.");
       const atts = await signedAttachments(attachments);
@@ -435,8 +440,9 @@ function RemindersPage() {
           <div className="space-y-3 overflow-y-auto px-5 py-4 flex-1">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs">Client Email *</Label>
-                <Input type="email" placeholder="client@example.com" value={form.to_email} onChange={(e) => set("to_email", e.target.value)} />
+                <Label className="text-xs">Client Email(s) *</Label>
+                <Input placeholder="client@example.com, another@example.com" value={form.to_email} onChange={(e) => set("to_email", e.target.value)} />
+                <p className="text-[11px] text-muted-foreground mt-1">Multiple emails? Separate them with commas.</p>
               </div>
               <div>
                 <Label className="text-xs">Client Name</Label>
