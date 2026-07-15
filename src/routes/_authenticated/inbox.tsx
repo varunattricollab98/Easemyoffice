@@ -57,7 +57,7 @@ function LeadInboxPage() {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(0);
   const [reading, setReading] = useState<InboxEmail | null>(null);
-  const PAGE_SIZE = 40;
+  const PAGE_SIZE = 25;
 
   const threadQ = useQuery({
     queryKey: ["gmail-thread", reading?.threadId],
@@ -67,7 +67,8 @@ function LeadInboxPage() {
 
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["lead-inbox", page],
-    staleTime: 60 * 1000,
+    staleTime: 3 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
     placeholderData: (prev) => prev,
     queryFn: () => fetchInbox(PAGE_SIZE, page * PAGE_SIZE),
@@ -168,7 +169,18 @@ function LeadInboxPage() {
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-8 text-center text-sm text-muted-foreground">Loading inbox…</div>
+            <div className="p-3 space-y-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex items-start gap-3 px-4 py-3 border-b animate-pulse">
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-muted rounded w-1/3" />
+                    <div className="h-3 bg-muted rounded w-2/3" />
+                    <div className="h-3 bg-muted rounded w-1/2" />
+                  </div>
+                  <div className="h-8 w-24 bg-muted rounded" />
+                </div>
+              ))}
+            </div>
           ) : !connected ? (
             <div className="p-10 text-center space-y-2">
               <div className="text-muted-foreground">Gmail inbox isn't connected yet.</div>

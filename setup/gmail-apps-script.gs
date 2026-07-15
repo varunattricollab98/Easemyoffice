@@ -38,21 +38,16 @@ function doGet(e) {
     if (hit) return ContentService.createTextOutput(hit).setMimeType(ContentService.MimeType.JSON);
 
     var threads = GmailApp.getInboxThreads(start, max);
-    // Batch-fetch all messages for all threads in ONE call (huge speed win vs
-    // calling t.getMessages() separately for each of the 40 threads).
+    // Batch-fetch first messages to get the From header (one API call for all threads).
     var msgsForThreads = GmailApp.getMessagesForThreads(threads);
     var emails = threads.map(function (t, i) {
-      var msgs = msgsForThreads[i] || [];
-      var first = msgs[0];
+      var first = (msgsForThreads[i] || [])[0];
       var labels = t.getLabels().map(function (l) { return l.getName(); });
-      var snippet = "";
-      // Body is already loaded by the batch call above, so this is a local decode (fast).
-      try { if (first) snippet = first.getPlainBody().slice(0, 160).replace(/\s+/g, " ").trim(); } catch (err) { snippet = ""; }
       return {
         threadId: t.getId(),
         from: first ? first.getFrom() : "",
         subject: t.getFirstMessageSubject(),
-        snippet: snippet,
+        snippet: "", // skip body decode for speed; subject is enough for the list
         date: t.getLastMessageDate().toISOString(),
         unread: t.isUnread(),
         labels: labels,
@@ -60,7 +55,7 @@ function doGet(e) {
       };
     });
     var payload = JSON.stringify({ ok: true, emails: emails, start: start, hasMore: emails.length >= max });
-    try { cache.put(cacheKey, payload, 180); } catch (err) {}
+    try { cache.put(cacheKey, payload, 300); } catch (err) {}
     return ContentService.createTextOutput(payload).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
     return json({ ok: false, error: String(err) });
