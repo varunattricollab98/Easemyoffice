@@ -74,3 +74,9 @@ export function claimedOwner(labels: string[]): string | null {
   const l = (labels || []).find((x) => /\blead$/i.test(x.trim()));
   return l ? l.replace(/\s*lead$/i, "").trim() : null;
 }
+
+// Strip a possessive owner tag down to a bare name so it can be matched to a
+// team member: "Hardik's" -> "Hardik", "Kishan" -> "Kishan".
+export function normalizeOwnerTag(owner: string | null | undefined): string {
+  return (owner || "").replace(/[’'`]s\b/gi, "").replace(/\s+/g, " ").trim();
+}

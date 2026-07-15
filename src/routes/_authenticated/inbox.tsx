@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,8 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { Mail, ExternalLink, UserPlus, Search, RefreshCcw, ChevronLeft, ChevronRight } from "lucide-react";
-import { fetchInbox, fetchThread, claimEmailInGmail, parseFrom, claimedOwner, type InboxEmail } from "@/lib/gmail";
+import { Mail, ExternalLink, UserPlus, Search, RefreshCcw, ChevronLeft, ChevronRight, CheckCircle2, Hand } from "lucide-react";
+import { fetchInbox, fetchThread, claimEmailInGmail, parseFrom, claimedOwner, normalizeOwnerTag, type InboxEmail } from "@/lib/gmail";
 
 function esc(s: unknown) {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -49,6 +49,21 @@ export const Route = createFileRoute("/_authenticated/inbox")({
 
 type Filter = "all" | "unclaimed" | "mine";
 
+type TeamMember = { id: string; full_name: string | null; email: string | null };
+
+// Map a Gmail owner tag ("Hardik's", "Kishan") to a team member by name.
+// Tries exact full-name, then first-name, then a "starts with" match.
+function matchOwnerToUser(ownerTag: string | null, team: TeamMember[]): TeamMember | null {
+  const norm = normalizeOwnerTag(ownerTag).toLowerCase();
+  if (!norm) return null;
+  const byFull = team.find((p) => (p.full_name || "").trim().toLowerCase() === norm);
+  if (byFull) return byFull;
+  const byFirst = team.find((p) => (p.full_name || "").trim().toLowerCase().split(/\s+/)[0] === norm);
+  if (byFirst) return byFirst;
+  const byStarts = team.find((p) => (p.full_name || "").trim().toLowerCase().startsWith(norm + " "));
+  return byStarts ?? null;
+}
+
 function LeadInboxPage() {
   const { user, profile, isAdmin } = useAuth();
   const qc = useQueryClient();
@@ -77,6 +92,34 @@ function LeadInboxPage() {
   const emails = data?.emails ?? [];
   const connected = data?.ok ?? false;
   const hasMore = data?.hasMore ?? false;
+
+  // Team members — used to map a Gmail owner tag (e.g. "Hardik's") to the
+  // actual salesperson so tagged emails can flow into *their* leads.
+  const { data: team = [] } = useQuery({
+    queryKey: ["inbox-team"],
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data } = await supabase.from("profiles").select("id, full_name, email");
+      return (data ?? []) as TeamMember[];
+    },
+  });
+
+  // Existing email-sourced leads — to dedup (avoid re-creating) and to show
+  // which inbox emails already became leads.
+  const { data: emailLeads = [] } = useQuery({
+    queryKey: ["email-leads"],
+    staleTime: 60 * 1000,
+    queryFn: async () => {
+      const { data } = await supabase.from("leads").select("id, email, assigned_to").eq("source", "email" as never);
+      return (data ?? []) as { id: string; email: string | null; assigned_to: string | null }[];
+    },
+  });
+
+  const leadByEmail = useMemo(() => {
+    const m = new Map<string, { id: string; assigned_to: string | null }>();
+    for (const l of emailLeads) if (l.email) m.set(l.email.trim().toLowerCase(), { id: l.id, assigned_to: l.assigned_to });
+    return m;
+  }, [emailLeads]);
 
   // Warm up the next page in the background so "Older" opens instantly.
   useEffect(() => {
@@ -116,15 +159,107 @@ function LeadInboxPage() {
     onSuccess: (r) => {
       toast.success(r.labelled ? "Claimed — added to your leads & labelled in Gmail" : "Added to your leads (Gmail label pending)");
       qc.invalidateQueries({ queryKey: ["lead-inbox"] });
+      qc.invalidateQueries({ queryKey: ["email-leads"] });
       qc.invalidateQueries({ queryKey: ["leads"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Take over an already-tagged email: move (or create) the lead under ME and
+  // relabel the Gmail thread with my name.
+  const markMine = useMutation({
+    mutationFn: async (email: InboxEmail) => {
+      if (!user) throw new Error("Not signed in");
+      const { name, address } = parseFrom(email.from);
+      const existing = address ? leadByEmail.get(address.trim().toLowerCase()) : undefined;
+      if (existing) {
+        if (existing.assigned_to !== user.id) {
+          const { error } = await supabase.from("leads").update({ assigned_to: user.id }).eq("id", existing.id);
+          if (error) throw new Error("Couldn't reassign this lead — it may belong to another rep. Ask an admin to move it.");
+        }
+      } else {
+        const { error } = await supabase.from("leads").insert({
+          client_name: name || address || email.subject || "Email lead",
+          email: address || null,
+          mobile: "",
+          source: "email" as never,
+          assigned_to: user.id,
+          created_by: user.id,
+          notes: `From email: ${email.subject}\n${email.url}`,
+        });
+        if (error) throw new Error(error.message);
+      }
+      const res = await claimEmailInGmail(email.threadId, `${myName || "Me"} lead`);
+      return { labelled: res.ok };
+    },
+    onSuccess: (r) => {
+      toast.success(r.labelled ? "Marked as yours — moved to your leads & relabelled in Gmail" : "Marked as yours (Gmail label pending)");
+      qc.invalidateQueries({ queryKey: ["lead-inbox"] });
+      qc.invalidateQueries({ queryKey: ["email-leads"] });
+      qc.invalidateQueries({ queryKey: ["leads"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  // Auto-sync (admins only): when the inbox loads, any email tagged with a
+  // known salesperson's name that isn't a lead yet is created in *their* leads.
+  // Deduped by email address + guarded per-session so it runs at most once each.
+  const syncedRef = useRef<Set<string>>(new Set());
+  const syncTagged = useMutation({
+    mutationFn: async (list: { email: InboxEmail; owner: TeamMember }[]) => {
+      if (!user || list.length === 0) return { created: 0 };
+      const rows = list.map(({ email, owner }) => {
+        const { name, address } = parseFrom(email.from);
+        return {
+          client_name: name || address || email.subject || "Email lead",
+          email: address || null,
+          mobile: "",
+          source: "email" as never,
+          assigned_to: owner.id,
+          created_by: user.id,
+          notes: `From email: ${email.subject}\n${email.url}`,
+        };
+      });
+      const { error } = await supabase.from("leads").insert(rows);
+      if (error) throw new Error(error.message);
+      return { created: rows.length };
+    },
+    onSuccess: (r) => {
+      if (r.created > 0) {
+        toast.success(`Synced ${r.created} tagged email${r.created > 1 ? "s" : ""} to their owners' leads`);
+        qc.invalidateQueries({ queryKey: ["email-leads"] });
+        qc.invalidateQueries({ queryKey: ["leads"] });
+      }
+    },
+    onError: (e: Error) => toast.error(`Tag sync failed: ${e.message}`),
+  });
+
+  useEffect(() => {
+    if (!isAdmin || !connected || emails.length === 0 || team.length === 0) return;
+    const pending: { email: InboxEmail; owner: TeamMember }[] = [];
+    for (const e of emails) {
+      if (syncedRef.current.has(e.threadId)) continue;
+      const owner = matchOwnerToUser(claimedOwner(e.labels), team);
+      if (!owner) continue;
+      const { address } = parseFrom(e.from);
+      if (address && leadByEmail.has(address.trim().toLowerCase())) { syncedRef.current.add(e.threadId); continue; }
+      syncedRef.current.add(e.threadId);
+      pending.push({ email: e, owner });
+    }
+    if (pending.length > 0 && !syncTagged.isPending) syncTagged.mutate(pending);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, connected, emails, team, leadByEmail]);
+
+  // Is this email tagged to the current user?
+  const isMine = (e: InboxEmail) => {
+    const o = matchOwnerToUser(claimedOwner(e.labels), team);
+    return !!(o && user && o.id === user.id);
+  };
+
   const rows = emails.filter((e) => {
     const owner = claimedOwner(e.labels);
     if (filter === "unclaimed" && owner) return false;
-    if (filter === "mine" && !(owner && myName && owner.toLowerCase() === myName.toLowerCase())) return false;
+    if (filter === "mine" && !isMine(e)) return false;
     if (q.trim()) {
       const s = q.toLowerCase();
       if (![e.from, e.subject, e.snippet].some((v) => String(v ?? "").toLowerCase().includes(s))) return false;
@@ -135,7 +270,7 @@ function LeadInboxPage() {
   const counts = {
     all: emails.length,
     unclaimed: emails.filter((e) => !claimedOwner(e.labels)).length,
-    mine: emails.filter((e) => { const o = claimedOwner(e.labels); return o && myName && o.toLowerCase() === myName.toLowerCase(); }).length,
+    mine: emails.filter((e) => isMine(e)).length,
   };
 
   return (
@@ -197,6 +332,8 @@ function LeadInboxPage() {
             rows.map((e) => {
               const owner = claimedOwner(e.labels);
               const { name, address } = parseFrom(e.from);
+              const mine = isMine(e);
+              const hasLead = address ? leadByEmail.has(address.trim().toLowerCase()) : false;
               return (
                 <div key={e.threadId} className="flex items-start gap-3 px-4 py-3 border-b last:border-b-0 hover:bg-accent/30 transition-colors">
                   <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setReading(e)} onMouseEnter={() => prefetchThread(e.threadId)} title="Click to read">
@@ -214,10 +351,21 @@ function LeadInboxPage() {
                     <div className="text-[11px] text-muted-foreground mt-0.5">{address} · {formatDistanceToNow(new Date(e.date), { addSuffix: true })}</div>
                   </div>
                   <div className="flex flex-col items-end gap-2 shrink-0">
-                    {!owner && (
+                    {!owner ? (
                       <Button size="sm" disabled={claim.isPending} onClick={() => claim.mutate(e)}>
                         <UserPlus className="h-4 w-4 mr-1" /> Claim as my lead
                       </Button>
+                    ) : mine ? (
+                      <span className="text-[11px] text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> In your leads
+                      </span>
+                    ) : (
+                      <Button size="sm" variant="outline" disabled={markMine.isPending} onClick={() => markMine.mutate(e)}>
+                        <Hand className="h-4 w-4 mr-1" /> Mark as yours
+                      </Button>
+                    )}
+                    {owner && !mine && hasLead && (
+                      <span className="text-[10px] text-muted-foreground">In {owner}'s leads</span>
                     )}
                     <a href={e.url} target="_blank" rel="noreferrer" className="text-xs text-primary inline-flex items-center gap-1 hover:underline">
                       <ExternalLink className="h-3 w-3" /> Open in Gmail
@@ -291,11 +439,28 @@ function LeadInboxPage() {
                 ) : null;
               })()}
               <div className="flex flex-wrap items-center justify-end gap-3 shrink-0">
-                {reading && !claimedOwner(reading.labels) && (
-                  <Button size="sm" disabled={claim.isPending} onClick={() => { claim.mutate(reading); setReading(null); }}>
-                    <UserPlus className="h-4 w-4 mr-1" /> Claim as my lead
-                  </Button>
-                )}
+                {reading && (() => {
+                  const owner = claimedOwner(reading.labels);
+                  if (!owner) {
+                    return (
+                      <Button size="sm" disabled={claim.isPending} onClick={() => { claim.mutate(reading); setReading(null); }}>
+                        <UserPlus className="h-4 w-4 mr-1" /> Claim as my lead
+                      </Button>
+                    );
+                  }
+                  if (isMine(reading)) {
+                    return (
+                      <span className="text-xs text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
+                        <CheckCircle2 className="h-4 w-4" /> In your leads
+                      </span>
+                    );
+                  }
+                  return (
+                    <Button size="sm" variant="outline" disabled={markMine.isPending} onClick={() => { markMine.mutate(reading); setReading(null); }}>
+                      <Hand className="h-4 w-4 mr-1" /> Mark as yours
+                    </Button>
+                  );
+                })()}
                 {(threadQ.data.url || reading?.url) && (
                   <a href={threadQ.data.url || reading?.url} target="_blank" rel="noreferrer" className="text-sm text-primary inline-flex items-center gap-1 hover:underline">
                     <ExternalLink className="h-3.5 w-3.5" /> Open in Gmail to reply
