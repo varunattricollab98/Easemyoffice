@@ -20,6 +20,9 @@ export const Route = createFileRoute("/_authenticated/admin/users")({
 const ROLE_OPTIONS = ["sales", "bd", "documentation", "accounts", "renewals", "admin"] as const;
 type Role = (typeof ROLE_OPTIONS)[number];
 
+// Protected super-admin account — role cannot be changed or removed from UI.
+const PROTECTED_EMAIL = "varun@easemyoffice.in";
+
 // A throwaway Supabase client used only to create new users via signUp, so it
 // does NOT replace the current admin's session. Uses the public publishable key
 // (safe in the browser). This avoids needing the server-side service role key.
@@ -111,6 +114,9 @@ function AdminUsersPage() {
 
   const roleM = useMutation({
     mutationFn: async (v: { user_id: string; role: Role }) => {
+      // Double-check: never change the protected owner's role
+      const targetUser = (usersQ.data ?? []).find((u: any) => u.id === v.user_id);
+      if (targetUser?.email === PROTECTED_EMAIL) throw new Error("This account's role is fixed and cannot be changed.");
       await supabase.from("user_roles").delete().eq("user_id", v.user_id);
       const { error } = await supabase.from("user_roles").insert({ user_id: v.user_id, role: v.role });
       if (error) throw new Error(error.message);
@@ -220,19 +226,25 @@ function AdminUsersPage() {
               </tr>
             </thead>
             <tbody>
-              {users.map((u: any) => (
+              {users.map((u: any) => {
+                const isProtected = u.email === PROTECTED_EMAIL;
+                return (
                 <tr key={u.id} className="border-t">
-                  <td className="px-4 py-2">{u.full_name ?? "—"}</td>
+                  <td className="px-4 py-2">{u.full_name ?? "—"}{isProtected && <span className="ml-2 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">OWNER</span>}</td>
                   <td className="px-4 py-2 text-muted-foreground">{u.email}</td>
                   <td className="px-4 py-2">{u.department ?? "—"}</td>
                   <td className="px-4 py-2">{(u.roles ?? []).join(", ") || "—"}</td>
                   <td className="px-4 py-2">
+                    {isProtected ? (
+                      <span className="text-xs text-muted-foreground italic">Fixed (admin)</span>
+                    ) : (
                     <Select onValueChange={(v) => roleM.mutate({ user_id: u.id, role: v as Role })}>
                       <SelectTrigger className="h-8 w-[140px]"><SelectValue placeholder="Change…" /></SelectTrigger>
                       <SelectContent>
                         {ROLE_OPTIONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
                       </SelectContent>
                     </Select>
+                    )}
                   </td>
                   <td className="px-4 py-2">
                     <Button
@@ -245,6 +257,9 @@ function AdminUsersPage() {
                     </Button>
                   </td>
                   <td className="px-4 py-2">
+                    {isProtected ? (
+                      <span className="text-xs text-muted-foreground italic">Protected</span>
+                    ) : (
                     <Button
                       size="sm"
                       variant="ghost"
@@ -259,9 +274,11 @@ function AdminUsersPage() {
                     >
                       Remove
                     </Button>
+                    )}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               {usersQ.isLoading && <tr><td className="px-4 py-6 text-muted-foreground" colSpan={7}>Loading…</td></tr>}
               {usersQ.isError && <tr><td className="px-4 py-6 text-destructive" colSpan={7}>Failed to load users: {(usersQ.error as Error)?.message ?? "Unknown error"}</td></tr>}
               {!usersQ.isLoading && !usersQ.isError && users.length === 0 && <tr><td className="px-4 py-6 text-muted-foreground" colSpan={7}>No users yet.</td></tr>}
