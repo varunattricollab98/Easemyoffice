@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
 
   try {
     if (req.method !== "POST") throw new Error("Use POST");
-    const { to, subject, html, text, replyTo, cc } = await req.json().catch(() => ({}));
+    const { to, subject, html, text, replyTo, cc, attachments } = await req.json().catch(() => ({}));
 
     if (!isEmail(to)) throw new Error("A valid recipient email ('to') is required.");
     if (!subject || typeof subject !== "string") throw new Error("A subject is required.");
@@ -45,6 +45,11 @@ Deno.serve(async (req) => {
     if (text) payload.text = text;
     if (isEmail(replyTo)) payload.reply_to = replyTo;
     if (isEmail(cc)) payload.cc = [cc];
+    if (Array.isArray(attachments) && attachments.length) {
+      payload.attachments = attachments
+        .filter((a: any) => a && a.filename && a.path)
+        .map((a: any) => ({ filename: a.filename, path: a.path }));
+    }
 
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",

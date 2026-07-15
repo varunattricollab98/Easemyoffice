@@ -36,14 +36,19 @@ function esc(s: unknown) {
   return String(s ?? "").split("&").join("&amp;").split("<").join("&lt;").split(">").join("&gt;");
 }
 
-async function sendEmail(to: string, subject: string, message: string) {
-  // white-space:pre-wrap preserves the line breaks the user typed, so we don't
-  // need any newline regex (which breaks when copy-pasted out of chat).
-  const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;white-space:pre-wrap;color:#0f172a">${esc(message)}</div>`;
+async function sendEmail(to: string, subject: string, message: string, isHtml: boolean, attachments: { filename: string; path: string }[]) {
+  // Rich HTML bodies are sent as-is; plain ones are wrapped with pre-wrap so
+  // typed line breaks survive (no newline regex, which breaks on copy-paste).
+  const html = isHtml
+    ? message
+    : `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;white-space:pre-wrap;color:#0f172a">${esc(message)}</div>`;
+  const payload: Record<string, unknown> = { from: FROM_EMAIL, to: [to], subject, html };
+  if (!isHtml) payload.text = message;
+  if (attachments && attachments.length) payload.attachments = attachments;
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: FROM_EMAIL, to: [to], subject, html, text: message }),
+    body: JSON.stringify(payload),
   });
   const body = await res.text();
   if (!res.ok) throw new Error(`Resend ${res.status}: ${body}`);
@@ -67,7 +72,7 @@ Deno.serve(async (req) => {
 
     const { data: due, error } = await supabase
       .from("reminders")
-      .select("id, to_email, subject, message, send_at, repeat_interval_days, repeat_until, occurrences_sent")
+      .select("id, to_email, subject, message, send_at, repeat_interval_days, repeat_until, occurrences_sent, is_html, attachments")
       .eq("status", "scheduled")
       .lte("send_at", nowIso)
       .order("send_at", { ascending: true })
@@ -78,7 +83,14 @@ Deno.serve(async (req) => {
     let sent = 0, failed = 0;
     for (const r of due ?? []) {
       try {
-        await sendEmail(r.to_email, r.subject, r.message);
+        // Turn stored attachment paths into signed URLs Resend can fetch.
+        const attList: { filename: string; path: string }[] = [];
+        for (const a of (r.attachments ?? []) as any[]) {
+          if (!a?.path || !a?.name) continue;
+          const { data: signed } = await supabase.storage.from("reminder-attachments").createSignedUrl(a.path, 3600);
+          if (signed?.signedUrl) attList.push({ filename: a.name, path: signed.signedUrl });
+        }
+        await sendEmail(r.to_email, r.subject, r.message, !!r.is_html, attList);
         const occ = (r.occurrences_sent ?? 0) + 1;
         const interval = Number(r.repeat_interval_days ?? 0);
 

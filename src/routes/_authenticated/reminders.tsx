@@ -8,17 +8,18 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { RichTextEditor, htmlToText } from "@/components/ui/rich-text-editor";
 import { toast } from "sonner";
-import { AlarmClock, Plus, Send, X, Mail, Repeat, Pause, Play } from "lucide-react";
+import { AlarmClock, Plus, Send, X, Mail, Repeat, Pause, Play, Paperclip, FileText, Trash2, Pencil, BookmarkPlus } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/reminders")({
   head: () => ({ meta: [{ title: "Reminders — EaseMyOffice CRM" }] }),
   component: RemindersPage,
 });
 
+type Attachment = { name: string; path: string; size?: number };
 type Reminder = {
   id: string;
   client_name: string | null;
@@ -33,9 +34,11 @@ type Reminder = {
   repeat_interval_days: number;
   repeat_until: string | null;
   occurrences_sent: number;
+  is_html: boolean;
+  attachments: Attachment[];
 };
+type Snippet = { id: string; name: string; subject: string; body_html: string; created_by: string | null };
 
-// human label for a repeat interval
 function repeatLabel(days: number) {
   if (!days || days <= 0) return "One-time";
   if (days === 1) return "Every day";
@@ -46,9 +49,8 @@ function repeatLabel(days: number) {
 
 const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 const fmt = (d: string) => { try { return new Date(d).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); } catch { return d; } };
+const BUCKET = "reminder-attachments";
 
-// Live countdown label, e.g. "in 2 minutes" / "in 1 minute" / "sending now…".
-// `_tick` is only here to force a re-render every minute.
 function countdown(sendAt: string, _tick: number) {
   const diff = new Date(sendAt).getTime() - Date.now();
   if (diff <= 0) return "sending now…";
@@ -61,11 +63,20 @@ function countdown(sendAt: string, _tick: number) {
   return `in ${days} day${days === 1 ? "" : "s"}`;
 }
 
-// value for <input type="datetime-local"> defaulting to +1 day from now
 function defaultSendAt() {
   const d = new Date(Date.now() + 24 * 60 * 60 * 1000);
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
   return d.toISOString().slice(0, 16);
+}
+
+// Build the sign-URL list so Resend can fetch each attachment.
+async function signedAttachments(atts: Attachment[]) {
+  const out: { filename: string; path: string }[] = [];
+  for (const a of atts ?? []) {
+    const { data } = await supabase.storage.from(BUCKET).createSignedUrl(a.path, 3600);
+    if (data?.signedUrl) out.push({ filename: a.name, path: data.signedUrl });
+  }
+  return out;
 }
 
 function StatusBadge({ s }: { s: Reminder["status"] }) {
@@ -80,6 +91,8 @@ function StatusBadge({ s }: { s: Reminder["status"] }) {
   return <Badge variant="outline" className={`${map[s]} capitalize`}>{label}</Badge>;
 }
 
+const EMPTY_FORM = { to_email: "", client_name: "", subject: "", message: "", send_at: defaultSendAt(), repeat: false, interval_days: "1", stop_days: "7" };
+
 function RemindersPage() {
   const { user, isAdmin } = useAuth();
   const qc = useQueryClient();
@@ -87,14 +100,21 @@ function RemindersPage() {
   const [tab, setTab] = useState<"scheduled" | "succeeded" | "paused" | "all">("scheduled");
   const [tick, setTick] = useState(0);
 
-  // Re-render every 30s so the countdown ("in 2 minutes") stays live.
+  const [form, setForm] = useState({ ...EMPTY_FORM });
+  const set = (k: keyof typeof form, v: string | boolean) => setForm((s) => ({ ...s, [k]: v }));
+  const [editorKey, setEditorKey] = useState(0); // bump to push new HTML into the editor
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [uploading, setUploading] = useState(false);
+
+  // Snippet manager
+  const [snipMgr, setSnipMgr] = useState(false);
+  const [snipForm, setSnipForm] = useState<{ id?: string; name: string; subject: string; body_html: string }>({ name: "", subject: "", body_html: "" });
+  const [snipEditorKey, setSnipEditorKey] = useState(0);
+
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 30_000);
     return () => clearInterval(id);
   }, []);
-
-  const [form, setForm] = useState({ to_email: "", client_name: "", subject: "", message: "", send_at: defaultSendAt(), repeat: false, interval_days: "1", stop_days: "7" });
-  const set = (k: keyof typeof form, v: string | boolean) => setForm((s) => ({ ...s, [k]: v }));
 
   const { data: reminders = [], isLoading } = useQuery({
     queryKey: ["reminders"],
@@ -102,6 +122,15 @@ function RemindersPage() {
       const { data, error } = await supabase.from("reminders").select("*").order("send_at", { ascending: true }).limit(1000);
       if (error) throw new Error(error.message);
       return (data ?? []) as Reminder[];
+    },
+  });
+
+  const { data: snippets = [] } = useQuery({
+    queryKey: ["email-snippets"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("email_snippets").select("*").order("name", { ascending: true });
+      if (error) throw new Error(error.message);
+      return (data ?? []) as Snippet[];
     },
   });
 
@@ -119,12 +148,51 @@ function RemindersPage() {
     return reminders.length;
   };
 
+  function resetForm() {
+    setForm({ ...EMPTY_FORM, send_at: defaultSendAt() });
+    setAttachments([]);
+    setEditorKey((k) => k + 1);
+  }
+
+  function insertSnippet(s: Snippet) {
+    setForm((f) => ({
+      ...f,
+      subject: f.subject.trim() ? f.subject : s.subject || f.subject,
+      message: (f.message || "") + (s.body_html || ""),
+    }));
+    setEditorKey((k) => k + 1);
+    toast.success(`Inserted "${s.name}"`);
+  }
+
+  async function onPickFiles(files: FileList | null) {
+    if (!files || !user) return;
+    setUploading(true);
+    try {
+      const added: Attachment[] = [];
+      for (const file of Array.from(files)) {
+        if (file.size > 15 * 1024 * 1024) { toast.error(`${file.name} is over 15MB — too large to attach.`); continue; }
+        const path = `${user.id}/${crypto.randomUUID()}/${file.name}`;
+        const { error } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: false });
+        if (error) { toast.error(`Upload failed: ${error.message}`); continue; }
+        added.push({ name: file.name, path, size: file.size });
+      }
+      if (added.length) setAttachments((a) => [...a, ...added]);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function removeAttachment(path: string) {
+    await supabase.storage.from(BUCKET).remove([path]);
+    setAttachments((a) => a.filter((x) => x.path !== path));
+  }
+
   const create = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Not signed in");
       if (!isEmail(form.to_email)) throw new Error("Enter a valid client email address.");
       if (!form.subject.trim()) throw new Error("Subject is required.");
-      if (!form.message.trim()) throw new Error("Message is required.");
+      if (!htmlToText(form.message).trim()) throw new Error("Message is required.");
       if (!form.send_at) throw new Error("Pick a date & time to send.");
 
       const start = new Date(form.send_at);
@@ -142,6 +210,8 @@ function RemindersPage() {
         client_name: form.client_name.trim(),
         subject: form.subject.trim(),
         message: form.message,
+        is_html: true,
+        attachments,
         send_at: start.toISOString(),
         status: "scheduled",
         repeat_interval_days: interval,
@@ -154,7 +224,7 @@ function RemindersPage() {
     onSuccess: () => {
       toast.success("Reminder scheduled");
       setOpen(false);
-      setForm({ to_email: "", client_name: "", subject: "", message: "", send_at: defaultSendAt(), repeat: false, interval_days: "1", stop_days: "7" });
+      resetForm();
       qc.invalidateQueries({ queryKey: ["reminders"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -178,15 +248,15 @@ function RemindersPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Manual "Send now" — uses the existing send-client-email function, then marks it sent.
   const sendNow = useMutation({
     mutationFn: async (r: Reminder) => {
-      const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#0f172a">${r.message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/\n/g, "<br>")}</div>`;
-      const { data, error } = await supabase.functions.invoke("send-client-email", { body: { to: r.to_email, subject: r.subject, html, text: r.message } });
+      const html = r.is_html
+        ? r.message
+        : `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;white-space:pre-wrap;color:#0f172a">${r.message.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</div>`;
+      const atts = await signedAttachments(r.attachments || []);
+      const { data, error } = await supabase.functions.invoke("send-client-email", { body: { to: r.to_email, subject: r.subject, html, attachments: atts } });
       if (error) throw new Error(error.message);
       if (!data?.ok) throw new Error(data?.error || "Could not send email");
-      // For a repeating reminder, sending now is just an extra copy — keep it
-      // scheduled so the recurring series continues. One-time ones are marked sent.
       const patch = r.repeat_interval_days > 0
         ? { occurrences_sent: (r.occurrences_sent ?? 0) + 1, error: null }
         : { status: "sent", sent_at: new Date().toISOString(), occurrences_sent: (r.occurrences_sent ?? 0) + 1, error: null };
@@ -197,6 +267,37 @@ function RemindersPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // ── Snippet CRUD ──
+  const saveSnippet = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error("Not signed in");
+      if (!snipForm.name.trim()) throw new Error("Snippet name is required.");
+      if (snipForm.id) {
+        const { error } = await supabase.from("email_snippets").update({ name: snipForm.name.trim(), subject: snipForm.subject, body_html: snipForm.body_html }).eq("id", snipForm.id);
+        if (error) throw new Error(error.message);
+      } else {
+        const { error } = await supabase.from("email_snippets").insert({ name: snipForm.name.trim(), subject: snipForm.subject, body_html: snipForm.body_html, created_by: user.id });
+        if (error) throw new Error(error.message);
+      }
+    },
+    onSuccess: () => {
+      toast.success(snipForm.id ? "Snippet updated" : "Snippet saved");
+      setSnipForm({ name: "", subject: "", body_html: "" });
+      setSnipEditorKey((k) => k + 1);
+      qc.invalidateQueries({ queryKey: ["email-snippets"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteSnippet = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("email_snippets").delete().eq("id", id);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => { toast.success("Snippet deleted"); qc.invalidateQueries({ queryKey: ["email-snippets"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-4">
       <div className="flex items-end justify-between gap-3 flex-wrap">
@@ -204,7 +305,10 @@ function RemindersPage() {
           <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2"><AlarmClock className="h-6 w-6 text-primary" /> Reminders</h1>
           <p className="text-sm text-muted-foreground">Schedule automatic email reminders to clients. They send on their own at the chosen time.</p>
         </div>
-        <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-1" /> Schedule reminder</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setSnipMgr(true)}><BookmarkPlus className="h-4 w-4 mr-1" /> Snippets</Button>
+          <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-1" /> Schedule reminder</Button>
+        </div>
       </div>
 
       <Card>
@@ -230,9 +334,11 @@ function RemindersPage() {
           </TableHeader>
           <TableBody>
             {isLoading && <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>}
-            {!isLoading && shown.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No reminders {tab === "upcoming" ? "scheduled" : "yet"}. Click "Schedule reminder" to add one.</TableCell></TableRow>}
+            {!isLoading && shown.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No reminders here. Click "Schedule reminder" to add one.</TableCell></TableRow>}
             {shown.map((r) => {
               const canManage = isAdmin || r.created_by === user?.id;
+              const preview = r.is_html ? htmlToText(r.message) : r.message;
+              const attCount = (r.attachments || []).length;
               return (
                 <TableRow key={r.id}>
                   <TableCell>
@@ -241,7 +347,8 @@ function RemindersPage() {
                   </TableCell>
                   <TableCell className="max-w-xs">
                     <div className="truncate">{r.subject}</div>
-                    <div className="text-xs text-muted-foreground truncate">{r.message}</div>
+                    <div className="text-xs text-muted-foreground truncate">{preview}</div>
+                    {attCount > 0 && <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><Paperclip className="h-3 w-3" />{attCount} attachment{attCount > 1 ? "s" : ""}</div>}
                   </TableCell>
                   <TableCell className="text-sm">
                     <div>{r.repeat_interval_days > 0 && r.status === "scheduled" ? <span className="text-muted-foreground">Next: </span> : null}{fmt(r.send_at)}</div>
@@ -288,8 +395,8 @@ function RemindersPage() {
       </Card>
 
       {/* Schedule dialog */}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg">
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
+        <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Schedule a client reminder</DialogTitle>
           </DialogHeader>
@@ -308,17 +415,51 @@ function RemindersPage() {
               <Label className="text-xs">Subject *</Label>
               <Input placeholder="e.g. Your virtual office renewal is due" value={form.subject} onChange={(e) => set("subject", e.target.value)} />
             </div>
+
+            {/* Message + snippet insert */}
             <div>
-              <Label className="text-xs">Message *</Label>
-              <Textarea rows={5} placeholder="Write the reminder the client will receive…" value={form.message} onChange={(e) => set("message", e.target.value)} />
+              <div className="flex items-center justify-between mb-1">
+                <Label className="text-xs">Message *</Label>
+                <div className="flex items-center gap-2">
+                  <select
+                    className="h-7 rounded-md border bg-background px-2 text-xs"
+                    value=""
+                    onChange={(e) => { const s = snippets.find((x) => x.id === e.target.value); if (s) insertSnippet(s); e.currentTarget.value = ""; }}
+                  >
+                    <option value="">Insert snippet…</option>
+                    {snippets.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                  <button type="button" className="text-xs text-primary hover:underline" onClick={() => setSnipMgr(true)}>Manage</button>
+                </div>
+              </div>
+              <RichTextEditor key={editorKey} html={form.message} onChange={(v) => set("message", v)} placeholder="Write the email… paste a formatted quotation and it keeps its colours & layout." />
+              <p className="text-[11px] text-muted-foreground mt-1">Tip: paste a formatted quotation directly — formatting is preserved. Spell-check works via your browser (e.g. Grammarly).</p>
             </div>
+
+            {/* Attachments */}
+            <div>
+              <Label className="text-xs">Attachments (invoices, etc.)</Label>
+              <div className="mt-1 space-y-2">
+                {attachments.map((a) => (
+                  <div key={a.path} className="flex items-center justify-between rounded border px-2 py-1.5 text-sm bg-muted/30">
+                    <span className="flex items-center gap-2 truncate"><FileText className="h-4 w-4 text-muted-foreground shrink-0" />{a.name}{a.size ? <span className="text-xs text-muted-foreground">({Math.round(a.size / 1024)} KB)</span> : null}</span>
+                    <button type="button" className="text-rose-600 hover:text-rose-700 shrink-0" onClick={() => removeAttachment(a.path)}><Trash2 className="h-4 w-4" /></button>
+                  </div>
+                ))}
+                <label className="inline-flex items-center gap-2 text-sm cursor-pointer rounded-md border px-3 py-1.5 hover:bg-accent">
+                  <Paperclip className="h-4 w-4" /> {uploading ? "Uploading…" : "Attach file"}
+                  <input type="file" multiple className="hidden" disabled={uploading} onChange={(e) => { onPickFiles(e.target.files); e.currentTarget.value = ""; }} />
+                </label>
+              </div>
+            </div>
+
             <div>
               <Label className="text-xs">{form.repeat ? "First send at *" : "Send at *"}</Label>
               <Input type="datetime-local" value={form.send_at} onChange={(e) => set("send_at", e.target.value)} />
-              <p className="text-[11px] text-muted-foreground mt-1">The reminder sends automatically at this time (checked every few minutes).</p>
+              <p className="text-[11px] text-muted-foreground mt-1">The reminder sends automatically at this time (checked every minute).</p>
             </div>
 
-            {/* Recurring reminder options */}
+            {/* Recurring options */}
             <div className="rounded-lg border p-3 space-y-3">
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input type="checkbox" className="h-4 w-4 accent-primary" checked={form.repeat} onChange={(e) => set("repeat", e.target.checked)} />
@@ -341,9 +482,62 @@ function RemindersPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button disabled={create.isPending} onClick={() => create.mutate()}>{create.isPending ? "Scheduling…" : "Schedule reminder"}</Button>
+            <Button variant="outline" onClick={() => { setOpen(false); resetForm(); }}>Cancel</Button>
+            <Button disabled={create.isPending || uploading} onClick={() => create.mutate()}>{create.isPending ? "Scheduling…" : "Schedule reminder"}</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Snippet manager dialog */}
+      <Dialog open={snipMgr} onOpenChange={setSnipMgr}>
+        <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Email snippets</DialogTitle>
+          </DialogHeader>
+
+          {/* existing snippets */}
+          <div className="space-y-2">
+            {snippets.length === 0 && <p className="text-sm text-muted-foreground">No snippets yet. Create one below — your team can reuse it.</p>}
+            {snippets.map((s) => {
+              const canEdit = isAdmin || s.created_by === user?.id;
+              return (
+                <div key={s.id} className="flex items-center justify-between rounded border px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm truncate">{s.name}</div>
+                    <div className="text-xs text-muted-foreground truncate">{s.subject || htmlToText(s.body_html).slice(0, 80)}</div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {open && <Button size="sm" variant="outline" onClick={() => insertSnippet(s)}>Insert</Button>}
+                    {canEdit && <button type="button" title="Edit" className="text-muted-foreground hover:text-foreground" onClick={() => { setSnipForm({ id: s.id, name: s.name, subject: s.subject, body_html: s.body_html }); setSnipEditorKey((k) => k + 1); }}><Pencil className="h-4 w-4" /></button>}
+                    {canEdit && <button type="button" title="Delete" className="text-rose-600 hover:text-rose-700" onClick={() => deleteSnippet.mutate(s.id)}><Trash2 className="h-4 w-4" /></button>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* add / edit form */}
+          <div className="rounded-lg border p-3 space-y-3 mt-2">
+            <div className="text-sm font-medium">{snipForm.id ? "Edit snippet" : "New snippet"}</div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Name *</Label>
+                <Input placeholder="e.g. Renewal reminder" value={snipForm.name} onChange={(e) => setSnipForm((s) => ({ ...s, name: e.target.value }))} />
+              </div>
+              <div>
+                <Label className="text-xs">Default subject</Label>
+                <Input placeholder="Optional" value={snipForm.subject} onChange={(e) => setSnipForm((s) => ({ ...s, subject: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Body</Label>
+              <RichTextEditor key={`snip-${snipEditorKey}`} html={snipForm.body_html} onChange={(v) => setSnipForm((s) => ({ ...s, body_html: v }))} minHeight={160} placeholder="Write the snippet content…" />
+            </div>
+            <div className="flex justify-end gap-2">
+              {snipForm.id && <Button variant="outline" size="sm" onClick={() => { setSnipForm({ name: "", subject: "", body_html: "" }); setSnipEditorKey((k) => k + 1); }}>New instead</Button>}
+              <Button size="sm" disabled={saveSnippet.isPending} onClick={() => saveSnippet.mutate()}>{snipForm.id ? "Update snippet" : "Save snippet"}</Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
