@@ -64,11 +64,13 @@ function countdown(sendAt: string, _tick: number) {
   return `in ${days} day${days === 1 ? "" : "s"}`;
 }
 
-function defaultSendAt() {
-  const d = new Date(Date.now() + 24 * 60 * 60 * 1000);
+function localInput(offsetMs: number) {
+  const d = new Date(Date.now() + offsetMs);
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
   return d.toISOString().slice(0, 16);
 }
+function defaultSendAt() { return localInput(24 * 60 * 60 * 1000); }        // +1 day
+function defaultStopAt() { return localInput(8 * 24 * 60 * 60 * 1000); }    // +8 days
 
 // Build the sign-URL list so Resend can fetch each attachment.
 async function signedAttachments(atts: Attachment[]) {
@@ -92,7 +94,7 @@ function StatusBadge({ s }: { s: Reminder["status"] }) {
   return <Badge variant="outline" className={`${map[s]} capitalize`}>{label}</Badge>;
 }
 
-const EMPTY_FORM = { to_email: "", client_name: "", subject: "", message: "", send_at: defaultSendAt(), repeat: false, interval_days: "1", stop_days: "7" };
+const EMPTY_FORM = { to_email: "", client_name: "", subject: "", message: "", send_at: defaultSendAt(), repeat: false, interval_days: "1", stop_mode: "days" as "days" | "date", stop_days: "7", stop_at: defaultStopAt() };
 
 function RemindersPage() {
   const { user, isAdmin } = useAuth();
@@ -150,7 +152,7 @@ function RemindersPage() {
   };
 
   function resetForm() {
-    setForm({ ...EMPTY_FORM, send_at: defaultSendAt() });
+    setForm({ ...EMPTY_FORM, send_at: defaultSendAt(), stop_at: defaultStopAt() });
     setAttachments([]);
     setEditorKey((k) => k + 1);
   }
@@ -201,9 +203,16 @@ function RemindersPage() {
       let until: string | null = null;
       if (form.repeat) {
         interval = Math.max(1, parseInt(form.interval_days, 10) || 1);
-        const stopDays = Math.max(1, parseInt(form.stop_days, 10) || 1);
-        if (stopDays < interval) throw new Error("\"Stop after\" days should be at least the send interval.");
-        until = new Date(start.getTime() + stopDays * 86400000).toISOString();
+        if (form.stop_mode === "date") {
+          if (!form.stop_at) throw new Error("Pick a stop date.");
+          const untilDate = new Date(form.stop_at);
+          if (untilDate <= start) throw new Error("Stop date must be after the first send.");
+          until = untilDate.toISOString();
+        } else {
+          const stopDays = Math.max(1, parseInt(form.stop_days, 10) || 1);
+          if (stopDays < interval) throw new Error("\"Stop after\" days should be at least the send interval.");
+          until = new Date(start.getTime() + stopDays * 86400000).toISOString();
+        }
       }
 
       const { error } = await supabase.from("reminders").insert({
@@ -489,17 +498,39 @@ function RemindersPage() {
                 <span className="text-sm font-medium">Repeat this reminder</span>
               </label>
               {form.repeat && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs">Send every (days)</Label>
-                    <Input type="number" min={1} value={form.interval_days} onChange={(e) => set("interval_days", e.target.value)} />
-                    <p className="text-[11px] text-muted-foreground mt-1">1 = daily · 2 = alternate days · 7 = weekly</p>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Send every (days)</Label>
+                      <Input type="number" min={1} value={form.interval_days} onChange={(e) => set("interval_days", e.target.value)} />
+                      <p className="text-[11px] text-muted-foreground mt-1">1 = daily · 2 = alternate days · 7 = weekly</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Stop condition</Label>
+                      <select
+                        className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                        value={form.stop_mode}
+                        onChange={(e) => set("stop_mode", e.target.value as "days" | "date")}
+                      >
+                        <option value="days">After a number of days</option>
+                        <option value="date">On a specific date</option>
+                      </select>
+                    </div>
                   </div>
-                  <div>
-                    <Label className="text-xs">Stop after (days)</Label>
-                    <Input type="number" min={1} value={form.stop_days} onChange={(e) => set("stop_days", e.target.value)} />
-                    <p className="text-[11px] text-muted-foreground mt-1">No more reminders sent after this many days.</p>
-                  </div>
+
+                  {form.stop_mode === "days" ? (
+                    <div>
+                      <Label className="text-xs">Stop after (days)</Label>
+                      <Input type="number" min={1} value={form.stop_days} onChange={(e) => set("stop_days", e.target.value)} />
+                      <p className="text-[11px] text-muted-foreground mt-1">No more reminders sent after this many days from the first send.</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <Label className="text-xs">Stop on</Label>
+                      <DateTimePicker value={form.stop_at} onChange={(v) => set("stop_at", v)} />
+                      <p className="text-[11px] text-muted-foreground mt-1">No more reminders sent after this date &amp; time.</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
