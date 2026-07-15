@@ -230,7 +230,7 @@ function AdminUsersPage() {
                 const isProtected = u.email === PROTECTED_EMAIL;
                 return (
                 <tr key={u.id} className="border-t">
-                  <td className="px-4 py-2">{u.full_name ?? "—"}{isProtected && <span className="ml-2 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">OWNER</span>}</td>
+                  <td className="px-4 py-2">{u.full_name ?? "—"}</td>
                   <td className="px-4 py-2 text-muted-foreground">{u.email}</td>
                   <td className="px-4 py-2">{u.department ?? "—"}</td>
                   <td className="px-4 py-2">{(u.roles ?? []).join(", ") || "—"}</td>
