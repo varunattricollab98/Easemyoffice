@@ -59,20 +59,28 @@ export function DateTimePicker({ value, onChange }: { value: string; onChange: (
       <PopoverContent className="w-auto p-0" align="start">
         <div className="flex flex-col sm:flex-row">
           <Calendar mode="single" selected={current} onSelect={setDatePart} defaultMonth={current} />
-          <div className="border-t sm:border-t-0 sm:border-l p-3 flex flex-col gap-2 sm:w-40">
+          <div className="border-t sm:border-t-0 sm:border-l p-3 flex flex-col gap-2 sm:w-56">
             <div className="text-xs font-medium text-muted-foreground">Time</div>
-            <div className="flex items-center gap-1.5">
-              <select className={selectCls} value={hour12} onChange={(e) => setHour(Number(e.target.value))}>
-                {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => <option key={h} value={h}>{pad(h)}</option>)}
-              </select>
-              <span className="text-muted-foreground">:</span>
-              <select className={selectCls} value={minute} onChange={(e) => setMinute(Number(e.target.value))}>
-                {Array.from({ length: 60 }, (_, i) => i).map((m) => <option key={m} value={m}>{pad(m)}</option>)}
-              </select>
-              <select className={selectCls} value={ampm} onChange={(e) => setAmpm(e.target.value as "AM" | "PM")}>
-                <option value="AM">AM</option>
-                <option value="PM">PM</option>
-              </select>
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <div className="text-[10px] text-muted-foreground mb-0.5">Hour</div>
+                <select className={selectCls} value={hour12} onChange={(e) => setHour(Number(e.target.value))}>
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => <option key={h} value={h}>{pad(h)}</option>)}
+                </select>
+              </div>
+              <div>
+                <div className="text-[10px] text-muted-foreground mb-0.5">Min</div>
+                <select className={selectCls} value={minute} onChange={(e) => setMinute(Number(e.target.value))}>
+                  {Array.from({ length: 60 }, (_, i) => i).map((m) => <option key={m} value={m}>{pad(m)}</option>)}
+                </select>
+              </div>
+              <div>
+                <div className="text-[10px] text-muted-foreground mb-0.5">AM/PM</div>
+                <select className={selectCls} value={ampm} onChange={(e) => setAmpm(e.target.value as "AM" | "PM")}>
+                  <option value="AM">AM</option>
+                  <option value="PM">PM</option>
+                </select>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-1.5 mt-1">
               <Button type="button" size="sm" variant="outline" onClick={() => commit(new Date(Date.now() + 60 * 60000))}>+1 hour</Button>
