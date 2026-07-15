@@ -14,6 +14,7 @@ import { INTERESTS, SERVICES, SOURCES, STAGES, labelFor } from "@/lib/crm";
 import { Plus, Search, Phone, Mail, Upload, Download, Trash2, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { NewLeadDialog } from "@/components/new-lead-dialog";
 import { useAuth } from "@/lib/auth";
+import { triggerStageReminder } from "@/lib/stage-reminders";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 
@@ -152,8 +153,20 @@ function LeadsListPage() {
       if (reason !== undefined) patch.lost_reason = reason;
       const { error } = await supabase.from("leads").update(patch as never).in("id", selectedIds);
       if (error) throw error;
+      return stage;
     },
-    onSuccess: () => { toast.success(`Moved ${selected.size} lead(s)`); clearSel(); qc.invalidateQueries({ queryKey: ["leads"] }); },
+    onSuccess: (stage) => {
+      toast.success(`Moved ${selected.size} lead(s)`);
+      // Trigger stage reminders for each lead that has an email.
+      if (user && stage) {
+        const leadsForReminder = (leads ?? []).filter((l) => selectedIds.includes(l.id) && l.email);
+        for (const l of leadsForReminder) {
+          triggerStageReminder({ leadId: l.id, newStage: stage, clientName: l.client_name, clientEmail: l.email, userId: user.id });
+        }
+      }
+      clearSel();
+      qc.invalidateQueries({ queryKey: ["leads"] });
+    },
     onError: (e: any) => toast.error(e.message),
   });
 

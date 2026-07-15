@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth";
 import { STAGES, INTERESTS } from "@/lib/crm";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -18,6 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { PipelineSkeleton } from "@/components/skeletons";
 import { usePagePerf } from "@/lib/perf";
+import { triggerStageReminder } from "@/lib/stage-reminders";
 
 export const Route = createFileRoute("/_authenticated/pipeline")({
   head: () => ({ meta: [{ title: "Pipeline — EaseMyOffice CRM" }] }),
@@ -26,7 +28,7 @@ export const Route = createFileRoute("/_authenticated/pipeline")({
 
 type Lead = {
   id: string; lead_code: string; client_name: string;
-  company_name: string | null; stage: string; interest: string;
+  company_name: string | null; email: string | null; stage: string; interest: string;
   next_follow_up_at: string | null;
   last_activity_at?: string; created_at?: string;
 };
@@ -46,6 +48,7 @@ const useIsMobile = () => {
 };
 
 function PipelinePage() {
+  const { user } = useAuth();
   const qc = useQueryClient();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const [activeStage, setActiveStage] = useState<string>(STAGES[0].id);
@@ -62,7 +65,7 @@ function PipelinePage() {
     queryFn: async () => {
       let q = supabase
         .from("leads")
-        .select("id, lead_code, client_name, company_name, stage, interest, next_follow_up_at, last_activity_at, created_at")
+        .select("id, lead_code, client_name, company_name, email, stage, interest, next_follow_up_at, last_activity_at, created_at")
         .order("last_activity_at", { ascending: false });
       if (isMobile) q = q.eq("stage", activeStage as never).limit(200);
       else q = q.limit(500);
@@ -162,7 +165,15 @@ function PipelinePage() {
       return;
     }
 
-    move.mutate({ id, stage: toStage }, { onSuccess: notify });
+    move.mutate({ id, stage: toStage }, {
+      onSuccess: () => {
+        notify();
+        if (user) {
+          const lead2 = (leads ?? []).find((l) => l.id === id);
+          triggerStageReminder({ leadId: id, newStage: toStage, clientName: lead2?.client_name ?? "", clientEmail: lead2?.email, userId: user.id });
+        }
+      },
+    });
   };
 
   const confirmReasonMove = () => {
@@ -171,11 +182,16 @@ function PipelinePage() {
     move.mutate(
       { id, stage: toStage, reason: reasonText.trim() },
       {
-        onSuccess: () =>
+        onSuccess: () => {
           toast.success(`Moved to ${toLabel}`, {
             action: { label: "Undo", onClick: () => undoMove(id, fromStage, fromLabel) },
             duration: 8000,
-          }),
+          });
+          if (user) {
+            const lead2 = (leads ?? []).find((l) => l.id === id);
+            triggerStageReminder({ leadId: id, newStage: toStage, clientName: lead2?.client_name ?? "", clientEmail: lead2?.email, userId: user.id });
+          }
+        },
       },
     );
     setPendingMove(null);

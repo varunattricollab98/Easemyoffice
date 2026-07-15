@@ -32,6 +32,7 @@ import {
 import { ArrowLeft, Phone, Mail, MessageCircle, Calendar, Plus, Check, Trash2, Send, Loader2 } from "lucide-react";
 import { INTERESTS, INTENT_FLAGS, SERVICES, SOURCES, STAGES, calcScore, deriveInterest, labelFor } from "@/lib/crm";
 import { useAuth } from "@/lib/auth";
+import { triggerStageReminder } from "@/lib/stage-reminders";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
@@ -204,7 +205,11 @@ function LeadDetailPage() {
                     setReasonText(lead.lost_reason ?? "");
                     setReasonStage(v);
                   } else {
-                    updateLead.mutate({ stage: v });
+                    updateLead.mutate({ stage: v }, {
+                      onSuccess: () => {
+                        if (user) triggerStageReminder({ leadId: id, newStage: v, clientName: lead.client_name, clientEmail: lead.email, userId: user.id });
+                      },
+                    });
                   }
                 }}
               >
@@ -348,7 +353,11 @@ function LeadDetailPage() {
               disabled={!reasonText.trim() || updateLead.isPending}
               onClick={() => {
                 const stage = reasonStage!;
-                updateLead.mutate({ stage, lost_reason: reasonText.trim() });
+                updateLead.mutate({ stage, lost_reason: reasonText.trim() }, {
+                  onSuccess: () => {
+                    if (user) triggerStageReminder({ leadId: id, newStage: stage, clientName: lead.client_name, clientEmail: lead.email, userId: user.id });
+                  },
+                });
                 logActivity("stage_change", `Marked ${stage === "lost" ? "Lost" : "Not interested"}`, reasonText.trim());
                 setReasonStage(null);
               }}
