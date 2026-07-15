@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { Mail, ExternalLink, UserPlus, Search, RefreshCcw, ChevronLeft, ChevronRight, CheckCircle2, Hand } from "lucide-react";
@@ -99,7 +100,7 @@ function LeadInboxPage() {
     queryKey: ["inbox-team"],
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
-      const { data } = await supabase.from("profiles").select("id, full_name, email");
+      const { data } = await supabase.from("profiles").select("id, full_name, email").order("full_name");
       return (data ?? []) as TeamMember[];
     },
   });
@@ -201,6 +202,42 @@ function LeadInboxPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Admin-only: assign (or reassign) an email's lead to ANY team member and
+  // relabel the Gmail thread with that person's name.
+  const assign = useMutation({
+    mutationFn: async ({ email, target }: { email: InboxEmail; target: TeamMember }) => {
+      if (!user) throw new Error("Not signed in");
+      const { name, address } = parseFrom(email.from);
+      const existing = address ? leadByEmail.get(address.trim().toLowerCase()) : undefined;
+      if (existing) {
+        if (existing.assigned_to !== target.id) {
+          const { error } = await supabase.from("leads").update({ assigned_to: target.id }).eq("id", existing.id);
+          if (error) throw new Error(error.message);
+        }
+      } else {
+        const { error } = await supabase.from("leads").insert({
+          client_name: name || address || email.subject || "Email lead",
+          email: address || null,
+          mobile: "",
+          source: "email" as never,
+          assigned_to: target.id,
+          created_by: user.id,
+          notes: `From email: ${email.subject}\n${email.url}`,
+        });
+        if (error) throw new Error(error.message);
+      }
+      const res = await claimEmailInGmail(email.threadId, `${target.full_name || "Team"} lead`);
+      return { labelled: res.ok, name: target.full_name || target.email || "team member" };
+    },
+    onSuccess: (r) => {
+      toast.success(`Assigned to ${r.name}${r.labelled ? " & labelled in Gmail" : " (Gmail label pending)"}`);
+      qc.invalidateQueries({ queryKey: ["lead-inbox"] });
+      qc.invalidateQueries({ queryKey: ["email-leads"] });
+      qc.invalidateQueries({ queryKey: ["leads"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   // Auto-sync (admins only): when the inbox loads, any email tagged with a
   // known salesperson's name that isn't a lead yet is created in *their* leads.
   // Deduped by email address + guarded per-session so it runs at most once each.
@@ -255,6 +292,39 @@ function LeadInboxPage() {
     const o = matchOwnerToUser(claimedOwner(e.labels), team);
     return !!(o && user && o.id === user.id);
   };
+
+  // The team-member id this email's lead is currently assigned to (from the
+  // existing lead if any, else inferred from the Gmail owner tag). Drives the
+  // admin "Assign to…" dropdown's selected value.
+  const currentAssigneeId = (e: InboxEmail): string | undefined => {
+    const { address } = parseFrom(e.from);
+    const lead = address ? leadByEmail.get(address.trim().toLowerCase()) : undefined;
+    if (lead?.assigned_to) return lead.assigned_to;
+    return matchOwnerToUser(claimedOwner(e.labels), team)?.id ?? undefined;
+  };
+
+  // Reusable "Assign to…" dropdown for admins (used in both the row and dialog).
+  const AssignDropdown = ({ email, className }: { email: InboxEmail; className?: string }) => (
+    <Select
+      value={currentAssigneeId(email)}
+      disabled={assign.isPending || team.length === 0}
+      onValueChange={(id) => {
+        const target = team.find((t) => t.id === id);
+        if (target) assign.mutate({ email, target });
+      }}
+    >
+      <SelectTrigger className={className ?? "h-8 w-[170px] text-xs"}>
+        <SelectValue placeholder="Assign to…" />
+      </SelectTrigger>
+      <SelectContent>
+        {team.map((t) => (
+          <SelectItem key={t.id} value={t.id}>
+            {t.full_name || t.email || "Unnamed"}{user && t.id === user.id ? " (me)" : ""}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
 
   const rows = emails.filter((e) => {
     const owner = claimedOwner(e.labels);
@@ -351,7 +421,12 @@ function LeadInboxPage() {
                     <div className="text-[11px] text-muted-foreground mt-0.5">{address} · {formatDistanceToNow(new Date(e.date), { addSuffix: true })}</div>
                   </div>
                   <div className="flex flex-col items-end gap-2 shrink-0">
-                    {!owner ? (
+                    {isAdmin ? (
+                      <>
+                        <AssignDropdown email={e} />
+                        {owner && <span className="text-[10px] text-muted-foreground">Currently: {owner}</span>}
+                      </>
+                    ) : !owner ? (
                       <Button size="sm" disabled={claim.isPending} onClick={() => claim.mutate(e)}>
                         <UserPlus className="h-4 w-4 mr-1" /> Claim as my lead
                       </Button>
@@ -364,7 +439,7 @@ function LeadInboxPage() {
                         <Hand className="h-4 w-4 mr-1" /> Mark as yours
                       </Button>
                     )}
-                    {owner && !mine && hasLead && (
+                    {!isAdmin && owner && !mine && hasLead && (
                       <span className="text-[10px] text-muted-foreground">In {owner}'s leads</span>
                     )}
                     <a href={e.url} target="_blank" rel="noreferrer" className="text-xs text-primary inline-flex items-center gap-1 hover:underline">
@@ -439,7 +514,13 @@ function LeadInboxPage() {
                 ) : null;
               })()}
               <div className="flex flex-wrap items-center justify-end gap-3 shrink-0">
-                {reading && (() => {
+                {reading && isAdmin && (
+                  <div className="flex items-center gap-2 mr-auto">
+                    <span className="text-xs text-muted-foreground">Assign to</span>
+                    <AssignDropdown email={reading} className="h-8 w-[180px] text-xs" />
+                  </div>
+                )}
+                {reading && !isAdmin && (() => {
                   const owner = claimedOwner(reading.labels);
                   if (!owner) {
                     return (
