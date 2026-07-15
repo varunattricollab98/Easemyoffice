@@ -10,12 +10,14 @@ export function RichTextEditor({
   html,
   onChange,
   placeholder,
-  minHeight = 240,
+  minHeight = 200,
+  maxHeight = 300,
 }: {
   html: string;
   onChange: (html: string) => void;
   placeholder?: string;
   minHeight?: number;
+  maxHeight?: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -77,8 +79,8 @@ export function RichTextEditor({
           contentEditable
           spellCheck
           onInput={emit}
-          className="prose prose-sm max-w-none px-3 py-2 text-sm focus:outline-none overflow-y-auto [&_a]:text-primary [&_a]:underline"
-          style={{ minHeight, maxHeight: 420 }}
+          className="prose prose-sm max-w-none px-3 py-2 text-sm focus:outline-none overflow-y-auto overflow-x-auto [&_a]:text-primary [&_a]:underline"
+          style={{ minHeight, maxHeight }}
           suppressContentEditableWarning
         />
       </div>

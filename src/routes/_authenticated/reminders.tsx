@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { RichTextEditor, htmlToText } from "@/components/ui/rich-text-editor";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { toast } from "sonner";
 import { AlarmClock, Plus, Send, X, Mail, Repeat, Pause, Play, Paperclip, FileText, Trash2, Pencil, BookmarkPlus } from "lucide-react";
 
@@ -230,6 +231,28 @@ function RemindersPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Send the composed email immediately (and log it as sent).
+  const sendNowCompose = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error("Not signed in");
+      if (!isEmail(form.to_email)) throw new Error("Enter a valid client email address.");
+      if (!form.subject.trim()) throw new Error("Subject is required.");
+      if (!htmlToText(form.message).trim()) throw new Error("Message is required.");
+      const atts = await signedAttachments(attachments);
+      const { data, error } = await supabase.functions.invoke("send-client-email", { body: { to: form.to_email.trim(), subject: form.subject.trim(), html: form.message, attachments: atts } });
+      if (error) throw new Error(error.message);
+      if (!data?.ok) throw new Error(data?.error || "Could not send email");
+      const now = new Date().toISOString();
+      await supabase.from("reminders").insert({
+        to_email: form.to_email.trim(), client_name: form.client_name.trim(), subject: form.subject.trim(),
+        message: form.message, is_html: true, attachments, send_at: now, status: "sent", sent_at: now,
+        created_by: user.id, assigned_to: user.id,
+      });
+    },
+    onSuccess: () => { toast.success("Email sent"); setOpen(false); resetForm(); qc.invalidateQueries({ queryKey: ["reminders"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const cancel = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("reminders").update({ status: "cancelled" }).eq("id", id);
@@ -396,11 +419,11 @@ function RemindersPage() {
 
       {/* Schedule dialog */}
       <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
-        <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-2xl p-0 flex flex-col max-h-[90vh] gap-0">
+          <DialogHeader className="p-5 pb-3 shrink-0 border-b">
             <DialogTitle>Schedule a client reminder</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-3 overflow-y-auto px-5 py-4 flex-1">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">Client Email *</Label>
@@ -432,7 +455,7 @@ function RemindersPage() {
                   <button type="button" className="text-xs text-primary hover:underline" onClick={() => setSnipMgr(true)}>Manage</button>
                 </div>
               </div>
-              <RichTextEditor key={editorKey} html={form.message} onChange={(v) => set("message", v)} placeholder="Write the email… paste a formatted quotation and it keeps its colours & layout." />
+              <RichTextEditor key={editorKey} html={form.message} onChange={(v) => set("message", v)} minHeight={200} maxHeight={280} placeholder="Write the email… paste a formatted quotation and it keeps its colours & layout." />
               <p className="text-[11px] text-muted-foreground mt-1">Tip: paste a formatted quotation directly — formatting is preserved. Spell-check works via your browser (e.g. Grammarly).</p>
             </div>
 
@@ -455,7 +478,7 @@ function RemindersPage() {
 
             <div>
               <Label className="text-xs">{form.repeat ? "First send at *" : "Send at *"}</Label>
-              <Input type="datetime-local" value={form.send_at} onChange={(e) => set("send_at", e.target.value)} />
+              <DateTimePicker value={form.send_at} onChange={(v) => set("send_at", v)} />
               <p className="text-[11px] text-muted-foreground mt-1">The reminder sends automatically at this time (checked every minute).</p>
             </div>
 
@@ -481,8 +504,11 @@ function RemindersPage() {
               )}
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="shrink-0 border-t p-4 gap-2">
             <Button variant="outline" onClick={() => { setOpen(false); resetForm(); }}>Cancel</Button>
+            <Button variant="secondary" disabled={sendNowCompose.isPending || uploading} onClick={() => sendNowCompose.mutate()}>
+              <Send className="h-4 w-4 mr-1" /> {sendNowCompose.isPending ? "Sending…" : "Send now"}
+            </Button>
             <Button disabled={create.isPending || uploading} onClick={() => create.mutate()}>{create.isPending ? "Scheduling…" : "Schedule reminder"}</Button>
           </DialogFooter>
         </DialogContent>
@@ -490,54 +516,60 @@ function RemindersPage() {
 
       {/* Snippet manager dialog */}
       <Dialog open={snipMgr} onOpenChange={setSnipMgr}>
-        <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Email snippets</DialogTitle>
+        <DialogContent className="max-w-2xl p-0 flex flex-col max-h-[90vh] gap-0">
+          <DialogHeader className="p-5 pb-3 shrink-0 border-b">
+            <DialogTitle>{snipForm.id ? "Edit snippet" : "New snippet"}</DialogTitle>
           </DialogHeader>
 
-          {/* existing snippets */}
-          <div className="space-y-2">
-            {snippets.length === 0 && <p className="text-sm text-muted-foreground">No snippets yet. Create one below — your team can reuse it.</p>}
-            {snippets.map((s) => {
-              const canEdit = isAdmin || s.created_by === user?.id;
-              return (
-                <div key={s.id} className="flex items-center justify-between rounded border px-3 py-2">
-                  <div className="min-w-0">
-                    <div className="font-medium text-sm truncate">{s.name}</div>
-                    <div className="text-xs text-muted-foreground truncate">{s.subject || htmlToText(s.body_html).slice(0, 80)}</div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {open && <Button size="sm" variant="outline" onClick={() => insertSnippet(s)}>Insert</Button>}
-                    {canEdit && <button type="button" title="Edit" className="text-muted-foreground hover:text-foreground" onClick={() => { setSnipForm({ id: s.id, name: s.name, subject: s.subject, body_html: s.body_html }); setSnipEditorKey((k) => k + 1); }}><Pencil className="h-4 w-4" /></button>}
-                    {canEdit && <button type="button" title="Delete" className="text-rose-600 hover:text-rose-700" onClick={() => deleteSnippet.mutate(s.id)}><Trash2 className="h-4 w-4" /></button>}
-                  </div>
+          <div className="overflow-y-auto px-5 py-4 flex-1 space-y-4">
+            {/* add / edit form with full rich editor */}
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Snippet name *</Label>
+                  <Input placeholder="e.g. Renewal reminder" value={snipForm.name} onChange={(e) => setSnipForm((s) => ({ ...s, name: e.target.value }))} />
                 </div>
-              );
-            })}
+                <div>
+                  <Label className="text-xs">Default subject</Label>
+                  <Input placeholder="Optional" value={snipForm.subject} onChange={(e) => setSnipForm((s) => ({ ...s, subject: e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs">Body (formatting, colours &amp; pasted quotations supported)</Label>
+                <RichTextEditor key={`snip-${snipEditorKey}`} html={snipForm.body_html} onChange={(v) => setSnipForm((s) => ({ ...s, body_html: v }))} minHeight={180} maxHeight={300} placeholder="Write the snippet content…" />
+              </div>
+              <div className="flex justify-end gap-2">
+                {snipForm.id && <Button variant="outline" size="sm" onClick={() => { setSnipForm({ name: "", subject: "", body_html: "" }); setSnipEditorKey((k) => k + 1); }}>Clear / new</Button>}
+                <Button size="sm" disabled={saveSnippet.isPending} onClick={() => saveSnippet.mutate()}>{snipForm.id ? "Update snippet" : "Save snippet"}</Button>
+              </div>
+            </div>
+
+            {/* existing snippets */}
+            <div className="border-t pt-3 space-y-2">
+              <div className="text-sm font-medium">Saved snippets ({snippets.length})</div>
+              {snippets.length === 0 && <p className="text-sm text-muted-foreground">No snippets yet. Fill the form above and save one — your team can reuse it.</p>}
+              {snippets.map((s) => {
+                const canEdit = isAdmin || s.created_by === user?.id;
+                return (
+                  <div key={s.id} className="flex items-center justify-between rounded border px-3 py-2">
+                    <div className="min-w-0">
+                      <div className="font-medium text-sm truncate">{s.name}</div>
+                      <div className="text-xs text-muted-foreground truncate">{s.subject || htmlToText(s.body_html).slice(0, 80)}</div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {open && <Button size="sm" variant="outline" onClick={() => { insertSnippet(s); setSnipMgr(false); }}>Insert</Button>}
+                      {canEdit && <button type="button" title="Edit" className="text-muted-foreground hover:text-foreground" onClick={() => { setSnipForm({ id: s.id, name: s.name, subject: s.subject, body_html: s.body_html }); setSnipEditorKey((k) => k + 1); }}><Pencil className="h-4 w-4" /></button>}
+                      {canEdit && <button type="button" title="Delete" className="text-rose-600 hover:text-rose-700" onClick={() => deleteSnippet.mutate(s.id)}><Trash2 className="h-4 w-4" /></button>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
-          {/* add / edit form */}
-          <div className="rounded-lg border p-3 space-y-3 mt-2">
-            <div className="text-sm font-medium">{snipForm.id ? "Edit snippet" : "New snippet"}</div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs">Name *</Label>
-                <Input placeholder="e.g. Renewal reminder" value={snipForm.name} onChange={(e) => setSnipForm((s) => ({ ...s, name: e.target.value }))} />
-              </div>
-              <div>
-                <Label className="text-xs">Default subject</Label>
-                <Input placeholder="Optional" value={snipForm.subject} onChange={(e) => setSnipForm((s) => ({ ...s, subject: e.target.value }))} />
-              </div>
-            </div>
-            <div>
-              <Label className="text-xs">Body</Label>
-              <RichTextEditor key={`snip-${snipEditorKey}`} html={snipForm.body_html} onChange={(v) => setSnipForm((s) => ({ ...s, body_html: v }))} minHeight={160} placeholder="Write the snippet content…" />
-            </div>
-            <div className="flex justify-end gap-2">
-              {snipForm.id && <Button variant="outline" size="sm" onClick={() => { setSnipForm({ name: "", subject: "", body_html: "" }); setSnipEditorKey((k) => k + 1); }}>New instead</Button>}
-              <Button size="sm" disabled={saveSnippet.isPending} onClick={() => saveSnippet.mutate()}>{snipForm.id ? "Update snippet" : "Save snippet"}</Button>
-            </div>
-          </div>
+          <DialogFooter className="shrink-0 border-t p-4">
+            <Button variant="outline" onClick={() => setSnipMgr(false)}>Close</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
