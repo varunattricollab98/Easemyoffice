@@ -10,7 +10,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 
-// Default email templates (can be overridden later via snippets/settings).
+// Default email templates (used when no snippet is assigned in admin settings).
 const TEMPLATES: Record<string, { subject: string; message: string; interval: number; stopDays: number }> = {
   follow_up: {
     subject: "Following up on your enquiry — EaseMyOffice",
@@ -41,6 +41,24 @@ const TEMPLATES: Record<string, { subject: string; message: string; interval: nu
 // Stages that trigger auto-reminders.
 const TRIGGER_STAGES = new Set(Object.keys(TEMPLATES));
 
+type AutoConfig = Record<string, { enabled: boolean; snippet_id: string; interval_days: number; stop_days: number }>;
+
+// Cache the admin config for 60s so repeated stage changes in the same session don't re-fetch each time.
+let _configCache: { data: AutoConfig | null; ts: number } = { data: null, ts: 0 };
+async function getAutoConfig(): Promise<AutoConfig | null> {
+  if (Date.now() - _configCache.ts < 60000 && _configCache.data !== undefined) return _configCache.data;
+  const { data } = await supabase.from("crm_settings").select("value").eq("key", "email_automation_config").maybeSingle();
+  _configCache = { data: (data?.value as AutoConfig) ?? null, ts: Date.now() };
+  return _configCache.data;
+}
+
+// Load a snippet by ID.
+async function getSnippet(id: string) {
+  if (!id) return null;
+  const { data } = await supabase.from("email_snippets").select("subject, body_html").eq("id", id).maybeSingle();
+  return data;
+}
+
 export async function triggerStageReminder({
   leadId,
   newStage,
@@ -57,26 +75,49 @@ export async function triggerStageReminder({
   if (!TRIGGER_STAGES.has(newStage)) return;
   if (!clientEmail) return; // can't send without an email
 
+  // Load admin config (if set) to check enabled/disabled + custom snippet + interval.
+  const adminCfg = await getAutoConfig();
+  const stageCfg = adminCfg?.[newStage];
+
+  // If admin explicitly disabled this stage trigger, do nothing.
+  if (stageCfg && stageCfg.enabled === false) return;
+
   const tpl = TEMPLATES[newStage];
   if (!tpl) return;
 
+  // Determine interval and stopDays (admin override or default).
+  const interval = stageCfg?.interval_days ?? tpl.interval;
+  const stopDays = stageCfg?.stop_days ?? tpl.stopDays;
+
+  // Determine subject + message (from snippet or default template).
+  let subject = tpl.subject;
+  let message = tpl.message;
+  let isHtml = false;
+
+  if (stageCfg?.snippet_id) {
+    const snippet = await getSnippet(stageCfg.snippet_id);
+    if (snippet) {
+      subject = snippet.subject || subject;
+      message = snippet.body_html || message;
+      isHtml = true;
+    }
+  }
+
   const name = clientName || "there";
-  const subject = tpl.subject;
-  const message = tpl.message.replace(/\{\{name\}\}/g, name);
+  subject = subject.replace(/\{\{name\}\}/g, name);
+  message = message.replace(/\{\{name\}\}/g, name);
 
   // Calculate send_at: for lost = next day; for follow-up/not-interested = 1 hour from now
-  // (so the first email doesn't fire immediately — gives the salesperson time to pause if needed).
   const DAY = 86400000;
   const sendAt = newStage === "lost"
     ? new Date(Date.now() + DAY).toISOString()
     : new Date(Date.now() + 60 * 60000).toISOString(); // 1 hour
 
-  const repeatUntil = tpl.stopDays > 0
-    ? new Date(Date.now() + tpl.stopDays * DAY).toISOString()
+  const repeatUntil = stopDays > 0
+    ? new Date(Date.now() + stopDays * DAY).toISOString()
     : null;
 
-  // Cancel any existing scheduled stage-reminders for this lead (avoid duplicates
-  // if someone drags the same lead back and forth).
+  // Cancel any existing scheduled stage-reminders for this lead (avoid duplicates).
   await supabase
     .from("reminders")
     .update({ status: "cancelled" })
@@ -89,11 +130,11 @@ export async function triggerStageReminder({
     client_name: clientName,
     subject,
     message,
-    is_html: false,
+    is_html: isHtml,
     attachments: [],
     send_at: sendAt,
     status: "scheduled",
-    repeat_interval_days: tpl.interval,
+    repeat_interval_days: interval,
     repeat_until: repeatUntil,
     lead_id: leadId,
     created_by: userId,

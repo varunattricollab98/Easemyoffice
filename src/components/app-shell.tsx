@@ -40,6 +40,7 @@ const NAV: NavItem[] = [
 const ADMIN_NAV: NavItem[] = [
   { to: "/admin/analytics", label: "Analytics", icon: TrendingUp, roles: ["admin"] },
   { to: "/admin/sales-performance", label: "Sales Performance", icon: Trophy, roles: ["admin"] },
+  { to: "/admin/email-automation", label: "Email Automation", icon: Mail, roles: ["admin"] },
   { to: "/team", label: "Team", icon: UsersRound, roles: ["admin"] },
   { to: "/admin/users", label: "Users", icon: UserCog, roles: ["admin"] },
   { to: "/settings", label: "Settings", icon: Settings },
