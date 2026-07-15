@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter, AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel } from "@/components/ui/alert-dialog";
 import { RichTextEditor, htmlToText } from "@/components/ui/rich-text-editor";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { toast } from "sonner";
@@ -107,6 +108,8 @@ function RemindersPage() {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"scheduled" | "succeeded" | "paused" | "all">("scheduled");
   const [tick, setTick] = useState(0);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confirmIds, setConfirmIds] = useState<string[] | null>(null);
 
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const set = (k: keyof typeof form, v: string | boolean) => setForm((s) => ({ ...s, [k]: v }));
@@ -285,6 +288,30 @@ function RemindersPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Admin: permanently delete reminders (single or bulk).
+  const del = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase.from("reminders").delete().in("id", ids);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: (_d, ids) => {
+      toast.success(`Deleted ${ids.length} reminder${ids.length > 1 ? "s" : ""}`);
+      setSelected(new Set());
+      setConfirmIds(null);
+      qc.invalidateQueries({ queryKey: ["reminders"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const toggleSelect = (id: string) =>
+    setSelected((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const allShownSelected = shown.length > 0 && shown.every((r) => selected.has(r.id));
+  const toggleSelectAll = () =>
+    setSelected((prev) => {
+      if (allShownSelected) { const n = new Set(prev); shown.forEach((r) => n.delete(r.id)); return n; }
+      const n = new Set(prev); shown.forEach((r) => n.add(r.id)); return n;
+    });
+
   const sendNow = useMutation({
     mutationFn: async (r: Reminder) => {
       const html = r.is_html
@@ -335,6 +362,8 @@ function RemindersPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const colCount = isAdmin ? 6 : 5;
+
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-4">
       <div className="flex items-end justify-between gap-3 flex-wrap">
@@ -351,17 +380,34 @@ function RemindersPage() {
       <Card>
         <CardContent className="p-3 flex flex-wrap items-center gap-2">
           {(["scheduled", "succeeded", "paused", "all"] as const).map((t) => (
-            <Button key={t} size="sm" variant={tab === t ? "default" : "outline"} onClick={() => setTab(t)} className="capitalize">
+            <Button key={t} size="sm" variant={tab === t ? "default" : "outline"} onClick={() => { setTab(t); setSelected(new Set()); }} className="capitalize">
               {t} <span className="ml-1 opacity-70">({tabCount(t)})</span>
             </Button>
           ))}
         </CardContent>
       </Card>
 
+      {isAdmin && selected.size > 0 && (
+        <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
+          <span className="text-sm font-medium">{selected.size} selected</span>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>Clear</Button>
+            <Button variant="destructive" size="sm" onClick={() => setConfirmIds([...selected])}>
+              <Trash2 className="h-4 w-4 mr-1" /> Delete selected
+            </Button>
+          </div>
+        </div>
+      )}
+
       <Card className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
+              {isAdmin && (
+                <TableHead className="w-10">
+                  <input type="checkbox" className="h-4 w-4 accent-primary align-middle" checked={allShownSelected} onChange={toggleSelectAll} title="Select all" />
+                </TableHead>
+              )}
               <TableHead>Client</TableHead>
               <TableHead>Subject</TableHead>
               <TableHead>Send at</TableHead>
@@ -370,14 +416,19 @@ function RemindersPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading && <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>}
-            {!isLoading && shown.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No reminders here. Click "Schedule reminder" to add one.</TableCell></TableRow>}
+            {isLoading && <TableRow><TableCell colSpan={colCount} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>}
+            {!isLoading && shown.length === 0 && <TableRow><TableCell colSpan={colCount} className="text-center py-8 text-muted-foreground">No reminders here. Click "Schedule reminder" to add one.</TableCell></TableRow>}
             {shown.map((r) => {
               const canManage = isAdmin || r.created_by === user?.id;
               const preview = r.is_html ? htmlToText(r.message) : r.message;
               const attCount = (r.attachments || []).length;
               return (
-                <TableRow key={r.id}>
+                <TableRow key={r.id} className={selected.has(r.id) ? "bg-primary/5" : ""}>
+                  {isAdmin && (
+                    <TableCell className="w-10">
+                      <input type="checkbox" className="h-4 w-4 accent-primary align-middle" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} />
+                    </TableCell>
+                  )}
                   <TableCell>
                     <div className="font-medium">{r.client_name || r.to_email}</div>
                     <div className="text-xs text-muted-foreground flex items-center gap-1"><Mail className="h-3 w-3" />{r.to_email}</div>
@@ -422,6 +473,11 @@ function RemindersPage() {
                       </div>
                     ) : (
                       <span className="text-xs text-muted-foreground">{r.status === "sent" && r.sent_at ? `Sent ${fmt(r.sent_at)}` : "—"}</span>
+                    )}
+                    {isAdmin && (
+                      <Button size="sm" variant="ghost" className="text-rose-600 hover:text-rose-700 mt-1" disabled={del.isPending} onClick={() => setConfirmIds([r.id])}>
+                        <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+                      </Button>
                     )}
                   </TableCell>
                 </TableRow>
@@ -609,6 +665,22 @@ function RemindersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!confirmIds} onOpenChange={(v) => { if (!v) setConfirmIds(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {confirmIds?.length === 1 ? "this reminder" : `${confirmIds?.length} reminders`}?</AlertDialogTitle>
+            <AlertDialogDescription>This permanently removes {confirmIds?.length === 1 ? "it" : "them"} from the system. This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={del.isPending} onClick={() => confirmIds && del.mutate(confirmIds)}>
+              {del.isPending ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
