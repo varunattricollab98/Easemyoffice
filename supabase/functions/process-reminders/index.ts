@@ -33,7 +33,10 @@ function json(payload: unknown, status = 200) {
 }
 
 function esc(s: unknown) {
-  return String(s ?? "").split("&").join("&amp;").split("<").join("&lt;").split(">").join("&gt;");
+  // Build the HTML entities from char codes so no literal "&amp;" text exists
+  // in the source (which can get mangled when copy-pasted through chat/markdown).
+  const amp = String.fromCharCode(38);
+  return String(s ?? "").split(amp).join(amp + "amp;").split("<").join(amp + "lt;").split(">").join(amp + "gt;");
 }
 
 async function sendEmail(to: string, subject: string, message: string, isHtml: boolean, attachments: { filename: string; path: string }[]) {
