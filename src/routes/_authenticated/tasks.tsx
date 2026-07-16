@@ -15,7 +15,7 @@ import {
   Plus, Trash2, Flag, Clock, CheckCircle2, Circle, Loader2,
   ListTodo, Timer, Sparkles, UserCircle2,
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
 import { format, isPast, isToday, formatDistanceToNow } from "date-fns";
 
@@ -88,6 +88,18 @@ function TasksPage() {
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       const { error } = await supabase.from("tasks").update({ status: status as never }).eq("id", id);
       if (error) throw error;
+      // When completing a task assigned by someone else, notify the assigner.
+      if (status === "done") {
+        const task = tasks.find((t) => t.id === id);
+        if (task && task.created_by && task.created_by !== user?.id) {
+          await supabase.from("notifications").insert({
+            user_id: task.created_by,
+            title: "Task completed",
+            body: `${nameById.get(user?.id ?? "") || "Someone"} completed: "${task.title}"`,
+            type: "task_done",
+          }).then(() => {}); // fire-and-forget
+        }
+      }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
   });
@@ -108,6 +120,29 @@ function TasksPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["tasks"] }); toast.success("Reassigned"); },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  // Real-time: subscribe to tasks changes so updates from other users appear
+  // instantly (no manual refresh needed).
+  useEffect(() => {
+    const channel = supabase
+      .channel("tasks-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, (payload) => {
+        qc.invalidateQueries({ queryKey: ["tasks"] });
+        qc.invalidateQueries({ queryKey: ["calendar-tasks"] });
+
+        // Notify the assigner when their task is marked done by someone else.
+        if (payload.eventType === "UPDATE" && payload.new && payload.old) {
+          const newRow = payload.new as any;
+          const oldRow = payload.old as any;
+          if (newRow.status === "done" && oldRow.status !== "done" && newRow.created_by === user?.id && newRow.owner_id !== user?.id) {
+            const ownerName = nameById.get(newRow.owner_id) || "Someone";
+            toast.success(`${ownerName} completed: "${newRow.title}"`);
+          }
+        }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [qc, user?.id, nameById]);
 
   return (
     <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-5">
