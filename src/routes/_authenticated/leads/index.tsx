@@ -16,7 +16,7 @@ import { NewLeadDialog } from "@/components/new-lead-dialog";
 import { useAuth } from "@/lib/auth";
 import { triggerStageReminder } from "@/lib/stage-reminders";
 import { toast } from "sonner";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format } from "date-fns";
 
 type LeadSearch = {
   stage?: string;
@@ -150,35 +150,64 @@ function LeadsListPage() {
 
   // Duplicate detection: fetch all leads' phone/email/name and find IDs that share
   // the same contact info. Only runs when "Show duplicates" is active.
-  const { data: dupeIds = new Set<string>(), isLoading: dupesLoading } = useQuery({
+  type DupeGroup = { matchKey: string; matchType: "phone" | "email" | "name"; leads: any[] };
+  const { data: dupeData, isLoading: dupesLoading } = useQuery({
     queryKey: ["leads-duplicates"],
     enabled: showDupes,
     staleTime: 30_000,
     queryFn: async () => {
       const { data } = await supabase.from("leads")
-        .select("id, client_name, mobile, email")
+        .select("id, lead_code, client_name, mobile, email, created_at, assigned_to, stage")
+        .order("created_at", { ascending: true })
         .limit(5000);
-      if (!data) return new Set<string>();
+      if (!data) return { ids: new Set<string>(), groups: [] as DupeGroup[] };
       // Group by normalised phone (last 10 digits), email, and exact lowercase name
-      const byPhone = new Map<string, string[]>();
-      const byEmail = new Map<string, string[]>();
-      const byName = new Map<string, string[]>();
+      const byPhone = new Map<string, any[]>();
+      const byEmail = new Map<string, any[]>();
+      const byName = new Map<string, any[]>();
       for (const l of data as any[]) {
         const phone = (l.mobile ?? "").replace(/\D/g, "").slice(-10);
         const email = (l.email ?? "").trim().toLowerCase();
         const name = (l.client_name ?? "").trim().toLowerCase();
-        if (phone.length >= 10) { const arr = byPhone.get(phone) ?? []; arr.push(l.id); byPhone.set(phone, arr); }
-        if (email) { const arr = byEmail.get(email) ?? []; arr.push(l.id); byEmail.set(email, arr); }
-        if (name && name.length > 2) { const arr = byName.get(name) ?? []; arr.push(l.id); byName.set(name, arr); }
+        if (phone.length >= 10) { const arr = byPhone.get(phone) ?? []; arr.push(l); byPhone.set(phone, arr); }
+        if (email) { const arr = byEmail.get(email) ?? []; arr.push(l); byEmail.set(email, arr); }
+        if (name && name.length > 2) { const arr = byName.get(name) ?? []; arr.push(l); byName.set(name, arr); }
       }
       const ids = new Set<string>();
-      for (const group of [byPhone, byEmail, byName]) {
-        for (const arr of group.values()) {
-          if (arr.length > 1) arr.forEach((id) => ids.add(id));
+      const groups: DupeGroup[] = [];
+      const seenGroupKeys = new Set<string>();
+      const addGroups = (map: Map<string, any[]>, type: "phone" | "email" | "name") => {
+        for (const [key, arr] of map.entries()) {
+          if (arr.length > 1) {
+            arr.forEach((l) => ids.add(l.id));
+            const gKey = `${type}:${key}`;
+            if (!seenGroupKeys.has(gKey)) {
+              seenGroupKeys.add(gKey);
+              groups.push({ matchKey: key, matchType: type, leads: arr });
+            }
+          }
         }
-      }
-      return ids;
+      };
+      addGroups(byPhone, "phone");
+      addGroups(byEmail, "email");
+      addGroups(byName, "name");
+      return { ids, groups };
     },
+  });
+  const dupeIds = dupeData?.ids ?? new Set<string>();
+  const dupeGroups = dupeData?.groups ?? [];
+
+  const deleteLead = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("leads").delete().eq("id", id);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      toast.success("Duplicate deleted");
+      qc.invalidateQueries({ queryKey: ["leads"] });
+      qc.invalidateQueries({ queryKey: ["leads-duplicates"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const rows = useMemo(() => {
@@ -373,6 +402,73 @@ function LeadsListPage() {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Duplicate groups panel */}
+      {showDupes && dupeGroups.length > 0 && (
+        <Card className="border-amber-300 bg-amber-50/50 dark:bg-amber-950/20">
+          <CardContent className="p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-semibold text-sm">Duplicate Groups Found: {dupeGroups.length}</div>
+                <div className="text-xs text-muted-foreground">The first entry (oldest) is the original. Newer entries are likely duplicates — review and delete if needed.</div>
+              </div>
+            </div>
+            <div className="space-y-3 max-h-[400px] overflow-y-auto">
+              {dupeGroups.map((g, gi) => (
+                <div key={gi} className="rounded-lg border bg-background p-3">
+                  <div className="text-xs text-muted-foreground mb-2">
+                    Match by <Badge variant="outline" className="text-[10px] ml-1">{g.matchType === "phone" ? `Phone: ${g.matchKey}` : g.matchType === "email" ? `Email: ${g.matchKey}` : `Name: ${g.matchKey}`}</Badge>
+                    <span className="ml-2">({g.leads.length} entries)</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {g.leads.map((l: any, li: number) => (
+                      <div key={l.id} className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm ${li === 0 ? "bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800" : "bg-muted/40 border border-dashed"}`}>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            {li === 0 && <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300 text-[10px]">Original</Badge>}
+                            {li > 0 && <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300">Duplicate</Badge>}
+                            <span className="font-medium truncate">{l.client_name}</span>
+                            <span className="text-xs text-muted-foreground">{l.lead_code}</span>
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {l.mobile && <span className="mr-3">{l.mobile}</span>}
+                            {l.email && <span className="mr-3">{l.email}</span>}
+                            <span>Added {format(new Date(l.created_at), "MMM d, yyyy")}</span>
+                            {l.assigned_to && nameById.get(l.assigned_to) && <span className="ml-2">· {nameById.get(l.assigned_to)}</span>}
+                          </div>
+                        </div>
+                        {li > 0 && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive hover:text-destructive shrink-0"
+                            disabled={deleteLead.isPending}
+                            onClick={() => {
+                              if (window.confirm(`Delete duplicate "${l.client_name}" (${l.lead_code})? This cannot be undone.`)) {
+                                deleteLead.mutate(l.id);
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" /> Delete
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {showDupes && dupeGroups.length === 0 && !dupesLoading && (
+        <Card className="border-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/20">
+          <CardContent className="p-4 text-center text-sm text-emerald-700 dark:text-emerald-300">
+            No duplicates found — your leads are clean!
+          </CardContent>
+        </Card>
+      )}
 
       {selected.size > 0 && (
         <Card className="border-primary/40 bg-primary/5">
