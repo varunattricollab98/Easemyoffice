@@ -37,14 +37,21 @@ export function useDashboardScope(): DashboardScope {
 }
 
 // Loader-side (non-React) scope resolver, so prefetched queries use the same
-// cache keys as the widgets that render them.
+// cache keys as the widgets that render them. Cached for the session to avoid
+// repeated role fetches on every dashboard navigation.
+let _cachedScope: DashboardScope | null = null;
+let _cachedScopeUid: string | null = null;
 export async function resolveScope(): Promise<DashboardScope> {
   const { data: { session } } = await supabase.auth.getSession();
   const uid = session?.user?.id ?? null;
   if (!uid) return { uid: null, scoped: false };
+  // Return cached scope if same user (roles don't change mid-session).
+  if (_cachedScope && _cachedScopeUid === uid) return _cachedScope;
   const { data: roleRows } = await supabase.from("user_roles").select("role").eq("user_id", uid);
   const roles = ((roleRows ?? []) as { role: AppRole }[]).map((r) => r.role);
-  return computeScope(uid, roles);
+  _cachedScope = computeScope(uid, roles);
+  _cachedScopeUid = uid;
+  return _cachedScope;
 }
 
 export const dashboardStatsQuery = (scope: DashboardScope) =>

@@ -163,7 +163,8 @@ function LeadsListPage() {
   const { data: dupeData, isLoading: dupesLoading } = useQuery({
     queryKey: ["leads-duplicates"],
     enabled: showDupes,
-    staleTime: 30_000,
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
     queryFn: async () => {
       const { data } = await supabase.from("leads")
         .select("id, lead_code, client_name, mobile, email, created_at, assigned_to, stage")

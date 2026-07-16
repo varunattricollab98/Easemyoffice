@@ -8,8 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Search, FileText, Download } from "lucide-react";
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/invoices")({
@@ -41,8 +39,12 @@ function InvoicesPage() {
     );
   }, [bookings, search]);
 
-  const generatePdf = (b: any) => {
+  const generatePdf = async (b: any) => {
     try {
+      const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+        import("jspdf"),
+        import("jspdf-autotable"),
+      ]);
       const doc = new jsPDF();
       doc.setFontSize(20);
       doc.text("EaseMyOffice", 14, 20);
