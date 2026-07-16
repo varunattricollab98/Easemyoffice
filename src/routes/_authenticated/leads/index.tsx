@@ -55,6 +55,7 @@ function LeadsListPage() {
   const [exporting, setExporting] = useState(false);
   const [bulkReasonStage, setBulkReasonStage] = useState<string | null>(null);
   const [bulkReason, setBulkReason] = useState("");
+  const [showDupes, setShowDupes] = useState(false);
   const stage = search.stage ?? "all";
   const interest = search.interest ?? "all";
   const service = search.service ?? "all";
@@ -115,8 +116,45 @@ function LeadsListPage() {
     },
   });
 
-  const rows = data?.rows ?? [];
-  const total = data?.count ?? 0;
+  // Duplicate detection: fetch all leads' phone/email/name and find IDs that share
+  // the same contact info. Only runs when "Show duplicates" is active.
+  const { data: dupeIds = new Set<string>(), isLoading: dupesLoading } = useQuery({
+    queryKey: ["leads-duplicates"],
+    enabled: showDupes,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data } = await supabase.from("leads")
+        .select("id, client_name, mobile, email")
+        .limit(5000);
+      if (!data) return new Set<string>();
+      // Group by normalised phone (last 10 digits), email, and exact lowercase name
+      const byPhone = new Map<string, string[]>();
+      const byEmail = new Map<string, string[]>();
+      const byName = new Map<string, string[]>();
+      for (const l of data as any[]) {
+        const phone = (l.mobile ?? "").replace(/\D/g, "").slice(-10);
+        const email = (l.email ?? "").trim().toLowerCase();
+        const name = (l.client_name ?? "").trim().toLowerCase();
+        if (phone.length >= 10) { const arr = byPhone.get(phone) ?? []; arr.push(l.id); byPhone.set(phone, arr); }
+        if (email) { const arr = byEmail.get(email) ?? []; arr.push(l.id); byEmail.set(email, arr); }
+        if (name && name.length > 2) { const arr = byName.get(name) ?? []; arr.push(l.id); byName.set(name, arr); }
+      }
+      const ids = new Set<string>();
+      for (const group of [byPhone, byEmail, byName]) {
+        for (const arr of group.values()) {
+          if (arr.length > 1) arr.forEach((id) => ids.add(id));
+        }
+      }
+      return ids;
+    },
+  });
+
+  const rows = useMemo(() => {
+    const allRows = data?.rows ?? [];
+    if (!showDupes) return allRows;
+    return allRows.filter((r: any) => dupeIds.has(r.id));
+  }, [data?.rows, showDupes, dupeIds]);
+  const total = showDupes ? rows.length : (data?.count ?? 0);
   const totalPages = Math.max(1, Math.ceil(total / size));
   const firstShown = total === 0 ? 0 : (page - 1) * size + 1;
   const lastShown = Math.min(page * size, total);
@@ -274,6 +312,14 @@ function LeadsListPage() {
               {SERVICES.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}
             </SelectContent>
           </Select>
+          <Button
+            size="sm"
+            variant={showDupes ? "default" : "outline"}
+            onClick={() => setShowDupes(!showDupes)}
+            className={showDupes ? "bg-amber-600 hover:bg-amber-700" : ""}
+          >
+            {dupesLoading ? "Checking…" : showDupes ? `Duplicates (${dupeIds.size})` : "Duplicates"}
+          </Button>
         </CardContent>
       </Card>
 
