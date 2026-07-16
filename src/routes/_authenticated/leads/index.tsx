@@ -26,6 +26,8 @@ type LeadSearch = {
   q?: string;
   page?: number;
   size?: number;
+  dateRange?: string;
+  sort?: string;
 };
 
 const PAGE_SIZES = [25, 50, 100, 200];
@@ -40,6 +42,8 @@ export const Route = createFileRoute("/_authenticated/leads/")({
     q: typeof s.q === "string" ? s.q : undefined,
     page: (() => { const n = Number(s.page); return Number.isFinite(n) && n > 1 ? Math.floor(n) : undefined; })(),
     size: (() => { const n = Number(s.size); return PAGE_SIZES.includes(n) ? n : undefined; })(),
+    dateRange: typeof s.dateRange === "string" ? s.dateRange : undefined,
+    sort: typeof s.sort === "string" ? s.sort : undefined,
   }),
   component: LeadsListPage,
 });
@@ -60,6 +64,8 @@ function LeadsListPage() {
   const interest = search.interest ?? "all";
   const service = search.service ?? "all";
   const owner = search.owner;
+  const dateRange = search.dateRange ?? "all";
+  const sortDir = search.sort ?? "newest";
   const page = search.page ?? 1;
   const size = search.size ?? 50;
 
@@ -70,6 +76,10 @@ function LeadsListPage() {
     navigate({ to: "/leads", search: { ...search, interest: v === "all" ? undefined : v, page: undefined } });
   const setService = (v: string) =>
     navigate({ to: "/leads", search: { ...search, service: v === "all" ? undefined : v, page: undefined } });
+  const setDateRange = (v: string) =>
+    navigate({ to: "/leads", search: { ...search, dateRange: v === "all" ? undefined : v, page: undefined } });
+  const setSortDir = (v: string) =>
+    navigate({ to: "/leads", search: { ...search, sort: v === "newest" ? undefined : v, page: undefined } });
   const setPage = (p: number) =>
     navigate({ to: "/leads", search: { ...search, page: p <= 1 ? undefined : p } });
   const setSize = (v: string) =>
@@ -88,18 +98,40 @@ function LeadsListPage() {
       const term = `%${q.trim()}%`;
       query = query.or(`client_name.ilike.${term},mobile.ilike.${term},company_name.ilike.${term},lead_code.ilike.${term},email.ilike.${term}`);
     }
+    // Date range filter
+    if (dateRange !== "all") {
+      const now = new Date();
+      let from: Date | null = null;
+      if (dateRange === "today") {
+        from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      } else if (dateRange === "this_week") {
+        const day = now.getDay();
+        from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day);
+      } else if (dateRange === "this_month") {
+        from = new Date(now.getFullYear(), now.getMonth(), 1);
+      } else if (dateRange === "last_month") {
+        from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const to = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+        query = query.lte("created_at", to.toISOString());
+      } else if (dateRange === "last_7d") {
+        from = new Date(Date.now() - 7 * 86400000);
+      } else if (dateRange === "last_30d") {
+        from = new Date(Date.now() - 30 * 86400000);
+      }
+      if (from) query = query.gte("created_at", from.toISOString());
+    }
     return query;
   };
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["leads", q, stage, interest, service, owner, page, size],
+    queryKey: ["leads", q, stage, interest, service, owner, dateRange, sortDir, page, size],
     placeholderData: keepPreviousData,
     queryFn: async () => {
       const from = (page - 1) * size;
       const to = from + size - 1;
       let query = supabase.from("leads")
         .select("id, lead_code, client_name, company_name, mobile, email, stage, interest, service_required, source, score, assigned_to, next_follow_up_at, last_activity_at, created_at", { count: "exact" })
-        .order("created_at", { ascending: false })
+        .order("created_at", { ascending: sortDir === "oldest" })
         .range(from, to);
       query = applyFilters(query);
       const { data, error, count } = await query;
@@ -310,6 +342,25 @@ function LeadsListPage() {
             <SelectContent>
               <SelectItem value="all">All services</SelectItem>
               {SERVICES.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={dateRange} onValueChange={setDateRange}>
+            <SelectTrigger className="w-[150px]"><SelectValue placeholder="Date" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All time</SelectItem>
+              <SelectItem value="today">Today</SelectItem>
+              <SelectItem value="this_week">This week</SelectItem>
+              <SelectItem value="last_7d">Last 7 days</SelectItem>
+              <SelectItem value="this_month">This month</SelectItem>
+              <SelectItem value="last_month">Last month</SelectItem>
+              <SelectItem value="last_30d">Last 30 days</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={sortDir} onValueChange={setSortDir}>
+            <SelectTrigger className="w-[130px]"><SelectValue placeholder="Sort" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="newest">Newest first</SelectItem>
+              <SelectItem value="oldest">Oldest first</SelectItem>
             </SelectContent>
           </Select>
           <Button
