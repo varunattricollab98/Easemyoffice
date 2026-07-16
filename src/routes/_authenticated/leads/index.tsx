@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -120,6 +120,12 @@ function LeadsListPage() {
   const totalPages = Math.max(1, Math.ceil(total / size));
   const firstShown = total === 0 ? 0 : (page - 1) * size + 1;
   const lastShown = Math.min(page * size, total);
+
+  const nameById = useMemo(() => {
+    const m = new Map<string, string>();
+    (assignableUsers as any[]).forEach((u) => m.set(u.id, u.full_name || u.email || ""));
+    return m;
+  }, [assignableUsers]);
 
   // ---- selection helpers ----
   const selectedIds = [...selected];
@@ -323,7 +329,7 @@ function LeadsListPage() {
                 <span>Select all on this page</span>
               </div>
               {rows.map((l) => (
-                <LeadRow key={l.id} l={l} selected={selected.has(l.id)} onToggle={toggleOne} />
+                <LeadRow key={l.id} l={l} selected={selected.has(l.id)} onToggle={toggleOne} nameOf={nameById} />
               ))}
             </div>
           )}
@@ -376,10 +382,11 @@ function LeadsListPage() {
   );
 }
 
-function LeadRow({ l, selected, onToggle }: { l: any; selected: boolean; onToggle: (id: string) => void }) {
+function LeadRow({ l, selected, onToggle, nameOf }: { l: any; selected: boolean; onToggle: (id: string) => void; nameOf: Map<string, string> }) {
   const interestMeta = INTERESTS.find((i) => i.id === l.interest);
   const stageMeta = STAGES.find((s) => s.id === l.stage);
   const overdue = l.next_follow_up_at && new Date(l.next_follow_up_at) < new Date();
+  const assigneeName = l.assigned_to ? nameOf.get(l.assigned_to) ?? "" : "";
   return (
     <div className="flex items-center border-b last:border-b-0">
       <div className="pl-4 pr-1 shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -390,7 +397,7 @@ function LeadRow({ l, selected, onToggle }: { l: any; selected: boolean; onToggl
         params={{ id: l.id }}
         className="flex-1 grid grid-cols-12 gap-3 items-center px-3 py-3 hover:bg-accent/40"
       >
-        <div className="col-span-12 md:col-span-4 min-w-0">
+        <div className="col-span-12 md:col-span-3 min-w-0">
           <div className="flex items-center gap-2">
             <div className="font-medium truncate">{l.client_name}</div>
             {interestMeta && (
@@ -410,7 +417,7 @@ function LeadRow({ l, selected, onToggle }: { l: any; selected: boolean; onToggl
         <div className="col-span-6 md:col-span-2 text-xs text-muted-foreground truncate">
           {labelFor(SERVICES, l.service_required)}
         </div>
-        <div className="col-span-6 md:col-span-2">
+        <div className="col-span-4 md:col-span-2">
           {stageMeta && (
             <span className="inline-flex items-center gap-1.5 text-xs">
               <span className={`h-2 w-2 rounded-full ${stageMeta.color}`} />
@@ -418,7 +425,10 @@ function LeadRow({ l, selected, onToggle }: { l: any; selected: boolean; onToggl
             </span>
           )}
         </div>
-        <div className="col-span-6 md:col-span-2 text-right text-xs">
+        <div className="col-span-4 md:col-span-1 text-xs text-muted-foreground truncate">
+          {assigneeName || <span className="text-muted-foreground/50">—</span>}
+        </div>
+        <div className="col-span-4 md:col-span-2 text-right text-xs">
           {l.next_follow_up_at ? (
             <span className={overdue ? "text-destructive font-medium" : "text-muted-foreground"}>
               {overdue ? "Overdue " : ""}{formatDistanceToNow(new Date(l.next_follow_up_at), { addSuffix: true })}
