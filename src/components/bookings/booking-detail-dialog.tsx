@@ -16,6 +16,7 @@ import { Plus } from "lucide-react";
 const PAY_STATUSES = ["Pending", "Paid", "Partial"];
 const VO_STATUSES = ["Pending", "Active", "Delivered"];
 const PAY_MODES = ["UPI", "Bank Transfer / NEFT", "Cheque", "Cash", "Card", "Payment Link", "Other"];
+const SOURCES = ["Website", "Referral", "IndiaMART", "Google Ads", "Meta Ads", "WhatsApp", "Direct", "Other"];
 const num = (v: any) => { const n = parseFloat(String(v)); return Number.isFinite(n) ? n : 0; };
 const fmtINR = (n: number) => `₹${(n ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 
@@ -28,16 +29,21 @@ export function BookingDetailDialog({ booking, open, onOpenChange }: { booking: 
   useEffect(() => {
     if (booking) {
       setF({
+        booking_date: booking.booking_date ?? "", booking_source: booking.booking_source ?? "Website",
         plan_name: booking.plan_name ?? "", vo_plan: booking.vo_plan ?? "",
         sp_name: booking.sp_name ?? "", area: booking.area ?? "", city: booking.city ?? "", state: booking.state ?? "",
         sp_status: booking.sp_status ?? "Active",
         vo_amount: String(booking.vo_amount ?? ""), addon_services: booking.addon_services ?? "", addon_amount: String(booking.addon_amount ?? ""),
+        quoted_amount: String(booking.quoted_amount ?? ""),
         tds_pct: String(booking.tds_pct ?? "0"),
         payment_mode_ref: booking.payment_mode_ref ?? "", payment_id_utr: booking.payment_id_utr ?? "", invoice_number: booking.invoice_number ?? "",
         sp_payable: String(booking.sp_payable ?? ""), addon_payable: String(booking.addon_payable ?? ""),
         sp_payment_status: booking.sp_payment_status ?? "Pending", vo_status: booking.vo_status ?? "Pending",
         business_name: booking.business_name ?? "", client_name: booking.client_name ?? "",
-        email_id: booking.email_id ?? "", contact_no: booking.contact_no ?? "", remarks: booking.remarks ?? "",
+        email_id: booking.email_id ?? "", contact_no: booking.contact_no ?? "",
+        alt_contact_no: booking.alt_contact_no ?? "", alt_contact_no_2: booking.alt_contact_no_2 ?? "",
+        balance_due_date: booking.balance_due_date ?? "",
+        remarks: booking.remarks ?? "",
       });
     }
   }, [booking]);
@@ -50,6 +56,9 @@ export function BookingDetailDialog({ booking, open, onOpenChange }: { booking: 
   const afterTds = +(total - tdsAmt).toFixed(2);
   const spPay = num(f.sp_payable), addOnPay = num(f.addon_payable);
   const profit = +(total - spPay - addOnPay).toFixed(2);
+  // Discount = originally quoted price minus the final deal value (never negative).
+  const quoted = num(f.quoted_amount);
+  const discount = quoted > 0 ? Math.max(0, +(quoted - total).toFixed(2)) : 0;
 
   const { data: payments = [] } = useQuery({
     queryKey: ["booking-payments", bookingId],
@@ -91,14 +100,18 @@ export function BookingDetailDialog({ booking, open, onOpenChange }: { booking: 
   const saveDetails = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("bookings").update({
+        booking_date: f.booking_date || null, booking_source: f.booking_source,
         plan_name: f.plan_name, vo_plan: f.vo_plan,
         sp_name: f.sp_name, area: f.area, city: f.city, state: f.state, sp_status: f.sp_status,
         vo_amount: vo, vo_gst: voGst, addon_services: f.addon_services, addon_amount: addOn, addon_gst: addOnGst,
-        total_amount: total, tds_pct: tdsPct, tds_amount: tdsAmt, amount_after_tds: afterTds,
+        total_amount: total, quoted_amount: quoted, discount_amount: discount,
+        tds_pct: tdsPct, tds_amount: tdsAmt, amount_after_tds: afterTds,
         payment_mode_ref: f.payment_mode_ref, payment_id_utr: f.payment_id_utr, invoice_number: f.invoice_number,
         sp_payable: spPay, addon_payable: addOnPay, profit,
         sp_payment_status: f.sp_payment_status, vo_status: f.vo_status,
         business_name: f.business_name, client_name: f.client_name, email_id: f.email_id, contact_no: f.contact_no,
+        alt_contact_no: f.alt_contact_no, alt_contact_no_2: f.alt_contact_no_2,
+        balance_due_date: f.balance_due_date || null,
         remarks: f.remarks,
       }).eq("id", bookingId);
       if (error) throw new Error(error.message);
@@ -176,6 +189,14 @@ export function BookingDetailDialog({ booking, open, onOpenChange }: { booking: 
           {/* DETAILS */}
           <TabsContent value="details" className="space-y-3">
             <div className="grid gap-3 md:grid-cols-3">
+              {T("booking_date", "Booking Date", { type: "date" })}
+              <div>
+                <Label className="text-xs">Booking Source</Label>
+                <Select value={f.booking_source} onValueChange={(v) => setF({ ...f, booking_source: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{SOURCES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
               {T("plan_name", "Plan Name")}
               {T("vo_plan", "VO Plan")}
               {T("sp_name", "SP Name")}
@@ -195,6 +216,8 @@ export function BookingDetailDialog({ booking, open, onOpenChange }: { booking: 
               {T("addon_amount", "Add on Amount (₹)", { type: "number" })}
               <div><Label className="text-xs">Add on GST 18% (auto)</Label><Input value={addOnGst} readOnly className="bg-muted/40" /></div>
               <div><Label className="text-xs">Total (auto)</Label><Input value={total} readOnly className="bg-muted/40 font-medium" /></div>
+              {T("quoted_amount", "Quoted Price ₹ (before discount)", { type: "number" })}
+              <div><Label className="text-xs">Discount Given ₹ (auto)</Label><Input value={discount} readOnly className={`bg-muted/40 font-medium ${discount > 0 ? "text-amber-600" : ""}`} /></div>
               {T("tds_pct", "TDS %", { type: "number" })}
               <div><Label className="text-xs">Amount After TDS (auto)</Label><Input value={afterTds} readOnly className="bg-muted/40" /></div>
               {T("sp_payable", "SP Payable ₹", { type: "number" })}
@@ -221,6 +244,9 @@ export function BookingDetailDialog({ booking, open, onOpenChange }: { booking: 
               {T("client_name", "Client Name")}
               {T("email_id", "Email Id", { type: "email" })}
               {T("contact_no", "Contact No.")}
+              {T("alt_contact_no", "Alternative Contact No.")}
+              {T("alt_contact_no_2", "Alternative Contact No. 2")}
+              {T("balance_due_date", "Balance Due Date", { type: "date" })}
             </div>
             <div>
               <Label className="text-xs">Remarks</Label>
