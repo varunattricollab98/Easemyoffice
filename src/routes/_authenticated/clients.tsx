@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Building2, Mail, Phone, ChevronDown, ChevronRight, Users2, Wallet, Crown, Gem, Tag } from "lucide-react";
+import { Search, Building2, Mail, Phone, ChevronDown, ChevronRight, Users2, Wallet, Crown, Gem } from "lucide-react";
 import { useState, useMemo, Fragment } from "react";
 import { ClientDetailDialog } from "@/components/clients/client-detail-dialog";
 
@@ -124,20 +124,6 @@ function TierBadge({ tier }: { tier: ClientRow["tier"] }) {
   return <Badge variant="secondary">Normal</Badge>;
 }
 
-function DiscountBadge({ amount }: { amount: number }) {
-  if (amount <= 0)
-    return <Badge variant="outline" className="text-muted-foreground">No discount</Badge>;
-  return <Badge className="bg-orange-100 text-orange-800 border-orange-300 hover:bg-orange-100 gap-1"><Tag className="h-3 w-3" />Discount {`₹${amount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`}</Badge>;
-}
-
-function StyleBadge({ style }: { style: ClientRow["style"] }) {
-  if (style === "Full payment")
-    return <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-100">Full payment</Badge>;
-  if (style === "Part payments")
-    return <Badge className="bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-100">Part payments</Badge>;
-  return <Badge className="bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-100">Has dues</Badge>;
-}
-
 function ClientsPage() {
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -249,20 +235,7 @@ function ClientsPage() {
                       </button>
                     </TableCell>
                     <TableCell>
-                      <div className="flex flex-col gap-1.5 items-start">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground w-16 shrink-0">Tier</span>
-                          <TierBadge tier={c.tier} />
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground w-16 shrink-0">Pays</span>
-                          <StyleBadge style={c.style} />
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground w-16 shrink-0">Discount</span>
-                          <DiscountBadge amount={c.totalDiscount} />
-                        </div>
-                      </div>
+                      <TierBadge tier={c.tier} />
                     </TableCell>
                     <TableCell className="text-sm">
                       {c.phones.length === 0 ? "—" : (
