@@ -11,12 +11,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { INTERESTS, SERVICES, SOURCES, STAGES, labelFor } from "@/lib/crm";
-import { Plus, Search, Phone, Mail, Upload, Download, Trash2, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { Plus, Search, Phone, Mail, Upload, Download, Trash2, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CalendarIcon } from "lucide-react";
 import { NewLeadDialog } from "@/components/new-lead-dialog";
 import { useAuth } from "@/lib/auth";
 import { triggerStageReminder } from "@/lib/stage-reminders";
 import { toast } from "sonner";
 import { formatDistanceToNow, format } from "date-fns";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type LeadSearch = {
   stage?: string;
@@ -412,12 +414,21 @@ function LeadsListPage() {
             </SelectContent>
           </Select>
           {dateRange === "custom" && (
-            <Input
-              type="date"
-              className="w-[150px]"
-              value={customDate}
-              onChange={(e) => setCustomDate(e.target.value)}
-            />
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-[150px] justify-start text-left font-normal text-sm">
+                  <CalendarIcon className="h-4 w-4 mr-2 text-muted-foreground" />
+                  {customDate ? format(new Date(customDate + "T00:00:00"), "MMM d, yyyy") : "Pick a date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={customDate ? new Date(customDate + "T00:00:00") : undefined}
+                  onSelect={(date) => { if (date) setCustomDate(format(date, "yyyy-MM-dd")); }}
+                />
+              </PopoverContent>
+            </Popover>
           )}
           <Select value={sortDir} onValueChange={setSortDir}>
             <SelectTrigger className="w-[130px]"><SelectValue placeholder="Sort" /></SelectTrigger>
