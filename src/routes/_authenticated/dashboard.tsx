@@ -16,6 +16,7 @@ import { pushPulse } from "@/lib/realtime-pulse";
 import { usePagePerf } from "@/lib/perf";
 import {
   affectedKeysFor,
+  resolveScope,
   dashboardStatsQuery,
   heroTodayQuery,
   needsAttentionQuery,
@@ -33,13 +34,18 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   // staleTime, so revisiting within the window is instant.
   loader: ({ context }) => {
     const qc = context.queryClient;
-    qc.prefetchQuery(dashboardStatsQuery());
-    qc.prefetchQuery(heroTodayQuery());
-    qc.prefetchQuery(needsAttentionQuery());
+    // Scope-aware prefetch (fire-and-forget) so caches match the widgets' keys
+    // once the user's scope resolves. Does not block navigation.
+    void resolveScope().then((scope) => {
+      qc.prefetchQuery(dashboardStatsQuery(scope));
+      qc.prefetchQuery(heroTodayQuery(scope));
+      qc.prefetchQuery(needsAttentionQuery(scope));
+      qc.prefetchQuery(pipelineCountsQuery(scope));
+      qc.prefetchQuery(activityTickerQuery(scope));
+    });
+    // Follow-up queries are scoped by RLS already — no scope param needed.
     qc.prefetchQuery(todayFollowupsQuery());
     qc.prefetchQuery(overdueFollowupsQuery());
-    qc.prefetchQuery(pipelineCountsQuery());
-    qc.prefetchQuery(activityTickerQuery());
     // Warm the booking sheet config (plans + next ID) so the New Booking form opens instantly.
     qc.prefetchQuery({ queryKey: ["booking-sheet-config"], queryFn: getSheetConfig, staleTime: 5 * 60 * 1000 });
   },

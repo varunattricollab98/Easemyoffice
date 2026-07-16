@@ -9,7 +9,7 @@ import { KpiTile } from "./widgets/kpi-tile";
 import { WidgetSkeleton } from "./widget-skeleton";
 import { Flame, Bell, AlertTriangle, Target, RefreshCcw, Users } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { dashboardStatsQuery } from "@/lib/dashboard-queries";
+import { dashboardStatsQuery, useDashboardScope } from "@/lib/dashboard-queries";
 
 // Lazy-load each widget so they're shipped as their own JS chunks.
 // The page becomes interactive faster; slow widgets don't block fast ones.
@@ -110,7 +110,7 @@ export function WidgetGrid({
 
 // Top-of-dashboard fixed KPI strip — not draggable, always visible.
 export function KpiStrip({ pulseTick }: { pulseTick: number }) {
-  const { data: stats } = useQuery(dashboardStatsQuery());
+  const { data: stats } = useQuery(dashboardStatsQuery(useDashboardScope()));
 
   const tiles = [
     <KpiTile key="new" label="New leads (mo)" value={stats?.newLeads} icon={Target} accent="info"

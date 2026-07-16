@@ -5,11 +5,11 @@ import { AlertTriangle, ArrowRight } from "lucide-react";
 import { INTERESTS, SERVICES, labelFor } from "@/lib/crm";
 import { formatDistanceToNow } from "date-fns";
 import { useEffect, useRef, useState } from "react";
-import { needsAttentionQuery } from "@/lib/dashboard-queries";
+import { needsAttentionQuery, useDashboardScope } from "@/lib/dashboard-queries";
 import { WidgetSkeleton } from "../widget-skeleton";
 
 export function NeedsAttention({ pulseTick = 0 }: { pulseTick?: number }) {
-  const { data, isPending } = useQuery(needsAttentionQuery());
+  const { data, isPending } = useQuery(needsAttentionQuery(useDashboardScope()));
 
   // Track last-seen ids to flash newly-changed rows
   const seen = useRef<Map<string, string>>(new Map());

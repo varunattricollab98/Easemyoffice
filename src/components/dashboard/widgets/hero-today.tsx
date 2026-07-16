@@ -15,14 +15,14 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { heroTodayQuery } from "@/lib/dashboard-queries";
+import { heroTodayQuery, useDashboardScope } from "@/lib/dashboard-queries";
 import { WidgetSkeleton } from "../widget-skeleton";
 
 const GOAL = 25; // closures per month — could become configurable later
 
 export function HeroToday() {
   const { profile } = useAuth();
-  const { data, isPending } = useQuery(heroTodayQuery());
+  const { data, isPending } = useQuery(heroTodayQuery(useDashboardScope()));
 
   useCelebrateOn(data?.closures);
 

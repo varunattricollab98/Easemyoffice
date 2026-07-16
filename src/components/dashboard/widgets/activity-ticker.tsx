@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Activity } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { activityTickerQuery } from "@/lib/dashboard-queries";
+import { activityTickerQuery, useDashboardScope } from "@/lib/dashboard-queries";
 import { WidgetSkeleton } from "../widget-skeleton";
 
 type Row = {
@@ -16,7 +16,7 @@ type Row = {
 };
 
 export function ActivityTicker() {
-  const { data, isPending } = useQuery({ ...activityTickerQuery(), select: (rows) => rows as unknown as Row[] });
+  const { data, isPending } = useQuery({ ...activityTickerQuery(useDashboardScope()), select: (rows) => rows as unknown as Row[] });
 
   if (isPending && !data) return <WidgetSkeleton rows={6} />;
 

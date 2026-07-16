@@ -3,11 +3,11 @@ import { Link } from "@tanstack/react-router";
 import { STAGES } from "@/lib/crm";
 import { CountUp } from "../count-up";
 import { Layers } from "lucide-react";
-import { pipelineCountsQuery } from "@/lib/dashboard-queries";
+import { pipelineCountsQuery, useDashboardScope } from "@/lib/dashboard-queries";
 import { WidgetSkeleton } from "../widget-skeleton";
 
 export function PipelineSnapshot() {
-  const { data, isPending } = useQuery(pipelineCountsQuery());
+  const { data, isPending } = useQuery(pipelineCountsQuery(useDashboardScope()));
   const total = Object.values(data ?? {}).reduce((a, b) => a + b, 0) || 1;
 
   if (isPending && !data) return <WidgetSkeleton rows={3} />;
