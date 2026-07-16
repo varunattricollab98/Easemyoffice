@@ -227,7 +227,6 @@ function AdminUsersPage() {
               <tr>
                 <th className="text-left px-4 py-2">Name</th>
                 <th className="text-left px-4 py-2">Email</th>
-                <th className="text-left px-4 py-2">Department</th>
                 <th className="text-left px-4 py-2">Roles</th>
                 <th className="text-left px-4 py-2">Set role</th>
                 <th className="text-left px-4 py-2">Password</th>
@@ -241,18 +240,6 @@ function AdminUsersPage() {
                 <tr key={u.id} className="border-t">
                   <td className="px-4 py-2">{u.full_name ?? "—"}</td>
                   <td className="px-4 py-2 text-muted-foreground">{u.email}</td>
-                  <td className="px-4 py-2">
-                    <Input
-                      className="h-8 w-[130px] text-xs"
-                      placeholder="Set dept…"
-                      defaultValue={u.department ?? ""}
-                      onBlur={(e) => {
-                        const val = e.target.value.trim();
-                        if (val !== (u.department ?? "").trim()) deptM.mutate({ user_id: u.id, department: val });
-                      }}
-                      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                    />
-                  </td>
                   <td className="px-4 py-2">{(u.roles ?? []).join(", ") || "—"}</td>
                   <td className="px-4 py-2">
                     {isProtected ? (
@@ -273,7 +260,7 @@ function AdminUsersPage() {
                       disabled={resetM.isPending || !u.email}
                       onClick={() => resetM.mutate(u.email)}
                     >
-                      Send reset
+                      Send link
                     </Button>
                   </td>
                   <td className="px-4 py-2">
