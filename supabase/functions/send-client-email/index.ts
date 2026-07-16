@@ -22,6 +22,16 @@ const FROM_EMAIL =
 // mail is visible in Gmail and replies thread there.
 const BCC_EMAIL = Deno.env.get("CRM_BCC_EMAIL") ?? "";
 
+// Invisible marker embedded in every CRM-sent email (hidden-preheader style,
+// which Gmail indexes for its preview snippet). Set a Gmail filter
+// (Has the words: EMO-CRM-SENT) to reliably label these as "CRM-Sent" — call
+// notifications and inbound leads never contain it, so they won't be mislabelled.
+const CRM_MARKER = `<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">EMO-CRM-SENT</div>`;
+
+function escHtml(s: unknown) {
+  return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 function isEmail(v: unknown): v is string {
   if (typeof v !== "string") return false;
   const at = v.indexOf("@");
@@ -51,8 +61,13 @@ Deno.serve(async (req) => {
       throw new Error("Email is not configured yet. Add RESEND_API_KEY in Supabase Edge Function secrets.");
 
     const payload: Record<string, unknown> = { from: FROM_EMAIL, to: toList, subject };
-    if (html) payload.html = html;
+    if (html) payload.html = CRM_MARKER + html;
     if (text) payload.text = text;
+    // Ensure the hidden marker rides along even for text-only sends, so the
+    // BCC'd copy in the shared inbox is still reliably labelled "CRM-Sent".
+    if (!html && text) {
+      payload.html = CRM_MARKER + `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;white-space:pre-wrap;color:#0f172a">${escHtml(text)}</div>`;
+    }
     if (isEmail(replyTo)) payload.reply_to = replyTo;
     if (isEmail(cc)) payload.cc = [cc];
     const bccList = [...toEmailList(bcc), ...toEmailList(BCC_EMAIL)];
