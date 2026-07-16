@@ -60,6 +60,7 @@ function LeadsListPage() {
   const [bulkReasonStage, setBulkReasonStage] = useState<string | null>(null);
   const [bulkReason, setBulkReason] = useState("");
   const [showDupes, setShowDupes] = useState(false);
+  const [customDate, setCustomDate] = useState("");
   const stage = search.stage ?? "all";
   const interest = search.interest ?? "all";
   const service = search.service ?? "all";
@@ -102,6 +103,7 @@ function LeadsListPage() {
     if (dateRange !== "all") {
       const now = new Date();
       let from: Date | null = null;
+      let to: Date | null = null;
       if (dateRange === "today") {
         from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       } else if (dateRange === "this_week") {
@@ -111,20 +113,23 @@ function LeadsListPage() {
         from = new Date(now.getFullYear(), now.getMonth(), 1);
       } else if (dateRange === "last_month") {
         from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        const to = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
-        query = query.lte("created_at", to.toISOString());
+        to = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
       } else if (dateRange === "last_7d") {
         from = new Date(Date.now() - 7 * 86400000);
       } else if (dateRange === "last_30d") {
         from = new Date(Date.now() - 30 * 86400000);
+      } else if (dateRange === "custom" && customDate) {
+        from = new Date(`${customDate}T00:00:00`);
+        to = new Date(`${customDate}T23:59:59.999`);
       }
       if (from) query = query.gte("created_at", from.toISOString());
+      if (to) query = query.lte("created_at", to.toISOString());
     }
     return query;
   };
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["leads", q, stage, interest, service, owner, dateRange, sortDir, page, size],
+    queryKey: ["leads", q, stage, interest, service, owner, dateRange, customDate, sortDir, page, size],
     placeholderData: keepPreviousData,
     queryFn: async () => {
       const from = (page - 1) * size;
@@ -403,8 +408,17 @@ function LeadsListPage() {
               <SelectItem value="this_month">This month</SelectItem>
               <SelectItem value="last_month">Last month</SelectItem>
               <SelectItem value="last_30d">Last 30 days</SelectItem>
+              <SelectItem value="custom">Specific date</SelectItem>
             </SelectContent>
           </Select>
+          {dateRange === "custom" && (
+            <Input
+              type="date"
+              className="w-[150px]"
+              value={customDate}
+              onChange={(e) => setCustomDate(e.target.value)}
+            />
+          )}
           <Select value={sortDir} onValueChange={setSortDir}>
             <SelectTrigger className="w-[130px]"><SelectValue placeholder="Sort" /></SelectTrigger>
             <SelectContent>
