@@ -1,12 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Building2, Mail, Phone, ChevronDown, ChevronRight, Users2, Wallet, Crown, Gem } from "lucide-react";
+import { Search, Building2, Mail, Phone, ChevronDown, ChevronRight, Users2, Wallet, Crown, Gem, GitMerge, X } from "lucide-react";
 import { useState, useMemo, Fragment } from "react";
+import { useAuth } from "@/lib/auth";
+import { toast } from "sonner";
 import { ClientDetailDialog } from "@/components/clients/client-detail-dialog";
 
 export const Route = createFileRoute("/_authenticated/clients")({
@@ -125,9 +130,23 @@ function TierBadge({ tier }: { tier: ClientRow["tier"] }) {
 }
 
 function ClientsPage() {
+  const { isAdmin } = useAuth();
+  const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [detail, setDetail] = useState<ClientRow | null>(null);
+  // Merge duplicates (admin): pick clients, choose a primary, and re-link all
+  // their bookings onto the primary so they collapse into one record.
+  const [mergeMode, setMergeMode] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [primaryKey, setPrimaryKey] = useState<string>("");
+  const togglePick = (key: string) =>
+    setPicked((prev) => {
+      const n = new Set(prev);
+      n.has(key) ? n.delete(key) : n.add(key);
+      return n;
+    });
+  const cancelMerge = () => { setMergeMode(false); setPicked(new Set()); setPrimaryKey(""); };
 
   const { data: bookings = [], isLoading } = useQuery({
     queryKey: ["clients-bookings"],
@@ -166,6 +185,46 @@ function ClientsPage() {
 
   const totalLifetime = useMemo(() => filtered.reduce((s, c) => s + c.totalPaid, 0), [filtered]);
 
+  const pickedClients = useMemo(() => clients.filter((c) => picked.has(c.key)), [clients, picked]);
+  const primary = pickedClients.find((c) => c.key === primaryKey) ?? pickedClients[0];
+
+  const merge = useMutation({
+    mutationFn: async ({ primary, dupes }: { primary: ClientRow; dupes: ClientRow[] }) => {
+      // Canonical values kept from the primary (falling back to any duplicate).
+      const canonicalPhone = primary.phones[0] || dupes.flatMap((d) => d.phones)[0] || "";
+      const canonicalEmail = primary.email || dupes.map((d) => d.email).find(Boolean) || "";
+      const canonicalName = primary.name;
+      const canonicalCompany = primary.company || dupes.map((d) => d.company).find(Boolean) || "";
+      const ops: Promise<void>[] = [];
+      for (const c of [primary, ...dupes]) {
+        for (const b of c.bookings) {
+          const patch: Record<string, unknown> = { client_name: canonicalName };
+          if (canonicalPhone) patch.contact_no = canonicalPhone;
+          if (!String(b.email_id ?? "").trim() && canonicalEmail) patch.email_id = canonicalEmail;
+          if (!String(b.business_name ?? "").trim() && canonicalCompany) patch.business_name = canonicalCompany;
+          // Preserve a distinct existing phone as an alternate contact.
+          const oldPhone = String(b.contact_no ?? "").trim();
+          if (canonicalPhone && oldPhone && normPhone(oldPhone) !== normPhone(canonicalPhone)) {
+            if (!String(b.alt_contact_no ?? "").trim()) patch.alt_contact_no = oldPhone;
+            else if (!String(b.alt_contact_no_2 ?? "").trim() && normPhone(b.alt_contact_no) !== normPhone(oldPhone)) patch.alt_contact_no_2 = oldPhone;
+          }
+          const bookingId = b.id as string;
+          ops.push((async () => {
+            const { error } = await supabase.from("bookings").update(patch as never).eq("id", bookingId);
+            if (error) throw new Error(error.message);
+          })());
+        }
+      }
+      await Promise.all(ops);
+    },
+    onSuccess: () => {
+      toast.success("Clients merged into one record");
+      qc.invalidateQueries({ queryKey: ["clients-bookings"] });
+      cancelMerge();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const toggle = (key: string) =>
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -182,11 +241,64 @@ function ClientsPage() {
             One record per client — all bookings &amp; renewals merged. Click a name to see the full history.
           </p>
         </div>
-        <div className="relative w-72 max-w-full">
-          <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input className="pl-9" placeholder="Search name, company, phone, email, category…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <div className="flex items-center gap-2">
+          {isAdmin && !mergeMode && (
+            <Button variant="outline" size="sm" onClick={() => setMergeMode(true)}>
+              <GitMerge className="h-4 w-4 mr-1" /> Merge duplicates
+            </Button>
+          )}
+          <div className="relative w-72 max-w-full">
+            <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input className="pl-9" placeholder="Search name, company, phone, email, category…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
         </div>
       </div>
+
+      {mergeMode && (
+        <Card className="p-3 border-primary/40 bg-primary/5 flex flex-wrap items-center gap-3">
+          <span className="text-sm">
+            {picked.size < 2
+              ? "Select 2 or more duplicate clients (tick the boxes) to merge them into one."
+              : `${picked.size} clients selected`}
+          </span>
+          {picked.size >= 2 && primary && (
+            <>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Keep as primary:</span>
+                <Select value={primary.key} onValueChange={setPrimaryKey}>
+                  <SelectTrigger className="h-8 w-60 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {pickedClients.map((c) => (
+                      <SelectItem key={c.key} value={c.key}>
+                        {c.name}{c.phones[0] ? ` · ${c.phones[0]}` : c.email ? ` · ${c.email}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                size="sm"
+                disabled={merge.isPending}
+                onClick={() => {
+                  const dupes = pickedClients.filter((c) => c.key !== primary.key);
+                  const totalBk = pickedClients.reduce((s, c) => s + c.count, 0);
+                  if (window.confirm(
+                    `Merge ${picked.size} clients into "${primary.name}"?\n\n${totalBk} booking(s) will be re-linked to ${primary.name}` +
+                    `${primary.phones[0] ? ` (${primary.phones[0]})` : ""}. Any other phone numbers are kept as alternate contacts.`,
+                  )) {
+                    merge.mutate({ primary, dupes });
+                  }
+                }}
+              >
+                <GitMerge className="h-4 w-4 mr-1" /> {merge.isPending ? "Merging…" : `Merge ${picked.size}`}
+              </Button>
+            </>
+          )}
+          <Button size="sm" variant="ghost" className="ml-auto" onClick={cancelMerge}>
+            <X className="h-4 w-4 mr-1" /> Cancel
+          </Button>
+        </Card>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <Card className="p-4">
@@ -224,9 +336,15 @@ function ClientsPage() {
               const isOpen = expanded.has(c.key);
               return (
                 <Fragment key={c.key}>
-                  <TableRow className="hover:bg-muted/40">
-                    <TableCell className="align-top pt-4 cursor-pointer" onClick={() => toggle(c.key)}>
-                      {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  <TableRow className={`hover:bg-muted/40 ${mergeMode && picked.has(c.key) ? "bg-primary/5" : ""}`}>
+                    <TableCell className="align-top pt-4">
+                      {mergeMode ? (
+                        <Checkbox checked={picked.has(c.key)} onCheckedChange={() => togglePick(c.key)} aria-label={`Select ${c.name}`} />
+                      ) : (
+                        <button className="cursor-pointer" onClick={() => toggle(c.key)} aria-label="Expand">
+                          {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </button>
+                      )}
                     </TableCell>
                     <TableCell>
                       <button className="text-left group" onClick={() => setDetail(c)}>
