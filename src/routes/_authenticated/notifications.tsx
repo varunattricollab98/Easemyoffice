@@ -87,6 +87,7 @@ function NotificationsPage() {
     onSuccess: (_d, id) => {
       setDoneIds((prev) => new Set(prev).add(`nt-${id}`));
       qc.invalidateQueries({ queryKey: ["notif-assigned"] });
+      qc.invalidateQueries({ queryKey: ["notif-unread-count"] });
       toast.success("Marked read");
     },
     onError: (e: Error) => toast.error(e.message),

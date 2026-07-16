@@ -59,11 +59,12 @@ export function AppSidebar() {
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ["notif-unread-count"],
     enabled: !!user?.id,
-    refetchInterval: 60_000,
+    refetchInterval: 15_000,
     queryFn: async () => {
       const { count } = await supabase
         .from("notifications")
         .select("id", { count: "exact", head: true })
+        .eq("user_id", user!.id)
         .eq("read", false as never);
       return count ?? 0;
     },
