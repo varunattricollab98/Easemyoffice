@@ -2,18 +2,22 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Trash2, CalendarClock, Flag } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Plus, Trash2, Flag, Clock, CheckCircle2, Circle, Loader2,
+  ListTodo, Timer, Sparkles, UserCircle2,
+} from "lucide-react";
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
-import { format, isPast, isToday } from "date-fns";
+import { format, isPast, isToday, formatDistanceToNow } from "date-fns";
 
 export const Route = createFileRoute("/_authenticated/tasks")({
   head: () => ({ meta: [{ title: "Tasks — EaseMyOffice CRM" }] }),
@@ -26,11 +30,17 @@ type Task = {
   lead_id: string | null; created_at: string;
 };
 
-const PRIORITY_COLORS: Record<string, string> = {
-  low: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
-  medium: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
-  high: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-  urgent: "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
+const PRIORITY_META: Record<string, { label: string; color: string; bg: string; icon: string }> = {
+  urgent: { label: "Urgent", color: "text-rose-600", bg: "bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800", icon: "bg-rose-500" },
+  high: { label: "High", color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800", icon: "bg-amber-500" },
+  medium: { label: "Medium", color: "text-blue-600", bg: "bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800", icon: "bg-blue-500" },
+  low: { label: "Low", color: "text-slate-500", bg: "bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700", icon: "bg-slate-400" },
+};
+
+const STATUS_META: Record<string, { label: string; icon: typeof Circle; color: string }> = {
+  todo: { label: "To do", icon: Circle, color: "text-muted-foreground" },
+  in_progress: { label: "In progress", icon: Timer, color: "text-blue-600" },
+  done: { label: "Done", icon: CheckCircle2, color: "text-emerald-600" },
 };
 
 function TasksPage() {
@@ -47,6 +57,20 @@ function TasksPage() {
       return (data ?? []) as Task[];
     },
   });
+
+  const { data: team = [] } = useQuery({
+    queryKey: ["team-members"],
+    queryFn: async () => {
+      const { data } = await supabase.from("profiles").select("id, full_name, email").order("full_name", { ascending: true });
+      return data ?? [];
+    },
+  });
+
+  const nameById = useMemo(() => {
+    const m = new Map<string, string>();
+    (team as any[]).forEach((u) => m.set(u.id, u.full_name || u.email || ""));
+    return m;
+  }, [team]);
 
   const filtered = useMemo(() => {
     if (filter === "all") return tasks;
@@ -76,194 +100,300 @@ function TasksPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["tasks"] }); toast.success("Task deleted"); },
   });
 
-  const { data: team = [] } = useQuery({
-    queryKey: ["team-members"],
-    queryFn: async () => {
-      const { data } = await supabase.from("profiles").select("id, full_name, email").order("full_name", { ascending: true });
-      return data ?? [];
-    },
-  });
-
   const reassign = useMutation({
     mutationFn: async ({ id, owner_id }: { id: string; owner_id: string }) => {
       const { error } = await supabase.from("tasks").update({ owner_id }).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["tasks"] }); toast.success("Task assigned"); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["tasks"] }); toast.success("Reassigned"); },
     onError: (e: Error) => toast.error(e.message),
   });
 
   return (
-    <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-4">
+    <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-5">
+      {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold">Tasks</h1>
-          <p className="text-sm text-muted-foreground">Personal & team task board.</p>
+          <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
+            <ListTodo className="h-7 w-7 text-primary" /> Tasks
+          </h1>
+          <p className="text-sm text-muted-foreground">Your personal & team task board. Stay on top of deadlines.</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button><Plus className="h-4 w-4 mr-2" /> New task</Button>
-          </DialogTrigger>
-          <NewTaskDialog onClose={() => setOpen(false)} userId={user?.id ?? null} />
-        </Dialog>
+        <Button onClick={() => setOpen(true)} className="shadow-sm">
+          <Plus className="h-4 w-4 mr-2" /> New Task
+        </Button>
       </div>
 
-      <div className="flex gap-2 flex-wrap">
-        {(["all", "todo", "in_progress", "done"] as const).map((f) => (
-          <Button key={f} size="sm" variant={filter === f ? "default" : "outline"} onClick={() => setFilter(f)}>
-            {f === "in_progress" ? "In progress" : f[0].toUpperCase() + f.slice(1)}
-            <Badge variant="secondary" className="ml-2">{counts[f]}</Badge>
-          </Button>
-        ))}
+      {/* Stats strip */}
+      <div className="grid grid-cols-4 gap-3">
+        {(["all", "todo", "in_progress", "done"] as const).map((f) => {
+          const active = filter === f;
+          const meta = f === "all" ? null : STATUS_META[f];
+          const Icon = meta?.icon ?? Sparkles;
+          return (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`rounded-xl border p-3 text-left transition-all ${
+                active ? "ring-2 ring-primary bg-primary/5 border-primary/30" : "hover:border-primary/30 hover:bg-accent/40"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Icon className={`h-4 w-4 ${meta?.color ?? "text-primary"}`} />
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  {f === "in_progress" ? "In Progress" : f === "all" ? "All" : f[0].toUpperCase() + f.slice(1)}
+                </span>
+              </div>
+              <div className="text-2xl font-bold mt-1">{counts[f]}</div>
+            </button>
+          );
+        })}
       </div>
 
+      {/* Task list */}
       {isLoading ? (
-        <Card><CardContent className="p-10 text-center text-muted-foreground">Loading…</CardContent></Card>
+        <Card><CardContent className="p-10 text-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />Loading tasks...</CardContent></Card>
       ) : filtered.length === 0 ? (
-        <Card><CardContent className="p-10 text-center text-muted-foreground">No tasks. Create one to get started.</CardContent></Card>
+        <Card>
+          <CardContent className="p-10 text-center">
+            <Circle className="h-10 w-10 text-muted-foreground/20 mx-auto mb-3" />
+            <p className="text-muted-foreground">No tasks here yet.</p>
+            <Button size="sm" variant="link" onClick={() => setOpen(true)} className="mt-2">
+              <Plus className="h-3.5 w-3.5 mr-1" /> Create your first task
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
         <div className="space-y-2">
           {filtered.map((t) => {
+            const pm = PRIORITY_META[t.priority] ?? PRIORITY_META.medium;
             const overdue = t.due_at && isPast(new Date(t.due_at)) && !isToday(new Date(t.due_at)) && t.status !== "done";
+            const ownerName = t.owner_id ? nameById.get(t.owner_id) : null;
             return (
-              <Card key={t.id} className={overdue ? "border-destructive/50" : ""}>
-                <CardContent className="p-3 flex items-start gap-3">
-                  <Checkbox
-                    checked={t.status === "done"}
-                    onCheckedChange={(v) => toggle.mutate({ id: t.id, status: v ? "done" : "todo" })}
-                    className="mt-1"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className={`font-medium ${t.status === "done" ? "line-through text-muted-foreground" : ""}`}>{t.title}</div>
-                    {t.description && <div className="text-sm text-muted-foreground mt-0.5">{t.description}</div>}
-                    <div className="flex flex-wrap gap-2 mt-2 items-center">
-                      <Badge className={PRIORITY_COLORS[t.priority] ?? ""} variant="secondary">
-                        <Flag className="h-3 w-3 mr-1" /> {t.priority}
-                      </Badge>
-                      {t.due_at && (
-                        <span className={`text-xs flex items-center gap-1 ${overdue ? "text-destructive font-medium" : "text-muted-foreground"}`}>
-                          <CalendarClock className="h-3 w-3" /> {format(new Date(t.due_at), "MMM d, h:mm a")}
-                        </span>
-                      )}
-                      <Select value={t.status} onValueChange={(v) => toggle.mutate({ id: t.id, status: v })}>
-                        <SelectTrigger className="h-7 w-32 text-xs"><SelectValue /></SelectTrigger>
+              <div
+                key={t.id}
+                className={`flex items-start gap-3 rounded-xl border p-4 transition-all ${
+                  t.status === "done" ? "opacity-60 bg-muted/20" : overdue ? "border-destructive/40 bg-destructive/5" : "hover:shadow-sm hover:border-primary/20"
+                }`}
+              >
+                <Checkbox
+                  checked={t.status === "done"}
+                  onCheckedChange={(v) => toggle.mutate({ id: t.id, status: v ? "done" : "todo" })}
+                  className="mt-0.5 h-5 w-5 rounded-full"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`font-medium ${t.status === "done" ? "line-through text-muted-foreground" : ""}`}>{t.title}</span>
+                    <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border ${pm.bg} ${pm.color}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${pm.icon}`} /> {pm.label}
+                    </span>
+                  </div>
+                  {t.description && <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{t.description}</p>}
+                  <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-muted-foreground">
+                    {t.due_at && (
+                      <span className={`inline-flex items-center gap-1 ${overdue ? "text-destructive font-medium" : ""}`}>
+                        <Clock className="h-3 w-3" />
+                        {overdue ? "Overdue — " : ""}
+                        {format(new Date(t.due_at), "MMM d")} at {format(new Date(t.due_at), "h:mm a")}
+                      </span>
+                    )}
+                    {ownerName && (
+                      <span className="inline-flex items-center gap-1">
+                        <UserCircle2 className="h-3 w-3" /> {ownerName}
+                      </span>
+                    )}
+                    <Select value={t.status} onValueChange={(v) => toggle.mutate({ id: t.id, status: v })}>
+                      <SelectTrigger className="h-6 w-28 text-[11px] border-dashed"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todo">To do</SelectItem>
+                        <SelectItem value="in_progress">In progress</SelectItem>
+                        <SelectItem value="done">Done</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {isAdmin && (
+                      <Select value={t.owner_id ?? ""} onValueChange={(v) => reassign.mutate({ id: t.id, owner_id: v })}>
+                        <SelectTrigger className="h-6 w-32 text-[11px] border-dashed">
+                          <SelectValue placeholder="Assign..." />
+                        </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="todo">To do</SelectItem>
-                          <SelectItem value="in_progress">In progress</SelectItem>
-                          <SelectItem value="done">Done</SelectItem>
+                          {(team as any[]).map((m) => (
+                            <SelectItem key={m.id} value={m.id}>{m.full_name || m.email}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
-                      {isAdmin && (
-                        <Select value={t.owner_id ?? ""} onValueChange={(v) => reassign.mutate({ id: t.id, owner_id: v })}>
-                          <SelectTrigger className="h-7 w-40 text-xs">
-                            <SelectValue placeholder="Assign to…" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {(team as any[]).map((m) => (
-                              <SelectItem key={m.id} value={m.id}>{m.full_name || m.email || "User"}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </div>
+                    )}
                   </div>
-                  {isAdmin && (
-                    <Button size="icon" variant="ghost" onClick={() => del.mutate(t.id)} title="Delete task (admin only)">
-                      <Trash2 className="h-4 w-4 text-muted-foreground" />
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
+                </div>
+                {(isAdmin || t.owner_id === user?.id || t.created_by === user?.id) && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                    onClick={() => {
+                      if (window.confirm("Delete this task?")) del.mutate(t.id);
+                    }}
+                    title="Delete task"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
             );
           })}
         </div>
       )}
+
+      {/* New Task Dialog */}
+      <NewTaskDialog open={open} onClose={() => setOpen(false)} userId={user?.id ?? null} team={team as any[]} />
     </div>
   );
 }
 
-function NewTaskDialog({ onClose, userId }: { onClose: () => void; userId: string | null }) {
+function NewTaskDialog({ open, onClose, userId, team }: { open: boolean; onClose: () => void; userId: string | null; team: any[] }) {
   const qc = useQueryClient();
   const { isAdmin } = useAuth();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState("medium");
-  const [dueAt, setDueAt] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [dueTime, setDueTime] = useState("09:00");
   const [owner, setOwner] = useState(userId ?? "");
 
-  const { data: team = [] } = useQuery({
-    queryKey: ["team-members"],
-    queryFn: async () => {
-      const { data } = await supabase.from("profiles").select("id, full_name, email").order("full_name", { ascending: true });
-      return data ?? [];
-    },
-  });
+  const reset = () => { setTitle(""); setDescription(""); setPriority("medium"); setDueDate(""); setDueTime("09:00"); setOwner(userId ?? ""); };
 
   const create = useMutation({
     mutationFn: async () => {
+      if (!title.trim()) throw new Error("Title is required");
+      const dueAt = dueDate ? new Date(`${dueDate}T${dueTime || "09:00"}:00`).toISOString() : null;
       const { error } = await supabase.from("tasks").insert({
-        title, description: description || null,
-        priority: priority as never, status: "todo" as never,
-        due_at: dueAt ? new Date(dueAt).toISOString() : null,
-        owner_id: owner || userId, created_by: userId,
+        title: title.trim(),
+        description: description.trim() || null,
+        priority: priority as never,
+        status: "todo" as never,
+        due_at: dueAt,
+        owner_id: owner || userId,
+        created_by: userId,
       });
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tasks"] });
+      qc.invalidateQueries({ queryKey: ["calendar-tasks"] });
       toast.success("Task created");
+      reset();
       onClose();
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   return (
-    <DialogContent>
-      <DialogHeader><DialogTitle>New task</DialogTitle></DialogHeader>
-      <div className="space-y-3">
-        <div>
-          <label className="text-sm font-medium">Title</label>
-          <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Follow up with Acme" />
-        </div>
-        <div>
-          <label className="text-sm font-medium">Description</label>
-          <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
-        </div>
-        {isAdmin && (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-lg bg-primary/10 grid place-items-center">
+              <Plus className="h-4 w-4 text-primary" />
+            </div>
+            Create New Task
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 pt-2">
           <div>
-            <label className="text-sm font-medium">Assign to</label>
-            <Select value={owner} onValueChange={setOwner}>
-              <SelectTrigger><SelectValue placeholder="Choose team member" /></SelectTrigger>
-              <SelectContent>
-                {(team as any[]).map((m) => (
-                  <SelectItem key={m.id} value={m.id}>{m.full_name || m.email || "User"}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">What needs to be done?</Label>
+            <Input
+              autoFocus
+              className="mt-1.5 text-base"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. Follow up with Sudip on proposal"
+            />
           </div>
-        )}
-        <div className="grid grid-cols-2 gap-3">
+
           <div>
-            <label className="text-sm font-medium">Priority</label>
-            <Select value={priority} onValueChange={setPriority}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="high">High — remind every 30 min</SelectItem>
-                <SelectItem value="medium">Medium — remind hourly</SelectItem>
-                <SelectItem value="low">Low — remind daily</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Details (optional)</Label>
+            <Textarea
+              className="mt-1.5 resize-none"
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Add notes, context, or links..."
+            />
           </div>
-          <div>
-            <label className="text-sm font-medium">Due</label>
-            <Input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
+
+          {isAdmin && (
+            <div>
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Assign to</Label>
+              <Select value={owner} onValueChange={setOwner}>
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue placeholder="Choose team member" />
+                </SelectTrigger>
+                <SelectContent>
+                  {team.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      <span className="flex items-center gap-2">
+                        <UserCircle2 className="h-4 w-4 text-muted-foreground" />
+                        {m.full_name || m.email}
+                        {m.id === userId && <Badge variant="secondary" className="ml-1 text-[10px]">you</Badge>}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Priority</Label>
+              <Select value={priority} onValueChange={setPriority}>
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(PRIORITY_META).map(([key, meta]) => (
+                    <SelectItem key={key} value={key}>
+                      <span className="flex items-center gap-2">
+                        <span className={`h-2 w-2 rounded-full ${meta.icon}`} />
+                        {meta.label}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Due date</Label>
+              <Input
+                type="date"
+                className="mt-1.5"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Time</Label>
+              <Input
+                type="time"
+                className="mt-1.5"
+                value={dueTime}
+                onChange={(e) => setDueTime(e.target.value)}
+              />
+            </div>
           </div>
         </div>
-      </div>
-      <DialogFooter>
-        <Button variant="outline" onClick={onClose}>Cancel</Button>
-        <Button disabled={!title || create.isPending} onClick={() => create.mutate()}>Create</Button>
-      </DialogFooter>
-    </DialogContent>
+
+        <DialogFooter className="pt-4 border-t mt-4">
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button
+            disabled={!title.trim() || create.isPending}
+            onClick={() => create.mutate()}
+            className="min-w-[100px]"
+          >
+            {create.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create Task"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
