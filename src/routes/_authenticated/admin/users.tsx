@@ -125,6 +125,15 @@ function AdminUsersPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const deptM = useMutation({
+    mutationFn: async (v: { user_id: string; department: string }) => {
+      const { error } = await supabase.from("profiles").update({ department: v.department }).eq("id", v.user_id);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => { toast.success("Department updated"); qc.invalidateQueries({ queryKey: ["admin-team-users"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const resetM = useMutation({
     mutationFn: async (email: string) => {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -232,7 +241,18 @@ function AdminUsersPage() {
                 <tr key={u.id} className="border-t">
                   <td className="px-4 py-2">{u.full_name ?? "—"}</td>
                   <td className="px-4 py-2 text-muted-foreground">{u.email}</td>
-                  <td className="px-4 py-2">{u.department ?? "—"}</td>
+                  <td className="px-4 py-2">
+                    <Input
+                      className="h-8 w-[130px] text-xs"
+                      placeholder="Set dept…"
+                      defaultValue={u.department ?? ""}
+                      onBlur={(e) => {
+                        const val = e.target.value.trim();
+                        if (val !== (u.department ?? "").trim()) deptM.mutate({ user_id: u.id, department: val });
+                      }}
+                      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                    />
+                  </td>
                   <td className="px-4 py-2">{(u.roles ?? []).join(", ") || "—"}</td>
                   <td className="px-4 py-2">
                     {isProtected ? (
