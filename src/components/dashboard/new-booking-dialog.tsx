@@ -139,6 +139,14 @@ export function NewBookingDialog() {
   const profit = +(total - spPay - addOnPay).toFixed(2);
   const month = useMemo(() => salesMonth(f.date), [f.date]);
 
+  // Field validation (email format + phone must be at least 10 digits, so a
+  // "+91" prefix is fine). Empty optional fields are allowed.
+  const digitsOnly = (v: string) => v.replace(/\D/g, "");
+  const emailOk = !f.email_id.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email_id.trim());
+  const contactOk = digitsOnly(f.contact_no).length >= 10;
+  const altOk = !f.alt_contact_no.trim() || digitsOnly(f.alt_contact_no).length >= 10;
+  const alt2Ok = !f.alt_contact_no_2.trim() || digitsOnly(f.alt_contact_no_2).length >= 10;
+
   // Partial payment computed
   const isPartial = f.payment_type === "partial";
   const amountReceived = isPartial ? num(f.amount_received) : afterTds;
@@ -203,10 +211,16 @@ export function NewBookingDialog() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const T = (k: keyof typeof f, label: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
+  const T = (k: keyof typeof f, label: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}, err?: string) => (
     <div>
       <Label className="text-xs">{label}</Label>
-      <Input value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} {...props} />
+      <Input
+        value={f[k]}
+        onChange={(e) => setF({ ...f, [k]: e.target.value })}
+        {...props}
+        className={`${(props.className as string) ?? ""} ${err ? "border-destructive focus-visible:ring-destructive" : ""}`.trim() || undefined}
+      />
+      {err && <p className="text-[11px] text-destructive mt-0.5">{err}</p>}
     </div>
   );
 
@@ -338,11 +352,11 @@ export function NewBookingDialog() {
           {T("business_name", "Business Name")}
           {T("client_name", "Client Name *")}
 
-          {T("email_id", "Email Id", { type: "email" })}
-          {T("contact_no", "Contact No. *", { inputMode: "tel" })}
-          {T("alt_contact_no", "Alternative Contact No.", { inputMode: "tel" })}
+          {T("email_id", "Email Id", { type: "email" }, f.email_id.trim() && !emailOk ? "Enter a valid email" : undefined)}
+          {T("contact_no", "Contact No. *", { inputMode: "tel" }, f.contact_no.trim() && !contactOk ? "At least 10 digits" : undefined)}
+          {T("alt_contact_no", "Alternative Contact No.", { inputMode: "tel" }, !altOk ? "At least 10 digits" : undefined)}
 
-          {T("alt_contact_no_2", "Alternative Contact No. 2", { inputMode: "tel" })}
+          {T("alt_contact_no_2", "Alternative Contact No. 2", { inputMode: "tel" }, !alt2Ok ? "At least 10 digits" : undefined)}
           <div><Label className="text-xs">Sales Month (auto)</Label><Input value={month} readOnly className="bg-muted/40" /></div>
         </div>
 
@@ -383,7 +397,7 @@ export function NewBookingDialog() {
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
           <Button
-            disabled={submit.isPending || !f.client_name || !f.contact_no || !f.plan_name || !f.vo_amount || (isPartial && (!f.amount_received || !f.balance_due_date))}
+            disabled={submit.isPending || !f.client_name || !f.contact_no || !f.plan_name || !f.vo_amount || !emailOk || !contactOk || !altOk || !alt2Ok || (isPartial && (!f.amount_received || !f.balance_due_date))}
             onClick={() => submit.mutate()}
           >
             {submit.isPending ? "Saving…" : "Save Booking"}
