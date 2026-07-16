@@ -48,7 +48,7 @@ function LeadsListPage() {
   const [open, setOpen] = useState(false);
   const search = Route.useSearch();
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const qc = useQueryClient();
   const [q, setQ] = useState(search.q ?? "");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -159,7 +159,7 @@ function LeadsListPage() {
       toast.success(`Moved ${selected.size} lead(s)`);
       // Trigger stage reminders for each lead that has an email.
       if (user && stage) {
-        const leadsForReminder = (leads ?? []).filter((l) => selectedIds.includes(l.id) && l.email);
+        const leadsForReminder = rows.filter((l) => selectedIds.includes(l.id) && l.email);
         for (const l of leadsForReminder) {
           triggerStageReminder({ leadId: l.id, newStage: stage, clientName: l.client_name, clientEmail: l.email, userId: user.id });
         }

@@ -23,7 +23,7 @@ const fmtINR = (n: number) => `₹${(n ?? 0).toLocaleString("en-IN", { maximumFr
 export function BookingDetailDialog({ booking, open, onOpenChange }: { booking: any | null; open: boolean; onOpenChange: (v: boolean) => void }) {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const bookingId = booking?.id as string | undefined;
+  const bookingId = (booking?.id ?? "") as string;
 
   const [f, setF] = useState<any>({});
   useEffect(() => {

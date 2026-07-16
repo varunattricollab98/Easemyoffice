@@ -35,12 +35,257 @@ export type Database = {
         }
         Relationships: []
       }
+      booking_payments: {
+        Row: {
+          amount: number
+          booking_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          mode: string | null
+          note: string | null
+          paid_at: string
+          payment_link: string | null
+          reference: string | null
+        }
+        Insert: {
+          amount?: number
+          booking_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          mode?: string | null
+          note?: string | null
+          paid_at?: string
+          payment_link?: string | null
+          reference?: string | null
+        }
+        Update: {
+          amount?: number
+          booking_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          mode?: string | null
+          note?: string | null
+          paid_at?: string
+          payment_link?: string | null
+          reference?: string | null
+        }
+        Relationships: []
+      }
+      booking_updates: {
+        Row: {
+          action: string
+          actor_id: string | null
+          booking_id: string
+          created_at: string
+          detail: string | null
+          id: string
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          booking_id: string
+          created_at?: string
+          detail?: string | null
+          id?: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          booking_id?: string
+          created_at?: string
+          detail?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
+      crm_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value?: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
+      }
+      email_snippets: {
+        Row: {
+          body_html: string
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          subject: string | null
+          updated_at: string
+        }
+        Insert: {
+          body_html?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Update: {
+          body_html?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          id: string
+          lead_id: string | null
+          read: boolean
+          task_id: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          lead_id?: string | null
+          read?: boolean
+          task_id?: string | null
+          title: string
+          type?: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          lead_id?: string | null
+          read?: boolean
+          task_id?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      reminders: {
+        Row: {
+          assigned_to: string | null
+          attachments: Json
+          booking_id: string | null
+          client_name: string | null
+          created_at: string
+          created_by: string | null
+          error: string | null
+          id: string
+          is_html: boolean
+          lead_id: string | null
+          message: string
+          occurrences_sent: number
+          repeat_interval_days: number
+          repeat_until: string | null
+          send_at: string
+          sent_at: string | null
+          status: string
+          subject: string
+          to_email: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          attachments?: Json
+          booking_id?: string | null
+          client_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          id?: string
+          is_html?: boolean
+          lead_id?: string | null
+          message: string
+          occurrences_sent?: number
+          repeat_interval_days?: number
+          repeat_until?: string | null
+          send_at: string
+          sent_at?: string | null
+          status?: string
+          subject: string
+          to_email: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          attachments?: Json
+          booking_id?: string | null
+          client_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          id?: string
+          is_html?: boolean
+          lead_id?: string | null
+          message?: string
+          occurrences_sent?: number
+          repeat_interval_days?: number
+          repeat_until?: string | null
+          send_at?: string
+          sent_at?: string | null
+          status?: string
+          subject?: string
+          to_email?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_targets: {
+        Row: {
+          bookings: number
+          profit: number
+          updated_at: string
+          updated_by: string | null
+          user_id: string
+        }
+        Insert: {
+          bookings?: number
+          profit?: number
+          updated_at?: string
+          updated_by?: string | null
+          user_id: string
+        }
+        Update: {
+          bookings?: number
+          profit?: number
+          updated_at?: string
+          updated_by?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       bookings: {
         Row: {
           addon_amount: number
           addon_gst: number
           addon_payable: number
           addon_services: string | null
+          alt_contact_no: string | null
+          alt_contact_no_2: string | null
           amount_after_tds: number
           amount_received: number
           area: string | null
@@ -57,11 +302,13 @@ export type Database = {
           contact_no: string
           created_at: string
           created_by: string | null
+          discount_amount: number
           email_id: string | null
           external_booking_id: string | null
           id: string
           invoice_number: string | null
           last_reminder_sent_at: string | null
+          quoted_amount: number
           payment_id_utr: string | null
           payment_mode_ref: string | null
           plan_name: string
@@ -89,6 +336,8 @@ export type Database = {
           addon_gst?: number
           addon_payable?: number
           addon_services?: string | null
+          alt_contact_no?: string | null
+          alt_contact_no_2?: string | null
           amount_after_tds?: number
           amount_received?: number
           area?: string | null
@@ -105,11 +354,13 @@ export type Database = {
           contact_no: string
           created_at?: string
           created_by?: string | null
+          discount_amount?: number
           email_id?: string | null
           external_booking_id?: string | null
           id?: string
           invoice_number?: string | null
           last_reminder_sent_at?: string | null
+          quoted_amount?: number
           payment_id_utr?: string | null
           payment_mode_ref?: string | null
           plan_name: string
@@ -137,6 +388,8 @@ export type Database = {
           addon_gst?: number
           addon_payable?: number
           addon_services?: string | null
+          alt_contact_no?: string | null
+          alt_contact_no_2?: string | null
           amount_after_tds?: number
           amount_received?: number
           area?: string | null
@@ -153,11 +406,13 @@ export type Database = {
           contact_no?: string
           created_at?: string
           created_by?: string | null
+          discount_amount?: number
           email_id?: string | null
           external_booking_id?: string | null
           id?: string
           invoice_number?: string | null
           last_reminder_sent_at?: string | null
+          quoted_amount?: number
           payment_id_utr?: string | null
           payment_mode_ref?: string | null
           plan_name?: string
@@ -312,8 +567,23 @@ export type Database = {
       leads: {
         Row: {
           alt_mobile: string | null
+          assigned_agent: string | null
           assigned_to: string | null
           budget: number | null
+          call_outcome: string | null
+          converted_date: string | null
+          external_lead_id: string | null
+          follow_up_3: string | null
+          last_follow_up: string | null
+          last_synced: string | null
+          latest_remark: string | null
+          lead_outcome: string | null
+          lead_status: string | null
+          lost_reason: string | null
+          next_follow_up: string | null
+          received_date: string | null
+          remark_updated_on: string | null
+          revenue: number | null
           city: string | null
           client_name: string
           company_name: string | null
@@ -337,8 +607,23 @@ export type Database = {
         }
         Insert: {
           alt_mobile?: string | null
+          assigned_agent?: string | null
           assigned_to?: string | null
           budget?: number | null
+          call_outcome?: string | null
+          converted_date?: string | null
+          external_lead_id?: string | null
+          follow_up_3?: string | null
+          last_follow_up?: string | null
+          last_synced?: string | null
+          latest_remark?: string | null
+          lead_outcome?: string | null
+          lead_status?: string | null
+          lost_reason?: string | null
+          next_follow_up?: string | null
+          received_date?: string | null
+          remark_updated_on?: string | null
+          revenue?: number | null
           city?: string | null
           client_name: string
           company_name?: string | null
@@ -362,8 +647,23 @@ export type Database = {
         }
         Update: {
           alt_mobile?: string | null
+          assigned_agent?: string | null
           assigned_to?: string | null
           budget?: number | null
+          call_outcome?: string | null
+          converted_date?: string | null
+          external_lead_id?: string | null
+          follow_up_3?: string | null
+          last_follow_up?: string | null
+          last_synced?: string | null
+          latest_remark?: string | null
+          lead_outcome?: string | null
+          lead_status?: string | null
+          lost_reason?: string | null
+          next_follow_up?: string | null
+          received_date?: string | null
+          remark_updated_on?: string | null
+          revenue?: number | null
           city?: string | null
           client_name?: string
           company_name?: string | null
@@ -497,6 +797,7 @@ export type Database = {
           due_at: string | null
           id: string
           lead_id: string | null
+          last_reminded_at: string | null
           owner_id: string | null
           priority: Database["public"]["Enums"]["task_priority"]
           status: Database["public"]["Enums"]["task_status"]
@@ -510,6 +811,7 @@ export type Database = {
           due_at?: string | null
           id?: string
           lead_id?: string | null
+          last_reminded_at?: string | null
           owner_id?: string | null
           priority?: Database["public"]["Enums"]["task_priority"]
           status?: Database["public"]["Enums"]["task_status"]
@@ -523,6 +825,7 @@ export type Database = {
           due_at?: string | null
           id?: string
           lead_id?: string | null
+          last_reminded_at?: string | null
           owner_id?: string | null
           priority?: Database["public"]["Enums"]["task_priority"]
           status?: Database["public"]["Enums"]["task_status"]
@@ -584,6 +887,16 @@ export type Database = {
     }
     Functions: {
       clear_demo_data: { Args: never; Returns: undefined }
+      find_duplicate_lead: {
+        Args: { p_mobile: string; p_email: string }
+        Returns: {
+          id: string
+          lead_code: string
+          client_name: string
+          owner_name: string
+          mine: boolean
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

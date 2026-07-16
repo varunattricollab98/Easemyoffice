@@ -20,10 +20,12 @@ import { Route as AuthenticatedTasksRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated/reports'
 import { Route as AuthenticatedRenewalsRouteImport } from './routes/_authenticated/renewals'
+import { Route as AuthenticatedRemindersRouteImport } from './routes/_authenticated/reminders'
 import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
 import { Route as AuthenticatedPaymentsRouteImport } from './routes/_authenticated/payments'
 import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
 import { Route as AuthenticatedInvoicesRouteImport } from './routes/_authenticated/invoices'
+import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated/inbox'
 import { Route as AuthenticatedFollowUpsRouteImport } from './routes/_authenticated/follow-ups'
 import { Route as AuthenticatedDocumentsRouteImport } from './routes/_authenticated/documents'
 import { Route as AuthenticatedDocumentationRouteImport } from './routes/_authenticated/documentation'
@@ -34,9 +36,12 @@ import { Route as AuthenticatedBookingsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedActivityRouteImport } from './routes/_authenticated/activity'
 import { Route as AuthenticatedLeadsIndexRouteImport } from './routes/_authenticated/leads/index'
 import { Route as AuthenticatedLeadsNewRouteImport } from './routes/_authenticated/leads/new'
+import { Route as AuthenticatedLeadsImportRouteImport } from './routes/_authenticated/leads/import'
 import { Route as AuthenticatedLeadsIdRouteImport } from './routes/_authenticated/leads/$id'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
+import { Route as AuthenticatedAdminSalesPerformanceRouteImport } from './routes/_authenticated/admin/sales-performance'
 import { Route as AuthenticatedAdminKpiReportRouteImport } from './routes/_authenticated/admin/kpi-report'
+import { Route as AuthenticatedAdminEmailAutomationRouteImport } from './routes/_authenticated/admin/email-automation'
 import { Route as AuthenticatedAdminAnalyticsRouteImport } from './routes/_authenticated/admin/analytics'
 import { Route as ApiPublicHooksBalanceRemindersRouteImport } from './routes/api/public/hooks/balance-reminders'
 
@@ -94,6 +99,11 @@ const AuthenticatedRenewalsRoute = AuthenticatedRenewalsRouteImport.update({
   path: '/renewals',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedRemindersRoute = AuthenticatedRemindersRouteImport.update({
+  id: '/reminders',
+  path: '/reminders',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedPipelineRoute = AuthenticatedPipelineRouteImport.update({
   id: '/pipeline',
   path: '/pipeline',
@@ -113,6 +123,11 @@ const AuthenticatedNotificationsRoute =
 const AuthenticatedInvoicesRoute = AuthenticatedInvoicesRouteImport.update({
   id: '/invoices',
   path: '/invoices',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedInboxRoute = AuthenticatedInboxRouteImport.update({
+  id: '/inbox',
+  path: '/inbox',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedFollowUpsRoute = AuthenticatedFollowUpsRouteImport.update({
@@ -166,6 +181,12 @@ const AuthenticatedLeadsNewRoute = AuthenticatedLeadsNewRouteImport.update({
   path: '/leads/new',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedLeadsImportRoute =
+  AuthenticatedLeadsImportRouteImport.update({
+    id: '/leads/import',
+    path: '/leads/import',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedLeadsIdRoute = AuthenticatedLeadsIdRouteImport.update({
   id: '/leads/$id',
   path: '/leads/$id',
@@ -176,10 +197,22 @@ const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   path: '/admin/users',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedAdminSalesPerformanceRoute =
+  AuthenticatedAdminSalesPerformanceRouteImport.update({
+    id: '/admin/sales-performance',
+    path: '/admin/sales-performance',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAdminKpiReportRoute =
   AuthenticatedAdminKpiReportRouteImport.update({
     id: '/admin/kpi-report',
     path: '/admin/kpi-report',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminEmailAutomationRoute =
+  AuthenticatedAdminEmailAutomationRouteImport.update({
+    id: '/admin/email-automation',
+    path: '/admin/email-automation',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedAdminAnalyticsRoute =
@@ -209,19 +242,24 @@ export interface FileRoutesByFullPath {
   '/documentation': typeof AuthenticatedDocumentationRoute
   '/documents': typeof AuthenticatedDocumentsRoute
   '/follow-ups': typeof AuthenticatedFollowUpsRoute
+  '/inbox': typeof AuthenticatedInboxRoute
   '/invoices': typeof AuthenticatedInvoicesRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/payments': typeof AuthenticatedPaymentsRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
+  '/reminders': typeof AuthenticatedRemindersRoute
   '/renewals': typeof AuthenticatedRenewalsRoute
   '/reports': typeof AuthenticatedReportsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/tasks': typeof AuthenticatedTasksRoute
   '/team': typeof AuthenticatedTeamRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
+  '/admin/email-automation': typeof AuthenticatedAdminEmailAutomationRoute
   '/admin/kpi-report': typeof AuthenticatedAdminKpiReportRoute
+  '/admin/sales-performance': typeof AuthenticatedAdminSalesPerformanceRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
+  '/leads/import': typeof AuthenticatedLeadsImportRoute
   '/leads/new': typeof AuthenticatedLeadsNewRoute
   '/leads/': typeof AuthenticatedLeadsIndexRoute
   '/api/public/hooks/balance-reminders': typeof ApiPublicHooksBalanceRemindersRoute
@@ -240,19 +278,24 @@ export interface FileRoutesByTo {
   '/documentation': typeof AuthenticatedDocumentationRoute
   '/documents': typeof AuthenticatedDocumentsRoute
   '/follow-ups': typeof AuthenticatedFollowUpsRoute
+  '/inbox': typeof AuthenticatedInboxRoute
   '/invoices': typeof AuthenticatedInvoicesRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/payments': typeof AuthenticatedPaymentsRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
+  '/reminders': typeof AuthenticatedRemindersRoute
   '/renewals': typeof AuthenticatedRenewalsRoute
   '/reports': typeof AuthenticatedReportsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/tasks': typeof AuthenticatedTasksRoute
   '/team': typeof AuthenticatedTeamRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
+  '/admin/email-automation': typeof AuthenticatedAdminEmailAutomationRoute
   '/admin/kpi-report': typeof AuthenticatedAdminKpiReportRoute
+  '/admin/sales-performance': typeof AuthenticatedAdminSalesPerformanceRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
+  '/leads/import': typeof AuthenticatedLeadsImportRoute
   '/leads/new': typeof AuthenticatedLeadsNewRoute
   '/leads': typeof AuthenticatedLeadsIndexRoute
   '/api/public/hooks/balance-reminders': typeof ApiPublicHooksBalanceRemindersRoute
@@ -273,19 +316,24 @@ export interface FileRoutesById {
   '/_authenticated/documentation': typeof AuthenticatedDocumentationRoute
   '/_authenticated/documents': typeof AuthenticatedDocumentsRoute
   '/_authenticated/follow-ups': typeof AuthenticatedFollowUpsRoute
+  '/_authenticated/inbox': typeof AuthenticatedInboxRoute
   '/_authenticated/invoices': typeof AuthenticatedInvoicesRoute
   '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
   '/_authenticated/payments': typeof AuthenticatedPaymentsRoute
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
+  '/_authenticated/reminders': typeof AuthenticatedRemindersRoute
   '/_authenticated/renewals': typeof AuthenticatedRenewalsRoute
   '/_authenticated/reports': typeof AuthenticatedReportsRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/tasks': typeof AuthenticatedTasksRoute
   '/_authenticated/team': typeof AuthenticatedTeamRoute
   '/_authenticated/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
+  '/_authenticated/admin/email-automation': typeof AuthenticatedAdminEmailAutomationRoute
   '/_authenticated/admin/kpi-report': typeof AuthenticatedAdminKpiReportRoute
+  '/_authenticated/admin/sales-performance': typeof AuthenticatedAdminSalesPerformanceRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/leads/$id': typeof AuthenticatedLeadsIdRoute
+  '/_authenticated/leads/import': typeof AuthenticatedLeadsImportRoute
   '/_authenticated/leads/new': typeof AuthenticatedLeadsNewRoute
   '/_authenticated/leads/': typeof AuthenticatedLeadsIndexRoute
   '/api/public/hooks/balance-reminders': typeof ApiPublicHooksBalanceRemindersRoute
@@ -306,19 +354,24 @@ export interface FileRouteTypes {
     | '/documentation'
     | '/documents'
     | '/follow-ups'
+    | '/inbox'
     | '/invoices'
     | '/notifications'
     | '/payments'
     | '/pipeline'
+    | '/reminders'
     | '/renewals'
     | '/reports'
     | '/settings'
     | '/tasks'
     | '/team'
     | '/admin/analytics'
+    | '/admin/email-automation'
     | '/admin/kpi-report'
+    | '/admin/sales-performance'
     | '/admin/users'
     | '/leads/$id'
+    | '/leads/import'
     | '/leads/new'
     | '/leads/'
     | '/api/public/hooks/balance-reminders'
@@ -337,19 +390,24 @@ export interface FileRouteTypes {
     | '/documentation'
     | '/documents'
     | '/follow-ups'
+    | '/inbox'
     | '/invoices'
     | '/notifications'
     | '/payments'
     | '/pipeline'
+    | '/reminders'
     | '/renewals'
     | '/reports'
     | '/settings'
     | '/tasks'
     | '/team'
     | '/admin/analytics'
+    | '/admin/email-automation'
     | '/admin/kpi-report'
+    | '/admin/sales-performance'
     | '/admin/users'
     | '/leads/$id'
+    | '/leads/import'
     | '/leads/new'
     | '/leads'
     | '/api/public/hooks/balance-reminders'
@@ -369,19 +427,24 @@ export interface FileRouteTypes {
     | '/_authenticated/documentation'
     | '/_authenticated/documents'
     | '/_authenticated/follow-ups'
+    | '/_authenticated/inbox'
     | '/_authenticated/invoices'
     | '/_authenticated/notifications'
     | '/_authenticated/payments'
     | '/_authenticated/pipeline'
+    | '/_authenticated/reminders'
     | '/_authenticated/renewals'
     | '/_authenticated/reports'
     | '/_authenticated/settings'
     | '/_authenticated/tasks'
     | '/_authenticated/team'
     | '/_authenticated/admin/analytics'
+    | '/_authenticated/admin/email-automation'
     | '/_authenticated/admin/kpi-report'
+    | '/_authenticated/admin/sales-performance'
     | '/_authenticated/admin/users'
     | '/_authenticated/leads/$id'
+    | '/_authenticated/leads/import'
     | '/_authenticated/leads/new'
     | '/_authenticated/leads/'
     | '/api/public/hooks/balance-reminders'
@@ -476,6 +539,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRenewalsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/reminders': {
+      id: '/_authenticated/reminders'
+      path: '/reminders'
+      fullPath: '/reminders'
+      preLoaderRoute: typeof AuthenticatedRemindersRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/pipeline': {
       id: '/_authenticated/pipeline'
       path: '/pipeline'
@@ -502,6 +572,13 @@ declare module '@tanstack/react-router' {
       path: '/invoices'
       fullPath: '/invoices'
       preLoaderRoute: typeof AuthenticatedInvoicesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/inbox': {
+      id: '/_authenticated/inbox'
+      path: '/inbox'
+      fullPath: '/inbox'
+      preLoaderRoute: typeof AuthenticatedInboxRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/follow-ups': {
@@ -574,6 +651,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedLeadsNewRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/leads/import': {
+      id: '/_authenticated/leads/import'
+      path: '/leads/import'
+      fullPath: '/leads/import'
+      preLoaderRoute: typeof AuthenticatedLeadsImportRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/leads/$id': {
       id: '/_authenticated/leads/$id'
       path: '/leads/$id'
@@ -588,11 +672,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminUsersRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/admin/sales-performance': {
+      id: '/_authenticated/admin/sales-performance'
+      path: '/admin/sales-performance'
+      fullPath: '/admin/sales-performance'
+      preLoaderRoute: typeof AuthenticatedAdminSalesPerformanceRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/admin/kpi-report': {
       id: '/_authenticated/admin/kpi-report'
       path: '/admin/kpi-report'
       fullPath: '/admin/kpi-report'
       preLoaderRoute: typeof AuthenticatedAdminKpiReportRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/email-automation': {
+      id: '/_authenticated/admin/email-automation'
+      path: '/admin/email-automation'
+      fullPath: '/admin/email-automation'
+      preLoaderRoute: typeof AuthenticatedAdminEmailAutomationRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin/analytics': {
@@ -621,19 +719,24 @@ interface AuthenticatedRouteChildren {
   AuthenticatedDocumentationRoute: typeof AuthenticatedDocumentationRoute
   AuthenticatedDocumentsRoute: typeof AuthenticatedDocumentsRoute
   AuthenticatedFollowUpsRoute: typeof AuthenticatedFollowUpsRoute
+  AuthenticatedInboxRoute: typeof AuthenticatedInboxRoute
   AuthenticatedInvoicesRoute: typeof AuthenticatedInvoicesRoute
   AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
   AuthenticatedPaymentsRoute: typeof AuthenticatedPaymentsRoute
   AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
+  AuthenticatedRemindersRoute: typeof AuthenticatedRemindersRoute
   AuthenticatedRenewalsRoute: typeof AuthenticatedRenewalsRoute
   AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedTasksRoute: typeof AuthenticatedTasksRoute
   AuthenticatedTeamRoute: typeof AuthenticatedTeamRoute
   AuthenticatedAdminAnalyticsRoute: typeof AuthenticatedAdminAnalyticsRoute
+  AuthenticatedAdminEmailAutomationRoute: typeof AuthenticatedAdminEmailAutomationRoute
   AuthenticatedAdminKpiReportRoute: typeof AuthenticatedAdminKpiReportRoute
+  AuthenticatedAdminSalesPerformanceRoute: typeof AuthenticatedAdminSalesPerformanceRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedLeadsIdRoute: typeof AuthenticatedLeadsIdRoute
+  AuthenticatedLeadsImportRoute: typeof AuthenticatedLeadsImportRoute
   AuthenticatedLeadsNewRoute: typeof AuthenticatedLeadsNewRoute
   AuthenticatedLeadsIndexRoute: typeof AuthenticatedLeadsIndexRoute
 }
@@ -647,19 +750,26 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDocumentationRoute: AuthenticatedDocumentationRoute,
   AuthenticatedDocumentsRoute: AuthenticatedDocumentsRoute,
   AuthenticatedFollowUpsRoute: AuthenticatedFollowUpsRoute,
+  AuthenticatedInboxRoute: AuthenticatedInboxRoute,
   AuthenticatedInvoicesRoute: AuthenticatedInvoicesRoute,
   AuthenticatedNotificationsRoute: AuthenticatedNotificationsRoute,
   AuthenticatedPaymentsRoute: AuthenticatedPaymentsRoute,
   AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
+  AuthenticatedRemindersRoute: AuthenticatedRemindersRoute,
   AuthenticatedRenewalsRoute: AuthenticatedRenewalsRoute,
   AuthenticatedReportsRoute: AuthenticatedReportsRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedTasksRoute: AuthenticatedTasksRoute,
   AuthenticatedTeamRoute: AuthenticatedTeamRoute,
   AuthenticatedAdminAnalyticsRoute: AuthenticatedAdminAnalyticsRoute,
+  AuthenticatedAdminEmailAutomationRoute:
+    AuthenticatedAdminEmailAutomationRoute,
   AuthenticatedAdminKpiReportRoute: AuthenticatedAdminKpiReportRoute,
+  AuthenticatedAdminSalesPerformanceRoute:
+    AuthenticatedAdminSalesPerformanceRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedLeadsIdRoute: AuthenticatedLeadsIdRoute,
+  AuthenticatedLeadsImportRoute: AuthenticatedLeadsImportRoute,
   AuthenticatedLeadsNewRoute: AuthenticatedLeadsNewRoute,
   AuthenticatedLeadsIndexRoute: AuthenticatedLeadsIndexRoute,
 }

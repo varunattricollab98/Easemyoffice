@@ -132,7 +132,7 @@ function RemindersPage() {
     queryFn: async () => {
       const { data, error } = await supabase.from("reminders").select("*").order("send_at", { ascending: true }).limit(1000);
       if (error) throw new Error(error.message);
-      return (data ?? []) as Reminder[];
+      return (data ?? []) as unknown as Reminder[];
     },
   });
 
