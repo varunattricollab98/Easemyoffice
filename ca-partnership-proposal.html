@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EaseMyOffice — CA Partnership Proposal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #f0f4f8;
+  color: #1e293b;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  background: #ffffff;
+  box-shadow: 0 25px 80px rgba(0,0,0,0.08);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+/* === CONFIDENTIAL BAR === */
+.confidential-bar {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  padding: 14px 32px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.7);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+/* === HERO === */
+.hero {
+  background: linear-gradient(145deg, #0c1445 0%, #1e3a8a 40%, #2563eb 80%, #3b82f6 100%);
+  padding: 70px 64px 60px;
+  position: relative;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -30%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%);
+  border-radius: 50%;
+}
+.hero::after {
+  content: '';
+  position: absolute;
+  bottom: -40%;
+  left: -20%;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(59,130,246,0.1) 0%, transparent 70%);
+  border-radius: 50%;
+}
+.hero-badge {
+  display: inline-block;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #fbbf24;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 8px 18px;
+  border-radius: 50px;
+  margin-bottom: 28px;
+  backdrop-filter: blur(10px);
+}
+.hero h1 {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 46px;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.2;
+  margin-bottom: 18px;
+  position: relative;
+  z-index: 1;
+}
+.hero p {
+  font-size: 17px;
+  color: rgba(255,255,255,0.8);
+  line-height: 1.7;
+  max-width: 620px;
+  margin-bottom: 36px;
+  position: relative;
+  z-index: 1;
+}
+.hero-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  position: relative;
+  z-index: 1;
+}
+.hero-stat {
+  text-align: center;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  padding: 20px 12px;
+  backdrop-filter: blur(10px);
+}
+.hero-stat .icon { font-size: 20px; margin-bottom: 6px; }
+.hero-stat .label { font-size: 11px; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+.hero-stat .value { font-size: 15px; color: #ffffff; font-weight: 700; }
+
+/* === QUOTE META BAR === */
+.meta-bar {
+  background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%);
+  border-bottom: 1px solid #fde047;
+  padding: 14px 32px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #92400e;
+  letter-spacing: 0.5px;
+}
+
+/* === SECTION STYLES === */
+.section {
+  padding: 60px 64px;
+}
+.section-alt {
+  background: #f8fafc;
+}
+.section-dark {
+  background: linear-gradient(145deg, #0f172a 0%, #1e293b 100%);
+  color: #ffffff;
+}
+.section-blue {
+  background: linear-gradient(145deg, #1e3a8a 0%, #1e40af 50%, #2563eb 100%);
+  color: #ffffff;
+}
+.section-label {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #2563eb;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+}
+.section-label-light {
+  color: #93c5fd;
+}
+.section-label-gold {
+  color: #fbbf24;
+}
+.section-title {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 32px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.3;
+  margin-bottom: 8px;
+}
+.section-title-light {
+  color: #ffffff;
+}
+.section-subtitle {
+  font-size: 16px;
+  color: #64748b;
+  margin-bottom: 36px;
+  max-width: 680px;
+}
+.section-subtitle-light {
+  color: rgba(255,255,255,0.7);
+}
+
+/* === PERSONAL NOTE === */
+.personal-note {
+  padding: 52px 64px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.personal-note .greeting {
+  font-size: 20px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 16px;
+}
+.personal-note p {
+  font-size: 16px;
+  color: #475569;
+  line-height: 1.8;
+  margin-bottom: 14px;
+  max-width: 720px;
+}
+.highlight-box {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border-left: 4px solid #2563eb;
+  border-radius: 0 12px 12px 0;
+  padding: 16px 20px;
+  margin-top: 20px;
+  font-size: 14px;
+  color: #1e40af;
+  font-weight: 600;
+}
+
+/* === CHALLENGE CARDS === */
+.challenge-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.challenge-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 28px;
+  transition: all 0.3s ease;
+}
+.challenge-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+  transform: translateY(-2px);
+}
+.challenge-card .icon {
+  font-size: 28px;
+  margin-bottom: 12px;
+}
+.challenge-card h4 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 6px;
+}
+.challenge-card p {
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+/* === SOLUTION ITEMS === */
+.solution-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 20px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.solution-item:last-child { border-bottom: none; }
+.solution-icon {
+  width: 48px;
+  height: 48px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.solution-item h4 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+.solution-item p {
+  font-size: 14px;
+  color: rgba(255,255,255,0.65);
+  line-height: 1.6;
+}
+
+/* === STATS BAR === */
+.stats-section {
+  padding: 60px 64px;
+  background: #ffffff;
+  border-top: 1px solid #f1f5f9;
+  border-bottom: 1px solid #f1f5f9;
+}
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  text-align: center;
+  margin-bottom: 28px;
+}
+.stat-item .number {
+  font-size: 44px;
+  font-weight: 900;
+  background: linear-gradient(135deg, #1e40af, #2563eb);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1.1;
+}
+.stat-item .stat-label {
+  font-size: 11px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-weight: 600;
+  margin-top: 6px;
+}
+.insight-box {
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border: 1px solid #86efac;
+  border-radius: 12px;
+  padding: 18px 22px;
+  font-size: 13px;
+  color: #166534;
+  line-height: 1.6;
+}
+.insight-box strong { color: #14532d; }
+
+/* === STEPS === */
+.step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 24px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+.step-item:last-child { border-bottom: none; }
+.step-number {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #1e40af, #3b82f6);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: #ffffff;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(37,99,235,0.25);
+}
+.step-item h4 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 4px;
+}
+.step-item p {
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+/* === BENEFITS GRID === */
+.benefits-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+}
+.benefit-card {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  padding: 20px;
+  backdrop-filter: blur(10px);
+}
+.benefit-card .check {
+  color: #34d399;
+  font-weight: 700;
+  margin-right: 6px;
+}
+.benefit-card h4 {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+.benefit-card p {
+  font-size: 12px;
+  color: rgba(255,255,255,0.6);
+  line-height: 1.4;
+}
+
+/* === SERVICES TABLE === */
+.services-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+}
+.services-table thead th {
+  background: #f1f5f9;
+  padding: 14px 18px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: left;
+}
+.services-table tbody td {
+  padding: 16px 18px;
+  font-size: 14px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.services-table tbody tr:last-child td { border-bottom: none; }
+.services-table .service-name {
+  font-weight: 600;
+  color: #0f172a;
+}
+.services-table .service-desc {
+  color: #64748b;
+  font-size: 13px;
+}
+
+/* === CTA SECTION === */
+.cta-section {
+  background: linear-gradient(145deg, #0c1445 0%, #1e3a8a 50%, #2563eb 100%);
+  padding: 70px 64px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.cta-section::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -30%;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(139,92,246,0.1) 0%, transparent 70%);
+  border-radius: 50%;
+}
+.cta-section h2 {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 34px;
+  font-weight: 800;
+  color: #ffffff;
+  margin-bottom: 12px;
+  position: relative;
+  z-index: 1;
+}
+.cta-section p {
+  font-size: 16px;
+  color: rgba(255,255,255,0.75);
+  margin-bottom: 36px;
+  max-width: 540px;
+  margin-left: auto;
+  margin-right: auto;
+  position: relative;
+  z-index: 1;
+}
+.cta-buttons {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 32px;
+  position: relative;
+  z-index: 1;
+}
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  color: #1e40af;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 16px 32px;
+  border-radius: 10px;
+  text-decoration: none;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  transition: all 0.3s ease;
+}
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(0,0,0,0.2); }
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.25);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 16px 32px;
+  border-radius: 10px;
+  text-decoration: none;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+.btn-secondary:hover { background: rgba(255,255,255,0.15); }
+.cta-trust {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  position: relative;
+  z-index: 1;
+}
+.cta-trust-item {
+  text-align: center;
+}
+.cta-trust-item .num {
+  font-size: 22px;
+  font-weight: 800;
+  color: #ffffff;
+}
+.cta-trust-item .lbl {
+  font-size: 10px;
+  color: rgba(255,255,255,0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.trust-badges {
+  margin-top: 20px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.5);
+  position: relative;
+  z-index: 1;
+}
+
+/* === FOOTER === */
+.footer {
+  background: #0f172a;
+  padding: 44px 64px;
+  text-align: center;
+}
+.footer-logo {
+  font-size: 20px;
+  font-weight: 800;
+  color: #ffffff;
+  margin-bottom: 8px;
+}
+.footer-logo span { color: #60a5fa; }
+.footer-tagline {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 18px;
+}
+.footer-links {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+.footer-links a {
+  color: #93c5fd;
+  font-size: 13px;
+  text-decoration: none;
+  font-weight: 500;
+}
+.footer-links a:hover { color: #ffffff; }
+.footer-copy {
+  font-size: 11px;
+  color: #475569;
+  padding-top: 18px;
+  border-top: 1px solid #1e293b;
+}
+
+/* === RESPONSIVE === */
+@media (min-width: 1200px) {
+  .container { max-width: 1080px; }
+  .hero { padding: 80px 80px 70px; }
+  .hero h1 { font-size: 52px; }
+  .section { padding: 70px 80px; }
+  .personal-note { padding: 60px 80px; }
+  .stats-section { padding: 70px 80px; }
+  .cta-section { padding: 80px 80px; }
+  .footer { padding: 50px 80px; }
+  .section-title { font-size: 36px; }
+  .cta-section h2 { font-size: 36px; }
+}
+@media (max-width: 768px) {
+  .container { margin: 0; border-radius: 0; max-width: 100%; }
+  .hero { padding: 50px 32px 40px; }
+  .hero h1 { font-size: 32px; }
+  .hero-stats { grid-template-columns: repeat(2, 1fr); }
+  .section { padding: 40px 32px; }
+  .personal-note { padding: 36px 32px; }
+  .stats-section { padding: 40px 32px; }
+  .cta-section { padding: 50px 32px; }
+  .footer { padding: 32px 32px; }
+  .section-title { font-size: 26px; }
+}
+@media (max-width: 480px) {
+  .hero { padding: 40px 20px 36px; }
+  .hero h1 { font-size: 26px; }
+  .hero-stats { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .section { padding: 32px 20px; }
+  .personal-note { padding: 28px 20px; }
+  .challenge-grid { grid-template-columns: 1fr; }
+  .benefits-grid { grid-template-columns: 1fr; }
+  .stats-grid { grid-template-columns: 1fr; gap: 16px; }
+  .cta-section { padding: 40px 20px; }
+  .cta-buttons { flex-direction: column; align-items: center; }
+  .footer { padding: 24px 20px; }
+  .section-title { font-size: 22px; }
+  .stat-item .number { font-size: 32px; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<!-- ===== CONFIDENTIAL BAR ===== -->
+<div class="confidential-bar">
+  &#128737;&#65039; Confidential Partnership Proposal &middot; Prepared Exclusively For Select CA Firms
+</div>
+
+<!-- ===== HERO SECTION ===== -->
+<div class="hero">
+  <div class="hero-badge">&#11088; INDIA'S #1 VIRTUAL OFFICE PLATFORM</div>
+  <h1>Your Silent Backend Partner for Virtual Office Execution</h1>
+  <p>We're inviting select CA firms to unlock a powerful new revenue stream &mdash; with zero overhead, zero infrastructure, and complete client ownership.</p>
+  
+  <div class="hero-stats">
+    <div class="hero-stat">
+      <div class="icon">&#127470;&#127475;</div>
+      <div class="value">PAN India</div>
+      <div class="label">Presence</div>
+    </div>
+    <div class="hero-stat">
+      <div class="icon">&#9989;</div>
+      <div class="value">3,400+</div>
+      <div class="label">Offices Delivered</div>
+    </div>
+    <div class="hero-stat">
+      <div class="icon">&#128100;</div>
+      <div class="value">Dedicated</div>
+      <div class="label">Partner Desk</div>
+    </div>
+    <div class="hero-stat">
+      <div class="icon">&#127942;</div>
+      <div class="value">179+</div>
+      <div class="label">CA Partners</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== META BAR ===== -->
+<div class="meta-bar">
+  &#128203; Partnership Proposal &middot; Exclusively for CA Firms &middot; Revenue Models Inside
+</div>
+
+<!-- ===== PERSONAL NOTE ===== -->
+<div class="personal-note">
+  <div class="greeting">Hello &#128075;</div>
+  <p>Greetings from <strong>EaseMyOffice</strong>!</p>
+  <p>We know your time is best spent on advisory &mdash; not chasing rental agreements, NOCs, or GST address documentation. That's exactly where we come in.</p>
+  <p>We'd love to become <strong>your silent backend execution partner</strong> &mdash; handling virtual office delivery across India while you retain full ownership of your client relationships and earn recurring revenue effortlessly.</p>
+  
+  <div class="highlight-box">
+    &#128640; Over 60% of new GST registrations now prefer Virtual Offices to cut fixed costs &mdash; a massive, growing opportunity for your firm.
+  </div>
+</div>
+
+<!-- ===== THE CHALLENGE ===== -->
+<div class="section section-alt">
+  <span class="section-label">The Challenge</span>
+  <h2 class="section-title">Growing Your Practice Shouldn't Mean More Admin Work</h2>
+  <p class="section-subtitle">Every hour spent on execution is an hour lost from high-value advisory.</p>
+  
+  <div class="challenge-grid">
+    <div class="challenge-card">
+      <div class="icon">&#127970;</div>
+      <h4>Infrastructure Overhead</h4>
+      <p>Clients need GST-ready addresses but physical space creates unnecessary fixed costs and liability.</p>
+    </div>
+    <div class="challenge-card">
+      <div class="icon">&#128196;</div>
+      <h4>Documentation Burden</h4>
+      <p>Manual verifications, rent agreements & officer queries consume hours of billable advisory time.</p>
+    </div>
+    <div class="challenge-card">
+      <div class="icon">&#128200;</div>
+      <h4>Missed Revenue</h4>
+      <p>Turning away virtual office clients means losing recurring income and cross-sell opportunities.</p>
+    </div>
+    <div class="challenge-card">
+      <div class="icon">&#127758;</div>
+      <h4>Geographic Limits</h4>
+      <p>Serving clients expanding to new states is difficult without a reliable local partner network.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== OUR SOLUTION ===== -->
+<div class="section section-dark">
+  <span class="section-label section-label-gold">&#128640; Our Solution</span>
+  <h2 class="section-title section-title-light">We Execute. You Advise. You Earn.</h2>
+  <p class="section-subtitle section-subtitle-light">The entire virtual office backend, handled for you &mdash; so you focus on what matters.</p>
+  
+  <div class="solution-item">
+    <div class="solution-icon">&#127470;&#127475;</div>
+    <div>
+      <h4>Pan-India Virtual Offices</h4>
+      <p>Premium GST-compliant addresses across all 28 states & 8 UTs. Instantly available for your clients.</p>
+    </div>
+  </div>
+  <div class="solution-item">
+    <div class="solution-icon">&#129309;</div>
+    <div>
+      <h4>You Own the Client Relationship</h4>
+      <p>We operate as your silent backend. White-label option available. Zero conflict of interest &mdash; ever.</p>
+    </div>
+  </div>
+  <div class="solution-item">
+    <div class="solution-icon">&#128230;</div>
+    <div>
+      <h4>Complete Documentation Pack</h4>
+      <p>Rental Agreement (Stamp Paper), NOC, Utility Bill, Property Tax &mdash; delivered within 3 working days.</p>
+    </div>
+  </div>
+  <div class="solution-item">
+    <div class="solution-icon">&#9889;</div>
+    <div>
+      <h4>Zero Friction Execution</h4>
+      <p>Dedicated partner desk, fast turnaround, full GST query & verification support. No hiring needed from you.</p>
+    </div>
+  </div>
+  <div class="solution-item">
+    <div class="solution-icon">&#128736;&#65039;</div>
+    <div>
+      <h4>End-to-End GST Support</h4>
+      <p>From address provisioning to signage boards to officer verification handling &mdash; we cover it all.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== STATS SECTION ===== -->
+<div class="stats-section">
+  <div style="text-align:center; margin-bottom:24px;">
+    <span class="section-label">Proven Track Record</span>
+    <h2 class="section-title">Trusted by Hundreds of CA Firms</h2>
+  </div>
+  
+  <div class="stats-grid">
+    <div class="stat-item">
+      <div class="number">179+</div>
+      <div class="stat-label">CA Firms<br>Onboarded</div>
+    </div>
+    <div class="stat-item">
+      <div class="number">3,400+</div>
+      <div class="stat-label">Virtual Offices<br>Delivered</div>
+    </div>
+    <div class="stat-item">
+      <div class="number">1,400+</div>
+      <div class="stat-label">GST Registrations<br>Completed</div>
+    </div>
+  </div>
+  
+  <div class="insight-box">
+    &#128161; <strong>Market Insight:</strong> The virtual office market in India is growing at 15%+ annually. CA firms partnering early are capturing 3&ndash;4x faster revenue growth from this channel.
+  </div>
+</div>
+
+<!-- ===== HOW IT WORKS ===== -->
+<div class="section">
+  <span class="section-label">How It Works</span>
+  <h2 class="section-title">3 Simple Steps to Start Earning</h2>
+  <p class="section-subtitle">A seamless extension of your practice &mdash; no complexity, no overhead.</p>
+  
+  <div class="step-item">
+    <div class="step-number">1</div>
+    <div>
+      <h4>Identify & Refer</h4>
+      <p>Your client needs a Virtual Office for GST or Company Registration. You introduce EaseMyOffice via white-label or co-branded model.</p>
+    </div>
+  </div>
+  <div class="step-item">
+    <div class="step-number">2</div>
+    <div>
+      <h4>We Execute</h4>
+      <p>We handle address provisioning, documentation, and GST coordination. You get real-time status updates via your dedicated partner desk.</p>
+    </div>
+  </div>
+  <div class="step-item">
+    <div class="step-number">3</div>
+    <div>
+      <h4>Earn & Grow</h4>
+      <p>You maintain the advisory relationship. We close the execution loop. You earn commission or markup &mdash; passive, recurring revenue.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PARTNERSHIP BENEFITS ===== -->
+<div class="section section-blue">
+  <span class="section-label section-label-light">&#128081; Partnership Perks</span>
+  <h2 class="section-title section-title-light">What You Get as Our Partner</h2>
+  <p class="section-subtitle section-subtitle-light">Built for CA firms who want growth without the operational burden.</p>
+  
+  <div class="benefits-grid">
+    <div class="benefit-card">
+      <h4><span class="check">&#10003;</span> Full Client Ownership</h4>
+      <p>You lead all communication. We stay invisible. Zero conflict of interest.</p>
+    </div>
+    <div class="benefit-card">
+      <h4><span class="check">&#10003;</span> Dedicated Account Manager</h4>
+      <p>Single point of contact for all queries, escalations & updates.</p>
+    </div>
+    <div class="benefit-card">
+      <h4><span class="check">&#10003;</span> Flexible Revenue Models</h4>
+      <p>Choose referral commission or reseller markup &mdash; whatever suits your practice.</p>
+    </div>
+    <div class="benefit-card">
+      <h4><span class="check">&#10003;</span> Volume Discounts</h4>
+      <p>Better margins as you scale. Tiered pricing rewards growth.</p>
+    </div>
+    <div class="benefit-card">
+      <h4><span class="check">&#10003;</span> Priority Processing</h4>
+      <p>Fast-track execution for all partner-referred clients. 3-day TAT.</p>
+    </div>
+    <div class="benefit-card">
+      <h4><span class="check">&#10003;</span> GST Query Support</h4>
+      <p>Full verification & officer query assistance by our in-house CA team.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SERVICES TABLE ===== -->
+<div class="section">
+  <span class="section-label">&#128230; Service Snapshot</span>
+  <h2 class="section-title">What We Deliver for Your Clients</h2>
+  <p class="section-subtitle">A complete, premium virtual office setup &mdash; delivered in one seamless package.</p>
+  
+  <table class="services-table">
+    <thead>
+      <tr>
+        <th>Service</th>
+        <th>What's Included</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="service-name">&#128205; Professional Address</td>
+        <td class="service-desc">Prime commercial location for GST, Company Registration & Compliance use.</td>
+      </tr>
+      <tr>
+        <td class="service-name">&#128220; Documentation</td>
+        <td class="service-desc">Rental Agreement (Stamp Paper), NOC, Utility Bill, Property Tax &mdash; within 3 days.</td>
+      </tr>
+      <tr>
+        <td class="service-name">&#127970; Physical Presence</td>
+        <td class="service-desc">GST-Compliant Signage Board & GPS-tagged photos for verification.</td>
+      </tr>
+      <tr>
+        <td class="service-name">&#128236; Mail & Communication</td>
+        <td class="service-desc">Courier & mail management with digital scanning. Optional local phone number.</td>
+      </tr>
+      <tr>
+        <td class="service-name">&#128100; Meeting Rooms</td>
+        <td class="service-desc">On-demand meeting room access at partner locations (hourly rates).</td>
+      </tr>
+      <tr>
+        <td class="service-name">&#128170; GST Support</td>
+        <td class="service-desc">In-house CA team for GST registration assistance & officer query handling.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ===== CTA SECTION ===== -->
+<div class="cta-section">
+  <h2>Ready to Add a New Revenue Stream?</h2>
+  <p>Let's schedule a quick 15-minute call to explore how this partnership works for your firm. No commitment &mdash; just a conversation.</p>
+  
+  <div class="cta-buttons">
+    <a href="https://wa.me/919319035455?text=Hi%2C%20I%27m%20interested%20in%20the%20CA%20Partnership%20opportunity" class="btn-primary">
+      &#128640; Schedule Partnership Call
+    </a>
+    <a href="tel:+919319035455" class="btn-secondary">
+      &#128222; Talk to Us Now
+    </a>
+  </div>
+  
+  <div class="cta-trust">
+    <div class="cta-trust-item">
+      <div class="num">179+</div>
+      <div class="lbl">CA Partners</div>
+    </div>
+    <div class="cta-trust-item">
+      <div class="num">3-Day</div>
+      <div class="lbl">Turnaround</div>
+    </div>
+    <div class="cta-trust-item">
+      <div class="num">Zero</div>
+      <div class="lbl">Overhead</div>
+    </div>
+    <div class="cta-trust-item">
+      <div class="num">100%</div>
+      <div class="lbl">Client Ownership</div>
+    </div>
+  </div>
+  
+  <div class="trust-badges">
+    &#128274; Secure &middot; &#128188; Compliance-First &middot; &#11088; 4.9/5 Rated &middot; &#9889; Same-Day Onboarding
+  </div>
+</div>
+
+<!-- ===== FOOTER ===== -->
+<div class="footer">
+  <div class="footer-logo">Ease<span>My</span>Office</div>
+  <div class="footer-tagline">Virtual Office Solutions &bull; GST Compliance &bull; Your Growth Partner</div>
+  
+  <div class="footer-links">
+    <a href="https://easemyoffice.in">&#127760; Website</a>
+    <a href="https://wa.me/919319035455">&#128172; WhatsApp</a>
+    <a href="mailto:contact@easemyoffice.in">&#9993; Email</a>
+    <a href="tel:+919319035455">&#128222; Call</a>
+  </div>
+  
+  <div class="footer-copy">
+    336, Udyog Vihar Phase 4, Sector 19, Gurugram, Haryana 122016<br>
+    &copy; 2025 EaseMyOffice &mdash; All rights reserved. This proposal is confidential and intended for the recipient only.
+  </div>
+</div>
+
+</div><!-- end container -->
+
+</body>
+</html>
