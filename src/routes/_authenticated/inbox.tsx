@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { Mail, ExternalLink, UserPlus, Search, RefreshCcw, ChevronLeft, ChevronRight, CheckCircle2, Hand } from "lucide-react";
-import { fetchInbox, fetchThread, claimEmailInGmail, parseFrom, claimedOwner, normalizeOwnerTag, type InboxEmail } from "@/lib/gmail";
+import { fetchInbox, fetchThread, claimEmailInGmail, parseFrom, claimedOwner, normalizeOwnerTag, parseWeb3FormLead, isThrowawayAddress, htmlToText, type InboxEmail, type ThreadMessage } from "@/lib/gmail";
 
 function esc(s: unknown) {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -137,25 +137,91 @@ function LeadInboxPage() {
   const prefetchThread = (threadId: string) =>
     qc.prefetchQuery({ queryKey: ["gmail-thread", threadId], queryFn: () => fetchThread(threadId), staleTime: 60 * 1000 });
 
+  // Resolve REAL lead fields for an inbox email by reading the thread body.
+  // Web3Forms / contact-form submissions carry the customer's actual name,
+  // email, phone & location in the body — the sender is only a relay address
+  // (e.g. notify+xxx@web3forms.com), so we must parse the body, not the header.
+  const resolveLeadFields = async (email: InboxEmail) => {
+    let messages: ThreadMessage[] = [];
+    try {
+      const thread = await qc.fetchQuery({
+        queryKey: ["gmail-thread", email.threadId],
+        queryFn: () => fetchThread(email.threadId),
+        staleTime: 60 * 1000,
+      });
+      messages = thread?.messages ?? [];
+    } catch { /* fall back to header-only fields below */ }
+
+    const bodyText = messages
+      .map((m) => (m.body && m.body.trim() ? m.body : htmlToText(m.html || "")))
+      .join("\n");
+    const parsed = parseWeb3FormLead(bodyText);
+
+    const fromParsed = parseFrom(email.from);
+    const senderAddr = fromParsed.address.trim().toLowerCase();
+    const realEmail = parsed.email || (isThrowawayAddress(fromParsed.address) ? "" : fromParsed.address);
+    const clientName =
+      parsed.name ||
+      (isThrowawayAddress(fromParsed.address) ? "" : fromParsed.name) ||
+      realEmail ||
+      email.subject ||
+      "Email lead";
+
+    const notes = [
+      `From email: ${email.subject}`,
+      email.url,
+      parsed.location ? `Location: ${parsed.location}` : "",
+      parsed.company ? `Company: ${parsed.company}` : "",
+      parsed.message ? `Message: ${parsed.message}` : "",
+    ].filter(Boolean).join("\n");
+
+    return {
+      fields: {
+        client_name: clientName,
+        email: realEmail || null,
+        mobile: parsed.phone || "",
+        city: parsed.location || null,
+        company_name: parsed.company || null,
+        source: "email" as never,
+        notes,
+      },
+      // Dedup keys: the real customer email AND the throwaway sender address
+      // (covers new leads and any created before this parsing existed).
+      dedupKeys: [realEmail.trim().toLowerCase(), senderAddr].filter(Boolean),
+    };
+  };
+
+  // Find an existing email-lead by any of the dedup keys (real email / sender).
+  const existingLeadFor = (dedupKeys: string[]) => {
+    for (const k of dedupKeys) {
+      const hit = leadByEmail.get(k);
+      if (hit) return hit;
+    }
+    return undefined;
+  };
+
   const claim = useMutation({
     mutationFn: async (email: InboxEmail) => {
       if (!user) throw new Error("Not signed in");
-      const { name, address } = parseFrom(email.from);
-      // 1) Create the lead, assigned to me.
-      const { data: created, error } = await supabase.from("leads").insert({
-        client_name: name || address || email.subject || "Email lead",
-        email: address || null,
-        mobile: "",
-        source: "email" as never,
-        assigned_to: user.id,
-        created_by: user.id,
-        notes: `From email: ${email.subject}\n${email.url}`,
-      }).select("id").single();
-      if (error) throw new Error(error.message);
+      const { fields, dedupKeys } = await resolveLeadFields(email);
+      const existing = existingLeadFor(dedupKeys);
+      // 1) Create (or, if it somehow already exists, take over) the lead as mine.
+      if (existing) {
+        if (existing.assigned_to !== user.id) {
+          const { error } = await supabase.from("leads").update({ assigned_to: user.id }).eq("id", existing.id);
+          if (error) throw new Error(error.message);
+        }
+      } else {
+        const { error } = await supabase.from("leads").insert({
+          ...fields,
+          assigned_to: user.id,
+          created_by: user.id,
+        });
+        if (error) throw new Error(error.message);
+      }
       // 2) Label the Gmail thread with my name (best-effort).
-      const label = `${myName || "Me"} lead`;
-      const res = await claimEmailInGmail(email.threadId, label);
-      return { id: created?.id, labelled: res.ok, labelError: res.error };
+      const res = await claimEmailInGmail(email.threadId, `${myName || "Me"} lead`);
+      return { labelled: res.ok };
     },
     onSuccess: (r) => {
       toast.success(r.labelled ? "Claimed — added to your leads & labelled in Gmail" : "Added to your leads (Gmail label pending)");
@@ -171,8 +237,8 @@ function LeadInboxPage() {
   const markMine = useMutation({
     mutationFn: async (email: InboxEmail) => {
       if (!user) throw new Error("Not signed in");
-      const { name, address } = parseFrom(email.from);
-      const existing = address ? leadByEmail.get(address.trim().toLowerCase()) : undefined;
+      const { fields, dedupKeys } = await resolveLeadFields(email);
+      const existing = existingLeadFor(dedupKeys);
       if (existing) {
         if (existing.assigned_to !== user.id) {
           const { error } = await supabase.from("leads").update({ assigned_to: user.id }).eq("id", existing.id);
@@ -180,13 +246,9 @@ function LeadInboxPage() {
         }
       } else {
         const { error } = await supabase.from("leads").insert({
-          client_name: name || address || email.subject || "Email lead",
-          email: address || null,
-          mobile: "",
-          source: "email" as never,
+          ...fields,
           assigned_to: user.id,
           created_by: user.id,
-          notes: `From email: ${email.subject}\n${email.url}`,
         });
         if (error) throw new Error(error.message);
       }
@@ -207,8 +269,8 @@ function LeadInboxPage() {
   const assign = useMutation({
     mutationFn: async ({ email, target }: { email: InboxEmail; target: TeamMember }) => {
       if (!user) throw new Error("Not signed in");
-      const { name, address } = parseFrom(email.from);
-      const existing = address ? leadByEmail.get(address.trim().toLowerCase()) : undefined;
+      const { fields, dedupKeys } = await resolveLeadFields(email);
+      const existing = existingLeadFor(dedupKeys);
       if (existing) {
         if (existing.assigned_to !== target.id) {
           const { error } = await supabase.from("leads").update({ assigned_to: target.id }).eq("id", existing.id);
@@ -216,13 +278,9 @@ function LeadInboxPage() {
         }
       } else {
         const { error } = await supabase.from("leads").insert({
-          client_name: name || address || email.subject || "Email lead",
-          email: address || null,
-          mobile: "",
-          source: "email" as never,
+          ...fields,
           assigned_to: target.id,
           created_by: user.id,
-          notes: `From email: ${email.subject}\n${email.url}`,
         });
         if (error) throw new Error(error.message);
       }
@@ -245,18 +303,17 @@ function LeadInboxPage() {
   const syncTagged = useMutation({
     mutationFn: async (list: { email: InboxEmail; owner: TeamMember }[]) => {
       if (!user || list.length === 0) return { created: 0 };
-      const rows = list.map(({ email, owner }) => {
-        const { name, address } = parseFrom(email.from);
-        return {
-          client_name: name || address || email.subject || "Email lead",
-          email: address || null,
-          mobile: "",
-          source: "email" as never,
-          assigned_to: owner.id,
-          created_by: user.id,
-          notes: `From email: ${email.subject}\n${email.url}`,
-        };
-      });
+      // Read each thread body to extract real customer details, then dedup.
+      const resolved = await Promise.all(
+        list.map(async ({ email, owner }) => {
+          const { fields, dedupKeys } = await resolveLeadFields(email);
+          return { fields, dedupKeys, owner };
+        }),
+      );
+      const rows = resolved
+        .filter((r) => !existingLeadFor(r.dedupKeys))
+        .map((r) => ({ ...r.fields, assigned_to: r.owner.id, created_by: user.id }));
+      if (rows.length === 0) return { created: 0 };
       const { error } = await supabase.from("leads").insert(rows);
       if (error) throw new Error(error.message);
       return { created: rows.length };
