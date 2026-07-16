@@ -150,7 +150,9 @@ function LeadsListPage() {
 
   // Duplicate detection: fetch all leads' phone/email/name and find IDs that share
   // the same contact info. Only runs when "Show duplicates" is active.
-  type DupeGroup = { matchKey: string; matchType: "phone" | "email" | "name"; leads: any[] };
+  // A lead is a duplicate only if AT LEAST 2 of 3 fields match another lead:
+  //   - Name + Email, OR Name + Phone, OR Email + Phone
+  type DupeGroup = { matchKey: string; matchType: string; leads: any[] };
   const { data: dupeData, isLoading: dupesLoading } = useQuery({
     queryKey: ["leads-duplicates"],
     enabled: showDupes,
@@ -161,36 +163,54 @@ function LeadsListPage() {
         .order("created_at", { ascending: true })
         .limit(5000);
       if (!data) return { ids: new Set<string>(), groups: [] as DupeGroup[] };
-      // Group by normalised phone (last 10 digits), email, and exact lowercase name
-      const byPhone = new Map<string, any[]>();
-      const byEmail = new Map<string, any[]>();
-      const byName = new Map<string, any[]>();
-      for (const l of data as any[]) {
-        const phone = (l.mobile ?? "").replace(/\D/g, "").slice(-10);
-        const email = (l.email ?? "").trim().toLowerCase();
-        const name = (l.client_name ?? "").trim().toLowerCase();
-        if (phone.length >= 10) { const arr = byPhone.get(phone) ?? []; arr.push(l); byPhone.set(phone, arr); }
-        if (email) { const arr = byEmail.get(email) ?? []; arr.push(l); byEmail.set(email, arr); }
-        if (name && name.length > 2) { const arr = byName.get(name) ?? []; arr.push(l); byName.set(name, arr); }
+
+      // Normalise fields for comparison
+      const leads = (data as any[]).map((l) => ({
+        ...l,
+        _phone: (l.mobile ?? "").replace(/\D/g, "").slice(-10),
+        _email: (l.email ?? "").trim().toLowerCase(),
+        _name: (l.client_name ?? "").trim().toLowerCase(),
+      }));
+
+      // For each pair of leads, check if 2+ fields match.
+      // Use composite keys to group: "name+phone", "name+email", "phone+email"
+      const groupMap = new Map<string, any[]>();
+
+      for (let i = 0; i < leads.length; i++) {
+        for (let j = i + 1; j < leads.length; j++) {
+          const a = leads[i], b = leads[j];
+          const nameMatch = a._name && b._name && a._name.length > 2 && a._name === b._name;
+          const phoneMatch = a._phone && b._phone && a._phone.length >= 10 && a._phone === b._phone;
+          const emailMatch = a._email && b._email && a._email === b._email;
+
+          const matchCount = (nameMatch ? 1 : 0) + (phoneMatch ? 1 : 0) + (emailMatch ? 1 : 0);
+          if (matchCount < 2) continue;
+
+          // Build a stable group key from the matching values
+          const parts: string[] = [];
+          if (nameMatch) parts.push(`name:${a._name}`);
+          if (phoneMatch) parts.push(`phone:${a._phone}`);
+          if (emailMatch) parts.push(`email:${a._email}`);
+          const gKey = parts.sort().join("|");
+
+          const group = groupMap.get(gKey) ?? [];
+          if (!group.find((x: any) => x.id === a.id)) group.push(a);
+          if (!group.find((x: any) => x.id === b.id)) group.push(b);
+          groupMap.set(gKey, group);
+        }
       }
+
       const ids = new Set<string>();
       const groups: DupeGroup[] = [];
-      const seenGroupKeys = new Set<string>();
-      const addGroups = (map: Map<string, any[]>, type: "phone" | "email" | "name") => {
-        for (const [key, arr] of map.entries()) {
-          if (arr.length > 1) {
-            arr.forEach((l) => ids.add(l.id));
-            const gKey = `${type}:${key}`;
-            if (!seenGroupKeys.has(gKey)) {
-              seenGroupKeys.add(gKey);
-              groups.push({ matchKey: key, matchType: type, leads: arr });
-            }
-          }
-        }
-      };
-      addGroups(byPhone, "phone");
-      addGroups(byEmail, "email");
-      addGroups(byName, "name");
+      for (const [key, arr] of groupMap.entries()) {
+        arr.forEach((l) => ids.add(l.id));
+        // Describe the match type for display
+        const types = key.split("|").map((p) => {
+          const [type, val] = p.split(":");
+          return `${type[0].toUpperCase() + type.slice(1)}: ${val}`;
+        }).join(" + ");
+        groups.push({ matchKey: key, matchType: types, leads: arr.sort((a: any, b: any) => a.created_at < b.created_at ? -1 : 1) });
+      }
       return { ids, groups };
     },
   });
@@ -417,7 +437,7 @@ function LeadsListPage() {
               {dupeGroups.map((g, gi) => (
                 <div key={gi} className="rounded-lg border bg-background p-3">
                   <div className="text-xs text-muted-foreground mb-2">
-                    Match by <Badge variant="outline" className="text-[10px] ml-1">{g.matchType === "phone" ? `Phone: ${g.matchKey}` : g.matchType === "email" ? `Email: ${g.matchKey}` : `Name: ${g.matchKey}`}</Badge>
+                    Matched by <Badge variant="outline" className="text-[10px] ml-1">{g.matchType}</Badge>
                     <span className="ml-2">({g.leads.length} entries)</span>
                   </div>
                   <div className="space-y-1.5">
