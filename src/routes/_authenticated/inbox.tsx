@@ -11,7 +11,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { Mail, ExternalLink, UserPlus, Search, RefreshCcw, ChevronLeft, ChevronRight, CheckCircle2, Hand } from "lucide-react";
+import { Mail, ExternalLink, UserPlus, Search, RefreshCcw, ChevronLeft, ChevronRight, CheckCircle2, Hand, Reply, Send } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { fetchInbox, fetchThread, claimEmailInGmail, parseFrom, claimedOwner, normalizeOwnerTag, parseWeb3FormLead, isThrowawayAddress, htmlToText, type InboxEmail, type ThreadMessage } from "@/lib/gmail";
 
 function esc(s: unknown) {
@@ -73,12 +74,58 @@ function LeadInboxPage() {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(0);
   const [reading, setReading] = useState<InboxEmail | null>(null);
+  const [replyOpen, setReplyOpen] = useState(false);
+  const [replyText, setReplyText] = useState("");
   const PAGE_SIZE = 25;
 
   const threadQ = useQuery({
     queryKey: ["gmail-thread", reading?.threadId],
     enabled: !!reading,
     queryFn: () => fetchThread(reading!.threadId),
+  });
+
+  // Reset the reply composer whenever a different email is opened / closed.
+  useEffect(() => { setReplyOpen(false); setReplyText(""); }, [reading?.threadId]);
+
+  // Who a reply should go to: the real customer address. Web3Forms relays put
+  // the customer's email in the body, so parse that first; otherwise fall back
+  // to the first non-relay sender in the thread.
+  const replyTo = useMemo(() => {
+    if (!reading) return null;
+    const msgs = threadQ.data?.messages ?? [];
+    const bodyText = msgs.map((m) => (m.body && m.body.trim() ? m.body : htmlToText(m.html || ""))).join("\n");
+    const parsed = parseWeb3FormLead(bodyText);
+    if (parsed.email && !isThrowawayAddress(parsed.email)) return parsed.email;
+    for (const m of msgs) {
+      const a = parseFrom(m.from).address;
+      if (a && !isThrowawayAddress(a)) return a;
+    }
+    const a = parseFrom(reading.from).address;
+    return a && !isThrowawayAddress(a) ? a : null;
+  }, [reading, threadQ.data]);
+
+  const replySubject = reading
+    ? (/^\s*re:/i.test(reading.subject || "") ? (reading.subject || "") : `Re: ${reading.subject || "(no subject)"}`)
+    : "";
+
+  // Send a reply to the customer via Resend (send-client-email). The function
+  // sends from the CRM address and BCCs the shared inbox, so a copy threads in
+  // Gmail and is labelled CRM-Sent.
+  const reply = useMutation({
+    mutationFn: async (vars: { to: string; subject: string; text: string }) => {
+      const { data, error } = await supabase.functions.invoke("send-client-email", {
+        body: { to: vars.to, subject: vars.subject, text: vars.text },
+      });
+      if (error) throw new Error(error.message);
+      if (data && data.ok === false) throw new Error(data.error || "Send failed");
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("Reply sent — a copy is saved to the shared inbox");
+      setReplyText("");
+      setReplyOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const { data, isLoading, isFetching, refetch } = useQuery({
@@ -570,6 +617,36 @@ function LeadInboxPage() {
                   </div>
                 ) : null;
               })()}
+              {/* In-CRM reply composer */}
+              {replyOpen && (
+                <div className="shrink-0 rounded-md border bg-muted/20 p-3 space-y-2">
+                  <div className="text-xs text-muted-foreground">
+                    Reply to{" "}
+                    {replyTo
+                      ? <span className="font-medium text-foreground">{replyTo}</span>
+                      : <span className="text-destructive">no customer address found — use "Open in Gmail" instead</span>}
+                    {replyTo && " · sent from your CRM, a copy is saved to the shared inbox"}
+                  </div>
+                  <Textarea
+                    rows={4}
+                    autoFocus
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    placeholder="Type your reply…"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button size="sm" variant="ghost" onClick={() => setReplyOpen(false)}>Cancel</Button>
+                    <Button
+                      size="sm"
+                      disabled={reply.isPending || !replyText.trim() || !replyTo}
+                      onClick={() => reply.mutate({ to: replyTo as string, subject: replySubject, text: replyText.trim() })}
+                    >
+                      <Send className="h-4 w-4 mr-1" /> {reply.isPending ? "Sending…" : "Send reply"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-wrap items-center justify-end gap-3 shrink-0">
                 {reading && isAdmin && (
                   <div className="flex items-center gap-2 mr-auto">
@@ -599,9 +676,14 @@ function LeadInboxPage() {
                     </Button>
                   );
                 })()}
+                {replyTo && !replyOpen && (
+                  <Button size="sm" onClick={() => setReplyOpen(true)}>
+                    <Reply className="h-4 w-4 mr-1" /> Reply in CRM
+                  </Button>
+                )}
                 {(threadQ.data.url || reading?.url) && (
                   <a href={threadQ.data.url || reading?.url} target="_blank" rel="noreferrer" className="text-sm text-primary inline-flex items-center gap-1 hover:underline">
-                    <ExternalLink className="h-3.5 w-3.5" /> Open in Gmail to reply
+                    <ExternalLink className="h-3.5 w-3.5" /> Open in Gmail
                   </a>
                 )}
                 <Button size="sm" variant="outline" onClick={() => setReading(null)}>Close</Button>
