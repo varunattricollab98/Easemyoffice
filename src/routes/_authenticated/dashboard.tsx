@@ -63,9 +63,6 @@ function DashboardPage() {
 
   // Renewal-only users should see the Renewal Dashboard, not this sales one.
   const isRenewalOnly = !isAdmin && roles.includes("renewals") && !roles.includes("sales") && !roles.includes("bd");
-  if (isRenewalOnly) {
-    return <Navigate to="/renewals" />;
-  }
 
   // Realtime — payload-aware invalidation, debounced into a 600ms batched flush.
   // Only invalidates the queries actually impacted by the changed columns,
@@ -107,6 +104,11 @@ function DashboardPage() {
     () => new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }),
     [],
   );
+
+  // Redirect renewal-only users before rendering the sales dashboard.
+  if (isRenewalOnly) {
+    return <Navigate to="/renewals" />;
+  }
 
   return (
     <div className="dash-canvas min-h-full">
