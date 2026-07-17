@@ -241,6 +241,27 @@ function LeadsListPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Merge: keep the selected lead as original, transfer assignee, delete the rest
+  const mergeLead = useMutation({
+    mutationFn: async ({ keepId, deleteIds, assignFrom }: { keepId: string; deleteIds: string[]; assignFrom: string | null }) => {
+      // 1) If the lead we're keeping has no assignee, copy from the one being deleted
+      if (assignFrom) {
+        await supabase.from("leads").update({ assigned_to: assignFrom }).eq("id", keepId);
+      }
+      // 2) Delete all the other duplicates
+      for (const id of deleteIds) {
+        const { error } = await supabase.from("leads").delete().eq("id", id);
+        if (error) throw new Error(error.message);
+      }
+    },
+    onSuccess: () => {
+      toast.success("Merged — duplicates removed, assignee transferred");
+      qc.invalidateQueries({ queryKey: ["leads"] });
+      qc.invalidateQueries({ queryKey: ["leads-duplicates"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const rows = useMemo(() => {
     const allRows = data?.rows ?? [];
     if (!showDupes) return allRows;
@@ -499,10 +520,17 @@ function LeadsListPage() {
                               size="sm"
                               variant="outline"
                               className="text-emerald-600 hover:text-emerald-700 border-emerald-300 text-xs"
+                              disabled={mergeLead.isPending}
                               onClick={() => {
-                                setOriginalOverrides((prev) => ({ ...prev, [gKey]: l.id }));
-                                setOverrideVersion((v) => v + 1);
-                                toast.success(`"${l.client_name}" marked as original`);
+                                const others = orderedLeads.filter((_: any, i: number) => i !== li);
+                                const assignFrom = l.assigned_to ? null : others.find((o: any) => o.assigned_to)?.assigned_to ?? null;
+                                const deleteIds = others.map((o: any) => o.id);
+                                if (window.confirm(
+                                  `Keep "${l.client_name}" (${l.lead_code}) as the original and delete ${deleteIds.length} duplicate(s)?` +
+                                  (assignFrom ? `\n\nThe assignee (${nameById.get(assignFrom) || "salesperson"}) will be transferred to this lead.` : "")
+                                )) {
+                                  mergeLead.mutate({ keepId: l.id, deleteIds, assignFrom });
+                                }
                               }}
                             >
                               Mark as Original
