@@ -140,10 +140,10 @@ export function MobileTabBar() {
   const mobileItems = useMemo(() => {
     const isRenewal = !isAdmin && roles.includes("renewals") && !roles.includes("sales") && !roles.includes("bd");
     if (isRenewal) {
-      return NAV.filter((i) => ["/renewals", "/renewals/leads", "/renewals/pipeline", "/calendar", "/tasks"].includes(i.to));
+      return NAV.filter((i) => ["/renewals", "/renewals/leads", "/renewals/pipeline", "/reminders", "/tasks"].includes(i.to));
     }
-    // Sales/BD/Admin: Dashboard, Leads, Pipeline, Calendar, Tasks
-    const priority = ["/dashboard", "/leads", "/pipeline", "/calendar", "/tasks"];
+    // Sales/BD/Admin: Dashboard, Leads, Pipeline, Reminders, Tasks
+    const priority = ["/dashboard", "/leads", "/pipeline", "/reminders", "/tasks"];
     return priority.map((to) => NAV.find((i) => i.to === to)).filter(Boolean) as NavItem[];
   }, [roles, isAdmin]);
 
