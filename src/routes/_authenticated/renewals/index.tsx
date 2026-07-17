@@ -31,7 +31,7 @@ const RENEWAL_STAGES = [
   { id: "cancelled", label: "Cancelled", color: "bg-gray-500" },
 ];
 
-function RenewalDashboard() {
+export function RenewalDashboard() {
   const { user, profile } = useAuth();
   const qc = useQueryClient();
 

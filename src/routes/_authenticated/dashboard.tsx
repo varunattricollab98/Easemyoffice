@@ -1,4 +1,4 @@
-import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,6 +14,7 @@ import { useQuietMode, useVisibleWidgets } from "@/lib/dashboard-prefs";
 import { useAuth } from "@/lib/auth";
 import { pushPulse } from "@/lib/realtime-pulse";
 import { usePagePerf } from "@/lib/perf";
+import { RenewalDashboardInline } from "@/components/dashboard/renewal-dashboard-inline";
 import {
   affectedKeysFor,
   resolveScope,
@@ -61,8 +62,17 @@ function DashboardPage() {
   const [pulseTick, setPulseTick] = useState(0);
   usePagePerf("Dashboard", false);
 
-  // Renewal-only users should see the Renewal Dashboard, not this sales one.
+  // Renewal-only users default to Renewal view; admins can switch
   const isRenewalOnly = !isAdmin && roles.includes("renewals") && !roles.includes("sales") && !roles.includes("bd");
+  const [dashView, setDashView] = useState<"fresh" | "renewals">(isRenewalOnly ? "renewals" : "fresh");
+
+  // Available views based on role
+  const availableViews = useMemo(() => {
+    const views: { id: "fresh" | "renewals"; label: string }[] = [];
+    if (isAdmin || roles.includes("sales") || roles.includes("bd")) views.push({ id: "fresh", label: "Fresh Sales" });
+    if (isAdmin || roles.includes("renewals")) views.push({ id: "renewals", label: "Renewals" });
+    return views;
+  }, [isAdmin, roles]);
 
   // Realtime — payload-aware invalidation, debounced into a 600ms batched flush.
   // Only invalidates the queries actually impacted by the changed columns,
@@ -106,13 +116,55 @@ function DashboardPage() {
   );
 
   // Redirect renewal-only users before rendering the sales dashboard.
-  if (isRenewalOnly) {
-    return <Navigate to="/renewals" />;
+  if (isRenewalOnly && dashView === "fresh") {
+    setDashView("renewals");
+  }
+
+  // If viewing renewals, render the renewal dashboard inline
+  if (dashView === "renewals") {
+    return (
+      <div className="min-h-full">
+        {availableViews.length > 1 && (
+          <div className="px-4 md:px-8 pt-4 max-w-[1400px] mx-auto">
+            <div className="inline-flex rounded-lg border bg-muted/40 p-1 gap-1">
+              {availableViews.map((v) => (
+                <button
+                  key={v.id}
+                  onClick={() => setDashView(v.id)}
+                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                    dashView === v.id ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {v.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        <RenewalDashboardInline />
+      </div>
+    );
   }
 
   return (
     <div className="dash-canvas min-h-full">
       <div className="relative p-4 md:p-8 max-w-[1400px] mx-auto space-y-5">
+        {/* View switcher for admins */}
+        {availableViews.length > 1 && (
+          <div className="inline-flex rounded-lg border bg-muted/40 p-1 gap-1">
+            {availableViews.map((v) => (
+              <button
+                key={v.id}
+                onClick={() => setDashView(v.id)}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                  dashView === v.id ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {v.label}
+              </button>
+            ))}
+          </div>
+        )}
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">

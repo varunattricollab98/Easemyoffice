@@ -18,8 +18,7 @@ import { useMemo } from "react";
 type NavItem = { to: string; label: string; icon: typeof Users; roles?: AppRole[] };
 
 const NAV: NavItem[] = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["admin", "sales", "bd", "documentation", "accounts"] },
-  { to: "/renewals", label: "Dashboard", icon: LayoutDashboard, roles: ["renewals"] },
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/inbox", label: "Lead Inbox", icon: Mail, roles: ["admin", "sales", "bd"] },
   { to: "/leads", label: "Leads", icon: Users, roles: ["admin", "sales", "bd"] },
   { to: "/pipeline", label: "Pipeline", icon: Kanban, roles: ["admin", "sales", "bd"] },
