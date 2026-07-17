@@ -33,6 +33,7 @@ type Reminder = {
   sent_at: string | null;
   error: string | null;
   created_by: string | null;
+  from_email: string | null;
   repeat_interval_days: number;
   repeat_until: string | null;
   occurrences_sent: number;
@@ -57,6 +58,8 @@ const validRecipients = (v: string) => {
 };
 const fmt = (d: string) => { try { return new Date(d).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); } catch { return d; } };
 const BUCKET = "reminder-attachments";
+// From-address used for reminders scheduled/sent by the renewals team.
+const RENEWAL_FROM_EMAIL = "EaseMyOffice Renewals <renewals@easemyoffice.in>";
 
 function countdown(sendAt: string, _tick: number) {
   const diff = new Date(sendAt).getTime() - Date.now();
@@ -103,8 +106,11 @@ function StatusBadge({ s }: { s: Reminder["status"] }) {
 const EMPTY_FORM = { to_email: "", client_name: "", subject: "", message: "", send_at: defaultSendAt(), repeat: false, interval_days: "1", stop_mode: "days" as "days" | "date", stop_days: "7", stop_at: defaultStopAt() };
 
 function RemindersPage() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, roles } = useAuth();
   const qc = useQueryClient();
+  // Renewal-team members send client reminders from the renewals mailbox instead of the default contact@ address.
+  const isRenewalUser = roles.includes("renewals") && !roles.includes("sales") && !roles.includes("bd") && !isAdmin;
+  const reminderFromEmail = isRenewalUser ? RENEWAL_FROM_EMAIL : null;
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"scheduled" | "succeeded" | "paused" | "all">("scheduled");
   const [tick, setTick] = useState(0);
@@ -257,6 +263,7 @@ function RemindersPage() {
         repeat_until: until,
         created_by: user.id,
         assigned_to: user.id,
+        from_email: reminderFromEmail,
       });
       if (error) throw new Error(error.message);
     },
@@ -277,14 +284,14 @@ function RemindersPage() {
       if (!form.subject.trim()) throw new Error("Subject is required.");
       if (!htmlToText(form.message).trim()) throw new Error("Message is required.");
       const atts = await signedAttachments(attachments);
-      const { data, error } = await supabase.functions.invoke("send-client-email", { body: { to: form.to_email.trim(), subject: form.subject.trim(), html: form.message, attachments: atts } });
+      const { data, error } = await supabase.functions.invoke("send-client-email", { body: { to: form.to_email.trim(), subject: form.subject.trim(), html: form.message, attachments: atts, from: reminderFromEmail || undefined } });
       if (error) throw new Error(error.message);
       if (!data?.ok) throw new Error(data?.error || "Could not send email");
       const now = new Date().toISOString();
       await supabase.from("reminders").insert({
         to_email: form.to_email.trim(), client_name: form.client_name.trim(), subject: form.subject.trim(),
         message: form.message, is_html: true, attachments, send_at: now, status: "sent", sent_at: now,
-        created_by: user.id, assigned_to: user.id,
+        created_by: user.id, assigned_to: user.id, from_email: reminderFromEmail,
       });
     },
     onSuccess: () => { toast.success("Email sent"); setOpen(false); resetForm(); qc.invalidateQueries({ queryKey: ["reminders"] }); },
@@ -339,7 +346,7 @@ function RemindersPage() {
         ? r.message
         : `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;white-space:pre-wrap;color:#0f172a">${r.message.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</div>`;
       const atts = await signedAttachments(r.attachments || []);
-      const { data, error } = await supabase.functions.invoke("send-client-email", { body: { to: r.to_email, subject: r.subject, html, attachments: atts } });
+      const { data, error } = await supabase.functions.invoke("send-client-email", { body: { to: r.to_email, subject: r.subject, html, attachments: atts, from: r.from_email || undefined } });
       if (error) throw new Error(error.message);
       if (!data?.ok) throw new Error(data?.error || "Could not send email");
       const patch = r.repeat_interval_days > 0

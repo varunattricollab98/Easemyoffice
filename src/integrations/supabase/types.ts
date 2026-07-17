@@ -194,6 +194,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           error: string | null
+          from_email: string | null
           id: string
           is_html: boolean
           lead_id: string | null
@@ -216,6 +217,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           error?: string | null
+          from_email?: string | null
           id?: string
           is_html?: boolean
           lead_id?: string | null
@@ -238,6 +240,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           error?: string | null
+          from_email?: string | null
           id?: string
           is_html?: boolean
           lead_id?: string | null

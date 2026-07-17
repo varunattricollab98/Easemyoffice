@@ -45,12 +45,22 @@ function toEmailList(v: unknown): string[] {
   return raw.map((s) => String(s).trim()).filter(isEmail);
 }
 
+// Allow callers to override the sender (e.g. renewals@easemyoffice.in for the
+// renewal team), but only for our own verified domain so it can't be abused.
+// Accepts either a bare address or a "Display Name <addr@easemyoffice.in>" form.
+function safeFrom(v: unknown): string | null {
+  if (typeof v !== "string" || !v.trim()) return null;
+  const m = v.match(/<([^>]+)>/);
+  const addr = (m ? m[1] : v).trim().toLowerCase();
+  return isEmail(addr) && addr.endsWith("@easemyoffice.in") ? v.trim() : null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     if (req.method !== "POST") throw new Error("Use POST");
-    const { to, subject, html, text, replyTo, cc, bcc, attachments } = await req.json().catch(() => ({}));
+    const { to, subject, html, text, replyTo, cc, bcc, attachments, from } = await req.json().catch(() => ({}));
 
     const toList = toEmailList(to);
     if (!toList.length) throw new Error("A valid recipient email ('to') is required.");
@@ -60,7 +70,8 @@ Deno.serve(async (req) => {
     if (!RESEND_API_KEY)
       throw new Error("Email is not configured yet. Add RESEND_API_KEY in Supabase Edge Function secrets.");
 
-    const payload: Record<string, unknown> = { from: FROM_EMAIL, to: toList, subject };
+    const fromEmail = safeFrom(from) ?? FROM_EMAIL;
+    const payload: Record<string, unknown> = { from: fromEmail, to: toList, subject };
     if (html) payload.html = CRM_MARKER + html;
     if (text) payload.text = text;
     // Ensure the hidden marker rides along even for text-only sends, so the

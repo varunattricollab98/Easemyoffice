@@ -51,14 +51,26 @@ function esc(s: unknown): string {
     .replace(/>/g, "&gt;");
 }
 
-async function sendEmail(toList: string[], subject: string, message: string, isHtml: boolean, attachments: { filename: string; path: string }[]) {
+// Allow a per-reminder sender override (e.g. renewals@easemyoffice.in), but
+// only for our own verified domain so it can't be abused. Accepts a bare
+// address or a "Display Name <addr@easemyoffice.in>" form.
+function safeFrom(v: unknown): string | null {
+  if (typeof v !== "string" || !v.trim()) return null;
+  const m = v.match(/<([^>]+)>/);
+  const addr = (m ? m[1] : v).trim().toLowerCase();
+  const at = addr.indexOf("@");
+  return at > 0 && addr.endsWith("@easemyoffice.in") ? v.trim() : null;
+}
+
+async function sendEmail(toList: string[], subject: string, message: string, isHtml: boolean, attachments: { filename: string; path: string }[], fromOverride?: unknown) {
   // Rich HTML bodies are sent as-is; plain ones are wrapped with pre-wrap so
   // typed line breaks survive (no newline regex, which breaks on copy-paste).
   const bodyHtml = isHtml
     ? message
     : `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;white-space:pre-wrap;color:#0f172a">${esc(message)}</div>`;
   const html = CRM_MARKER + bodyHtml;
-  const payload: Record<string, unknown> = { from: FROM_EMAIL, to: toList, subject, html };
+  const from = safeFrom(fromOverride) ?? FROM_EMAIL;
+  const payload: Record<string, unknown> = { from, to: toList, subject, html };
   if (!isHtml) payload.text = message;
   if (BCC_EMAIL) payload.bcc = [BCC_EMAIL];
   if (attachments && attachments.length) payload.attachments = attachments;
@@ -89,7 +101,7 @@ Deno.serve(async (req) => {
 
     const { data: due, error } = await supabase
       .from("reminders")
-      .select("id, to_email, subject, message, send_at, repeat_interval_days, repeat_until, occurrences_sent, is_html, attachments")
+      .select("id, to_email, subject, message, send_at, repeat_interval_days, repeat_until, occurrences_sent, is_html, attachments, from_email")
       .eq("status", "scheduled")
       .lte("send_at", nowIso)
       .order("send_at", { ascending: true })
@@ -107,7 +119,7 @@ Deno.serve(async (req) => {
           const { data: signed } = await supabase.storage.from("reminder-attachments").createSignedUrl(a.path, 3600);
           if (signed?.signedUrl) attList.push({ filename: a.name, path: signed.signedUrl });
         }
-        await sendEmail(recipients(r.to_email), r.subject, r.message, !!r.is_html, attList);
+        await sendEmail(recipients(r.to_email), r.subject, r.message, !!r.is_html, attList, r.from_email);
         const occ = (r.occurrences_sent ?? 0) + 1;
         const interval = Number(r.repeat_interval_days ?? 0);
 
