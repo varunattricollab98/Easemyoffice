@@ -34,12 +34,15 @@ function json(obj) {
 }
 
 // ---- WRITE: append a booking row ----
+// Supports an optional body.sheet parameter to write to a different tab
+// (e.g. "Renewals"). Defaults to the main SHEET_NAME ("Bookings").
 function doPost(e) {
   try {
     var body = JSON.parse(e.postData.contents);
     if (TOKEN && body.token !== TOKEN) return json({ ok: false, error: "unauthorized" });
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sh = ss.getSheetByName(SHEET_NAME) || ss.insertSheet(SHEET_NAME);
+    var targetSheet = body.sheet ? String(body.sheet) : SHEET_NAME;
+    var sh = ss.getSheetByName(targetSheet) || ss.insertSheet(targetSheet);
     if (sh.getLastRow() === 0) sh.appendRow(HEADERS);
     sh.appendRow(body.values);
     return json({ ok: true });
