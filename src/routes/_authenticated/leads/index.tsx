@@ -63,8 +63,9 @@ function LeadsListPage() {
   const [bulkReason, setBulkReason] = useState("");
   const [showDupes, setShowDupes] = useState(false);
   const [customDate, setCustomDate] = useState("");
-  // Track user-overridden "originals" per duplicate group (key = group matchKey → lead id)
+  // Track user-overridden "originals" per duplicate group
   const [originalOverrides, setOriginalOverrides] = useState<Record<string, string>>({});
+  const [overrideVersion, setOverrideVersion] = useState(0);
   const stage = search.stage ?? "all";
   const interest = search.interest ?? "all";
   const service = search.service ?? "all";
@@ -464,12 +465,13 @@ function LeadsListPage() {
             <div className="space-y-3 max-h-[400px] overflow-y-auto">
               {dupeGroups.map((g, gi) => {
                 // Reorder leads: if user has overridden the original, put that one first
-                const overrideId = originalOverrides[g.matchKey];
-                const orderedLeads = overrideId
-                  ? [g.leads.find((l: any) => l.id === overrideId), ...g.leads.filter((l: any) => l.id !== overrideId)].filter(Boolean)
-                  : g.leads;
+                const gKey = g.matchKey;
+                const overrideId = originalOverrides[gKey];
+                const orderedLeads: any[] = overrideId && g.leads.some((l: any) => l.id === overrideId)
+                  ? [g.leads.find((l: any) => l.id === overrideId)!, ...g.leads.filter((l: any) => l.id !== overrideId)]
+                  : [...g.leads];
                 return (
-                <div key={g.matchKey} className="rounded-lg border bg-background p-3">
+                <div key={`${gKey}-${overrideVersion}`} className="rounded-lg border bg-background p-3">
                   <div className="text-xs text-muted-foreground mb-2">
                     Matched by <Badge variant="outline" className="text-[10px] ml-1">{g.matchType}</Badge>
                     <span className="ml-2">({g.leads.length} entries)</span>
@@ -498,7 +500,8 @@ function LeadsListPage() {
                               variant="outline"
                               className="text-emerald-600 hover:text-emerald-700 border-emerald-300 text-xs"
                               onClick={() => {
-                                setOriginalOverrides((prev) => ({ ...prev, [g.matchKey]: l.id }));
+                                setOriginalOverrides((prev) => ({ ...prev, [gKey]: l.id }));
+                                setOverrideVersion((v) => v + 1);
                                 toast.success(`"${l.client_name}" marked as original`);
                               }}
                             >
