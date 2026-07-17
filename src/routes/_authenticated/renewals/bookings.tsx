@@ -213,16 +213,27 @@ function NewRenewalBookingDialog({ open, onClose, userId, team }: { open: boolea
       if (error) throw new Error(error.message);
 
       // 2) Best-effort: sync to the renewal Google Sheet
+      // Column order must match HEADERS in the Apps Script exactly:
+      // Date, Sales Agent, Booking ID, Booking Source, Plan Name, VO Plan,
+      // SP Name, Area, City, State, SP Status,
+      // VO Amount, VO GST 18%, Add on Services, Add on Amount, Add on GST 18%,
+      // Total Amount, TDS %, TDS Amount, Amount After TDS,
+      // Payment Mode, Payment ID/UTR, Invoice Number,
+      // SP Payable, Add on Payable, Profit,
+      // SP Payment Status, VO Status,
+      // Business Name, Client Name, Email Id, Contact No., Remarks, Sales Month,
+      // Amount Received, Balance Amount, Balance Due Date
+      const salesMonth = (() => { const d = new Date(f.date); return d.toLocaleDateString(undefined, { month: "short", year: "numeric" }).replace(" ", "-"); })();
       const values = [
-        f.date, f.sales_agent, f.booking_source, f.plan_name, f.vo_plan,
-        f.sp_name, f.area, f.city, f.state,
-        vo, voGst, f.addon_services, addOn, addOnGst, totalWithGst,
-        spPay, addOnPay, profit,
+        f.date, f.sales_agent, "", f.booking_source, f.plan_name, f.vo_plan,
+        f.sp_name, f.area, f.city, f.state, "",
+        vo, voGst, f.addon_services, addOn, addOnGst,
+        totalWithGst, 0, 0, totalWithGst,
         f.payment_mode_ref, f.payment_id_utr, f.invoice_number,
+        spPay, addOnPay, profit,
         f.sp_payment_status, f.vo_status,
-        f.business_name, f.client_name, f.email_id, f.contact_no,
-        f.plan_start_date, f.plan_expiry_date,
-        f.remarks, amountReceived, balanceAmount, f.balance_due_date || "",
+        f.business_name, f.client_name, f.email_id, f.contact_no, f.remarks, salesMonth,
+        amountReceived, balanceAmount, f.balance_due_date || "",
       ];
       const sheet = await syncRenewalToSheet(values);
       return { sheet };
