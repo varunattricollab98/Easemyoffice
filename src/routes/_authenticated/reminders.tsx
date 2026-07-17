@@ -128,13 +128,34 @@ function RemindersPage() {
   }, []);
 
   const { data: reminders = [], isLoading } = useQuery({
-    queryKey: ["reminders"],
+    queryKey: ["reminders", user?.id, isAdmin],
     queryFn: async () => {
-      const { data, error } = await supabase.from("reminders").select("*").order("send_at", { ascending: true }).limit(1000);
+      let query = supabase.from("reminders").select("*").order("send_at", { ascending: true }).limit(1000);
+      // Non-admins see only their own reminders
+      if (!isAdmin && user?.id) {
+        query = query.or(`created_by.eq.${user.id},assigned_to.eq.${user.id}`);
+      }
+      const { data, error } = await query;
       if (error) throw new Error(error.message);
       return (data ?? []) as unknown as Reminder[];
     },
   });
+
+  // Team profiles for showing who scheduled each reminder (admin view)
+  const { data: teamProfiles = [] } = useQuery({
+    queryKey: ["reminder-team-profiles"],
+    enabled: isAdmin,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data } = await supabase.from("profiles").select("id, full_name, email");
+      return (data ?? []) as { id: string; full_name: string | null; email: string | null }[];
+    },
+  });
+  const creatorNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    teamProfiles.forEach((p) => m.set(p.id, p.full_name || p.email || ""));
+    return m;
+  }, [teamProfiles]);
 
   const { data: snippets = [] } = useQuery({
     queryKey: ["email-snippets"],
@@ -432,6 +453,9 @@ function RemindersPage() {
                   <TableCell>
                     <div className="font-medium">{r.client_name || r.to_email}</div>
                     <div className="text-xs text-muted-foreground flex items-center gap-1"><Mail className="h-3 w-3" />{r.to_email}</div>
+                    {isAdmin && r.created_by && creatorNameById.get(r.created_by) && (
+                      <div className="text-[10px] text-muted-foreground mt-0.5">by {creatorNameById.get(r.created_by)}</div>
+                    )}
                   </TableCell>
                   <TableCell className="max-w-xs">
                     <div className="truncate">{r.subject}</div>
