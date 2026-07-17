@@ -15,6 +15,7 @@ import { Search, Plus, CheckCircle2, Clock, UserCircle2 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { getSheetConfig } from "@/lib/bookings-sheet";
 
 export const Route = createFileRoute("/_authenticated/renewals/bookings")({
   head: () => ({ meta: [{ title: "Renewal Bookings — EaseMyOffice CRM" }] }),
@@ -156,6 +157,31 @@ function NewRenewalBookingDialog({ open, onClose, userId, team }: { open: boolea
 
   // Calculations
   const vo = num(f.vo_amount);
+
+  // Plans master list from the Google Sheet (same as sales booking form)
+  const { data: sheetConfig } = useQuery({
+    queryKey: ["booking-sheet-config"],
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    queryFn: getSheetConfig,
+  });
+  const plans = sheetConfig?.plans ?? [];
+
+  // Selecting a plan code autofills its details from the sheet
+  const applyPlan = (code: string) => {
+    const p = plans.find((x) => x.code === code);
+    setF((s) => ({
+      ...s,
+      plan_name: code,
+      vo_plan: p?.vo_plan || s.vo_plan,
+      sp_name: p?.sp_name || s.sp_name,
+      area: p?.area || s.area,
+      city: p?.city || s.city,
+      state: p?.state || s.state,
+      sp_payable: (p?.sp_payable !== undefined && p?.sp_payable !== null && p?.sp_payable !== "") ? String(p.sp_payable) : s.sp_payable,
+    }));
+  };
   const voGst = +(vo * 0.18).toFixed(2);
   const addOn = num(f.addon_amount);
   const addOnGst = +(addOn * 0.18).toFixed(2);
@@ -264,7 +290,31 @@ function NewRenewalBookingDialog({ open, onClose, userId, team }: { open: boolea
               <SelectContent>{SOURCES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          {T("plan_name", "Plan Name")}
+          <div>
+            <Label className="text-xs">Plan Name</Label>
+            {plans.length > 0 ? (
+              <>
+                <Input
+                  list="renewal-plan-codes"
+                  value={f.plan_name}
+                  placeholder="Type to search plan…"
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    const match = plans.find((x) => x.code === v);
+                    if (match) applyPlan(v);
+                    else setF((s) => ({ ...s, plan_name: v }));
+                  }}
+                />
+                <datalist id="renewal-plan-codes">
+                  {plans.map((p) => (
+                    <option key={p.code} value={p.code} label={[p.sp_name, p.city].filter(Boolean).join(" · ")} />
+                  ))}
+                </datalist>
+              </>
+            ) : (
+              <Input value={f.plan_name} placeholder="Plan name" onChange={(e) => setF({ ...f, plan_name: e.target.value })} />
+            )}
+          </div>
           {T("vo_plan", "VO Plan")}
           {T("sp_name", "SP Name")}
           {T("area", "Area")}
