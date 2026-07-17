@@ -483,21 +483,39 @@ function LeadsListPage() {
                             {l.assigned_to && nameById.get(l.assigned_to) && <span className="ml-2">· {nameById.get(l.assigned_to)}</span>}
                           </div>
                         </div>
-                        {li > 0 && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-destructive hover:text-destructive shrink-0"
-                            disabled={deleteLead.isPending}
-                            onClick={() => {
-                              if (window.confirm(`Delete duplicate "${l.client_name}" (${l.lead_code})? This cannot be undone.`)) {
-                                deleteLead.mutate(l.id);
-                              }
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4 mr-1" /> Delete
-                          </Button>
-                        )}
+                        <div className="flex items-center gap-1 shrink-0">
+                          {li > 0 && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-emerald-600 hover:text-emerald-700 border-emerald-300 text-xs"
+                              onClick={() => {
+                                // Move this entry to the front (mark as original)
+                                const newLeads = [l, ...g.leads.filter((_: any, i: number) => i !== li)];
+                                g.leads.splice(0, g.leads.length, ...newLeads);
+                                qc.invalidateQueries({ queryKey: ["leads-duplicates"] });
+                                toast.success(`"${l.client_name}" marked as original`);
+                              }}
+                            >
+                              Mark as Original
+                            </Button>
+                          )}
+                          {li > 0 && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive hover:text-destructive"
+                              disabled={deleteLead.isPending}
+                              onClick={() => {
+                                if (window.confirm(`Delete duplicate "${l.client_name}" (${l.lead_code})? This cannot be undone.`)) {
+                                  deleteLead.mutate(l.id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 mr-1" /> Delete
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
