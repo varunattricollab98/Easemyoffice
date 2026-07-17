@@ -52,30 +52,103 @@ type Subscription = {
 
 function SettingsPage() {
   const { profile, user, signOut, isAdmin, refresh } = useAuth();
+  const [activeSection, setActiveSection] = useState("profile");
+
+  const sections = useMemo(() => {
+    const base = [
+      { id: "profile", label: "Profile", icon: UserIcon },
+      { id: "appearance", label: "Appearance", icon: Palette },
+      { id: "notifications", label: "Notifications", icon: BellIcon },
+      { id: "shortcuts", label: "Shortcuts", icon: Keyboard },
+      { id: "backup", label: "Backup & Data", icon: Database },
+    ];
+    if (isAdmin) {
+      base.push({ id: "admin", label: "Admin", icon: Building2 });
+    }
+    base.push({ id: "account", label: "Account", icon: LogOut });
+    return base;
+  }, [isAdmin]);
+
   return (
-    <div className="p-4 md:p-8 max-w-3xl mx-auto space-y-4">
-      <h1 className="text-2xl md:text-3xl font-bold">Settings</h1>
+    <div className="p-4 md:p-8 max-w-5xl mx-auto">
+      <div className="mb-6">
+        <h1 className="text-2xl md:text-3xl font-bold">Settings</h1>
+        <p className="text-sm text-muted-foreground mt-1">Manage your profile, preferences, and CRM configuration.</p>
+      </div>
 
-      <ProfileCard profile={profile} email={user?.email ?? ""} onSaved={refresh} />
-      <AppearanceCard />
-      <AccessibilityPreviewCard />
-      <ShortcutRemapCard />
-      <KeyboardShortcutsCard />
-      <BackupCard />
-      <NotificationPrefs />
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* Sidebar navigation */}
+        <nav className="lg:w-56 shrink-0">
+          <div className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-x-visible pb-2 lg:pb-0">
+            {sections.map((s) => {
+              const Icon = s.icon;
+              const active = activeSection === s.id;
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => setActiveSection(s.id)}
+                  className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
+                    active
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {s.label}
+                </button>
+              );
+            })}
+          </div>
+        </nav>
 
-      {isAdmin && <OrgDefaultsCard />}
-      {isAdmin && <DemoControls />}
-      {isAdmin && <ReportSubscriptions />}
-
-      <Card>
-        <CardHeader><CardTitle className="text-base flex items-center gap-2"><LogOut className="h-4 w-4" /> Account</CardTitle></CardHeader>
-        <CardContent>
-          <Button variant="outline" onClick={() => signOut()}>
-            <LogOut className="h-4 w-4 mr-2" /> Sign out
-          </Button>
-        </CardContent>
-      </Card>
+        {/* Content area */}
+        <div className="flex-1 min-w-0 space-y-4">
+          {activeSection === "profile" && <ProfileCard profile={profile} email={user?.email ?? ""} onSaved={refresh} />}
+          {activeSection === "appearance" && (
+            <>
+              <AppearanceCard />
+              <AccessibilityPreviewCard />
+            </>
+          )}
+          {activeSection === "notifications" && <NotificationPrefs />}
+          {activeSection === "shortcuts" && (
+            <>
+              <ShortcutRemapCard />
+              <KeyboardShortcutsCard />
+            </>
+          )}
+          {activeSection === "backup" && <BackupCard />}
+          {activeSection === "admin" && isAdmin && (
+            <>
+              <OrgDefaultsCard />
+              <DemoControls />
+              <ReportSubscriptions />
+            </>
+          )}
+          {activeSection === "account" && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2"><LogOut className="h-4 w-4" /> Account</CardTitle>
+                <CardDescription>Manage your session and account access.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-4 p-4 rounded-lg border bg-muted/30">
+                  <div className="h-12 w-12 rounded-full bg-primary/10 grid place-items-center">
+                    <UserIcon className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <div className="font-medium">{profile?.full_name || user?.email}</div>
+                    <div className="text-sm text-muted-foreground">{user?.email}</div>
+                  </div>
+                </div>
+                <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => signOut()}>
+                  <LogOut className="h-4 w-4 mr-2" /> Sign out of this device
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
