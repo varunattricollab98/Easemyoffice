@@ -52,7 +52,10 @@ function SalesPerformancePage() {
   const { data: bookings = [] } = useQuery({
     queryKey: ["perf-bookings"],
     queryFn: async () => {
-      const { data } = await supabase.from("bookings").select("id, sales_agent_id, sales_agent_name, total_amount, amount_received").limit(5000);
+      const { data } = await supabase.from("bookings")
+        .select("id, sales_agent_id, sales_agent_name, total_amount, amount_received")
+        .neq("booking_source", "Renewal")
+        .limit(5000);
       return data ?? [];
     },
   });

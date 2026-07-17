@@ -54,8 +54,10 @@ export function HeroOfMonth() {
     queryKey: ["hero-bookings", start, end],
     queryFn: async () => {
       const { data, error } = await supabase.from("bookings")
-        .select("id, sales_agent_id, sales_agent_name, plan_name, total_amount, profit, booking_date")
-        .gte("booking_date", start).lt("booking_date", end).limit(5000);
+        .select("id, sales_agent_id, sales_agent_name, plan_name, total_amount, profit, booking_date, booking_source")
+        .gte("booking_date", start).lt("booking_date", end)
+        .neq("booking_source", "Renewal")
+        .limit(5000);
       if (error) throw new Error(error.message);
       return data ?? [];
     },
@@ -122,7 +124,10 @@ export function HeroOfMonth() {
     queryKey: ["hero-trend", trendStart, trendEnd],
     queryFn: async () => {
       const { data, error } = await supabase.from("bookings")
-        .select("booking_date, total_amount, profit").gte("booking_date", trendStart).lt("booking_date", trendEnd).limit(5000);
+        .select("booking_date, total_amount, profit")
+        .gte("booking_date", trendStart).lt("booking_date", trendEnd)
+        .neq("booking_source", "Renewal")
+        .limit(5000);
       if (error) throw new Error(error.message);
       return data ?? [];
     },
