@@ -1,0 +1,18 @@
+export const cities = [
+  { name: 'Delhi', slug: 'delhi', price: 899 },
+  { name: 'Mumbai', slug: 'mumbai', price: 1199 },
+  { name: 'Bangalore', slug: 'bangalore', price: 999 },
+  { name: 'Gurgaon', slug: 'gurgaon', price: 999 },
+  { name: 'Noida', slug: 'noida', price: 899 },
+  { name: 'Pune', slug: 'pune', price: 899 },
+  { name: 'Hyderabad', slug: 'hyderabad', price: 999 },
+  { name: 'Chennai', slug: 'chennai', price: 999 },
+  { name: 'Ahmedabad', slug: 'ahmedabad', price: 799 },
+  { name: 'Kolkata', slug: 'kolkata', price: 899 },
+  { name: 'Jaipur', slug: 'jaipur', price: 799 },
+  { name: 'Chandigarh', slug: 'chandigarh', price: 899 },
+  { name: 'Lucknow', slug: 'lucknow', price: 699 },
+  { name: 'Indore', slug: 'indore', price: 699 },
+  { name: 'Kochi', slug: 'kochi', price: 799 },
+  { name: 'Bhubaneswar', slug: 'bhubaneswar', price: 699 },
+]
