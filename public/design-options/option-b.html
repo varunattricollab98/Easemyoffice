@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EaseMyOffice - Premium Virtual Office & Coworking Spaces | Option B</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { 'inter': ['Inter', 'sans-serif'] },
+                    colors: {
+                        navy: { 50: '#f0f4ff', 100: '#e0e8ff', 200: '#c2d1ff', 800: '#1e2a4a', 900: '#0f172a', 950: '#080d1a' },
+                        gold: { 50: '#fffbeb', 100: '#fef3c7', 200: '#fde68a', 300: '#fcd34d', 400: '#fbbf24', 500: '#f59e0b', 600: '#d97706' },
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        .hero-gradient { background: linear-gradient(135deg, #0f172a 0%, #1e2a4a 40%, #1a2332 100%); }
+        .gold-glow { box-shadow: 0 0 40px rgba(245, 158, 11, 0.15); }
+        .card-hover { transition: all 0.3s ease; }
+        .card-hover:hover { transform: translateY(-4px); }
+        .trust-scroll { animation: scroll 30s linear infinite; }
+        @keyframes scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+        .mesh-bg { background-image: radial-gradient(at 40% 20%, rgba(245, 158, 11, 0.05) 0px, transparent 50%), radial-gradient(at 80% 80%, rgba(245, 158, 11, 0.03) 0px, transparent 50%); }
+        .glass-card { background: rgba(30, 42, 74, 0.5); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
+        .gradient-border { background: linear-gradient(135deg, rgba(245, 158, 11, 0.3), rgba(245, 158, 11, 0)) padding-box, linear-gradient(135deg, #f59e0b, transparent) border-box; border: 1px solid transparent; }
+        .shimmer { background: linear-gradient(90deg, transparent, rgba(245, 158, 11, 0.1), transparent); background-size: 200% 100%; animation: shimmer 3s infinite; }
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+    </style>
+</head>
+<body class="font-inter text-white bg-navy-950 antialiased">
+
+    <!-- Navigation -->
+    <nav class="fixed top-0 w-full bg-navy-950/90 backdrop-blur-xl z-50 border-b border-white/5">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16 md:h-20">
+                <div class="flex items-center gap-2">
+                    <div class="w-10 h-10 bg-gradient-to-br from-gold-400 to-gold-600 rounded-xl flex items-center justify-center">
+                        <svg class="w-6 h-6 text-navy-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                    </div>
+                    <span class="text-xl font-bold text-white">Ease<span class="text-gold-400">My</span>Office</span>
+                </div>
+                <div class="hidden md:flex items-center gap-8">
+                    <a href="#services" class="text-sm font-medium text-gray-400 hover:text-gold-400 transition">Services</a>
+                    <a href="#pricing" class="text-sm font-medium text-gray-400 hover:text-gold-400 transition">Pricing</a>
+                    <a href="#how-it-works" class="text-sm font-medium text-gray-400 hover:text-gold-400 transition">How It Works</a>
+                    <a href="#testimonials" class="text-sm font-medium text-gray-400 hover:text-gold-400 transition">Reviews</a>
+                    <a href="#faq" class="text-sm font-medium text-gray-400 hover:text-gold-400 transition">FAQ</a>
+                </div>
+                <div class="flex items-center gap-3">
+                    <a href="tel:+919876543210" class="hidden sm:flex items-center gap-1 text-sm font-medium text-gray-300">
+                        <svg class="w-4 h-4 text-gold-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+                        Talk to Expert
+                    </a>
+                    <a href="#hero" class="bg-gradient-to-r from-gold-500 to-gold-600 hover:from-gold-400 hover:to-gold-500 text-navy-900 px-5 py-2.5 rounded-lg text-sm font-bold transition shadow-lg shadow-gold-500/20">
+                        Get Started
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section id="hero" class="hero-gradient pt-28 md:pt-36 pb-16 md:pb-24 relative overflow-hidden mesh-bg">
+        <div class="absolute top-20 right-10 w-[500px] h-[500px] bg-gold-500/5 rounded-full blur-3xl"></div>
+        <div class="absolute bottom-10 left-10 w-72 h-72 bg-gold-500/3 rounded-full blur-3xl"></div>
+        <!-- Decorative grid -->
+        <div class="absolute inset-0 opacity-[0.03]" style="background-image: url('data:image/svg+xml,%3Csvg width=&quot;60&quot; height=&quot;60&quot; xmlns=&quot;http://www.w3.org/2000/svg&quot;%3E%3Cpath d=&quot;M0 0h60v60H0z&quot; fill=&quot;none&quot; stroke=&quot;white&quot; stroke-width=&quot;0.5&quot;/%3E%3C/svg%3E');"></div>
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+            <div class="grid lg:grid-cols-2 gap-12 items-center">
+                <div>
+                    <div class="inline-flex items-center gap-2 bg-gold-500/10 border border-gold-500/20 rounded-full px-4 py-1.5 mb-6">
+                        <span class="w-2 h-2 bg-gold-400 rounded-full animate-pulse"></span>
+                        <span class="text-xs font-medium text-gold-300">Trusted by 5,000+ Businesses Across India</span>
+                    </div>
+                    <h1 class="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight text-white mb-6">
+                        Your Premium <span class="text-transparent bg-clip-text bg-gradient-to-r from-gold-300 to-gold-500">Business Address</span> Starts at <span class="text-gold-400">&#8377;699/mo</span>
+                    </h1>
+                    <p class="text-lg md:text-xl text-gray-400 mb-8 leading-relaxed max-w-lg">
+                        Get a prestigious virtual office address for GST registration, company incorporation & professional mailing. Setup in just 2-3 days.
+                    </p>
+                    <div class="flex flex-col sm:flex-row gap-4 mb-8">
+                        <a href="#pricing" class="bg-gradient-to-r from-gold-500 to-gold-600 hover:from-gold-400 hover:to-gold-500 text-navy-900 px-8 py-4 rounded-xl text-base font-bold transition shadow-xl shadow-gold-500/20 text-center">
+                            View Plans & Pricing
+                        </a>
+                        <a href="#how-it-works" class="border border-white/10 hover:border-gold-500/30 text-gray-300 hover:text-gold-400 px-8 py-4 rounded-xl text-base font-semibold transition text-center backdrop-blur-sm">
+                            How It Works
+                        </a>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-6 text-sm text-gray-500">
+                        <span class="flex items-center gap-1.5"><svg class="w-4 h-4 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> No hidden charges</span>
+                        <span class="flex items-center gap-1.5"><svg class="w-4 h-4 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> 97% approval rate</span>
+                        <span class="flex items-center gap-1.5"><svg class="w-4 h-4 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> 4.9/5 on Google</span>
+                    </div>
+                </div>
+                <!-- Quick Enquiry Form -->
+                <div class="glass-card rounded-2xl p-8 gold-glow">
+                    <h3 class="text-xl font-bold text-white mb-1">Get Free Consultation</h3>
+                    <p class="text-sm text-gray-400 mb-6">Our expert will call you within 30 minutes</p>
+                    <form class="space-y-4">
+                        <input type="text" placeholder="Your Name" class="w-full px-4 py-3.5 bg-navy-900/50 border border-white/10 rounded-xl focus:ring-2 focus:ring-gold-500/30 focus:border-gold-500/50 outline-none transition text-sm text-white placeholder-gray-500">
+                        <input type="tel" placeholder="Phone Number" class="w-full px-4 py-3.5 bg-navy-900/50 border border-white/10 rounded-xl focus:ring-2 focus:ring-gold-500/30 focus:border-gold-500/50 outline-none transition text-sm text-white placeholder-gray-500">
+                        <input type="email" placeholder="Email Address" class="w-full px-4 py-3.5 bg-navy-900/50 border border-white/10 rounded-xl focus:ring-2 focus:ring-gold-500/30 focus:border-gold-500/50 outline-none transition text-sm text-white placeholder-gray-500">
+                        <select class="w-full px-4 py-3.5 bg-navy-900/50 border border-white/10 rounded-xl focus:ring-2 focus:ring-gold-500/30 focus:border-gold-500/50 outline-none transition text-sm text-gray-400">
+                            <option>Select Service</option>
+                            <option>Virtual Office for GST</option>
+                            <option>Virtual Office for Business</option>
+                            <option>Company Registration</option>
+                            <option>Coworking Space</option>
+                            <option>Meeting Room</option>
+                        </select>
+                        <select class="w-full px-4 py-3.5 bg-navy-900/50 border border-white/10 rounded-xl focus:ring-2 focus:ring-gold-500/30 focus:border-gold-500/50 outline-none transition text-sm text-gray-400">
+                            <option>Select City</option>
+                            <option>Delhi</option>
+                            <option>Mumbai</option>
+                            <option>Bangalore</option>
+                            <option>Hyderabad</option>
+                            <option>Chennai</option>
+                            <option>Pune</option>
+                            <option>Kolkata</option>
+                        </select>
+                        <button type="submit" class="w-full bg-gradient-to-r from-gold-500 to-gold-600 hover:from-gold-400 hover:to-gold-500 text-navy-900 py-4 rounded-xl font-bold transition shadow-lg shadow-gold-500/20 text-sm">
+                            Get Free Quote &rarr;
+                        </button>
+                    </form>
+                    <p class="text-xs text-gray-500 mt-4 text-center">By submitting, you agree to our Terms & Privacy Policy</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Trust Logos -->
+    <section class="py-12 bg-navy-900/50 border-y border-white/5">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <p class="text-center text-sm font-medium text-gray-500 uppercase tracking-wider mb-8">Trusted by Leading Brands Across India</p>
+            <div class="overflow-hidden relative">
+                <div class="flex items-center gap-12 trust-scroll whitespace-nowrap">
+                    <span class="text-xl font-bold text-gray-600 px-4">VERIZON</span>
+                    <span class="text-xl font-bold text-gray-600 px-4">KINETIC GREEN</span>
+                    <span class="text-xl font-bold text-gray-600 px-4">SIMPL</span>
+                    <span class="text-xl font-bold text-gray-600 px-4">HOMELANE</span>
+                    <span class="text-xl font-bold text-gray-600 px-4">OMNICURIS</span>
+                    <span class="text-xl font-bold text-gray-600 px-4">BATTERY SMART</span>
+                    <span class="text-xl font-bold text-gray-600 px-4">UPTODD</span>
+                    <span class="text-xl font-bold text-gray-600 px-4">FITELO</span>
+                    <span class="text-xl font-bold text-gray-600 px-4">KALKI FASHION</span>
+                    <span class="text-xl font-bold text-gray-600 px-4">ROARX</span>
+                    <span class="text-xl font-bold text-gray-600 px-4">EARTHTRON EV</span>
+                    <span class="text-xl font-bold text-gray-600 px-4">RUDRA GAS</span>
+                    <span class="text-xl font-bold text-gray-600 px-4">VERIZON</span>
+                    <span class="text-xl font-bold text-gray-600 px-4">KINETIC GREEN</span>
+                    <span class="text-xl font-bold text-gray-600 px-4">SIMPL</span>
+                    <span class="text-xl font-bold text-gray-600 px-4">HOMELANE</span>
+                    <span class="text-xl font-bold text-gray-600 px-4">OMNICURIS</span>
+                    <span class="text-xl font-bold text-gray-600 px-4">BATTERY SMART</span>
+                    <span class="text-xl font-bold text-gray-600 px-4">UPTODD</span>
+                    <span class="text-xl font-bold text-gray-600 px-4">FITELO</span>
+                    <span class="text-xl font-bold text-gray-600 px-4">KALKI FASHION</span>
+                    <span class="text-xl font-bold text-gray-600 px-4">ROARX</span>
+                    <span class="text-xl font-bold text-gray-600 px-4">EARTHTRON EV</span>
+                    <span class="text-xl font-bold text-gray-600 px-4">RUDRA GAS</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Stats Section -->
+    <section class="py-16 md:py-20 bg-navy-950 mesh-bg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-6">
+                <div class="text-center p-6 rounded-2xl glass-card">
+                    <div class="text-3xl md:text-4xl font-bold text-gold-400 mb-1">5,000+</div>
+                    <div class="text-sm text-gray-400">Businesses Served</div>
+                </div>
+                <div class="text-center p-6 rounded-2xl glass-card">
+                    <div class="text-3xl md:text-4xl font-bold text-gold-400 mb-1">200+</div>
+                    <div class="text-sm text-gray-400">Premium Addresses</div>
+                </div>
+                <div class="text-center p-6 rounded-2xl glass-card">
+                    <div class="text-3xl md:text-4xl font-bold text-gold-400 mb-1">28</div>
+                    <div class="text-sm text-gray-400">States Covered</div>
+                </div>
+                <div class="text-center p-6 rounded-2xl glass-card">
+                    <div class="text-3xl md:text-4xl font-bold text-gold-400 mb-1">97%</div>
+                    <div class="text-sm text-gray-400">Approval Rate</div>
+                </div>
+                <div class="text-center p-6 rounded-2xl glass-card col-span-2 md:col-span-1">
+                    <div class="text-3xl md:text-4xl font-bold text-gold-400 mb-1">4.9/5</div>
+                    <div class="text-sm text-gray-400">Google Rating</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Services Section -->
+    <section id="services" class="py-16 md:py-24 bg-navy-900/30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <span class="inline-block bg-gold-500/10 text-gold-400 text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wide mb-4 border border-gold-500/20">Our Services</span>
+                <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">Everything Your Business Needs</h2>
+                <p class="text-lg text-gray-400 max-w-2xl mx-auto">From virtual office addresses to complete company registration, we handle it all so you can focus on growing your business.</p>
+            </div>
+            <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="glass-card rounded-2xl p-8 card-hover group hover:border-gold-500/30">
+                    <div class="w-14 h-14 bg-gold-500/10 rounded-xl flex items-center justify-center mb-6 group-hover:bg-gold-500/20 transition">
+                        <svg class="w-7 h-7 text-gold-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                    </div>
+                    <h3 class="text-lg font-bold text-white mb-2">Virtual Office</h3>
+                    <p class="text-sm text-gray-400 mb-4">Premium business address for GST, company registration & professional correspondence.</p>
+                    <span class="text-gold-400 font-semibold text-sm">From &#8377;699/mo &rarr;</span>
+                </div>
+                <div class="glass-card rounded-2xl p-8 card-hover group hover:border-gold-500/30">
+                    <div class="w-14 h-14 bg-emerald-500/10 rounded-xl flex items-center justify-center mb-6 group-hover:bg-emerald-500/20 transition">
+                        <svg class="w-7 h-7 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                    </div>
+                    <h3 class="text-lg font-bold text-white mb-2">Coworking Space</h3>
+                    <p class="text-sm text-gray-400 mb-4">Modern, fully equipped shared workspaces in prime locations across India.</p>
+                    <span class="text-emerald-400 font-semibold text-sm">From &#8377;4,999/mo &rarr;</span>
+                </div>
+                <div class="glass-card rounded-2xl p-8 card-hover group hover:border-gold-500/30">
+                    <div class="w-14 h-14 bg-violet-500/10 rounded-xl flex items-center justify-center mb-6 group-hover:bg-violet-500/20 transition">
+                        <svg class="w-7 h-7 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z"/></svg>
+                    </div>
+                    <h3 class="text-lg font-bold text-white mb-2">Meeting Rooms</h3>
+                    <p class="text-sm text-gray-400 mb-4">Professional meeting rooms and conference halls available by the hour or day.</p>
+                    <span class="text-violet-400 font-semibold text-sm">From &#8377;499/hr &rarr;</span>
+                </div>
+                <div class="glass-card rounded-2xl p-8 card-hover group hover:border-gold-500/30">
+                    <div class="w-14 h-14 bg-rose-500/10 rounded-xl flex items-center justify-center mb-6 group-hover:bg-rose-500/20 transition">
+                        <svg class="w-7 h-7 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    </div>
+                    <h3 class="text-lg font-bold text-white mb-2">CA Services</h3>
+                    <p class="text-sm text-gray-400 mb-4">GST registration, company incorporation, compliance & all legal services under one roof.</p>
+                    <span class="text-rose-400 font-semibold text-sm">From &#8377;1,499 &rarr;</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section id="pricing" class="py-16 md:py-24 bg-navy-950 mesh-bg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <span class="inline-block bg-gold-500/10 text-gold-400 text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wide mb-4 border border-gold-500/20">Pricing</span>
+                <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">Simple, Transparent Pricing</h2>
+                <p class="text-lg text-gray-400 max-w-2xl mx-auto">No hidden fees. Choose the plan that fits your business needs.</p>
+            </div>
+            <div class="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+                <!-- Mailing Address Plan -->
+                <div class="glass-card rounded-2xl p-8 card-hover relative">
+                    <div class="mb-6">
+                        <h3 class="text-lg font-bold text-white mb-1">Mailing Address</h3>
+                        <p class="text-sm text-gray-500">For professional correspondence</p>
+                    </div>
+                    <div class="mb-6">
+                        <span class="text-4xl font-bold text-white">&#8377;699</span>
+                        <span class="text-gray-500">/month</span>
+                    </div>
+                    <ul class="space-y-3 mb-8">
+                        <li class="flex items-center gap-2 text-sm text-gray-400"><svg class="w-5 h-5 text-gold-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> Premium business address</li>
+                        <li class="flex items-center gap-2 text-sm text-gray-400"><svg class="w-5 h-5 text-gold-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> Mail handling & forwarding</li>
+                        <li class="flex items-center gap-2 text-sm text-gray-400"><svg class="w-5 h-5 text-gold-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> Digital notifications</li>
+                        <li class="flex items-center gap-2 text-sm text-gray-400"><svg class="w-5 h-5 text-gold-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> Business listing support</li>
+                    </ul>
+                    <a href="#" class="block w-full text-center py-3.5 rounded-xl border border-gold-500/30 text-gold-400 font-semibold hover:bg-gold-500/10 transition text-sm">Choose Plan</a>
+                </div>
+                <!-- GST Plan - Popular -->
+                <div class="relative rounded-2xl p-8 card-hover bg-gradient-to-b from-navy-800/80 to-navy-900/80 border border-gold-500/40 shadow-xl shadow-gold-500/10">
+                    <div class="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-gold-500 to-gold-600 text-navy-900 text-xs font-bold px-4 py-1.5 rounded-full">MOST POPULAR</div>
+                    <div class="mb-6">
+                        <h3 class="text-lg font-bold text-white mb-1">GST Registration</h3>
+                        <p class="text-sm text-gray-400">Complete GST virtual office</p>
+                    </div>
+                    <div class="mb-6">
+                        <span class="text-4xl font-bold text-white">&#8377;899</span>
+                        <span class="text-gray-400">/month</span>
+                    </div>
+                    <ul class="space-y-3 mb-8">
+                        <li class="flex items-center gap-2 text-sm text-gray-300"><svg class="w-5 h-5 text-gold-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> Everything in Mailing plan</li>
+                        <li class="flex items-center gap-2 text-sm text-gray-300"><svg class="w-5 h-5 text-gold-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> GST registration support</li>
+                        <li class="flex items-center gap-2 text-sm text-gray-300"><svg class="w-5 h-5 text-gold-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> NOC & utility bills</li>
+                        <li class="flex items-center gap-2 text-sm text-gray-300"><svg class="w-5 h-5 text-gold-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> Rent agreement</li>
+                        <li class="flex items-center gap-2 text-sm text-gray-300"><svg class="w-5 h-5 text-gold-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> 97% approval guarantee</li>
+                    </ul>
+                    <a href="#" class="block w-full text-center py-3.5 rounded-xl bg-gradient-to-r from-gold-500 to-gold-600 text-navy-900 font-bold hover:from-gold-400 hover:to-gold-500 transition text-sm shadow-lg shadow-gold-500/20">Choose Plan</a>
+                </div>
+                <!-- Company Registration -->
+                <div class="glass-card rounded-2xl p-8 card-hover relative">
+                    <div class="mb-6">
+                        <h3 class="text-lg font-bold text-white mb-1">Company Registration</h3>
+                        <p class="text-sm text-gray-500">Virtual office + incorporation</p>
+                    </div>
+                    <div class="mb-6">
+                        <span class="text-4xl font-bold text-white">&#8377;1,199</span>
+                        <span class="text-gray-500">/month</span>
+                    </div>
+                    <ul class="space-y-3 mb-8">
+                        <li class="flex items-center gap-2 text-sm text-gray-400"><svg class="w-5 h-5 text-gold-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> Everything in GST plan</li>
+                        <li class="flex items-center gap-2 text-sm text-gray-400"><svg class="w-5 h-5 text-gold-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> Company incorporation</li>
+                        <li class="flex items-center gap-2 text-sm text-gray-400"><svg class="w-5 h-5 text-gold-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> Registered office address</li>
+                        <li class="flex items-center gap-2 text-sm text-gray-400"><svg class="w-5 h-5 text-gold-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> MCA compliance docs</li>
+                        <li class="flex items-center gap-2 text-sm text-gray-400"><svg class="w-5 h-5 text-gold-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> Dedicated account manager</li>
+                    </ul>
+                    <a href="#" class="block w-full text-center py-3.5 rounded-xl border border-gold-500/30 text-gold-400 font-semibold hover:bg-gold-500/10 transition text-sm">Choose Plan</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Comparison Table -->
+    <section class="py-16 md:py-24 bg-navy-900/30">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <span class="inline-block bg-gold-500/10 text-gold-400 text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wide mb-4 border border-gold-500/20">Compare</span>
+                <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">Why Virtual Office Wins</h2>
+                <p class="text-lg text-gray-400 max-w-2xl mx-auto">See how EaseMyOffice compares to traditional options</p>
+            </div>
+            <div class="glass-card rounded-2xl overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead>
+                            <tr class="border-b border-white/5">
+                                <th class="px-6 py-4 text-left text-sm font-semibold text-gray-400">Feature</th>
+                                <th class="px-6 py-4 text-center text-sm font-semibold text-gold-400 bg-gold-500/5">EaseMyOffice</th>
+                                <th class="px-6 py-4 text-center text-sm font-semibold text-gray-400">Coworking</th>
+                                <th class="px-6 py-4 text-center text-sm font-semibold text-gray-400">Traditional Office</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-white/5">
+                            <tr>
+                                <td class="px-6 py-4 text-sm text-gray-300">Monthly Cost</td>
+                                <td class="px-6 py-4 text-center text-sm font-bold text-gold-400 bg-gold-500/5">&#8377;699</td>
+                                <td class="px-6 py-4 text-center text-sm text-gray-500">&#8377;8,000+</td>
+                                <td class="px-6 py-4 text-center text-sm text-gray-500">&#8377;30,000+</td>
+                            </tr>
+                            <tr>
+                                <td class="px-6 py-4 text-sm text-gray-300">Setup Time</td>
+                                <td class="px-6 py-4 text-center text-sm font-bold text-gold-400 bg-gold-500/5">2-3 Days</td>
+                                <td class="px-6 py-4 text-center text-sm text-gray-500">1-2 Weeks</td>
+                                <td class="px-6 py-4 text-center text-sm text-gray-500">1-3 Months</td>
+                            </tr>
+                            <tr>
+                                <td class="px-6 py-4 text-sm text-gray-300">GST Registration</td>
+                                <td class="px-6 py-4 text-center bg-gold-500/5"><svg class="w-5 h-5 text-gold-400 mx-auto" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg></td>
+                                <td class="px-6 py-4 text-center"><svg class="w-5 h-5 text-gray-600 mx-auto" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg></td>
+                                <td class="px-6 py-4 text-center"><svg class="w-5 h-5 text-gray-600 mx-auto" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg></td>
+                            </tr>
+                            <tr>
+                                <td class="px-6 py-4 text-sm text-gray-300">Lock-in Period</td>
+                                <td class="px-6 py-4 text-center text-sm font-bold text-gold-400 bg-gold-500/5">None</td>
+                                <td class="px-6 py-4 text-center text-sm text-gray-500">6-12 Months</td>
+                                <td class="px-6 py-4 text-center text-sm text-gray-500">2-5 Years</td>
+                            </tr>
+                            <tr>
+                                <td class="px-6 py-4 text-sm text-gray-300">Multiple Cities</td>
+                                <td class="px-6 py-4 text-center bg-gold-500/5"><svg class="w-5 h-5 text-gold-400 mx-auto" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg></td>
+                                <td class="px-6 py-4 text-center"><svg class="w-5 h-5 text-red-500/60 mx-auto" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg></td>
+                                <td class="px-6 py-4 text-center"><svg class="w-5 h-5 text-red-500/60 mx-auto" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg></td>
+                            </tr>
+                            <tr>
+                                <td class="px-6 py-4 text-sm text-gray-300">Maintenance/Electricity</td>
+                                <td class="px-6 py-4 text-center text-sm font-bold text-gold-400 bg-gold-500/5">&#8377;0</td>
+                                <td class="px-6 py-4 text-center text-sm text-gray-500">Included</td>
+                                <td class="px-6 py-4 text-center text-sm text-gray-500">&#8377;5,000+/mo</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works -->
+    <section id="how-it-works" class="py-16 md:py-24 bg-navy-950 mesh-bg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <span class="inline-block bg-gold-500/10 text-gold-400 text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wide mb-4 border border-gold-500/20">Process</span>
+                <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">Get Started in 4 Simple Steps</h2>
+                <p class="text-lg text-gray-400 max-w-2xl mx-auto">From sign-up to setup, we make it effortless for you</p>
+            </div>
+            <div class="grid md:grid-cols-4 gap-8">
+                <div class="text-center relative">
+                    <div class="w-16 h-16 bg-gradient-to-br from-gold-500 to-gold-600 text-navy-900 rounded-2xl flex items-center justify-center text-2xl font-bold mx-auto mb-6 shadow-lg shadow-gold-500/20">1</div>
+                    <h3 class="font-bold text-white mb-2">Choose Your Plan</h3>
+                    <p class="text-sm text-gray-400">Select the service and city that best fits your business needs.</p>
+                    <div class="hidden md:block absolute top-8 left-[60%] w-[80%] h-0.5 bg-gradient-to-r from-gold-500/30 to-transparent"></div>
+                </div>
+                <div class="text-center relative">
+                    <div class="w-16 h-16 bg-gradient-to-br from-gold-500 to-gold-600 text-navy-900 rounded-2xl flex items-center justify-center text-2xl font-bold mx-auto mb-6 shadow-lg shadow-gold-500/20">2</div>
+                    <h3 class="font-bold text-white mb-2">Submit Documents</h3>
+                    <p class="text-sm text-gray-400">Upload your KYC documents securely through our portal.</p>
+                    <div class="hidden md:block absolute top-8 left-[60%] w-[80%] h-0.5 bg-gradient-to-r from-gold-500/30 to-transparent"></div>
+                </div>
+                <div class="text-center relative">
+                    <div class="w-16 h-16 bg-gradient-to-br from-gold-500 to-gold-600 text-navy-900 rounded-2xl flex items-center justify-center text-2xl font-bold mx-auto mb-6 shadow-lg shadow-gold-500/20">3</div>
+                    <h3 class="font-bold text-white mb-2">Verification</h3>
+                    <p class="text-sm text-gray-400">Our team verifies and processes your application within 24 hours.</p>
+                    <div class="hidden md:block absolute top-8 left-[60%] w-[80%] h-0.5 bg-gradient-to-r from-gold-500/30 to-transparent"></div>
+                </div>
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-gradient-to-br from-emerald-400 to-emerald-600 text-white rounded-2xl flex items-center justify-center text-2xl font-bold mx-auto mb-6 shadow-lg shadow-emerald-500/20">&#10003;</div>
+                    <h3 class="font-bold text-white mb-2">You're All Set!</h3>
+                    <p class="text-sm text-gray-400">Receive your virtual office documents and start using your new address.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Testimonials -->
+    <section id="testimonials" class="py-16 md:py-24 bg-navy-900/30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <span class="inline-block bg-gold-500/10 text-gold-400 text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wide mb-4 border border-gold-500/20">Testimonials</span>
+                <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">What Our Clients Say</h2>
+                <p class="text-lg text-gray-400 max-w-2xl mx-auto">Join 5,000+ satisfied businesses across India</p>
+            </div>
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="glass-card rounded-2xl p-8 card-hover">
+                    <div class="flex items-center gap-1 mb-4">
+                        <svg class="w-5 h-5 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                        <svg class="w-5 h-5 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                        <svg class="w-5 h-5 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                        <svg class="w-5 h-5 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                        <svg class="w-5 h-5 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                    </div>
+                    <p class="text-gray-300 text-sm mb-6 leading-relaxed">"Got my GST registration done within 3 days. The team was extremely helpful and guided me through the entire process. Highly recommended for startups!"</p>
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-gold-500/10 rounded-full flex items-center justify-center text-gold-400 font-bold text-sm border border-gold-500/20">RK</div>
+                        <div>
+                            <div class="font-semibold text-sm text-white">Rajesh Kumar</div>
+                            <div class="text-xs text-gray-500">Founder, TechStart Solutions</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="glass-card rounded-2xl p-8 card-hover">
+                    <div class="flex items-center gap-1 mb-4">
+                        <svg class="w-5 h-5 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                        <svg class="w-5 h-5 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                        <svg class="w-5 h-5 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                        <svg class="w-5 h-5 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                        <svg class="w-5 h-5 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                    </div>
+                    <p class="text-gray-300 text-sm mb-6 leading-relaxed">"We needed virtual offices in 5 different states for our e-commerce business. EaseMyOffice handled everything seamlessly. Best service in the market!"</p>
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-emerald-500/10 rounded-full flex items-center justify-center text-emerald-400 font-bold text-sm border border-emerald-500/20">PS</div>
+                        <div>
+                            <div class="font-semibold text-sm text-white">Priya Sharma</div>
+                            <div class="text-xs text-gray-500">CEO, QuickCart India</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="glass-card rounded-2xl p-8 card-hover">
+                    <div class="flex items-center gap-1 mb-4">
+                        <svg class="w-5 h-5 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                        <svg class="w-5 h-5 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                        <svg class="w-5 h-5 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                        <svg class="w-5 h-5 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                        <svg class="w-5 h-5 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                    </div>
+                    <p class="text-gray-300 text-sm mb-6 leading-relaxed">"Professional service, transparent pricing, and quick turnaround. Used their CA services for company registration and GST filing. Very satisfied with the experience."</p>
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-violet-500/10 rounded-full flex items-center justify-center text-violet-400 font-bold text-sm border border-violet-500/20">AM</div>
+                        <div>
+                            <div class="font-semibold text-sm text-white">Amit Mehta</div>
+                            <div class="text-xs text-gray-500">Director, GrowFin Advisory</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- City Pricing Grid -->
+    <section class="py-16 md:py-24 bg-navy-950 mesh-bg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <span class="inline-block bg-gold-500/10 text-gold-400 text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wide mb-4 border border-gold-500/20">Locations</span>
+                <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">Virtual Office Across India</h2>
+                <p class="text-lg text-gray-400 max-w-2xl mx-auto">Premium addresses in 200+ locations across all 28 states</p>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <div class="glass-card rounded-xl p-5 hover:border-gold-500/30 transition group cursor-pointer">
+                    <div class="flex items-center gap-2 mb-2">
+                        <svg class="w-4 h-4 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+                        <span class="font-semibold text-white text-sm">Delhi NCR</span>
+                    </div>
+                    <span class="text-gold-400 font-bold">&#8377;899<span class="text-xs text-gray-500 font-normal">/mo</span></span>
+                </div>
+                <div class="glass-card rounded-xl p-5 hover:border-gold-500/30 transition group cursor-pointer">
+                    <div class="flex items-center gap-2 mb-2">
+                        <svg class="w-4 h-4 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+                        <span class="font-semibold text-white text-sm">Mumbai</span>
+                    </div>
+                    <span class="text-gold-400 font-bold">&#8377;1,199<span class="text-xs text-gray-500 font-normal">/mo</span></span>
+                </div>
+                <div class="glass-card rounded-xl p-5 hover:border-gold-500/30 transition group cursor-pointer">
+                    <div class="flex items-center gap-2 mb-2">
+                        <svg class="w-4 h-4 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+                        <span class="font-semibold text-white text-sm">Bangalore</span>
+                    </div>
+                    <span class="text-gold-400 font-bold">&#8377;999<span class="text-xs text-gray-500 font-normal">/mo</span></span>
+                </div>
+                <div class="glass-card rounded-xl p-5 hover:border-gold-500/30 transition group cursor-pointer">
+                    <div class="flex items-center gap-2 mb-2">
+                        <svg class="w-4 h-4 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+                        <span class="font-semibold text-white text-sm">Hyderabad</span>
+                    </div>
+                    <span class="text-gold-400 font-bold">&#8377;899<span class="text-xs text-gray-500 font-normal">/mo</span></span>
+                </div>
+                <div class="glass-card rounded-xl p-5 hover:border-gold-500/30 transition group cursor-pointer">
+                    <div class="flex items-center gap-2 mb-2">
+                        <svg class="w-4 h-4 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+                        <span class="font-semibold text-white text-sm">Chennai</span>
+                    </div>
+                    <span class="text-gold-400 font-bold">&#8377;899<span class="text-xs text-gray-500 font-normal">/mo</span></span>
+                </div>
+                <div class="glass-card rounded-xl p-5 hover:border-gold-500/30 transition group cursor-pointer">
+                    <div class="flex items-center gap-2 mb-2">
+                        <svg class="w-4 h-4 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+                        <span class="font-semibold text-white text-sm">Pune</span>
+                    </div>
+                    <span class="text-gold-400 font-bold">&#8377;849<span class="text-xs text-gray-500 font-normal">/mo</span></span>
+                </div>
+                <div class="glass-card rounded-xl p-5 hover:border-gold-500/30 transition group cursor-pointer">
+                    <div class="flex items-center gap-2 mb-2">
+                        <svg class="w-4 h-4 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+                        <span class="font-semibold text-white text-sm">Kolkata</span>
+                    </div>
+                    <span class="text-gold-400 font-bold">&#8377;799<span class="text-xs text-gray-500 font-normal">/mo</span></span>
+                </div>
+                <div class="glass-card rounded-xl p-5 hover:border-gold-500/30 transition group cursor-pointer">
+                    <div class="flex items-center gap-2 mb-2">
+                        <svg class="w-4 h-4 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+                        <span class="font-semibold text-white text-sm">Ahmedabad</span>
+                    </div>
+                    <span class="text-gold-400 font-bold">&#8377;799<span class="text-xs text-gray-500 font-normal">/mo</span></span>
+                </div>
+                <div class="glass-card rounded-xl p-5 hover:border-gold-500/30 transition group cursor-pointer">
+                    <div class="flex items-center gap-2 mb-2">
+                        <svg class="w-4 h-4 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+                        <span class="font-semibold text-white text-sm">Jaipur</span>
+                    </div>
+                    <span class="text-gold-400 font-bold">&#8377;749<span class="text-xs text-gray-500 font-normal">/mo</span></span>
+                </div>
+                <div class="glass-card rounded-xl p-5 hover:border-gold-500/30 transition group cursor-pointer">
+                    <div class="flex items-center gap-2 mb-2">
+                        <svg class="w-4 h-4 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+                        <span class="font-semibold text-white text-sm">Lucknow</span>
+                    </div>
+                    <span class="text-gold-400 font-bold">&#8377;699<span class="text-xs text-gray-500 font-normal">/mo</span></span>
+                </div>
+                <div class="glass-card rounded-xl p-5 hover:border-gold-500/30 transition group cursor-pointer">
+                    <div class="flex items-center gap-2 mb-2">
+                        <svg class="w-4 h-4 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+                        <span class="font-semibold text-white text-sm">Chandigarh</span>
+                    </div>
+                    <span class="text-gold-400 font-bold">&#8377;749<span class="text-xs text-gray-500 font-normal">/mo</span></span>
+                </div>
+                <div class="glass-card rounded-xl p-5 hover:border-gold-500/30 transition group cursor-pointer">
+                    <div class="flex items-center gap-2 mb-2">
+                        <svg class="w-4 h-4 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+                        <span class="font-semibold text-white text-sm">Indore</span>
+                    </div>
+                    <span class="text-gold-400 font-bold">&#8377;699<span class="text-xs text-gray-500 font-normal">/mo</span></span>
+                </div>
+            </div>
+            <div class="text-center mt-8">
+                <a href="#" class="inline-flex items-center gap-2 text-gold-400 font-semibold hover:text-gold-300 transition">
+                    View All 200+ Locations
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Banner -->
+    <section class="py-16 md:py-20 relative overflow-hidden" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);">
+        <div class="absolute inset-0">
+            <div class="absolute top-0 left-1/4 w-64 h-64 bg-gold-500/10 rounded-full blur-3xl"></div>
+            <div class="absolute bottom-0 right-1/4 w-96 h-96 bg-gold-500/5 rounded-full blur-3xl"></div>
+        </div>
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative">
+            <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">Ready to Get Your Business Address?</h2>
+            <p class="text-lg text-gray-300 mb-8 max-w-2xl mx-auto">Join 5,000+ businesses that trust EaseMyOffice. Setup takes just 2-3 days with our expert team guiding you every step.</p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <a href="#hero" class="bg-gradient-to-r from-gold-500 to-gold-600 text-navy-900 px-8 py-4 rounded-xl font-bold hover:from-gold-400 hover:to-gold-500 transition shadow-xl shadow-gold-500/20 text-center">
+                    Start Now - From &#8377;699/mo
+                </a>
+                <a href="tel:+919876543210" class="border border-white/20 text-white px-8 py-4 rounded-xl font-semibold hover:bg-white/5 transition text-center">
+                    Call Us: +91 98765 43210
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ Section -->
+    <section id="faq" class="py-16 md:py-24 bg-navy-900/30">
+        <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <span class="inline-block bg-gold-500/10 text-gold-400 text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wide mb-4 border border-gold-500/20">FAQ</span>
+                <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">Frequently Asked Questions</h2>
+                <p class="text-lg text-gray-400">Everything you need to know about our virtual office services</p>
+            </div>
+            <div class="space-y-4">
+                <div class="glass-card rounded-xl overflow-hidden">
+                    <details class="group">
+                        <summary class="flex items-center justify-between p-6 cursor-pointer">
+                            <span class="font-semibold text-white text-sm">What is a virtual office address?</span>
+                            <svg class="w-5 h-5 text-gold-400 group-open:rotate-180 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </summary>
+                        <div class="px-6 pb-6 text-sm text-gray-400 leading-relaxed">A virtual office provides you with a prestigious business address without the cost of renting physical office space. You can use it for GST registration, company incorporation, business correspondence, and establishing a professional presence in any city.</div>
+                    </details>
+                </div>
+                <div class="glass-card rounded-xl overflow-hidden">
+                    <details class="group">
+                        <summary class="flex items-center justify-between p-6 cursor-pointer">
+                            <span class="font-semibold text-white text-sm">Can I use a virtual office for GST registration?</span>
+                            <svg class="w-5 h-5 text-gold-400 group-open:rotate-180 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </summary>
+                        <div class="px-6 pb-6 text-sm text-gray-400 leading-relaxed">Yes! Our virtual office addresses are fully compliant for GST registration. We provide all required documents including NOC, rent agreement, utility bills, and address proof. We have a 97% approval rate for GST registrations.</div>
+                    </details>
+                </div>
+                <div class="glass-card rounded-xl overflow-hidden">
+                    <details class="group">
+                        <summary class="flex items-center justify-between p-6 cursor-pointer">
+                            <span class="font-semibold text-white text-sm">How long does the setup process take?</span>
+                            <svg class="w-5 h-5 text-gold-400 group-open:rotate-180 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </summary>
+                        <div class="px-6 pb-6 text-sm text-gray-400 leading-relaxed">Our setup process typically takes 2-3 business days from the time you submit your documents. For urgent requirements, we also offer express processing that can be completed within 24 hours.</div>
+                    </details>
+                </div>
+                <div class="glass-card rounded-xl overflow-hidden">
+                    <details class="group">
+                        <summary class="flex items-center justify-between p-6 cursor-pointer">
+                            <span class="font-semibold text-white text-sm">What documents do I need to provide?</span>
+                            <svg class="w-5 h-5 text-gold-400 group-open:rotate-180 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </summary>
+                        <div class="px-6 pb-6 text-sm text-gray-400 leading-relaxed">You'll need basic KYC documents - PAN card, Aadhaar card, passport-size photograph, and a cancelled cheque or bank statement. For company registration, additional documents like MOA/AOA may be required.</div>
+                    </details>
+                </div>
+                <div class="glass-card rounded-xl overflow-hidden">
+                    <details class="group">
+                        <summary class="flex items-center justify-between p-6 cursor-pointer">
+                            <span class="font-semibold text-white text-sm">Is there a lock-in period?</span>
+                            <svg class="w-5 h-5 text-gold-400 group-open:rotate-180 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </summary>
+                        <div class="px-6 pb-6 text-sm text-gray-400 leading-relaxed">No, we do not have any lock-in period. Our plans are flexible and you can choose monthly, quarterly, or annual billing. Annual plans come with additional discounts.</div>
+                    </details>
+                </div>
+                <div class="glass-card rounded-xl overflow-hidden">
+                    <details class="group">
+                        <summary class="flex items-center justify-between p-6 cursor-pointer">
+                            <span class="font-semibold text-white text-sm">Do you handle mail and packages?</span>
+                            <svg class="w-5 h-5 text-gold-400 group-open:rotate-180 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </summary>
+                        <div class="px-6 pb-6 text-sm text-gray-400 leading-relaxed">Yes, we receive all mail and packages on your behalf. You'll get instant digital notifications and can choose to have them forwarded to your preferred address or pick them up from our center.</div>
+                    </details>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-navy-950 border-t border-white/5 pt-16 pb-8">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
+                <div>
+                    <div class="flex items-center gap-2 mb-4">
+                        <div class="w-10 h-10 bg-gradient-to-br from-gold-400 to-gold-600 rounded-xl flex items-center justify-center">
+                            <svg class="w-6 h-6 text-navy-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                        </div>
+                        <span class="text-xl font-bold text-white">Ease<span class="text-gold-400">My</span>Office</span>
+                    </div>
+                    <p class="text-sm text-gray-500 mb-4 leading-relaxed">India's most trusted virtual office provider. Premium business addresses in 200+ locations across 28 states.</p>
+                    <div class="flex items-center gap-1 mb-2">
+                        <svg class="w-4 h-4 text-gold-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                        <span class="text-sm font-medium text-white">4.9/5</span>
+                        <span class="text-xs text-gray-500">on Google (500+ reviews)</span>
+                    </div>
+                </div>
+                <div>
+                    <h4 class="font-semibold text-white mb-4">Services</h4>
+                    <ul class="space-y-2 text-sm text-gray-500">
+                        <li><a href="#" class="hover:text-gold-400 transition">Virtual Office for GST</a></li>
+                        <li><a href="#" class="hover:text-gold-400 transition">Virtual Office for Business</a></li>
+                        <li><a href="#" class="hover:text-gold-400 transition">Company Registration</a></li>
+                        <li><a href="#" class="hover:text-gold-400 transition">Coworking Spaces</a></li>
+                        <li><a href="#" class="hover:text-gold-400 transition">Meeting Rooms</a></li>
+                        <li><a href="#" class="hover:text-gold-400 transition">CA Services</a></li>
+                        <li><a href="#" class="hover:text-gold-400 transition">GST Filing</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="font-semibold text-white mb-4">Popular Cities</h4>
+                    <ul class="space-y-2 text-sm text-gray-500">
+                        <li><a href="#" class="hover:text-gold-400 transition">Virtual Office in Delhi</a></li>
+                        <li><a href="#" class="hover:text-gold-400 transition">Virtual Office in Mumbai</a></li>
+                        <li><a href="#" class="hover:text-gold-400 transition">Virtual Office in Bangalore</a></li>
+                        <li><a href="#" class="hover:text-gold-400 transition">Virtual Office in Hyderabad</a></li>
+                        <li><a href="#" class="hover:text-gold-400 transition">Virtual Office in Chennai</a></li>
+                        <li><a href="#" class="hover:text-gold-400 transition">Virtual Office in Pune</a></li>
+                        <li><a href="#" class="hover:text-gold-400 transition">Virtual Office in Kolkata</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="font-semibold text-white mb-4">Company</h4>
+                    <ul class="space-y-2 text-sm text-gray-500">
+                        <li><a href="#" class="hover:text-gold-400 transition">About Us</a></li>
+                        <li><a href="#" class="hover:text-gold-400 transition">Contact Us</a></li>
+                        <li><a href="#" class="hover:text-gold-400 transition">Blog</a></li>
+                        <li><a href="#" class="hover:text-gold-400 transition">Careers</a></li>
+                        <li><a href="#" class="hover:text-gold-400 transition">Partner With Us</a></li>
+                        <li><a href="#" class="hover:text-gold-400 transition">Privacy Policy</a></li>
+                        <li><a href="#" class="hover:text-gold-400 transition">Terms of Service</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="border-t border-white/5 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
+                <p class="text-sm text-gray-600">&copy; 2024 EaseMyOffice. All rights reserved. | CIN: U74999DL2020PTC123456</p>
+                <div class="flex items-center gap-4">
+                    <a href="#" class="w-9 h-9 bg-white/5 rounded-lg flex items-center justify-center hover:bg-gold-500/20 hover:text-gold-400 transition text-gray-500">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"/></svg>
+                    </a>
+                    <a href="#" class="w-9 h-9 bg-white/5 rounded-lg flex items-center justify-center hover:bg-gold-500/20 hover:text-gold-400 transition text-gray-500">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                    </a>
+                    <a href="#" class="w-9 h-9 bg-white/5 rounded-lg flex items-center justify-center hover:bg-gold-500/20 hover:text-gold-400 transition text-gray-500">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- WhatsApp Float Button -->
+    <a href="https://wa.me/919876543210" target="_blank" class="fixed bottom-6 right-6 w-14 h-14 bg-green-500 rounded-full flex items-center justify-center shadow-lg shadow-green-500/30 hover:bg-green-600 transition z-50">
+        <svg class="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+    </a>
+
+</body>
+</html>
