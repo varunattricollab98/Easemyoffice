@@ -32,7 +32,9 @@ const NAV: NavItem[] = [
   { to: "/bookings", label: "Bookings", icon: BookOpen, roles: ["admin", "sales", "bd", "accounts"] },
   { to: "/invoices", label: "Invoices", icon: FileSignature, roles: ["admin", "accounts"] },
   { to: "/payments", label: "Payments", icon: Receipt, roles: ["admin", "accounts", "sales"] },
-  { to: "/renewals", label: "Renewals", icon: RefreshCcw, roles: ["admin", "renewals", "sales"] },
+  { to: "/renewals", label: "Renewal Dashboard", icon: RefreshCcw, roles: ["admin", "renewals"] },
+  { to: "/renewals/leads", label: "Renewal Leads", icon: Users, roles: ["admin", "renewals"] },
+  { to: "/renewals/pipeline", label: "Renewal Pipeline", icon: Kanban, roles: ["admin", "renewals"] },
   { to: "/activity", label: "Activity", icon: Activity, roles: ["admin", "sales", "bd"] },
   { to: "/reports", label: "Reports", icon: BarChart3, roles: ["admin"] },
 ];

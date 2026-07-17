@@ -330,6 +330,14 @@ export type Database = {
           vo_gst: number
           vo_plan: string | null
           vo_status: string
+          plan_start_date: string | null
+          plan_expiry_date: string | null
+          renewal_status: string
+          renewal_assigned_to: string | null
+          renewal_notes: string | null
+          renewal_stage_changed_at: string | null
+          renewal_followup_at: string | null
+          renewal_outcome: string | null
         }
         Insert: {
           addon_amount?: number
@@ -382,6 +390,14 @@ export type Database = {
           vo_gst?: number
           vo_plan?: string | null
           vo_status?: string
+          plan_start_date?: string | null
+          plan_expiry_date?: string | null
+          renewal_status?: string
+          renewal_assigned_to?: string | null
+          renewal_notes?: string | null
+          renewal_stage_changed_at?: string | null
+          renewal_followup_at?: string | null
+          renewal_outcome?: string | null
         }
         Update: {
           addon_amount?: number
@@ -434,6 +450,14 @@ export type Database = {
           vo_gst?: number
           vo_plan?: string | null
           vo_status?: string
+          plan_start_date?: string | null
+          plan_expiry_date?: string | null
+          renewal_status?: string
+          renewal_assigned_to?: string | null
+          renewal_notes?: string | null
+          renewal_stage_changed_at?: string | null
+          renewal_followup_at?: string | null
+          renewal_outcome?: string | null
         }
         Relationships: []
       }
