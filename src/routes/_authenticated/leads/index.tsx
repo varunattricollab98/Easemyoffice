@@ -63,6 +63,8 @@ function LeadsListPage() {
   const [bulkReason, setBulkReason] = useState("");
   const [showDupes, setShowDupes] = useState(false);
   const [customDate, setCustomDate] = useState("");
+  // Track user-overridden "originals" per duplicate group (key = group index → lead id)
+  const [originalOverrides, setOriginalOverrides] = useState<Map<number, string>>(new Map());
   const stage = search.stage ?? "all";
   const interest = search.interest ?? "all";
   const service = search.service ?? "all";
@@ -460,14 +462,20 @@ function LeadsListPage() {
               </div>
             </div>
             <div className="space-y-3 max-h-[400px] overflow-y-auto">
-              {dupeGroups.map((g, gi) => (
+              {dupeGroups.map((g, gi) => {
+                // Reorder leads: if user has overridden the original, put that one first
+                const overrideId = originalOverrides.get(gi);
+                const orderedLeads = overrideId
+                  ? [g.leads.find((l: any) => l.id === overrideId), ...g.leads.filter((l: any) => l.id !== overrideId)].filter(Boolean)
+                  : g.leads;
+                return (
                 <div key={gi} className="rounded-lg border bg-background p-3">
                   <div className="text-xs text-muted-foreground mb-2">
                     Matched by <Badge variant="outline" className="text-[10px] ml-1">{g.matchType}</Badge>
                     <span className="ml-2">({g.leads.length} entries)</span>
                   </div>
                   <div className="space-y-1.5">
-                    {g.leads.map((l: any, li: number) => (
+                    {orderedLeads.map((l: any, li: number) => (
                       <div key={l.id} className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm ${li === 0 ? "bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800" : "bg-muted/40 border border-dashed"}`}>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
@@ -490,10 +498,11 @@ function LeadsListPage() {
                               variant="outline"
                               className="text-emerald-600 hover:text-emerald-700 border-emerald-300 text-xs"
                               onClick={() => {
-                                // Move this entry to the front (mark as original)
-                                const newLeads = [l, ...g.leads.filter((_: any, i: number) => i !== li)];
-                                g.leads.splice(0, g.leads.length, ...newLeads);
-                                qc.invalidateQueries({ queryKey: ["leads-duplicates"] });
+                                setOriginalOverrides((prev) => {
+                                  const next = new Map(prev);
+                                  next.set(gi, l.id);
+                                  return next;
+                                });
                                 toast.success(`"${l.client_name}" marked as original`);
                               }}
                             >
@@ -520,7 +529,8 @@ function LeadsListPage() {
                     ))}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
