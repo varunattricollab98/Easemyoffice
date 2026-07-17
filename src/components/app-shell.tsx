@@ -17,10 +17,13 @@ import { supabase } from "@/integrations/supabase/client";
 type NavItem = { to: string; label: string; icon: typeof Users; roles?: AppRole[] };
 
 const NAV: NavItem[] = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["admin", "sales", "bd", "documentation", "accounts"] },
+  { to: "/renewals", label: "Dashboard", icon: LayoutDashboard, roles: ["renewals"] },
   { to: "/inbox", label: "Lead Inbox", icon: Mail, roles: ["admin", "sales", "bd"] },
   { to: "/leads", label: "Leads", icon: Users, roles: ["admin", "sales", "bd"] },
   { to: "/pipeline", label: "Pipeline", icon: Kanban, roles: ["admin", "sales", "bd"] },
+  { to: "/renewals/leads", label: "Renewal Leads", icon: Users, roles: ["admin", "renewals"] },
+  { to: "/renewals/pipeline", label: "Renewal Pipeline", icon: Kanban, roles: ["admin", "renewals"] },
   { to: "/clients", label: "Clients", icon: UserCheck, roles: ["admin", "sales", "bd", "renewals", "accounts"] },
   { to: "/follow-ups", label: "Follow-ups", icon: Bell, roles: ["admin", "sales", "bd", "renewals"] },
   { to: "/reminders", label: "Reminders", icon: AlarmClock, roles: ["admin", "sales", "bd", "renewals", "accounts"] },
@@ -29,12 +32,9 @@ const NAV: NavItem[] = [
   { to: "/notifications", label: "Notifications", icon: Inbox },
   { to: "/documentation", label: "Documentation", icon: FileText, roles: ["admin", "documentation", "sales"] },
   { to: "/documents", label: "Documents", icon: FolderOpen, roles: ["admin", "documentation", "accounts"] },
-  { to: "/bookings", label: "Bookings", icon: BookOpen, roles: ["admin", "sales", "bd", "accounts"] },
+  { to: "/bookings", label: "Bookings", icon: BookOpen, roles: ["admin", "sales", "bd", "accounts", "renewals"] },
   { to: "/invoices", label: "Invoices", icon: FileSignature, roles: ["admin", "accounts"] },
   { to: "/payments", label: "Payments", icon: Receipt, roles: ["admin", "accounts", "sales"] },
-  { to: "/renewals", label: "Renewal Dashboard", icon: RefreshCcw, roles: ["admin", "renewals"] },
-  { to: "/renewals/leads", label: "Renewal Leads", icon: Users, roles: ["admin", "renewals"] },
-  { to: "/renewals/pipeline", label: "Renewal Pipeline", icon: Kanban, roles: ["admin", "renewals"] },
   { to: "/activity", label: "Activity", icon: Activity, roles: ["admin", "sales", "bd"] },
   { to: "/reports", label: "Reports", icon: BarChart3, roles: ["admin"] },
 ];

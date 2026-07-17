@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -53,13 +53,19 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 });
 
 function DashboardPage() {
-  const { user } = useAuth();
+  const { user, roles, isAdmin } = useAuth();
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [quiet, setQuiet] = useQuietMode();
   const [visible, setVisible] = useVisibleWidgets(user?.id ?? "anon");
   const [pulseTick, setPulseTick] = useState(0);
   usePagePerf("Dashboard", false);
+
+  // Renewal-only users should see the Renewal Dashboard, not this sales one.
+  const isRenewalOnly = !isAdmin && roles.includes("renewals") && !roles.includes("sales") && !roles.includes("bd");
+  if (isRenewalOnly) {
+    return <Navigate to="/renewals" />;
+  }
 
   // Realtime — payload-aware invalidation, debounced into a 600ms batched flush.
   // Only invalidates the queries actually impacted by the changed columns,
