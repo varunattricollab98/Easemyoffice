@@ -62,20 +62,41 @@ export const dashboardStatsQuery = (scope: DashboardScope) =>
       const startOfMonth = new Date();
       startOfMonth.setDate(1);
       startOfMonth.setHours(0, 0, 0, 0);
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
       const now = new Date();
-      const [a, b, c, d, e, f, g] = await Promise.all([
+      // One scoped fetch of stage/interest drives every stage-based KPI, so the
+      // numbers always match what people actually see in the pipeline board.
+      // The follow-up + all-time counts stay as fast HEAD counts for accuracy.
+      const [rows, newLeadsC, totalC, pendingC, overdueC] = await Promise.all([
+        scopeLeads(supabase.from("leads").select("stage, interest, created_at, updated_at").limit(5000), scope),
         scopeLeads(supabase.from("leads").select("id", { count: "exact", head: true }).gte("created_at", startOfMonth.toISOString()), scope),
-        scopeLeads(supabase.from("leads").select("id", { count: "exact", head: true }).eq("interest", "hot"), scope),
+        scopeLeads(supabase.from("leads").select("id", { count: "exact", head: true }), scope),
         supabase.from("follow_ups").select("id", { count: "exact", head: true }).eq("status", "pending"),
         supabase.from("follow_ups").select("id", { count: "exact", head: true }).eq("status", "pending").lt("due_at", now.toISOString()),
-        scopeLeads(supabase.from("leads").select("id", { count: "exact", head: true }).in("stage", ["agreement_signed", "completed"]).gte("updated_at", startOfMonth.toISOString()), scope),
-        scopeLeads(supabase.from("leads").select("id", { count: "exact", head: true }).eq("stage", "renewal_due"), scope),
-        scopeLeads(supabase.from("leads").select("id", { count: "exact", head: true }), scope),
       ]);
+
+      const byStage: Record<string, number> = {};
+      let hot = 0, closures = 0, assignedToday = 0;
+      const monthMs = startOfMonth.getTime();
+      const dayMs = startOfDay.getTime();
+      for (const r of (rows.data ?? []) as { stage: string; interest: string | null; created_at: string; updated_at: string }[]) {
+        if (r.stage) byStage[r.stage] = (byStage[r.stage] ?? 0) + 1;
+        if (r.interest === "hot") hot++;
+        if ((r.stage === "agreement_signed" || r.stage === "completed") && new Date(r.updated_at).getTime() >= monthMs) closures++;
+        if (new Date(r.created_at).getTime() >= dayMs) assignedToday++;
+      }
+
       return {
-        newLeads: a.count ?? 0, hot: b.count ?? 0, pending: c.count ?? 0,
-        overdue: d.count ?? 0, closures: e.count ?? 0, renewals: f.count ?? 0,
-        total: g.count ?? 0,
+        newLeads: newLeadsC.count ?? 0,
+        total: totalC.count ?? 0,
+        pending: pendingC.count ?? 0,
+        overdue: overdueC.count ?? 0,
+        hot,
+        closures,
+        assignedToday,
+        renewals: byStage["renewal_due"] ?? 0,
+        byStage,
       };
     },
   });

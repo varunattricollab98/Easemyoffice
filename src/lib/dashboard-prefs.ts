@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import type { LayoutItem } from "react-grid-layout/legacy";
+import { DEFAULT_KPIS, type KpiId } from "@/lib/dashboard-kpis";
 
 const LAYOUT_KEY = (uid: string) => `dashboard:layout:v2:${uid}`;
 const VISIBLE_KEY = (uid: string) => `dashboard:visible:v1:${uid}`;
+const KPI_KEY = (uid: string) => `dashboard:kpis:v1:${uid}`;
 const QUIET_KEY = "dashboard:quiet:v1";
 
 export const ALL_WIDGETS = [
@@ -31,7 +33,32 @@ export function clearLayouts(uid: string) {
   try {
     localStorage.removeItem(LAYOUT_KEY(uid));
     localStorage.removeItem(VISIBLE_KEY(uid));
+    localStorage.removeItem(KPI_KEY(uid));
   } catch { /* ignore */ }
+}
+
+// Ordered list of KPI stat-cards the user wants across the top of the dashboard.
+// Persisted per-user; drag-to-reorder + toggle in the Widgets panel drive this.
+export function useVisibleKpis(uid: string) {
+  const [kpis, setKpis] = useState<KpiId[]>(() => {
+    try {
+      const raw = localStorage.getItem(KPI_KEY(uid));
+      if (raw) return JSON.parse(raw) as KpiId[];
+    } catch { /* ignore */ }
+    return DEFAULT_KPIS;
+  });
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(KPI_KEY(uid));
+      if (raw) setKpis(JSON.parse(raw) as KpiId[]);
+      else setKpis(DEFAULT_KPIS);
+    } catch { /* ignore */ }
+  }, [uid]);
+  const update = (next: KpiId[]) => {
+    setKpis(next);
+    try { localStorage.setItem(KPI_KEY(uid), JSON.stringify(next)); } catch { /* ignore */ }
+  };
+  return [kpis, update] as const;
 }
 
 export function useVisibleWidgets(uid: string) {

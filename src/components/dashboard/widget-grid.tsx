@@ -7,9 +7,11 @@ import { useAuth } from "@/lib/auth";
 import { loadLayouts, saveLayouts, clearLayouts, type WidgetId } from "@/lib/dashboard-prefs";
 import { KpiTile } from "./widgets/kpi-tile";
 import { WidgetSkeleton } from "./widget-skeleton";
-import { Flame, Bell, AlertTriangle, Target, RefreshCcw, Users } from "lucide-react";
+import { X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { dashboardStatsQuery, useDashboardScope } from "@/lib/dashboard-queries";
+import { KPI_MAP, type KpiId, type KpiStats } from "@/lib/dashboard-kpis";
 
 // Lazy-load each widget so they're shipped as their own JS chunks.
 // The page becomes interactive faster; slow widgets don't block fast ones.
@@ -108,44 +110,80 @@ export function WidgetGrid({
   );
 }
 
-// Top-of-dashboard fixed KPI strip — not draggable, always visible.
-export function KpiStrip({ pulseTick }: { pulseTick: number }) {
+// Top-of-dashboard KPI strip. Each person chooses which cards to show and can
+// drag to reorder them while in Edit-layout mode. Cards are defined in the KPI
+// catalog (dashboard-kpis.ts) and resolved against dashboardStatsQuery.
+export function KpiStrip({
+  pulseTick,
+  editing = false,
+  kpis,
+  onReorder,
+}: {
+  pulseTick: number;
+  editing?: boolean;
+  kpis: KpiId[];
+  onReorder?: (next: KpiId[]) => void;
+}) {
   const { data: stats } = useQuery(dashboardStatsQuery(useDashboardScope()));
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [overIdx, setOverIdx] = useState<number | null>(null);
 
-  const tiles = [
-    <KpiTile key="new" label="New leads (mo)" value={stats?.newLeads} icon={Target} accent="info"
-      pulse={pulseTick > 0} to="/leads" eventName="new_leads_month"
-      tooltip="Open all leads created this month." />,
-    <KpiTile key="hot" label="Hot" value={stats?.hot} icon={Flame} accent="rose"
-      pulse={pulseTick > 0} to="/leads" search={{ interest: "hot" }} eventName="hot_leads"
-      tooltip="Open Leads filtered to Hot interest." />,
-    <KpiTile key="pending" label="Pending" value={stats?.pending} icon={Bell} accent="warning"
-      to="/follow-ups" search={{ filter: "today" }} eventName="pending_followups"
-      tooltip="Open Follow-ups due today." />,
-    <KpiTile key="overdue" label="Overdue" value={stats?.overdue} icon={AlertTriangle} accent="destructive"
-      pulse={pulseTick > 0} to="/follow-ups" search={{ filter: "overdue" }} eventName="overdue_followups"
-      tooltip="Open Follow-ups that are past due." />,
-    <KpiTile key="closures" label="Closures (mo)" value={stats?.closures} icon={Target} accent="success"
-      to="/leads" search={{ stage: "completed" }} eventName="closures_month"
-      tooltip="Open completed deals." />,
-    <KpiTile key="renewals" label="Renewals due" value={stats?.renewals} icon={RefreshCcw} accent="warning"
-      to="/renewals" eventName="renewals_due"
-      tooltip="Open the Renewals page." />,
-    <KpiTile key="total" label="Total leads" value={stats?.total} icon={Users} accent="primary" hint="All-time"
-      to="/leads" eventName="total_leads"
-      tooltip="Open the full leads list." />,
-  ];
+  const defs = kpis.map((id) => KPI_MAP[id]).filter(Boolean);
+
+  const move = (from: number, to: number) => {
+    if (from === to || !onReorder) return;
+    const next = [...kpis];
+    const [m] = next.splice(from, 1);
+    next.splice(to, 0, m);
+    onReorder(next);
+  };
+  const remove = (id: string) => onReorder?.(kpis.filter((k) => k !== id));
 
   return (
     <section
       aria-label="Key performance indicators"
       className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7"
     >
-      {tiles.map((tile, i) => (
-        <div key={i} style={{ ["--i" as never]: i, display: "contents" }}>
-          {tile}
-        </div>
-      ))}
+      {defs.map((def, i) => {
+        const value = stats ? def.value(stats as KpiStats) : undefined;
+        if (editing) {
+          return (
+            <div
+              key={def.id}
+              draggable
+              onDragStart={() => setDragIdx(i)}
+              onDragEnter={() => setOverIdx(i)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => { if (dragIdx !== null) move(dragIdx, i); setDragIdx(null); setOverIdx(null); }}
+              onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}
+              className={cn(
+                "relative cursor-grab active:cursor-grabbing rounded-xl transition-all",
+                dragIdx === i && "opacity-40",
+                overIdx === i && dragIdx !== i && "ring-2 ring-primary ring-offset-2 ring-offset-background",
+              )}
+              style={{ ["--i" as never]: i }}
+            >
+              <button
+                type="button"
+                onClick={() => remove(def.id)}
+                className="absolute -top-2 -right-2 z-10 rounded-full bg-destructive text-destructive-foreground p-1 shadow-md hover:scale-110 transition-transform"
+                aria-label={`Remove ${def.label}`}
+              >
+                <X className="h-3 w-3" />
+              </button>
+              <KpiTile label={def.label} value={value} icon={def.icon} accent={def.accent} hint={def.hint} tooltip={def.tooltip} />
+            </div>
+          );
+        }
+        return (
+          <div key={def.id} style={{ ["--i" as never]: i, display: "contents" }}>
+            <KpiTile
+              label={def.label} value={value} icon={def.icon} accent={def.accent} hint={def.hint}
+              pulse={pulseTick > 0} to={def.to} search={def.search} tooltip={def.tooltip} eventName={def.id}
+            />
+          </div>
+        );
+      })}
     </section>
   );
 }

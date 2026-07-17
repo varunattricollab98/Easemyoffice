@@ -10,7 +10,7 @@ import { HeroOfMonth } from "@/components/dashboard/hero-of-month";
 import { getSheetConfig } from "@/lib/bookings-sheet";
 import { LivePulsePill } from "@/components/dashboard/live-pulse-pill";
 import { AddWidgetPanel } from "@/components/dashboard/add-widget-panel";
-import { useQuietMode, useVisibleWidgets } from "@/lib/dashboard-prefs";
+import { useQuietMode, useVisibleWidgets, useVisibleKpis } from "@/lib/dashboard-prefs";
 import { useAuth } from "@/lib/auth";
 import { pushPulse } from "@/lib/realtime-pulse";
 import { usePagePerf } from "@/lib/perf";
@@ -59,6 +59,7 @@ function DashboardPage() {
   const [editing, setEditing] = useState(false);
   const [quiet, setQuiet] = useQuietMode();
   const [visible, setVisible] = useVisibleWidgets(user?.id ?? "anon");
+  const [kpis, setKpis] = useVisibleKpis(user?.id ?? "anon");
   const [pulseTick, setPulseTick] = useState(0);
   usePagePerf("Dashboard", false);
 
@@ -182,7 +183,7 @@ function DashboardPage() {
               {quiet ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
               <span className="hidden sm:inline">{quiet ? "Quiet" : "Live"}</span>
             </Button>
-            <AddWidgetPanel visible={visible} onChange={setVisible} />
+            <AddWidgetPanel visible={visible} onChange={setVisible} kpis={kpis} onKpisChange={setKpis} />
             <Button
               variant={editing ? "default" : "outline"} size="sm"
               onClick={() => setEditing((e) => !e)}
@@ -205,8 +206,8 @@ function DashboardPage() {
           </div>
         </div>
 
-        {/* Top KPI strip — always visible, fixed grid */}
-        <KpiStrip pulseTick={pulseTick} />
+        {/* Top KPI strip — configurable cards; drag to reorder in edit mode */}
+        <KpiStrip pulseTick={pulseTick} editing={editing} kpis={kpis} onReorder={setKpis} />
 
         {/* Customizable widget grid */}
         <WidgetGrid editing={editing} pulseTick={pulseTick} visible={visible} />
@@ -216,7 +217,7 @@ function DashboardPage() {
 
         {/* Footer hint */}
         <p className="text-center text-[11px] text-muted-foreground pt-2">
-          Tip: tap "Widgets" to add or remove cards, and "Edit layout" to drag and resize them.
+          Tip: tap "Widgets" to choose your stat cards, and "Edit layout" to drag stat cards and widgets into the order you want.
         </p>
       </div>
     </div>
