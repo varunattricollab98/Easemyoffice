@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useMemo } from "react";
 
 // roles: undefined = visible to all authenticated users
 type NavItem = { to: string; label: string; icon: typeof Users; roles?: AppRole[] };
@@ -133,25 +134,59 @@ export function AppSidebar() {
 
 export function MobileTabBar() {
   const loc = useLocation();
-  const { roles, isAdmin } = useAuth();
-  const items = visibleFor(NAV, roles, isAdmin).slice(0, 5);
+  const { roles, isAdmin, user } = useAuth();
+
+  // Role-specific mobile nav — show the 5 most important items for each role
+  const mobileItems = useMemo(() => {
+    const isRenewal = !isAdmin && roles.includes("renewals") && !roles.includes("sales") && !roles.includes("bd");
+    if (isRenewal) {
+      return NAV.filter((i) => ["/renewals", "/renewals/leads", "/renewals/pipeline", "/calendar", "/tasks"].includes(i.to));
+    }
+    // Sales/BD/Admin: Dashboard, Leads, Pipeline, Calendar, Tasks
+    const priority = ["/dashboard", "/leads", "/pipeline", "/calendar", "/tasks"];
+    return priority.map((to) => NAV.find((i) => i.to === to)).filter(Boolean) as NavItem[];
+  }, [roles, isAdmin]);
+
+  const { data: unreadCount = 0 } = useQuery({
+    queryKey: ["notif-unread-count-mobile"],
+    enabled: !!user?.id,
+    refetchInterval: 30_000,
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user!.id)
+        .eq("read", false as never);
+      return count ?? 0;
+    },
+  });
+
   return (
-    <nav className="lg:hidden fixed bottom-0 inset-x-0 z-30 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      <div className="grid grid-cols-5">
-        {items.map((item) => {
+    <nav className="lg:hidden fixed bottom-0 inset-x-0 z-30 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 pb-[env(safe-area-inset-bottom)]">
+      <div className="grid grid-cols-5 max-w-lg mx-auto">
+        {mobileItems.map((item) => {
           const active = loc.pathname === item.to || loc.pathname.startsWith(item.to + "/");
           const Icon = item.icon;
+          const shortLabel = item.label.replace("Renewal ", "").replace("Dashboard", "Home");
           return (
             <Link
               key={item.to}
               to={item.to}
               className={cn(
-                "flex flex-col items-center gap-0.5 py-2.5 text-[11px]",
+                "flex flex-col items-center gap-0.5 py-2.5 text-[10px] font-medium relative transition-colors",
                 active ? "text-primary" : "text-muted-foreground"
               )}
             >
-              <Icon className="h-5 w-5" />
-              {item.label}
+              <div className="relative">
+                <Icon className={cn("h-5 w-5", active && "scale-110")} />
+                {item.to === "/notifications" && unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1.5 h-4 min-w-[16px] rounded-full bg-rose-600 text-white text-[9px] font-bold grid place-items-center px-1">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </div>
+              {shortLabel}
+              {active && <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-5 h-0.5 rounded-full bg-primary" />}
             </Link>
           );
         })}
