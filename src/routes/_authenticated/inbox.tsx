@@ -255,8 +255,12 @@ function LeadInboxPage() {
       // 1) Create (or, if it somehow already exists, take over) the lead as mine.
       if (existing) {
         if (existing.assigned_to !== user.id) {
-          const { error } = await supabase.from("leads").update({ assigned_to: user.id }).eq("id", existing.id);
+          // .select() so we can detect a silent RLS denial (0 rows changed, no
+          // error) — otherwise the lead stays owned by someone else and never
+          // shows in this rep's Pipeline/Leads despite the "Claimed" toast.
+          const { data: moved, error } = await supabase.from("leads").update({ assigned_to: user.id }).eq("id", existing.id).select("id");
           if (error) throw new Error(error.message);
+          if (!moved || moved.length === 0) throw new Error("Couldn't claim this lead — it's already assigned to another rep. Ask an admin to reassign it to you.");
         }
       } else {
         const { error } = await supabase.from("leads").insert({
@@ -288,8 +292,8 @@ function LeadInboxPage() {
       const existing = existingLeadFor(dedupKeys);
       if (existing) {
         if (existing.assigned_to !== user.id) {
-          const { error } = await supabase.from("leads").update({ assigned_to: user.id }).eq("id", existing.id);
-          if (error) throw new Error("Couldn't reassign this lead — it may belong to another rep. Ask an admin to move it.");
+          const { data: moved, error } = await supabase.from("leads").update({ assigned_to: user.id }).eq("id", existing.id).select("id");
+          if (error || !moved || moved.length === 0) throw new Error("Couldn't reassign this lead — it may belong to another rep. Ask an admin to move it.");
         }
       } else {
         const { error } = await supabase.from("leads").insert({
@@ -320,8 +324,9 @@ function LeadInboxPage() {
       const existing = existingLeadFor(dedupKeys);
       if (existing) {
         if (existing.assigned_to !== target.id) {
-          const { error } = await supabase.from("leads").update({ assigned_to: target.id }).eq("id", existing.id);
+          const { data: moved, error } = await supabase.from("leads").update({ assigned_to: target.id }).eq("id", existing.id).select("id");
           if (error) throw new Error(error.message);
+          if (!moved || moved.length === 0) throw new Error("Couldn't assign this lead — please check permissions and try again.");
         }
       } else {
         const { error } = await supabase.from("leads").insert({
