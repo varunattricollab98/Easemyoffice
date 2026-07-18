@@ -978,6 +978,7 @@ export type Database = {
         | "completed"
         | "renewal_due"
         | "not_interested"
+        | "irrelevant"
         | "lost"
       service_type:
         | "virtual_office"

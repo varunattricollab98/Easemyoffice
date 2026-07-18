@@ -14,6 +14,7 @@ export const STAGES = [
   { id: "completed", label: "Completed", color: "bg-green-700" },
   { id: "renewal_due", label: "Renewal Due", color: "bg-yellow-500" },
   { id: "not_interested", label: "Not interested", color: "bg-zinc-500" },
+  { id: "irrelevant", label: "Irrelevant", color: "bg-stone-500" },
   { id: "lost", label: "Lost", color: "bg-rose-500" },
 ] as const;
 
