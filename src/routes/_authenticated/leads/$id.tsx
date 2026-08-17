@@ -29,10 +29,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Phone, Mail, MessageCircle, Calendar, Plus, Check, Trash2, Send, Loader2 } from "lucide-react";
+import { ArrowLeft, Phone, Mail, MessageCircle, Calendar, Plus, Check, Trash2, Send, Loader2, XCircle } from "lucide-react";
 import { INTERESTS, INTENT_FLAGS, SERVICES, SOURCES, STAGES, calcScore, deriveInterest, labelFor } from "@/lib/crm";
 import { useAuth } from "@/lib/auth";
-import { triggerStageReminder } from "@/lib/stage-reminders";
+import { triggerStageReminder, autoCreateFollowUp, stopAllFollowUps } from "@/lib/stage-reminders";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
@@ -132,8 +132,8 @@ function LeadDetailPage() {
       <div className="flex items-center justify-between">
         <Button asChild variant="ghost" size="sm"><Link to="/leads"><ArrowLeft className="h-4 w-4 mr-1" /> Leads</Link></Button>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => { window.location.href = `tel:${lead.mobile}`; logActivity("call", "Called " + lead.client_name); }}><Phone className="h-4 w-4 mr-1" /> Call</Button>
-          <Button variant="outline" size="sm" onClick={() => { window.location.href = `https://wa.me/${lead.mobile.replace(/\D/g,"")}`; logActivity("whatsapp", "Opened WhatsApp"); }}><MessageCircle className="h-4 w-4 mr-1" /> WhatsApp</Button>
+          <Button variant="outline" size="sm" onClick={() => { window.location.href = `tel:${lead.mobile}`; logActivity("call", `Called ${lead.client_name}`, `Phone: ${lead.mobile}`); }}><Phone className="h-4 w-4 mr-1" /> Call</Button>
+          <Button variant="outline" size="sm" onClick={() => { window.location.href = `https://wa.me/${lead.mobile.replace(/\D/g,"")}`; logActivity("whatsapp", `WhatsApp to ${lead.client_name}`, `Phone: ${lead.mobile}`); }}><MessageCircle className="h-4 w-4 mr-1" /> WhatsApp</Button>
           {lead.email && <Button variant="outline" size="sm" onClick={() => setEmailOpen(true)}><Mail className="h-4 w-4 mr-1" /> Email</Button>}
           {isAdmin && (
             <AlertDialog>
@@ -205,9 +205,14 @@ function LeadDetailPage() {
                     setReasonText(lead.lost_reason ?? "");
                     setReasonStage(v);
                   } else {
+                    const stageLabel = STAGES.find((s) => s.id === v)?.label ?? v;
                     updateLead.mutate({ stage: v }, {
                       onSuccess: () => {
-                        if (user) triggerStageReminder({ leadId: id, newStage: v, clientName: lead.client_name, clientEmail: lead.email, userId: user.id });
+                        logActivity("stage_change", `Stage changed to ${stageLabel}`);
+                        if (user) {
+                          triggerStageReminder({ leadId: id, newStage: v, clientName: lead.client_name, clientEmail: lead.email, userId: user.id });
+                          autoCreateFollowUp({ leadId: id, newStage: v, clientName: lead.client_name, userId: user.id });
+                        }
                       },
                     });
                   }
@@ -275,7 +280,24 @@ function LeadDetailPage() {
         </TabsContent>
 
         <TabsContent value="followups" className="space-y-3">
-          <FollowUpComposer leadId={id} />
+          <div className="flex items-center justify-between gap-2">
+            <FollowUpComposer leadId={id} />
+            {(followups ?? []).some((f: any) => f.status === "pending") && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-destructive hover:text-destructive shrink-0"
+                onClick={async () => {
+                  const { stoppedFollowUps, stoppedReminders } = await stopAllFollowUps(id);
+                  qc.invalidateQueries();
+                  logActivity("followup", "Stopped all follow-ups", `Cancelled ${stoppedFollowUps} follow-up(s) and ${stoppedReminders} email reminder(s)`);
+                  toast.success("All follow-ups stopped");
+                }}
+              >
+                <XCircle className="h-4 w-4 mr-1" /> Stop Follow-ups
+              </Button>
+            )}
+          </div>
           <Card><CardContent className="p-4 space-y-2">
             {(followups ?? []).length === 0 && <div className="text-sm text-muted-foreground">No follow-ups scheduled.</div>}
             {followups?.map((f: any) => {
@@ -290,6 +312,7 @@ function LeadDetailPage() {
                   {f.status === "pending" && (
                     <Button size="sm" variant="outline" onClick={async () => {
                       await supabase.from("follow_ups").update({ status: "done", completed_at: new Date().toISOString() }).eq("id", f.id);
+                      logActivity("followup", "Follow-up completed", f.action);
                       qc.invalidateQueries();
                       toast.success("Marked done");
                     }}><Check className="h-4 w-4" /></Button>
@@ -355,7 +378,10 @@ function LeadDetailPage() {
                 const stage = reasonStage!;
                 updateLead.mutate({ stage, lost_reason: reasonText.trim() }, {
                   onSuccess: () => {
-                    if (user) triggerStageReminder({ leadId: id, newStage: stage, clientName: lead.client_name, clientEmail: lead.email, userId: user.id });
+                    if (user) {
+                      triggerStageReminder({ leadId: id, newStage: stage, clientName: lead.client_name, clientEmail: lead.email, userId: user.id });
+                      autoCreateFollowUp({ leadId: id, newStage: stage, clientName: lead.client_name, userId: user.id });
+                    }
                   },
                 });
                 logActivity("stage_change", `Marked ${stage === "lost" ? "Lost" : "Not interested"}`, reasonText.trim());
@@ -594,6 +620,8 @@ function FollowUpComposer({ leadId }: { leadId: string }) {
         if (!due) return toast.error("Please pick a date and time");
         const { error } = await supabase.from("follow_ups").insert({ lead_id: leadId, owner_id: user.id, action: action.trim(), due_at: new Date(due).toISOString() });
         if (error) return toast.error(error.message);
+        // Log the follow-up creation as an activity on the lead's timeline
+        await supabase.from("lead_activities").insert({ lead_id: leadId, actor_id: user.id, type: "followup" as any, title: "Follow-up scheduled", body: `${action.trim()} — due ${new Date(due).toLocaleDateString()}` });
         setAction("");
         qc.invalidateQueries();
         toast.success("Follow-up scheduled");

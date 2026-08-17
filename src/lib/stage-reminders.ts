@@ -141,3 +141,80 @@ export async function triggerStageReminder({
     assigned_to: userId,
   });
 }
+
+
+// ─── AUTO FOLLOW-UP CREATION ──────────────────────────────────────────────────
+// When a lead moves to "followups" or "follow_up" stage, automatically create a
+// follow_up task record so it appears on the Follow-ups page and triggers the
+// next_follow_up_at sync on the lead.
+
+const FOLLOWUP_STAGES = new Set(["followups", "follow_up"]);
+
+/**
+ * Auto-creates a follow_up record when a lead enters the followups stage.
+ * Called alongside triggerStageReminder() from pipeline drag and lead detail.
+ * Skips if a pending follow-up already exists for this lead (avoids duplicates).
+ */
+export async function autoCreateFollowUp({
+  leadId,
+  newStage,
+  clientName,
+  userId,
+}: {
+  leadId: string;
+  newStage: string;
+  clientName: string;
+  userId: string;
+}) {
+  if (!FOLLOWUP_STAGES.has(newStage)) return;
+
+  // Check if there's already a pending follow-up for this lead.
+  const { count } = await supabase
+    .from("follow_ups")
+    .select("id", { count: "exact", head: true })
+    .eq("lead_id", leadId)
+    .eq("status", "pending");
+
+  if ((count ?? 0) > 0) return; // Already has a pending follow-up, skip.
+
+  // Schedule a follow-up for tomorrow at 10 AM.
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(10, 0, 0, 0);
+
+  await supabase.from("follow_ups").insert({
+    lead_id: leadId,
+    owner_id: userId,
+    action: `Follow up with ${clientName || "client"}`,
+    due_at: tomorrow.toISOString(),
+    created_by: userId,
+  });
+}
+
+// ─── STOP / CANCEL ALL FOLLOW-UPS ────────────────────────────────────────────
+/**
+ * Cancels all pending follow-ups AND scheduled email reminders for a lead.
+ * Used by the "Stop Follow-up" button in the pipeline and follow-ups page.
+ */
+export async function stopAllFollowUps(leadId: string): Promise<{ stoppedFollowUps: number; stoppedReminders: number }> {
+  // 1. Mark all pending follow-ups as "missed" (the only non-done terminal status in the enum)
+  const { data: fups } = await supabase
+    .from("follow_ups")
+    .update({ status: "missed" } as any)
+    .eq("lead_id", leadId)
+    .eq("status", "pending")
+    .select("id");
+
+  // 2. Cancel all scheduled email reminders for this lead
+  const { data: rems } = await supabase
+    .from("reminders")
+    .update({ status: "cancelled" })
+    .eq("lead_id", leadId)
+    .eq("status", "scheduled")
+    .select("id");
+
+  return {
+    stoppedFollowUps: fups?.length ?? 0,
+    stoppedReminders: rems?.length ?? 0,
+  };
+}
