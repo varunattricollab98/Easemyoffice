@@ -1,3 +1,6 @@
+// NOTE: nitro generates dist/server/wrangler.json at build time.
+// The `main` and `assets` fields below are overridden by that generated config.
+// Add bindings, secrets, and compatibility settings here — they will be merged.
 {
   "name": "easemyoffice",
   "compatibility_date": "2025-09-24",
