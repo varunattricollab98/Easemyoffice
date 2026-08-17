@@ -32,7 +32,7 @@ import {
 import { ArrowLeft, Phone, Mail, MessageCircle, Calendar, Plus, Check, Trash2, Send, Loader2, XCircle } from "lucide-react";
 import { INTERESTS, INTENT_FLAGS, SERVICES, SOURCES, STAGES, calcScore, deriveInterest, labelFor } from "@/lib/crm";
 import { useAuth } from "@/lib/auth";
-import { triggerStageReminder, autoCreateFollowUp, stopAllFollowUps } from "@/lib/stage-reminders";
+import { handleStageChange, stopAllFollowUps } from "@/lib/stage-reminders";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
@@ -206,12 +206,24 @@ function LeadDetailPage() {
                     setReasonStage(v);
                   } else {
                     const stageLabel = STAGES.find((s) => s.id === v)?.label ?? v;
+                    const prevStage = lead.stage;
                     updateLead.mutate({ stage: v }, {
-                      onSuccess: () => {
+                      onSuccess: async () => {
                         logActivity("stage_change", `Stage changed to ${stageLabel}`);
                         if (user) {
-                          triggerStageReminder({ leadId: id, newStage: v, clientName: lead.client_name, clientEmail: lead.email, userId: user.id });
-                          autoCreateFollowUp({ leadId: id, newStage: v, clientName: lead.client_name, userId: user.id });
+                          const result = await handleStageChange({
+                            leadId: id,
+                            oldStage: prevStage,
+                            newStage: v,
+                            clientName: lead.client_name,
+                            clientEmail: lead.email,
+                            userId: user.id,
+                          });
+                          if (result.followUpsStopped > 0 || result.remindersStopped > 0) {
+                            toast.info(`Auto-stopped ${result.followUpsStopped} follow-up(s) and ${result.remindersStopped} reminder(s)`);
+                          }
+                          if (result.warning) toast.warning(result.warning, { duration: 6000 });
+                          qc.invalidateQueries();
                         }
                       },
                     });
@@ -376,11 +388,22 @@ function LeadDetailPage() {
               disabled={!reasonText.trim() || updateLead.isPending}
               onClick={() => {
                 const stage = reasonStage!;
+                const prevStage2 = lead.stage;
                 updateLead.mutate({ stage, lost_reason: reasonText.trim() }, {
-                  onSuccess: () => {
+                  onSuccess: async () => {
                     if (user) {
-                      triggerStageReminder({ leadId: id, newStage: stage, clientName: lead.client_name, clientEmail: lead.email, userId: user.id });
-                      autoCreateFollowUp({ leadId: id, newStage: stage, clientName: lead.client_name, userId: user.id });
+                      const result = await handleStageChange({
+                        leadId: id,
+                        oldStage: prevStage2,
+                        newStage: stage,
+                        clientName: lead.client_name,
+                        clientEmail: lead.email,
+                        userId: user.id,
+                      });
+                      if (result.followUpsStopped > 0 || result.remindersStopped > 0) {
+                        toast.info(`Auto-stopped ${result.followUpsStopped} follow-up(s) and ${result.remindersStopped} reminder(s)`);
+                      }
+                      qc.invalidateQueries();
                     }
                   },
                 });

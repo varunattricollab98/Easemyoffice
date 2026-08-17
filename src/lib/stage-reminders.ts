@@ -273,3 +273,80 @@ export async function stopAllFollowUps(leadId: string): Promise<{ stoppedFollowU
     stoppedReminders: rems?.length ?? 0,
   };
 }
+
+
+// ─── UNIFIED STAGE CHANGE HANDLER ────────────────────────────────────────────
+/**
+ * Single entry point for ALL stage changes. Handles:
+ *
+ *   1. Moving INTO followups  → create follow-up task + email reminder sequence
+ *   2. Moving OUT of followups → auto-stop pending follow-ups + cancel reminders
+ *   3. Moving into lost/not_interested → their own reminder sequences
+ *
+ * Returns a summary so the caller can show accurate toast feedback.
+ *
+ * Replaces the need to call triggerStageReminder() and autoCreateFollowUp()
+ * separately — call this instead.
+ */
+export async function handleStageChange({
+  leadId,
+  oldStage,
+  newStage,
+  clientName,
+  clientEmail,
+  userId,
+}: {
+  leadId: string;
+  oldStage: string;
+  newStage: string;
+  clientName: string;
+  clientEmail?: string | null;
+  userId: string;
+}): Promise<{
+  followUpCreated: boolean;
+  reminderCreated: boolean;
+  followUpsStopped: number;
+  remindersStopped: number;
+  warning?: string;
+}> {
+  const wasInFollowup = FOLLOWUP_STAGES.has(oldStage);
+  const isInFollowup = FOLLOWUP_STAGES.has(newStage);
+
+  let followUpCreated = false;
+  let reminderCreated = false;
+  let followUpsStopped = 0;
+  let remindersStopped = 0;
+  let warning: string | undefined;
+
+  // ── CASE 1: Moving OUT of followups → stop everything ──────────────────────
+  if (wasInFollowup && !isInFollowup) {
+    const stopped = await stopAllFollowUps(leadId);
+    followUpsStopped = stopped.stoppedFollowUps;
+    remindersStopped = stopped.stoppedReminders;
+  }
+
+  // ── CASE 2: Moving INTO followups → create follow-up + reminder ────────────
+  if (isInFollowup && !wasInFollowup) {
+    // Create the follow-up task (works regardless of email)
+    await autoCreateFollowUp({ leadId, newStage, clientName, userId });
+    followUpCreated = true;
+
+    // Create the email reminder sequence (requires an email address)
+    if (clientEmail) {
+      await triggerStageReminder({ leadId, newStage, clientName, clientEmail, userId });
+      reminderCreated = true;
+    } else {
+      warning = `No email on file for ${clientName} — follow-up task created, but no email reminder could be scheduled.`;
+    }
+  }
+
+  // ── CASE 3: Lost / Not interested → their own reminder sequence ────────────
+  if (!isInFollowup && (newStage === "lost" || newStage === "not_interested")) {
+    if (clientEmail) {
+      await triggerStageReminder({ leadId, newStage, clientName, clientEmail, userId });
+      reminderCreated = true;
+    }
+  }
+
+  return { followUpCreated, reminderCreated, followUpsStopped, remindersStopped, warning };
+}
