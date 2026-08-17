@@ -1,18 +1,31 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Plus, LayoutDashboard, RotateCcw, Volume2, VolumeX, Check } from "lucide-react";
-import { WidgetGrid, KpiStrip, resetWidgetLayout } from "@/components/dashboard/widget-grid";
-import { NewBookingDialog } from "@/components/dashboard/new-booking-dialog";
-import { HeroOfMonth } from "@/components/dashboard/hero-of-month";
+import { KpiStrip, resetWidgetLayout } from "@/components/dashboard/widget-grid";
+
+// Lazy-load WidgetGrid — it pulls in react-grid-layout (~60KB) which is only
+// needed once the grid section scrolls into view / mounts. KpiStrip is lightweight
+// and renders immediately.
+const WidgetGrid = lazy(() =>
+  import("@/components/dashboard/widget-grid").then((m) => ({ default: m.WidgetGrid })),
+);
+
+// Lazy-load below-fold / interaction-gated components
+const NewBookingDialog = lazy(() =>
+  import("@/components/dashboard/new-booking-dialog").then((m) => ({ default: m.NewBookingDialog })),
+);
+const HeroOfMonth = lazy(() =>
+  import("@/components/dashboard/hero-of-month").then((m) => ({ default: m.HeroOfMonth })),
+);
 import { getSheetConfig } from "@/lib/bookings-sheet";
 import { LivePulsePill } from "@/components/dashboard/live-pulse-pill";
 import { AddWidgetPanel } from "@/components/dashboard/add-widget-panel";
 import { useQuietMode, useVisibleWidgets, useVisibleKpis } from "@/lib/dashboard-prefs";
 import { useAuth } from "@/lib/auth";
 import { pushPulse } from "@/lib/realtime-pulse";
+import { subscribeRealtime } from "@/lib/realtime-manager";
 import { usePagePerf } from "@/lib/perf";
 import { RenewalDashboardInline } from "@/components/dashboard/renewal-dashboard-inline";
 import {
@@ -23,7 +36,6 @@ import {
   needsAttentionQuery,
   todayFollowupsQuery,
   overdueFollowupsQuery,
-  pipelineCountsQuery,
   activityTickerQuery,
 } from "@/lib/dashboard-queries";
 
@@ -41,7 +53,8 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
       qc.prefetchQuery(dashboardStatsQuery(scope));
       qc.prefetchQuery(heroTodayQuery(scope));
       qc.prefetchQuery(needsAttentionQuery(scope));
-      qc.prefetchQuery(pipelineCountsQuery(scope));
+      // pipelineCountsQuery now shares the same cache key as dashboardStatsQuery,
+      // so prefetching it separately is unnecessary.
       qc.prefetchQuery(activityTickerQuery(scope));
     });
     // Follow-up queries are scoped by RLS already — no scope param needed.
@@ -78,6 +91,7 @@ function DashboardPage() {
   // Realtime — payload-aware invalidation, debounced into a 600ms batched flush.
   // Only invalidates the queries actually impacted by the changed columns,
   // and never fires a refetch for unrelated field updates.
+  // Uses the shared realtime manager (single WebSocket for all pages).
   useEffect(() => {
     const dirty = new Set<string>();
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -92,23 +106,27 @@ function DashboardPage() {
       if (!timer) timer = setTimeout(flush, 600);
     };
 
-    const ch = supabase
-      .channel("dashboard-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, (p) => {
-        pushPulse({ kind: "lead" });
-        setPulseTick((t) => (t + 1) % 1000);
-        schedule(affectedKeysFor({ table: "leads", eventType: p.eventType, new: p.new, old: p.old }));
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "follow_ups" }, (p) => {
-        pushPulse({ kind: "follow_up" });
-        schedule(affectedKeysFor({ table: "follow_ups", eventType: p.eventType, new: p.new, old: p.old }));
-      })
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "lead_activities" }, (p) => {
-        pushPulse({ kind: "activity" });
-        schedule(affectedKeysFor({ table: "lead_activities", eventType: p.eventType, new: p.new, old: p.old }));
-      })
-      .subscribe();
-    return () => { if (timer) clearTimeout(timer); supabase.removeChannel(ch); };
+    const unsub = subscribeRealtime(
+      "dashboard",
+      ["leads", "follow_ups", "lead_activities"],
+      (event) => {
+        if (event.table === "leads") {
+          pushPulse({ kind: "lead" });
+          setPulseTick((t) => (t + 1) % 1000);
+        } else if (event.table === "follow_ups") {
+          pushPulse({ kind: "follow_up" });
+        } else if (event.table === "lead_activities") {
+          pushPulse({ kind: "activity" });
+        }
+        schedule(affectedKeysFor({
+          table: event.table as "leads" | "follow_ups" | "lead_activities",
+          eventType: event.eventType,
+          new: event.new,
+          old: event.old,
+        }));
+      },
+    );
+    return () => { if (timer) clearTimeout(timer); unsub(); };
   }, [qc]);
 
   const dateLabel = useMemo(
@@ -199,7 +217,7 @@ function DashboardPage() {
                 <RotateCcw className="h-4 w-4" /> Reset
               </Button>
             )}
-            <NewBookingDialog />
+            <Suspense fallback={null}><NewBookingDialog /></Suspense>
             <Button asChild size="sm">
               <Link to="/leads/new"><Plus className="h-4 w-4" /> New Lead</Link>
             </Button>
@@ -210,10 +228,14 @@ function DashboardPage() {
         <KpiStrip pulseTick={pulseTick} editing={editing} kpis={kpis} onReorder={setKpis} />
 
         {/* Customizable widget grid */}
-        <WidgetGrid editing={editing} pulseTick={pulseTick} visible={visible} />
+        <Suspense fallback={<div className="grid gap-3 grid-cols-1 md:grid-cols-2 animate-pulse">{Array.from({length: 4}, (_, i) => <div key={i} className="h-64 rounded-xl bg-muted/40" />)}</div>}>
+          <WidgetGrid editing={editing} pulseTick={pulseTick} visible={visible} />
+        </Suspense>
 
         {/* Hero of the Month leaderboard */}
-        <HeroOfMonth />
+        <Suspense fallback={<div className="h-48 rounded-xl bg-muted/40 animate-pulse" />}>
+          <HeroOfMonth />
+        </Suspense>
 
         {/* Footer hint */}
         <p className="text-center text-[11px] text-muted-foreground pt-2">

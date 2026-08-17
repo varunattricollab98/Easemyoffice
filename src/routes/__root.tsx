@@ -55,8 +55,21 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "apple-touch-icon", href: "/favicon.svg" },
       { rel: "manifest", href: "/manifest.json" },
       { rel: "stylesheet", href: appCss },
+      // DNS prefetch + preconnect for Google Fonts (preconnect for fast browsers,
+      // dns-prefetch as fallback for older ones)
+      { rel: "dns-prefetch", href: "https://fonts.googleapis.com" },
+      { rel: "dns-prefetch", href: "https://fonts.gstatic.com" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+      // Preconnect to Supabase — the app hits the API immediately on load for auth
+      { rel: "dns-prefetch", href: "https://cfzwdlibvxksrxcrsvpp.supabase.co" },
+      { rel: "preconnect", href: "https://cfzwdlibvxksrxcrsvpp.supabase.co" },
+      // Preload the font CSS so the browser starts downloading it before CSSOM parse
+      {
+        rel: "preload",
+        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap",
+        as: "style",
+      },
       {
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap",

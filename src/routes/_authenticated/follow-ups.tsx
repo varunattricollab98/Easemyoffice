@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { useEffect } from "react";
 import { FollowUpsSkeleton } from "@/components/skeletons";
 import { usePagePerf } from "@/lib/perf";
+import { subscribeRealtime } from "@/lib/realtime-manager";
 
 type FollowUpSearch = { filter?: "overdue" | "today" | "upcoming" };
 
@@ -41,20 +42,12 @@ function FollowUpsPage() {
     },
   });
 
-  // Live updates: refresh on any follow_ups or leads change
+  // Live updates: refresh on any follow_ups or leads change (shared channel)
   useEffect(() => {
-    const ch = supabase
-      .channel("followups-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "follow_ups" }, () => {
-        qc.invalidateQueries({ queryKey: ["all-followups"] });
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => {
-        qc.invalidateQueries({ queryKey: ["all-followups"] });
-      })
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
+    const unsub = subscribeRealtime("followups", ["follow_ups", "leads"], () => {
+      qc.invalidateQueries({ queryKey: ["all-followups"] });
+    });
+    return unsub;
   }, [qc]);
 
   usePagePerf("Follow-ups", isLoading);

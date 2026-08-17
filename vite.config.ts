@@ -12,4 +12,44 @@ export default defineConfig({
   tanstackStart: {
     server: { entry: "server" },
   },
+  vite: {
+    build: {
+      // Reduce initial JS payload by splitting heavy vendor libraries into
+      // separate chunks that are only loaded by the routes that need them.
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            // Recharts — only used by chart.tsx / reports / hero-today widget
+            if (id.includes("node_modules/recharts") || id.includes("node_modules/d3-")) {
+              return "vendor-recharts";
+            }
+            // React-grid-layout — only used by dashboard widget grid
+            if (id.includes("node_modules/react-grid-layout") || id.includes("node_modules/react-resizable")) {
+              return "vendor-grid-layout";
+            }
+            // DnD Kit — only used by pipeline + KPI strip
+            if (id.includes("node_modules/@dnd-kit")) {
+              return "vendor-dnd";
+            }
+            // Radix UI — shared UI primitives, keep in one chunk for caching
+            if (id.includes("node_modules/@radix-ui")) {
+              return "vendor-radix";
+            }
+            // date-fns — used broadly but is tree-shakeable; isolate so main bundle stays lean
+            if (id.includes("node_modules/date-fns")) {
+              return "vendor-date-fns";
+            }
+            // Supabase client — large but loaded early; separate for long-term caching
+            if (id.includes("node_modules/@supabase")) {
+              return "vendor-supabase";
+            }
+            // TanStack (router + query + virtual) — core framework, stable across deploys
+            if (id.includes("node_modules/@tanstack")) {
+              return "vendor-tanstack";
+            }
+          },
+        },
+      },
+    },
+  },
 });

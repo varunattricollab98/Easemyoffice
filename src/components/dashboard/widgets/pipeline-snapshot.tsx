@@ -7,7 +7,10 @@ import { pipelineCountsQuery, useDashboardScope } from "@/lib/dashboard-queries"
 import { WidgetSkeleton } from "../widget-skeleton";
 
 export function PipelineSnapshot() {
-  const { data, isPending } = useQuery(pipelineCountsQuery(useDashboardScope()));
+  const scope = useDashboardScope();
+  const { data, isPending } = useQuery({
+    ...pipelineCountsQuery(scope),
+  });
   const total = Object.values(data ?? {}).reduce((a, b) => a + b, 0) || 1;
 
   if (isPending && !data) return <WidgetSkeleton rows={3} />;
