@@ -1,4 +1,8 @@
-project_id = "wrhrjbeuffydrtwellgv"
+# Must match the LIVE Supabase project the app actually talks to
+# (https://cfzwdlibvxksrxcrsvpp.supabase.co). This value is what the Supabase
+# CLI uses for `db push`, `functions deploy`, and `link` — a stale ref here
+# silently sends migrations and edge functions to the wrong project.
+project_id = "cfzwdlibvxksrxcrsvpp"
 
 [functions.send-scheduled-reports]
 verify_jwt = false

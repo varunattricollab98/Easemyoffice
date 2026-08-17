@@ -1,20 +1,10 @@
-// NOTE: nitro generates dist/server/wrangler.json at build time.
-// The `main` and `assets` fields below are overridden by that generated config.
-// Add bindings, secrets, and compatibility settings here — they will be merged.
 {
   "name": "easemyoffice",
   "compatibility_date": "2025-09-24",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "dist/server/index.mjs",
-  "no_bundle": true,
-  "assets": {
-    "binding": "ASSETS",
-    "directory": "dist/client"
-  },
-  "rules": [
-    {
-      "type": "ESModule",
-      "globs": ["**/*.mjs", "**/*.js"]
-    }
-  ]
+  // `main` must point at the Worker SOURCE entry. @cloudflare/vite-plugin bundles
+  // it and emits the deployable Worker plus its own generated wrangler config into
+  // dist/. Pointing `main` at a dist/ artifact breaks `vite build`, because the
+  // plugin resolves `main` while resolving config — before dist/ exists.
+  "main": "src/server.ts"
 }
