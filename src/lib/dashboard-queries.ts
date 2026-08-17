@@ -65,9 +65,37 @@ export const dashboardStatsQuery = (scope: DashboardScope) =>
       const startOfDay = new Date();
       startOfDay.setHours(0, 0, 0, 0);
       const now = new Date();
-      // One scoped fetch of stage/interest drives every stage-based KPI, so the
-      // numbers always match what people actually see in the pipeline board.
-      // The follow-up + all-time counts stay as fast HEAD counts for accuracy.
+
+      // Attempt server-side aggregation via RPC (much faster — single DB round-trip,
+      // transfers ~200 bytes instead of 5000 rows). Falls back to client-side if RPC
+      // is not yet deployed.
+      const rpcArgs = scope.scoped && scope.uid ? { p_user_id: scope.uid } : {};
+      const { data: rpcData, error: rpcError } = await (supabase.rpc as any)("dashboard_stats_agg", rpcArgs);
+
+      if (!rpcError && rpcData && typeof rpcData === "object" && !Array.isArray(rpcData)) {
+        const agg = rpcData as unknown as { byStage: Record<string, number>; hot: number; closures: number; assignedToday: number };
+        // Still need the count queries for newLeads/total/pending/overdue (these are cheap HEAD counts)
+        const [newLeadsC, totalC, pendingC, overdueC] = await Promise.all([
+          scopeLeads(supabase.from("leads").select("id", { count: "exact", head: true }).gte("created_at", startOfMonth.toISOString()), scope),
+          scopeLeads(supabase.from("leads").select("id", { count: "exact", head: true }), scope),
+          supabase.from("follow_ups").select("id", { count: "exact", head: true }).eq("status", "pending"),
+          supabase.from("follow_ups").select("id", { count: "exact", head: true }).eq("status", "pending").lt("due_at", now.toISOString()),
+        ]);
+
+        return {
+          newLeads: newLeadsC.count ?? 0,
+          total: totalC.count ?? 0,
+          pending: pendingC.count ?? 0,
+          overdue: overdueC.count ?? 0,
+          hot: agg.hot,
+          closures: agg.closures,
+          assignedToday: agg.assignedToday,
+          renewals: agg.byStage["renewal_due"] ?? 0,
+          byStage: agg.byStage,
+        };
+      }
+
+      // Fallback: client-side aggregation (works if RPC not yet deployed)
       const [rows, newLeadsC, totalC, pendingC, overdueC] = await Promise.all([
         scopeLeads(supabase.from("leads").select("stage, interest, created_at, updated_at").limit(5000), scope),
         scopeLeads(supabase.from("leads").select("id", { count: "exact", head: true }).gte("created_at", startOfMonth.toISOString()), scope),
@@ -111,12 +139,13 @@ export const heroTodayQuery = (scope: DashboardScope) =>
       const startOfYesterday = new Date(startOfDay.getTime() - 86400_000);
       const endOfYesterday = new Date(startOfDay.getTime() - 1);
       const endOfDay = new Date(); endOfDay.setHours(23, 59, 59, 999);
-      const trendDays = 30;
-      const trendStart = new Date(Date.now() - trendDays * 86400_000);
-      trendStart.setHours(0, 0, 0, 0);
       const nowIso = new Date().toISOString();
 
-      const [closures, today, yesterday, hot, dueToday, doneToday, monthLeads, trend] = await Promise.all([
+      // Try server-side 30-day trend RPC (returns pre-bucketed data)
+      const rpcArgs = scope.scoped && scope.uid ? { p_user_id: scope.uid } : {};
+      const { data: trendRpc, error: trendErr } = await (supabase.rpc as any)("dashboard_trend_30d", rpcArgs);
+
+      const [closures, today, yesterday, hot, dueToday, doneToday, monthLeads] = await Promise.all([
         scopeLeads(supabase.from("leads").select("id", { count: "exact", head: true })
           .in("stage", ["agreement_signed", "completed"])
           .gte("updated_at", startOfMonth.toISOString()), scope),
@@ -136,28 +165,45 @@ export const heroTodayQuery = (scope: DashboardScope) =>
           .lte("updated_at", nowIso),
         scopeLeads(supabase.from("leads").select("id", { count: "exact", head: true })
           .gte("created_at", startOfMonth.toISOString()), scope),
-        scopeLeads(supabase.from("leads").select("created_at, stage, updated_at")
-          .gte("created_at", trendStart.toISOString())
-          .limit(5000), scope),
       ]);
 
-      // Build per-day buckets for the full 30-day window.
-      const newBuckets = Array(trendDays).fill(0);
-      const closeBuckets = Array(trendDays).fill(0);
-      const startMs = trendStart.getTime();
-      (trend.data ?? []).forEach((r: { created_at: string; stage: string; updated_at: string }) => {
-        const dCreate = Math.floor((new Date(r.created_at).getTime() - startMs) / 86400_000);
-        if (dCreate >= 0 && dCreate < trendDays) newBuckets[dCreate]++;
-        if (r.stage === "agreement_signed" || r.stage === "completed") {
-          const dClose = Math.floor((new Date(r.updated_at).getTime() - startMs) / 86400_000);
-          if (dClose >= 0 && dClose < trendDays) closeBuckets[dClose]++;
-        }
-      });
-      // Day labels (ISO date) aligned with the buckets.
-      const trendDates: string[] = Array.from({ length: trendDays }, (_, i) => {
-        const d = new Date(startMs + i * 86400_000);
-        return d.toISOString().slice(0, 10);
-      });
+      let newBuckets: number[];
+      let closeBuckets: number[];
+      let trendDates: string[];
+      const trendDays = 30;
+
+      if (!trendErr && trendRpc && typeof trendRpc === "object" && !Array.isArray(trendRpc)) {
+        // Server-side trend — already bucketed
+        const rpc = trendRpc as unknown as { dates: string[]; newLeads: number[]; closures: number[] };
+        trendDates = (rpc.dates ?? []).map((d: string) => String(d).slice(0, 10));
+        newBuckets = rpc.newLeads ?? [];
+        closeBuckets = rpc.closures ?? [];
+      } else {
+        // Fallback: client-side bucketing
+        const trendStart = new Date(Date.now() - trendDays * 86400_000);
+        trendStart.setHours(0, 0, 0, 0);
+        const { data: trendData } = await scopeLeads(
+          supabase.from("leads").select("created_at, stage, updated_at")
+            .gte("created_at", trendStart.toISOString())
+            .limit(5000),
+          scope,
+        );
+        newBuckets = Array(trendDays).fill(0);
+        closeBuckets = Array(trendDays).fill(0);
+        const startMs = trendStart.getTime();
+        (trendData ?? []).forEach((r: { created_at: string; stage: string; updated_at: string }) => {
+          const dCreate = Math.floor((new Date(r.created_at).getTime() - startMs) / 86400_000);
+          if (dCreate >= 0 && dCreate < trendDays) newBuckets[dCreate]++;
+          if (r.stage === "agreement_signed" || r.stage === "completed") {
+            const dClose = Math.floor((new Date(r.updated_at).getTime() - startMs) / 86400_000);
+            if (dClose >= 0 && dClose < trendDays) closeBuckets[dClose]++;
+          }
+        });
+        trendDates = Array.from({ length: trendDays }, (_, i) => {
+          const d = new Date(startMs + i * 86400_000);
+          return d.toISOString().slice(0, 10);
+        });
+      }
 
       const closuresN = closures.count ?? 0;
       const monthLeadsN = monthLeads.count ?? 0;
@@ -237,16 +283,19 @@ export const overdueFollowupsQuery = () =>
     },
   });
 
+/**
+ * @deprecated Use dashboardStatsQuery(scope).byStage instead.
+ * Kept as a thin wrapper for backwards compatibility — it reads from the same
+ * cache as dashboardStatsQuery so no extra network request is made.
+ */
 export const pipelineCountsQuery = (scope: DashboardScope) =>
   queryOptions({
-    queryKey: ["pipeline-counts", scopeKey(scope)] as const,
-    staleTime: 60_000,
-    queryFn: async () => {
-      const { data } = await scopeLeads(supabase.from("leads").select("stage").limit(5000), scope);
-      const counts: Record<string, number> = {};
-      (data ?? []).forEach((r: { stage: string }) => { counts[r.stage] = (counts[r.stage] ?? 0) + 1; });
-      return counts;
-    },
+    queryKey: ["dashboard-stats", scopeKey(scope)] as const,
+    staleTime: 30_000,
+    // Re-use the same queryFn as dashboardStatsQuery; TanStack Query deduplicates
+    // in-flight requests by queryKey, so this never fires a second fetch.
+    queryFn: dashboardStatsQuery(scope).queryFn,
+    select: (data) => data.byStage,
   });
 
 export const activityTickerQuery = (scope: DashboardScope) =>
@@ -289,7 +338,8 @@ export function affectedKeysFor(p: RTPayload): string[] {
     // KPI stats touch stage/interest/created_at/updated_at
     if (changed("stage") || changed("interest") || p.eventType !== "UPDATE") keys.add("dashboard-stats");
     if (changed("stage") || changed("updated_at") || p.eventType === "INSERT") keys.add("hero-today");
-    if (changed("stage")) keys.add("pipeline-counts");
+    // pipeline-counts is now derived from dashboard-stats (same cache key), so
+    // invalidating dashboard-stats also refreshes the pipeline snapshot widget.
     if (changed("next_follow_up_at") || changed("interest") || changed("stage") || changed("updated_at"))
       keys.add("needs-attention");
   } else if (p.table === "follow_ups") {

@@ -20,6 +20,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { PipelineSkeleton } from "@/components/skeletons";
 import { usePagePerf } from "@/lib/perf";
 import { triggerStageReminder } from "@/lib/stage-reminders";
+import { subscribeRealtime } from "@/lib/realtime-manager";
 
 export const Route = createFileRoute("/_authenticated/pipeline")({
   head: () => ({ meta: [{ title: "Pipeline — EaseMyOffice CRM" }] }),
@@ -73,6 +74,9 @@ function PipelinePage() {
       return (data ?? []) as Lead[];
     },
     staleTime: 30_000,
+    // Keep structural sharing so unchanged lead objects retain reference identity,
+    // preventing unnecessary re-renders of memoized StageColumn/LeadCard components.
+    structuralSharing: true,
   });
 
   // Apply text + interest + overdue filters
@@ -101,6 +105,9 @@ function PipelinePage() {
     return map;
   }, [filtered]);
 
+  // Stable empty array reference to avoid re-renders on StageColumn for empty stages.
+  const EMPTY_LEADS: Lead[] = useMemo(() => [], []);
+
   const move = useMutation({
     mutationFn: async ({ id, stage, reason }: { id: string; stage: string; reason?: string }) => {
       const patch: Record<string, unknown> = { stage };
@@ -122,17 +129,12 @@ function PipelinePage() {
     },
   });
 
-  // Live updates from realtime channel
+  // Live updates from shared realtime channel
   useEffect(() => {
-    const ch = supabase
-      .channel("pipeline-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => {
-        qc.invalidateQueries({ queryKey: ["pipeline-leads"] });
-      })
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
+    const unsub = subscribeRealtime("pipeline", ["leads"], () => {
+      qc.invalidateQueries({ queryKey: ["pipeline-leads"] });
+    });
+    return unsub;
   }, [qc]);
 
   usePagePerf("Pipeline", isLoading);
@@ -283,7 +285,7 @@ function PipelinePage() {
         <DndContext sensors={sensors} onDragEnd={onDragEnd}>
           <div className="flex gap-3 overflow-x-auto pb-4">
             {STAGES.map((s) => (
-              <StageColumn key={s.id} stage={s} items={buckets.get(s.id) ?? []} />
+              <StageColumn key={s.id} stage={s} items={buckets.get(s.id) ?? EMPTY_LEADS} />
             ))}
           </div>
         </DndContext>
@@ -340,7 +342,7 @@ const StageColumn = memo(function StageColumn({
   );
 });
 
-function VirtualList({ items, height, draggable }: { items: Lead[]; height: number; draggable: boolean }) {
+const VirtualList = memo(function VirtualList({ items, height, draggable }: { items: Lead[]; height: number; draggable: boolean }) {
   const parentRef = useRef<HTMLDivElement>(null);
   const v = useVirtualizer({
     count: items.length,
@@ -381,7 +383,8 @@ function VirtualList({ items, height, draggable }: { items: Lead[]; height: numb
       </div>
     </div>
   );
-}
+});
+
 
 const DraggableLeadCard = memo(function DraggableLeadCard({ lead }: { lead: Lead }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: lead.id });
@@ -398,15 +401,15 @@ const DraggableLeadCard = memo(function DraggableLeadCard({ lead }: { lead: Lead
   );
 });
 
-function StaticLeadCard({ lead }: { lead: Lead }) {
+const StaticLeadCard = memo(function StaticLeadCard({ lead }: { lead: Lead }) {
   return (
     <div className="rounded-lg bg-card border p-3 shadow-sm">
       <LeadCardBody lead={lead} />
     </div>
   );
-}
+});
 
-function LeadCardBody({ lead }: { lead: Lead }) {
+const LeadCardBody = memo(function LeadCardBody({ lead }: { lead: Lead }) {
   const interest = INTERESTS.find((i) => i.id === lead.interest);
   const overdue = lead.next_follow_up_at && new Date(lead.next_follow_up_at) < new Date();
   const ref = lead.last_activity_at ?? lead.created_at;
@@ -430,4 +433,4 @@ function LeadCardBody({ lead }: { lead: Lead }) {
       </div>
     </>
   );
-}
+});

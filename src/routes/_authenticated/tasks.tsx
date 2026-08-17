@@ -18,6 +18,7 @@ import {
 import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
 import { format, isPast, isToday, formatDistanceToNow } from "date-fns";
+import { subscribeRealtime } from "@/lib/realtime-manager";
 
 export const Route = createFileRoute("/_authenticated/tasks")({
   head: () => ({ meta: [{ title: "Tasks — EaseMyOffice CRM" }] }),
@@ -122,26 +123,23 @@ function TasksPage() {
   });
 
   // Real-time: subscribe to tasks changes so updates from other users appear
-  // instantly (no manual refresh needed).
+  // instantly (no manual refresh needed). Uses shared realtime channel.
   useEffect(() => {
-    const channel = supabase
-      .channel("tasks-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, (payload) => {
-        qc.invalidateQueries({ queryKey: ["tasks"] });
-        qc.invalidateQueries({ queryKey: ["calendar-tasks"] });
+    const unsub = subscribeRealtime("tasks", ["tasks"], (event) => {
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      qc.invalidateQueries({ queryKey: ["calendar-tasks"] });
 
-        // Notify the assigner when their task is marked done by someone else.
-        if (payload.eventType === "UPDATE" && payload.new && payload.old) {
-          const newRow = payload.new as any;
-          const oldRow = payload.old as any;
-          if (newRow.status === "done" && oldRow.status !== "done" && newRow.created_by === user?.id && newRow.owner_id !== user?.id) {
-            const ownerName = nameById.get(newRow.owner_id) || "Someone";
-            toast.success(`${ownerName} completed: "${newRow.title}"`);
-          }
+      // Notify the assigner when their task is marked done by someone else.
+      if (event.eventType === "UPDATE" && event.new && event.old) {
+        const newRow = event.new as any;
+        const oldRow = event.old as any;
+        if (newRow.status === "done" && oldRow.status !== "done" && newRow.created_by === user?.id && newRow.owner_id !== user?.id) {
+          const ownerName = nameById.get(newRow.owner_id) || "Someone";
+          toast.success(`${ownerName} completed: "${newRow.title}"`);
         }
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
+      }
+    });
+    return unsub;
   }, [qc, user?.id, nameById]);
 
   return (
