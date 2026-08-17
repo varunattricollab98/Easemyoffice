@@ -35,16 +35,29 @@ WHERE r.status = 'scheduled'
   );
 
 -- ─── 3. Backfill follow-up TASKS for leads in followups without one ─────────
--- Staggered 1 minute apart starting tomorrow at 10:00 AM
+-- Staggered 1 minute apart starting tomorrow at 10:00 AM.
+-- The starting offset skips past any follow-ups that already occupy slots in
+-- the 10:00-12:00 window, so this never collides with existing entries.
+WITH base AS (
+  SELECT (date_trunc('day', now()) + interval '1 day' + interval '10 hours') AS t0
+),
+occupied AS (
+  SELECT count(*) AS n
+  FROM public.follow_ups f, base
+  WHERE f.status = 'pending'
+    AND f.due_at >= base.t0
+    AND f.due_at <  base.t0 + interval '2 hours'
+)
 INSERT INTO public.follow_ups (lead_id, owner_id, action, due_at, created_by)
 SELECT
   l.id,
   l.assigned_to,
   'Follow up with ' || l.client_name,
-  (date_trunc('day', now()) + interval '1 day' + interval '10 hours')
-    + ((row_number() OVER (ORDER BY l.created_at) - 1) * interval '1 minute'),
+  base.t0 + ((occupied.n + row_number() OVER (ORDER BY l.created_at) - 1) * interval '1 minute'),
   l.assigned_to
 FROM public.leads l
+CROSS JOIN base
+CROSS JOIN occupied
 WHERE l.stage IN ('followups', 'follow_up')
   AND NOT EXISTS (
     SELECT 1 FROM public.follow_ups f
