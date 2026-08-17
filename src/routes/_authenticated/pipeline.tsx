@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { PipelineSkeleton } from "@/components/skeletons";
 import { usePagePerf } from "@/lib/perf";
-import { triggerStageReminder, autoCreateFollowUp, stopAllFollowUps } from "@/lib/stage-reminders";
+import { handleStageChange, stopAllFollowUps } from "@/lib/stage-reminders";
 import { subscribeRealtime } from "@/lib/realtime-manager";
 
 export const Route = createFileRoute("/_authenticated/pipeline")({
@@ -168,14 +168,26 @@ function PipelinePage() {
     }
 
     move.mutate({ id, stage: toStage }, {
-      onSuccess: () => {
+      onSuccess: async () => {
         notify();
         if (user) {
           const lead2 = (leads ?? []).find((l) => l.id === id);
-          triggerStageReminder({ leadId: id, newStage: toStage, clientName: lead2?.client_name ?? "", clientEmail: lead2?.email, userId: user.id });
-          autoCreateFollowUp({ leadId: id, newStage: toStage, clientName: lead2?.client_name ?? "", userId: user.id });
+          const result = await handleStageChange({
+            leadId: id,
+            oldStage: fromStage,
+            newStage: toStage,
+            clientName: lead2?.client_name ?? "",
+            clientEmail: lead2?.email,
+            userId: user.id,
+          });
+          // Surface what happened so the user isn't left guessing
+          if (result.followUpsStopped > 0 || result.remindersStopped > 0) {
+            toast.info(`Auto-stopped ${result.followUpsStopped} follow-up(s) and ${result.remindersStopped} reminder(s)`);
+          }
+          if (result.warning) toast.warning(result.warning, { duration: 6000 });
           // Log stage change in the lead's activity timeline
           supabase.from("lead_activities").insert({ lead_id: id, actor_id: user.id, type: "stage_change" as any, title: `Stage changed to ${toLabel}`, body: `From ${fromLabel}` });
+          qc.invalidateQueries({ queryKey: ["pipeline-leads"] });
         }
       },
     });
@@ -187,17 +199,27 @@ function PipelinePage() {
     move.mutate(
       { id, stage: toStage, reason: reasonText.trim() },
       {
-        onSuccess: () => {
+        onSuccess: async () => {
           toast.success(`Moved to ${toLabel}`, {
             action: { label: "Undo", onClick: () => undoMove(id, fromStage, fromLabel) },
             duration: 8000,
           });
           if (user) {
             const lead2 = (leads ?? []).find((l) => l.id === id);
-            triggerStageReminder({ leadId: id, newStage: toStage, clientName: lead2?.client_name ?? "", clientEmail: lead2?.email, userId: user.id });
-            autoCreateFollowUp({ leadId: id, newStage: toStage, clientName: lead2?.client_name ?? "", userId: user.id });
+            const result = await handleStageChange({
+              leadId: id,
+              oldStage: fromStage,
+              newStage: toStage,
+              clientName: lead2?.client_name ?? "",
+              clientEmail: lead2?.email,
+              userId: user.id,
+            });
+            if (result.followUpsStopped > 0 || result.remindersStopped > 0) {
+              toast.info(`Auto-stopped ${result.followUpsStopped} follow-up(s) and ${result.remindersStopped} reminder(s)`);
+            }
             // Log stage change with reason in the lead's activity timeline
             supabase.from("lead_activities").insert({ lead_id: id, actor_id: user.id, type: "stage_change" as any, title: `Marked ${toLabel}`, body: reasonText.trim() });
+            qc.invalidateQueries({ queryKey: ["pipeline-leads"] });
           }
         },
       },
@@ -449,10 +471,10 @@ const LeadCardBody = memo(function LeadCardBody({ lead }: { lead: Lead }) {
             type="button"
             onClick={handleStop}
             onPointerDown={(e) => e.stopPropagation()}
-            className="text-[10px] px-1.5 py-0.5 rounded border border-destructive/40 text-destructive hover:bg-destructive/10 transition-colors font-medium"
+            className="text-[10px] px-2 py-1 rounded-md bg-destructive/10 border border-destructive/50 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-colors font-semibold inline-flex items-center gap-1 shrink-0"
             title="Stop all follow-ups & reminders for this lead"
           >
-            Stop
+            <X className="h-3 w-3" /> Stop
           </button>
         )}
         {daysInStage !== null && (
