@@ -420,6 +420,20 @@ const LeadCardBody = memo(function LeadCardBody({ lead }: { lead: Lead }) {
   const overdue = lead.next_follow_up_at && new Date(lead.next_follow_up_at) < new Date();
   const ref = lead.last_activity_at ?? lead.created_at;
   const daysInStage = ref ? Math.max(0, Math.floor((Date.now() - new Date(ref).getTime()) / 86400000)) : null;
+  const qc = useQueryClient();
+  const isFollowupStage = lead.stage === "followups" || lead.stage === "follow_up";
+
+  const handleStop = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const { stoppedFollowUps, stoppedReminders } = await stopAllFollowUps(lead.id);
+    qc.invalidateQueries({ queryKey: ["pipeline-leads"] });
+    toast.success(
+      `Stopped follow-ups for ${lead.client_name}` +
+      (stoppedReminders > 0 ? ` (+${stoppedReminders} email${stoppedReminders > 1 ? "s" : ""} cancelled)` : ""),
+    );
+  };
+
   return (
     <>
       <Link to="/leads/$id" params={{ id: lead.id }} className="text-sm font-medium hover:underline block truncate">
@@ -430,6 +444,17 @@ const LeadCardBody = memo(function LeadCardBody({ lead }: { lead: Lead }) {
       </div>
       <div className="flex items-center justify-between mt-2 gap-2 flex-wrap">
         {interest && <Badge variant="secondary" className={`text-[10px] ${interest.className}`}>{interest.emoji} {interest.label}</Badge>}
+        {isFollowupStage && (
+          <button
+            type="button"
+            onClick={handleStop}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="text-[10px] px-1.5 py-0.5 rounded border border-destructive/40 text-destructive hover:bg-destructive/10 transition-colors font-medium"
+            title="Stop all follow-ups & reminders for this lead"
+          >
+            Stop
+          </button>
+        )}
         {daysInStage !== null && (
           <span className={`text-[10px] ${daysInStage > 7 ? "text-amber-600" : "text-muted-foreground"}`}>
             {daysInStage}d in stage
