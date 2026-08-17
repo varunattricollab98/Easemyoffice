@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { PipelineSkeleton } from "@/components/skeletons";
 import { usePagePerf } from "@/lib/perf";
-import { triggerStageReminder } from "@/lib/stage-reminders";
+import { triggerStageReminder, autoCreateFollowUp, stopAllFollowUps } from "@/lib/stage-reminders";
 import { subscribeRealtime } from "@/lib/realtime-manager";
 
 export const Route = createFileRoute("/_authenticated/pipeline")({
@@ -173,6 +173,9 @@ function PipelinePage() {
         if (user) {
           const lead2 = (leads ?? []).find((l) => l.id === id);
           triggerStageReminder({ leadId: id, newStage: toStage, clientName: lead2?.client_name ?? "", clientEmail: lead2?.email, userId: user.id });
+          autoCreateFollowUp({ leadId: id, newStage: toStage, clientName: lead2?.client_name ?? "", userId: user.id });
+          // Log stage change in the lead's activity timeline
+          supabase.from("lead_activities").insert({ lead_id: id, actor_id: user.id, type: "stage_change" as any, title: `Stage changed to ${toLabel}`, body: `From ${fromLabel}` });
         }
       },
     });
@@ -192,6 +195,9 @@ function PipelinePage() {
           if (user) {
             const lead2 = (leads ?? []).find((l) => l.id === id);
             triggerStageReminder({ leadId: id, newStage: toStage, clientName: lead2?.client_name ?? "", clientEmail: lead2?.email, userId: user.id });
+            autoCreateFollowUp({ leadId: id, newStage: toStage, clientName: lead2?.client_name ?? "", userId: user.id });
+            // Log stage change with reason in the lead's activity timeline
+            supabase.from("lead_activities").insert({ lead_id: id, actor_id: user.id, type: "stage_change" as any, title: `Marked ${toLabel}`, body: reasonText.trim() });
           }
         },
       },

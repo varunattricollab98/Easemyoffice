@@ -3,13 +3,14 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Bell, Check } from "lucide-react";
+import { Bell, Check, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useEffect } from "react";
 import { FollowUpsSkeleton } from "@/components/skeletons";
 import { usePagePerf } from "@/lib/perf";
 import { subscribeRealtime } from "@/lib/realtime-manager";
+import { stopAllFollowUps } from "@/lib/stage-reminders";
 
 type FollowUpSearch = { filter?: "overdue" | "today" | "upcoming" };
 
@@ -64,6 +65,15 @@ function FollowUpsPage() {
     toast.success("Done");
   };
 
+  const stopFollowUp = async (leadId: string, clientName: string) => {
+    const { stoppedFollowUps, stoppedReminders } = await stopAllFollowUps(leadId);
+    qc.invalidateQueries();
+    toast.success(
+      `Stopped follow-ups for ${clientName}` +
+      (stoppedReminders > 0 ? ` (${stoppedReminders} email reminder${stoppedReminders > 1 ? "s" : ""} also cancelled)` : ""),
+    );
+  };
+
   const Section = ({ id, title, items, tone }: { id: "overdue" | "today" | "upcoming"; title: string; items: FU[]; tone: string }) => {
     if (search.filter && search.filter !== id) return null;
     return (
@@ -86,8 +96,11 @@ function FollowUpsPage() {
                   {f.leads?.client_name} · {format(new Date(f.due_at), "PPp")}
                 </div>
               </div>
-              <Button size="sm" variant="outline" onClick={() => markDone(f.id)}>
+              <Button size="sm" variant="outline" onClick={() => markDone(f.id)} title="Mark done">
                 <Check className="h-4 w-4" />
+              </Button>
+              <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => stopFollowUp(f.leads?.id ?? "", f.leads?.client_name ?? "client")} title="Stop all follow-ups for this lead">
+                <XCircle className="h-4 w-4" />
               </Button>
             </div>
           ))}
