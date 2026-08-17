@@ -14,9 +14,16 @@ export default defineConfig({
   },
   vite: {
     build: {
-      // Reduce initial JS payload by splitting heavy vendor libraries into
-      // separate chunks that are only loaded by the routes that need them.
       rollupOptions: {
+        // `cloudflare:workers` is a virtual module provided by the Workers
+        // runtime at execution time — Rollup can't and shouldn't resolve it
+        // during the build. Without this the SSR build fails and the whole
+        // `npm run build` exits 1, which aborts the Cloudflare deploy.
+        // src/server.ts already guards its use with try/catch and falls back
+        // to the fetch() env argument.
+        external: ["cloudflare:workers"],
+        // Reduce initial JS payload by splitting heavy vendor libraries into
+        // separate chunks that are only loaded by the routes that need them.
         output: {
           manualChunks(id) {
             // Recharts — only used by chart.tsx / reports / hero-today widget
