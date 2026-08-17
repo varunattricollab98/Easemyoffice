@@ -2,9 +2,6 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
-// Cloudflare Workers (with @cloudflare/vite-plugin) deliver configured vars &
-// secrets via this module — not via process.env or the fetch() env argument.
-import { env as cloudflareEnv } from "cloudflare:workers";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -86,7 +83,28 @@ const SERVER_ENV_KEYS = [
   "LOVABLE_API_KEY",
 ];
 
-function bridgeEnvToProcess(fetchEnv: unknown): void {
+// `cloudflare:workers` is a virtual module that only exists inside the Workers
+// runtime. It is NOT available during `vite dev`, because @cloudflare/vite-plugin
+// is only applied for `command === "build"`. A static top-level import therefore
+// crashes SSR with "Cannot find module 'cloudflare:workers'" on every dev request,
+// and a try/catch cannot rescue a static import. So we load it lazily and treat
+// failure as "not running on Workers", falling back to the fetch() env argument
+// and process.env (which Vite populates from .env during dev).
+let cloudflareEnvPromise: Promise<Record<string, unknown> | undefined> | undefined;
+
+function getCloudflareEnv(): Promise<Record<string, unknown> | undefined> {
+  if (!cloudflareEnvPromise) {
+    cloudflareEnvPromise = import("cloudflare:workers")
+      .then((m) => {
+        const value = (m as { env?: unknown }).env;
+        return value && typeof value === "object" ? (value as Record<string, unknown>) : undefined;
+      })
+      .catch(() => undefined);
+  }
+  return cloudflareEnvPromise;
+}
+
+async function bridgeEnvToProcess(fetchEnv: unknown): Promise<void> {
   // Copy the Worker's configured vars/secrets onto process.env so all server
   // code that reads process.env.* works at runtime. We read specific keys
   // directly (rather than enumerating) because the cloudflare:workers env can be
@@ -94,12 +112,9 @@ function bridgeEnvToProcess(fetchEnv: unknown): void {
   // fetch() env argument as a fallback.
   if (typeof process === "undefined" || !process.env) return;
   const sources: Array<Record<string, unknown>> = [];
-  try {
-    if (cloudflareEnv && typeof cloudflareEnv === "object") {
-      sources.push(cloudflareEnv as unknown as Record<string, unknown>);
-    }
-  } catch {
-    // cloudflare:workers env not available in this context — ignore.
+  const workersEnv = await getCloudflareEnv();
+  if (workersEnv) {
+    sources.push(workersEnv);
   }
   if (fetchEnv && typeof fetchEnv === "object") {
     sources.push(fetchEnv as Record<string, unknown>);
@@ -119,7 +134,7 @@ function bridgeEnvToProcess(fetchEnv: unknown): void {
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
-      bridgeEnvToProcess(env);
+      await bridgeEnvToProcess(env);
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);

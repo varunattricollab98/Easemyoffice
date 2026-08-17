@@ -12,18 +12,4 @@ export default defineConfig({
   tanstackStart: {
     server: { entry: "server" },
   },
-  nitro: true,
-  vite: {
-    build: {
-      rollupOptions: {
-        // `cloudflare:workers` is a virtual module provided by the Workers
-        // runtime at execution time — Rollup can't and shouldn't resolve it
-        // during the build. Without this the SSR build fails and the whole
-        // `npm run build` exits 1, which aborts the Cloudflare deploy.
-        // src/server.ts already guards its use with try/catch and falls back
-        // to the fetch() env argument.
-        external: ["cloudflare:workers"],
-      },
-    },
-  },
 });
