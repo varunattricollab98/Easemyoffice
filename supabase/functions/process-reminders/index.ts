@@ -1,5 +1,13 @@
 // Sends any scheduled client reminders whose send_at has passed, via Resend.
-// Triggered every few minutes by pg_cron (see setup/SCHEDULE_REMINDERS_CRON.sql).
+// Triggered every 2 minutes by pg_cron (see setup/SCHEDULE_REMINDERS_CRON.sql).
+//
+// ─── RATE LIMITING ───────────────────────────────────────────────────────────
+// To prevent bulk-sending that could get our domain/IP blocked:
+//   • MAX 1 email per invocation (cron fires every 2 min → natural 2-min gap)
+//   • MAX 50 emails per rolling hour (checked before sending)
+// If the hourly cap is reached, the function exits early; remaining reminders
+// will be picked up once the window slides.
+// ─────────────────────────────────────────────────────────────────────────────
 //
 // Required Edge Function secrets (Supabase -> Edge Functions -> Secrets):
 //   RESEND_API_KEY   -> your Resend API key (same one used by send-client-email)
@@ -25,6 +33,14 @@ const CRON_SECRET = Deno.env.get("CRON_SECRET") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const BCC_EMAIL = Deno.env.get("CRM_BCC_EMAIL") ?? "";
+
+// ─── Rate Limit Configuration ────────────────────────────────────────────────
+// Max emails to send per single invocation (cron runs every 2 min, so this
+// naturally enforces a 2-minute minimum gap between consecutive emails).
+const MAX_PER_INVOCATION = 1;
+// Max emails allowed in a rolling 60-minute window.
+const MAX_PER_HOUR = 50;
+// ─────────────────────────────────────────────────────────────────────────────
 
 // Invisible marker embedded in every CRM-sent email (hidden-preheader style,
 // which Gmail indexes for its preview snippet). Set a Gmail filter
@@ -99,18 +115,53 @@ Deno.serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
     const nowIso = new Date().toISOString();
 
+    // ─── RATE LIMIT CHECK: Hourly cap ──────────────────────────────────────────
+    // Count how many reminders were successfully sent in the last 60 minutes.
+    // If we've hit MAX_PER_HOUR, exit early — the queue will drain as the
+    // rolling window advances.
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { count: sentLastHour, error: countErr } = await supabase
+      .from("reminders")
+      .select("id", { count: "exact", head: true })
+      .gte("sent_at", oneHourAgo)
+      .not("sent_at", "is", null);
+
+    if (countErr) throw new Error(`Rate limit check failed: ${countErr.message}`);
+
+    const hourlyUsed = sentLastHour ?? 0;
+    const remaining = Math.max(0, MAX_PER_HOUR - hourlyUsed);
+
+    if (remaining === 0) {
+      return json({
+        ok: true,
+        processed: 0,
+        sent: 0,
+        failed: 0,
+        skipped_reason: `Hourly limit reached (${MAX_PER_HOUR}/hr). Will resume when window slides.`,
+      });
+    }
+    // ────────────────────────────────────────────────────────────────────────────
+
+    // Fetch only as many reminders as we're allowed to send this invocation.
+    // MAX_PER_INVOCATION = 1 ensures a natural 2-minute gap (cron interval).
+    const batchSize = Math.min(MAX_PER_INVOCATION, remaining);
+
     const { data: due, error } = await supabase
       .from("reminders")
       .select("id, to_email, subject, message, send_at, repeat_interval_days, repeat_until, occurrences_sent, is_html, attachments, from_email")
       .eq("status", "scheduled")
       .lte("send_at", nowIso)
       .order("send_at", { ascending: true })
-      .limit(50);
+      .limit(batchSize);
     if (error) throw new Error(error.message);
+
+    if (!due || due.length === 0) {
+      return json({ ok: true, processed: 0, sent: 0, failed: 0 });
+    }
 
     const DAY = 86400000;
     let sent = 0, failed = 0;
-    for (const r of due ?? []) {
+    for (const r of due) {
       try {
         // Turn stored attachment paths into signed URLs Resend can fetch.
         const attList: { filename: string; path: string }[] = [];
@@ -147,7 +198,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    return json({ ok: true, processed: (due ?? []).length, sent, failed });
+    return json({
+      ok: true,
+      processed: due.length,
+      sent,
+      failed,
+      hourly_used: hourlyUsed + sent,
+      hourly_remaining: remaining - sent,
+    });
   } catch (e) {
     return json({ ok: false, error: (e as Error).message }, 200);
   }
