@@ -151,9 +151,61 @@ export async function triggerStageReminder({
 const FOLLOWUP_STAGES = new Set(["followups", "follow_up"]);
 
 /**
+ * Finds the next available time slot for a follow-up starting from a base time.
+ * Each follow-up is staggered by 1 minute so no two are at the exact same time.
+ *
+ * Logic:
+ * - Start at baseTime (e.g. tomorrow 10:00 AM)
+ * - Query existing pending follow-ups in the window [baseTime, baseTime + 120 min]
+ * - Find the first minute slot that's not taken
+ * - If a previously-stopped follow-up freed a slot, that slot is reused
+ */
+async function getNextAvailableSlot(baseTime: Date): Promise<Date> {
+  // Look in a 2-hour window from the base time for existing pending follow-ups
+  const windowStart = baseTime.toISOString();
+  const windowEnd = new Date(baseTime.getTime() + 120 * 60_000).toISOString();
+
+  const { data: existing } = await supabase
+    .from("follow_ups")
+    .select("due_at")
+    .eq("status", "pending")
+    .gte("due_at", windowStart)
+    .lte("due_at", windowEnd)
+    .order("due_at", { ascending: true });
+
+  if (!existing || existing.length === 0) {
+    return baseTime; // 10:00 AM is free
+  }
+
+  // Build a set of taken minute offsets from baseTime
+  const baseMs = baseTime.getTime();
+  const takenMinutes = new Set<number>();
+  for (const row of existing) {
+    const offset = Math.round((new Date(row.due_at).getTime() - baseMs) / 60_000);
+    if (offset >= 0 && offset < 120) {
+      takenMinutes.add(offset);
+    }
+  }
+
+  // Find the first free minute slot (0 = baseTime, 1 = baseTime + 1 min, etc.)
+  for (let m = 0; m < 120; m++) {
+    if (!takenMinutes.has(m)) {
+      return new Date(baseMs + m * 60_000);
+    }
+  }
+
+  // Fallback: all 120 slots taken (unlikely), use baseTime + 120 min
+  return new Date(baseMs + 120 * 60_000);
+}
+
+/**
  * Auto-creates a follow_up record when a lead enters the followups stage.
  * Called alongside triggerStageReminder() from pipeline drag and lead detail.
  * Skips if a pending follow-up already exists for this lead (avoids duplicates).
+ *
+ * Time staggering: Each follow-up is scheduled 1 minute apart so they don't
+ * all land at the same time. When a follow-up is stopped, its slot becomes
+ * available for the next one.
  */
 export async function autoCreateFollowUp({
   leadId,
@@ -177,16 +229,19 @@ export async function autoCreateFollowUp({
 
   if ((count ?? 0) > 0) return; // Already has a pending follow-up, skip.
 
-  // Schedule a follow-up for tomorrow at 10 AM.
+  // Base time: tomorrow at 10:00 AM
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   tomorrow.setHours(10, 0, 0, 0);
+
+  // Find the next available minute slot (staggered by 1 min per follow-up)
+  const slotTime = await getNextAvailableSlot(tomorrow);
 
   await supabase.from("follow_ups").insert({
     lead_id: leadId,
     owner_id: userId,
     action: `Follow up with ${clientName || "client"}`,
-    due_at: tomorrow.toISOString(),
+    due_at: slotTime.toISOString(),
     created_by: userId,
   });
 }
