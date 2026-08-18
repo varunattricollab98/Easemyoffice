@@ -7,11 +7,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { Mail, ExternalLink, UserPlus, Search, RefreshCcw, ChevronLeft, ChevronRight, CheckCircle2, Hand, Reply, Send, FileText } from "lucide-react";
+import { Mail, ExternalLink, UserPlus, Search, RefreshCcw, ChevronLeft, ChevronRight, CheckCircle2, Hand, Reply, Send, FileText, Maximize2, Minimize2, MapPin, IndianRupee, Calculator } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { fetchInbox, fetchThread, claimEmailInGmail, parseFrom, claimedOwner, normalizeOwnerTag, parseWeb3FormLead, isThrowawayAddress, htmlToText, type InboxEmail, type ThreadMessage } from "@/lib/gmail";
 
@@ -89,6 +90,9 @@ function LeadInboxPage() {
   const [quotationSubject, setQuotationSubject] = useState("");
   const [quotationBody, setQuotationBody] = useState("");
   const [quotationSnippetId, setQuotationSnippetId] = useState("quotation");
+  const [quotationExpanded, setQuotationExpanded] = useState(false);
+  const [quotationBasePrice, setQuotationBasePrice] = useState("");
+  const [quotationLocation, setQuotationLocation] = useState("");
   const PAGE_SIZE = 25;
 
   const threadQ = useQuery({
@@ -98,7 +102,7 @@ function LeadInboxPage() {
   });
 
   // Reset the reply composer whenever a different email is opened / closed.
-  useEffect(() => { setReplyOpen(false); setReplyText(""); setQuotationOpen(false); }, [reading?.threadId]);
+  useEffect(() => { setReplyOpen(false); setReplyText(""); setQuotationOpen(false); setQuotationExpanded(false); setQuotationBasePrice(""); setQuotationLocation(""); }, [reading?.threadId]);
 
   // Who a reply should go to: the real customer address. Web3Forms relays put
   // the customer's email in the body, so parse that first; otherwise fall back
@@ -221,7 +225,22 @@ function LeadInboxPage() {
     setQuotationSnippetId("quotation");
     setQuotationSubject(t.subject);
     setQuotationBody(t.body);
+    setQuotationLocation(parsed.location || "");
+    setQuotationBasePrice("");
+    setQuotationExpanded(false);
     setQuotationOpen(true);
+  };
+
+  // Computed GST (18%) and total from the base price
+  const quotationGst = quotationBasePrice ? Math.round(parseFloat(quotationBasePrice) * 0.18 * 100) / 100 : 0;
+  const quotationTotal = quotationBasePrice ? Math.round((parseFloat(quotationBasePrice) + quotationGst) * 100) / 100 : 0;
+
+  // Insert price into the email body, replacing [enter amount] placeholder
+  const insertPriceIntoBody = () => {
+    if (!quotationBasePrice || isNaN(parseFloat(quotationBasePrice))) return;
+    const formatted = `\u20B9${Number(quotationBasePrice).toLocaleString("en-IN")} + 18% GST = \u20B9${quotationTotal.toLocaleString("en-IN")}`;
+    const updated = quotationBody.replace(/\[enter amount\]/gi, formatted);
+    setQuotationBody(updated);
   };
 
   // Send quotation mutation (same pattern as reply)
@@ -237,8 +256,11 @@ function LeadInboxPage() {
     onSuccess: () => {
       toast.success("Quotation sent successfully!");
       setQuotationOpen(false);
+      setQuotationExpanded(false);
       setQuotationSubject("");
       setQuotationBody("");
+      setQuotationBasePrice("");
+      setQuotationLocation("");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -791,18 +813,29 @@ function LeadInboxPage() {
 
               {/* Send Quotation composer */}
               {quotationOpen && (
-                <div className="shrink-0 rounded-md border bg-muted/20 p-3 space-y-2">
-                  <div className="text-xs text-muted-foreground">
-                    Send quotation to{" "}
-                    {replyTo
-                      ? <span className="font-medium text-foreground">{replyTo}</span>
-                      : <span className="text-destructive">no customer address found — use "Open in Gmail" instead</span>}
+                <div className={`shrink-0 rounded-md border bg-muted/20 p-3 space-y-2 transition-all ${quotationExpanded ? "fixed inset-4 z-50 bg-background shadow-xl overflow-y-auto" : ""}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs text-muted-foreground">
+                      Send quotation to{" "}
+                      {replyTo
+                        ? <span className="font-medium text-foreground">{replyTo}</span>
+                        : <span className="text-destructive">no customer address found</span>}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0"
+                      onClick={() => setQuotationExpanded(!quotationExpanded)}
+                      title={quotationExpanded ? "Collapse" : "Expand"}
+                    >
+                      {quotationExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                    </Button>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-medium w-16 shrink-0">Snippet:</span>
                     <Select value={quotationSnippetId} onValueChange={applyQuotationTemplate}>
                       <SelectTrigger className="h-8 text-xs">
-                        <SelectValue placeholder="Select template…" />
+                        <SelectValue placeholder="Select template..." />
                       </SelectTrigger>
                       <SelectContent>
                         {QUOTATION_TEMPLATES.map((t) => (
@@ -825,24 +858,87 @@ function LeadInboxPage() {
                       className="h-8 text-xs"
                       value={quotationSubject}
                       onChange={(e) => setQuotationSubject(e.target.value)}
-                      placeholder="Email subject…"
+                      placeholder="Email subject..."
                     />
                   </div>
+                  {/* Location field pre-filled from Web3Forms data */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium w-16 shrink-0 inline-flex items-center gap-1">
+                      <MapPin className="h-3 w-3" /> Location:
+                    </span>
+                    <Input
+                      className="h-8 text-xs"
+                      value={quotationLocation}
+                      onChange={(e) => setQuotationLocation(e.target.value)}
+                      placeholder="Client location (auto-filled from lead data)"
+                    />
+                  </div>
+                  {/* Quick price calculator */}
+                  <div className="rounded-md border bg-background/50 p-2.5 space-y-2">
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                      <Calculator className="h-3.5 w-3.5" />
+                      Quick Price Calculator
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
+                          <IndianRupee className="h-3 w-3" /> Base Price
+                        </Label>
+                        <Input
+                          type="number"
+                          className="h-8 text-xs"
+                          placeholder="0"
+                          value={quotationBasePrice}
+                          onChange={(e) => setQuotationBasePrice(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground">GST (18%)</Label>
+                        <Input
+                          type="text"
+                          className="h-8 text-xs bg-muted/50"
+                          readOnly
+                          value={quotationBasePrice ? `\u20B9${quotationGst.toLocaleString("en-IN")}` : ""}
+                          placeholder="Auto"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground font-semibold">Total</Label>
+                        <Input
+                          type="text"
+                          className="h-8 text-xs bg-muted/50 font-medium"
+                          readOnly
+                          value={quotationBasePrice ? `\u20B9${quotationTotal.toLocaleString("en-IN")}` : ""}
+                          placeholder="Auto"
+                        />
+                      </div>
+                    </div>
+                    {quotationBasePrice && parseFloat(quotationBasePrice) > 0 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs w-full"
+                        onClick={insertPriceIntoBody}
+                      >
+                        <IndianRupee className="h-3 w-3 mr-1" /> Insert price into email body
+                      </Button>
+                    )}
+                  </div>
                   <Textarea
-                    rows={6}
+                    rows={quotationExpanded ? 14 : 6}
                     value={quotationBody}
                     onChange={(e) => setQuotationBody(e.target.value)}
-                    placeholder="Email body…"
+                    placeholder="Email body..."
                     className="text-sm"
                   />
                   <div className="flex justify-end gap-2">
-                    <Button size="sm" variant="ghost" onClick={() => setQuotationOpen(false)}>Cancel</Button>
+                    <Button size="sm" variant="ghost" onClick={() => { setQuotationOpen(false); setQuotationExpanded(false); }}>Cancel</Button>
                     <Button
                       size="sm"
                       disabled={sendQuotation.isPending || !quotationBody.trim() || !quotationSubject.trim() || !replyTo}
                       onClick={() => sendQuotation.mutate({ to: replyTo as string, subject: quotationSubject.trim(), text: quotationBody.trim() })}
                     >
-                      <Send className="h-4 w-4 mr-1" /> {sendQuotation.isPending ? "Sending…" : "Send Quotation"}
+                      <Send className="h-4 w-4 mr-1" /> {sendQuotation.isPending ? "Sending..." : "Send Quotation"}
                     </Button>
                   </div>
                 </div>
