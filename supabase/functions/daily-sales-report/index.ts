@@ -131,7 +131,7 @@ async function fetchDayStats(
   // Bookings (matched by name since bookings use sales_agent_name not user_id)
   for (const b of newBookings ?? []) {
     if (b.sales_agent_name) {
-      const uid = nameToId.get(b.sales_agent_name.toLowerCase());
+      const uid = nameToId.get(b.sales_agent_name.trim().toLowerCase());
       if (uid) {
         const s = getStats(uid);
         s.bookings++;
@@ -151,7 +151,10 @@ Deno.serve(async (req) => {
     let bodySecret = "";
     try { bodySecret = (await req.json())?.secret ?? ""; } catch { /* no body */ }
     const headerSecret = req.headers.get("x-cron-secret") ?? "";
-    if (!CRON_SECRET || (bodySecret !== CRON_SECRET && headerSecret !== CRON_SECRET)) {
+    if (!CRON_SECRET) {
+      return json({ ok: false, error: "CRON_SECRET not configured" }, 401);
+    }
+    if (bodySecret !== CRON_SECRET && headerSecret !== CRON_SECRET) {
       return json({ ok: false, error: "unauthorized" }, 401);
     }
     if (!RESEND_API_KEY) return json({ ok: false, error: "RESEND_API_KEY not set" }, 200);
@@ -185,7 +188,7 @@ Deno.serve(async (req) => {
     const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]));
     const nameToId = new Map<string, string>();
     for (const p of profiles ?? []) {
-      if (p.full_name) nameToId.set(p.full_name.toLowerCase(), p.id);
+      if (p.full_name) nameToId.set(p.full_name.trim().toLowerCase(), p.id);
     }
 
     const adminEmails = (adminRoles ?? [])
@@ -239,10 +242,10 @@ Deno.serve(async (req) => {
     const rows: EnhancedRow[] = [];
 
     // Merge all user IDs from both current and previous stats
-    const allUserIds = new Set<string>([...currentStats.keys()]);
+    const allUserIds = new Set<string>([...currentStats.keys(), ...previousStats.keys()]);
 
     for (const uid of allUserIds) {
-      const curr = currentStats.get(uid)!;
+      const curr = currentStats.get(uid) ?? { calls: 0, emails: 0, whatsapp: 0, stageChanges: 0, notes: 0, leadsCreated: 0, followupsCompleted: 0, bookings: 0, revenue: 0 };
       const prev = previousStats.get(uid);
 
       const totalScore = curr.calls + curr.emails + curr.whatsapp + curr.stageChanges + curr.followupsCompleted + curr.leadsCreated + curr.bookings;
@@ -303,10 +306,12 @@ Deno.serve(async (req) => {
 
     const csvHeader = "Person,Calls,Emails,WhatsApp,Stage_Moves,Followups_Done,New_Leads,Bookings,Revenue,Closing_Rate_Percent,Improvement_vs_Previous,Total_Score,Rank";
     const csvRows = rows.map((r) => {
-      // Escape name if it contains commas
-      const escapedName = r.name.includes(",") ? `"${r.name}"` : r.name;
+      // Quote all string fields for RFC 4180 compliance
+      const quotedName = `"${r.name.replace(/"/g, '""')}"`;
+      const quotedClosingRate = `"${r.closingRate}"`;
+      const quotedImprovement = `"${r.improvement}"`;
       return [
-        escapedName,
+        quotedName,
         r.calls,
         r.emails,
         r.whatsapp,
@@ -315,15 +320,15 @@ Deno.serve(async (req) => {
         r.leadsCreated,
         r.bookings,
         r.revenue,
-        r.closingRate,
-        r.improvement,
+        quotedClosingRate,
+        quotedImprovement,
         r.totalScore,
         r.rank,
       ].join(",");
     });
 
     const csvContent = [csvHeader, ...csvRows].join("\n");
-    const base64CSV = btoa(csvContent);
+    const base64CSV = btoa(unescape(encodeURIComponent(csvContent)));
     const reportDateStr = fmtDateISO(yesterday);
 
     // ─── Build HTML report ─────────────────────────────────────────────────────

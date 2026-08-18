@@ -143,7 +143,7 @@ async function fetchWeekStats(
   // Bookings (matched by name since bookings use sales_agent_name not user_id)
   for (const b of newBookings ?? []) {
     if (b.sales_agent_name) {
-      const uid = nameToId.get(b.sales_agent_name.toLowerCase());
+      const uid = nameToId.get(b.sales_agent_name.trim().toLowerCase());
       if (uid) {
         const s = getStats(uid);
         s.bookings++;
@@ -163,7 +163,10 @@ Deno.serve(async (req) => {
     let bodySecret = "";
     try { bodySecret = (await req.json())?.secret ?? ""; } catch { /* no body */ }
     const headerSecret = req.headers.get("x-cron-secret") ?? "";
-    if (!CRON_SECRET || (bodySecret !== CRON_SECRET && headerSecret !== CRON_SECRET)) {
+    if (!CRON_SECRET) {
+      return json({ ok: false, error: "CRON_SECRET not configured" }, 401);
+    }
+    if (bodySecret !== CRON_SECRET && headerSecret !== CRON_SECRET) {
       return json({ ok: false, error: "unauthorized" }, 401);
     }
     if (!RESEND_API_KEY) return json({ ok: false, error: "RESEND_API_KEY not set" }, 200);
@@ -193,7 +196,7 @@ Deno.serve(async (req) => {
     const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]));
     const nameToId = new Map<string, string>();
     for (const p of profiles ?? []) {
-      if (p.full_name) nameToId.set(p.full_name.toLowerCase(), p.id);
+      if (p.full_name) nameToId.set(p.full_name.trim().toLowerCase(), p.id);
     }
 
     // Get admin users (to send the full team report to)
@@ -250,10 +253,10 @@ Deno.serve(async (req) => {
     const rows: EnhancedRow[] = [];
 
     // Merge all user IDs from both current and previous stats
-    const allUserIds = new Set<string>([...currentStats.keys()]);
+    const allUserIds = new Set<string>([...currentStats.keys(), ...previousStats.keys()]);
 
     for (const uid of allUserIds) {
-      const curr = currentStats.get(uid)!;
+      const curr = currentStats.get(uid) ?? { calls: 0, emails: 0, whatsapp: 0, stageChanges: 0, followupsCompleted: 0, leadsCreated: 0, bookings: 0, revenue: 0 };
       const prev = previousStats.get(uid);
 
       const totalScore = curr.calls + curr.emails + curr.whatsapp + curr.stageChanges + curr.followupsCompleted + curr.leadsCreated + curr.bookings;
@@ -336,9 +339,12 @@ Deno.serve(async (req) => {
 
     const csvHeader = "Person,Calls,Emails,WhatsApp,Stage_Moves,Followups_Done,New_Leads,Bookings,Revenue,Closing_Rate_Percent,Improvement_vs_Previous,Total_Score,Rank";
     const csvRows = rows.map((r) => {
-      const escapedName = r.name.includes(",") ? `"${r.name}"` : r.name;
+      // Quote all string fields for RFC 4180 compliance
+      const quotedName = `"${r.name.replace(/"/g, '""')}"`;
+      const quotedClosingRate = `"${r.closingRate}"`;
+      const quotedImprovement = `"${r.improvement}"`;
       return [
-        escapedName,
+        quotedName,
         r.calls,
         r.emails,
         r.whatsapp,
@@ -347,15 +353,15 @@ Deno.serve(async (req) => {
         r.leadsCreated,
         r.bookings,
         r.revenue,
-        r.closingRate,
-        r.improvement,
+        quotedClosingRate,
+        quotedImprovement,
         r.totalScore,
         r.rank,
       ].join(",");
     });
 
     const csvContent = [csvHeader, ...csvRows].join("\n");
-    const base64CSV = btoa(csvContent);
+    const base64CSV = btoa(unescape(encodeURIComponent(csvContent)));
     const reportDateStr = fmtDateISO(thisWeekStart);
 
     // ─── Build ADMIN HTML ──────────────────────────────────────────────────────
@@ -560,22 +566,26 @@ Deno.serve(async (req) => {
       const individualHtml = buildIndividualHtml(row);
       const firstName = user.name ? user.name.split(" ")[0] : "there";
 
-      const indRes = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          from: FROM_EMAIL,
-          to: [user.email],
-          subject: `📊 ${firstName}, your weekly performance summary | Rank #${row.rank} of ${rows.length}`,
-          html: individualHtml,
-        }),
-      });
+      try {
+        const indRes = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            from: FROM_EMAIL,
+            to: [user.email],
+            subject: `📊 ${firstName}, your weekly performance summary | Rank #${row.rank} of ${rows.length}`,
+            html: individualHtml,
+          }),
+        });
 
-      if (!indRes.ok) {
-        const errText = await indRes.text();
-        emailResults.push({ type: "individual", to: user.email, ok: false, error: `Resend ${indRes.status}: ${errText}` });
-      } else {
-        emailResults.push({ type: "individual", to: user.email, ok: true });
+        if (!indRes.ok) {
+          const errText = await indRes.text();
+          emailResults.push({ type: "individual", to: user.email, ok: false, error: `Resend ${indRes.status}: ${errText}` });
+        } else {
+          emailResults.push({ type: "individual", to: user.email, ok: true });
+        }
+      } catch (fetchErr) {
+        emailResults.push({ type: "individual", to: user.email, ok: false, error: `fetch failed: ${(fetchErr as Error).message}` });
       }
     }
 
