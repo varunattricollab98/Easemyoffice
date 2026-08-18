@@ -233,11 +233,13 @@ export async function autoCreateFollowUp({
   newStage,
   clientName,
   userId,
+  dueAt,
 }: {
   leadId: string;
   newStage: string;
   clientName: string;
   userId: string;
+  dueAt?: string; // If provided, use this exact time. Otherwise, stagger from tomorrow 10 AM.
 }) {
   if (!FOLLOWUP_STAGES.has(newStage)) return;
 
@@ -250,13 +252,18 @@ export async function autoCreateFollowUp({
 
   if ((count ?? 0) > 0) return; // Already has a pending follow-up, skip.
 
-  // Base time: tomorrow at 10:00 AM
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(10, 0, 0, 0);
+  let slotTime: Date;
 
-  // Find the next available minute slot (staggered by 1 min per follow-up)
-  const slotTime = await getNextAvailableSlot(tomorrow);
+  if (dueAt) {
+    // User chose a specific time via config dialog — use it directly
+    slotTime = new Date(dueAt);
+  } else {
+    // Default: tomorrow at 10:00 AM, staggered by 1 min per follow-up
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(10, 0, 0, 0);
+    slotTime = await getNextAvailableSlot(tomorrow);
+  }
 
   await supabase.from("follow_ups").insert({
     lead_id: leadId,
@@ -350,8 +357,9 @@ export async function handleStageChange({
 
   // ── CASE 2: Moving INTO followups → create follow-up + reminder ────────────
   if (isInFollowup && !wasInFollowup) {
-    // Create the follow-up task (works regardless of email)
-    await autoCreateFollowUp({ leadId, newStage, clientName, userId });
+    // Create the follow-up task — use the user's chosen sendAt as the due time
+    // so the task and the first email are synchronized.
+    await autoCreateFollowUp({ leadId, newStage, clientName, userId, dueAt: emailConfig?.sendAt });
     followUpCreated = true;
 
     // Create the email reminder sequence (requires an email address)
