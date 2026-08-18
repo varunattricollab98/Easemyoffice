@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { Mail, ExternalLink, UserPlus, Search, RefreshCcw, ChevronLeft, ChevronRight, CheckCircle2, Hand, Reply, Send } from "lucide-react";
+import { Mail, ExternalLink, UserPlus, Search, RefreshCcw, ChevronLeft, ChevronRight, CheckCircle2, Hand, Reply, Send, FileText } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { fetchInbox, fetchThread, claimEmailInGmail, parseFrom, claimedOwner, normalizeOwnerTag, parseWeb3FormLead, isThrowawayAddress, htmlToText, type InboxEmail, type ThreadMessage } from "@/lib/gmail";
 
@@ -85,6 +85,10 @@ function LeadInboxPage() {
   const [reading, setReading] = useState<InboxEmail | null>(null);
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
+  const [quotationOpen, setQuotationOpen] = useState(false);
+  const [quotationSubject, setQuotationSubject] = useState("");
+  const [quotationBody, setQuotationBody] = useState("");
+  const [quotationSnippetId, setQuotationSnippetId] = useState("quotation");
   const PAGE_SIZE = 25;
 
   const threadQ = useQuery({
@@ -94,7 +98,7 @@ function LeadInboxPage() {
   });
 
   // Reset the reply composer whenever a different email is opened / closed.
-  useEffect(() => { setReplyOpen(false); setReplyText(""); }, [reading?.threadId]);
+  useEffect(() => { setReplyOpen(false); setReplyText(""); setQuotationOpen(false); }, [reading?.threadId]);
 
   // Who a reply should go to: the real customer address. Web3Forms relays put
   // the customer's email in the body, so parse that first; otherwise fall back
@@ -116,6 +120,128 @@ function LeadInboxPage() {
   const replySubject = reading
     ? (/^\s*re:/i.test(reading.subject || "") ? (reading.subject || "") : `Re: ${reading.subject || "(no subject)"}`)
     : "";
+
+  // Fetch email snippets for the quotation composer dropdown
+  const { data: emailSnippets = [] } = useQuery({
+    queryKey: ["email-snippets-list"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("email_snippets")
+        .select("id, name, subject, body_html")
+        .order("name");
+      return (data ?? []) as { id: string; name: string; subject: string; body_html: string }[];
+    },
+    enabled: quotationOpen,
+  });
+
+  // Built-in quotation templates for the Send Quotation composer
+  const QUOTATION_TEMPLATES = [
+    { id: "quotation", label: "Quotation" },
+    { id: "welcome", label: "Welcome / Intro" },
+    { id: "followup", label: "Follow-up" },
+    { id: "documents", label: "Documents required" },
+    { id: "payment", label: "Payment reminder" },
+    { id: "thankyou", label: "Thank you" },
+    { id: "custom", label: "Blank (write my own)" },
+  ] as const;
+
+  // Build template content for the quotation composer
+  const buildQuotationTemplate = (id: string, clientName: string) => {
+    const senderName = profile?.full_name ?? "Team EaseMyOffice";
+    const sign = `\n\nWarm regards,\n${senderName}\nEaseMyOffice`;
+    const name = clientName || "there";
+    const service = "[your service]";
+    switch (id) {
+      case "quotation":
+        return {
+          subject: `Quotation for ${service} — EaseMyOffice`,
+          body: `Dear ${name},\n\nThank you for your interest in our ${service} service. As discussed, here is our quotation:\n\n• Service: ${service}\n• Price: [enter amount]\n• Inclusions: [enter what's included]\n• Validity: 15 days\n\nPlease let me know if you have any questions — we'd be glad to help you get started.${sign}`,
+        };
+      case "welcome":
+        return {
+          subject: `Welcome to EaseMyOffice, ${name}!`,
+          body: `Dear ${name},\n\nThank you for choosing EaseMyOffice. We're excited to work with you.\n\nI'll be your point of contact throughout the process. Feel free to reach out any time with questions.${sign}`,
+        };
+      case "followup":
+        return {
+          subject: `Following up — EaseMyOffice`,
+          body: `Dear ${name},\n\nI hope you're doing well. I wanted to follow up regarding your enquiry. Please let me know if you'd like to move ahead or if there's anything I can clarify.\n\nHappy to help however I can.${sign}`,
+        };
+      case "documents":
+        return {
+          subject: `Documents required — EaseMyOffice`,
+          body: `Dear ${name},\n\nTo proceed with your request, please share the following documents:\n\n• [Document 1]\n• [Document 2]\n• [Document 3]\n\nYou can simply reply to this email with the files attached. Once received, we'll begin processing right away.${sign}`,
+        };
+      case "payment":
+        return {
+          subject: `Payment details — EaseMyOffice`,
+          body: `Dear ${name},\n\nThank you for confirming your order. Please find the payment details below:\n\n• Amount: [enter amount]\n• Payment link / account: [enter details]\n\nOnce the payment is completed, kindly share the confirmation so we can proceed.${sign}`,
+        };
+      case "thankyou":
+        return {
+          subject: `Thank you, ${name}`,
+          body: `Dear ${name},\n\nThank you for your time today. It was a pleasure speaking with you. Please don't hesitate to reach out if you need anything further.${sign}`,
+        };
+      default:
+        return { subject: "", body: `Dear ${name},\n\n${sign}` };
+    }
+  };
+
+  // Apply a template or snippet to the quotation composer
+  const applyQuotationTemplate = (id: string) => {
+    setQuotationSnippetId(id);
+    // Check if it's a custom snippet (UUID format from DB)
+    const snippet = emailSnippets.find((s) => s.id === id);
+    if (snippet) {
+      setQuotationSubject(snippet.subject || "");
+      // Convert HTML to plain text for the textarea
+      const plainBody = snippet.body_html
+        ? snippet.body_html.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ")
+        : "";
+      setQuotationBody(plainBody);
+    } else {
+      // Parse the client name from the thread body
+      const msgs = threadQ.data?.messages ?? [];
+      const bodyText = msgs.map((m) => (m.body && m.body.trim() ? m.body : htmlToText(m.html || ""))).join("\n");
+      const parsed = parseWeb3FormLead(bodyText);
+      const clientName = parsed.name || "";
+      const t = buildQuotationTemplate(id, clientName);
+      setQuotationSubject(t.subject);
+      setQuotationBody(t.body);
+    }
+  };
+
+  // Open the quotation composer with the default template pre-filled
+  const openQuotationComposer = () => {
+    const msgs = threadQ.data?.messages ?? [];
+    const bodyText = msgs.map((m) => (m.body && m.body.trim() ? m.body : htmlToText(m.html || ""))).join("\n");
+    const parsed = parseWeb3FormLead(bodyText);
+    const clientName = parsed.name || "";
+    const t = buildQuotationTemplate("quotation", clientName);
+    setQuotationSnippetId("quotation");
+    setQuotationSubject(t.subject);
+    setQuotationBody(t.body);
+    setQuotationOpen(true);
+  };
+
+  // Send quotation mutation (same pattern as reply)
+  const sendQuotation = useMutation({
+    mutationFn: async (vars: { to: string; subject: string; text: string }) => {
+      const { data, error } = await supabase.functions.invoke("send-client-email", {
+        body: { to: vars.to, subject: vars.subject, text: vars.text },
+      });
+      if (error) throw new Error(error.message);
+      if (data && data.ok === false) throw new Error(data.error || "Send failed");
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("Quotation sent successfully!");
+      setQuotationOpen(false);
+      setQuotationSubject("");
+      setQuotationBody("");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   // Send a reply to the customer via Resend (send-client-email). The function
   // sends from the CRM address and BCCs the shared inbox, so a copy threads in
@@ -663,6 +789,65 @@ function LeadInboxPage() {
                 </div>
               )}
 
+              {/* Send Quotation composer */}
+              {quotationOpen && (
+                <div className="shrink-0 rounded-md border bg-muted/20 p-3 space-y-2">
+                  <div className="text-xs text-muted-foreground">
+                    Send quotation to{" "}
+                    {replyTo
+                      ? <span className="font-medium text-foreground">{replyTo}</span>
+                      : <span className="text-destructive">no customer address found — use "Open in Gmail" instead</span>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium w-16 shrink-0">Snippet:</span>
+                    <Select value={quotationSnippetId} onValueChange={applyQuotationTemplate}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Select template…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {QUOTATION_TEMPLATES.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>
+                        ))}
+                        {emailSnippets.length > 0 && (
+                          <>
+                            <SelectItem disabled value="__divider__">--- Custom Snippets ---</SelectItem>
+                            {emailSnippets.map((s) => (
+                              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                            ))}
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium w-16 shrink-0">Subject:</span>
+                    <Input
+                      className="h-8 text-xs"
+                      value={quotationSubject}
+                      onChange={(e) => setQuotationSubject(e.target.value)}
+                      placeholder="Email subject…"
+                    />
+                  </div>
+                  <Textarea
+                    rows={6}
+                    value={quotationBody}
+                    onChange={(e) => setQuotationBody(e.target.value)}
+                    placeholder="Email body…"
+                    className="text-sm"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button size="sm" variant="ghost" onClick={() => setQuotationOpen(false)}>Cancel</Button>
+                    <Button
+                      size="sm"
+                      disabled={sendQuotation.isPending || !quotationBody.trim() || !quotationSubject.trim() || !replyTo}
+                      onClick={() => sendQuotation.mutate({ to: replyTo as string, subject: quotationSubject.trim(), text: quotationBody.trim() })}
+                    >
+                      <Send className="h-4 w-4 mr-1" /> {sendQuotation.isPending ? "Sending…" : "Send Quotation"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-wrap items-center justify-end gap-3 shrink-0">
                 {reading && isAdmin && (
                   <div className="flex items-center gap-2 mr-auto">
@@ -695,6 +880,11 @@ function LeadInboxPage() {
                 {replyTo && !replyOpen && (
                   <Button size="sm" onClick={() => setReplyOpen(true)}>
                     <Reply className="h-4 w-4 mr-1" /> Reply in CRM
+                  </Button>
+                )}
+                {replyTo && !quotationOpen && (
+                  <Button size="sm" variant="secondary" onClick={openQuotationComposer}>
+                    <FileText className="h-4 w-4 mr-1" /> Send Quotation
                   </Button>
                 )}
                 {(threadQ.data.url || reading?.url) && (
