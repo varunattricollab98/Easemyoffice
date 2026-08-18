@@ -67,7 +67,7 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 });
 
 function DashboardPage() {
-  const { user, roles, isAdmin } = useAuth();
+  const { user, roles, isAdmin, profile } = useAuth();
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [quiet, setQuiet] = useQuietMode();
@@ -184,10 +184,17 @@ function DashboardPage() {
             ))}
           </div>
         )}
-        {/* Header */}
+        {/* Personalized header — makes the salesperson feel ownership */}
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
+            {profile?.full_name?.split(" ")[0] ?? "Your"}'s Dashboard
+          </h1>
+          <p className="text-sm text-muted-foreground">{dateLabel} · Your sales performance at a glance</p>
+        </div>
+
+        {/* Actions bar */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="text-sm text-muted-foreground tabular-nums">{dateLabel}</div>
             <LivePulsePill />
           </div>
           <div className="flex items-center gap-2">
