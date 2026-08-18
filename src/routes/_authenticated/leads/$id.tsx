@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -764,9 +765,9 @@ function FollowUpComposer({ leadId, onFollowUpCreated }: { leadId: string; onFol
     return d.toISOString().slice(0, 16);
   });
   return (
-    <Card><CardContent className="p-3 grid sm:grid-cols-[1fr_220px_auto] gap-2">
+    <Card><CardContent className="p-3 grid sm:grid-cols-[1fr_auto_auto] gap-2 items-center">
       <Input placeholder="Next action (e.g. Call to confirm KYC)" value={action} onChange={(e) => setAction(e.target.value)} />
-      <Input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} />
+      <DateTimePicker value={due} onChange={setDue} />
       <Button onClick={async () => {
         if (!action.trim()) return toast.error("Please enter an action first (e.g. Call to confirm KYC)");
         if (!user) return toast.error("You must be signed in to schedule a follow-up");
