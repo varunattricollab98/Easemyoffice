@@ -1,0 +1,34 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Enhance the existing daily-sales-report edge function with CSV attachment, improvement % vs previous day, closing rate %, and ranking per person. Also fetch revenue (profit) from bookings.",
+  "status": "in_progress",
+  "steps": [
+    "In supabase/functions/daily-sales-report/index.ts, add a query to fetch the PREVIOUS day's data (day before yesterday) to calculate improvement % per person. Use the same aggregation logic but for the prior day window.",
+    "Add a query to fetch total leads assigned_to each person (all time or recent) to calculate closing rate = (bookings / total leads) * 100 per person for the reporting period.",
+    "Add a query to bookings to also fetch profit and total_amount columns for revenue tracking.",
+    "Calculate improvement_vs_previous = ((today_total - prev_total) / prev_total * 100) for each person. If prev_total is 0, show 'NEW' or '+100%'.",
+    "Calculate closing_rate_percent = (bookings / leads_created * 100) for each person for that day. If no leads, show 'N/A'.",
+    "Add rank column based on total score (calls + emails + whatsapp + stage_changes + followups_done + leads + bookings). Rank 1 = highest score.",
+    "Generate a CSV string with columns: Person, Calls, Emails, WhatsApp, Stage_Moves, Followups_Done, New_Leads, Bookings, Revenue, Closing_Rate_Percent, Improvement_vs_Previous, Total_Score, Rank",
+    "Base64 encode the CSV string and attach it to the Resend email payload as { filename: 'daily-sales-report-YYYY-MM-DD.csv', content: base64CSV }",
+    "Update the HTML table to include new columns: Revenue, Closing Rate %, Improvement %, Rank.",
+    "Keep the existing CORS headers, auth logic, and admin-only recipient logic unchanged."
+  ],
+  "acceptance_criteria": [
+    "The enhanced function compiles without TypeScript errors (valid Deno syntax)",
+    "CSV attachment is included in the Resend payload with correct base64 encoding",
+    "Improvement % is calculated by comparing current day vs previous day per person",
+    "Closing rate is calculated as bookings/leads * 100",
+    "Ranking is applied based on total score descending",
+    "HTML report includes Revenue, Closing Rate, Improvement, and Rank columns",
+    "Backward compatible - still sends to admin emails, same auth pattern"
+  ],
+  "verification": [
+    "Run: deno check supabase/functions/daily-sales-report/index.ts (or grep for syntax issues)",
+    "Verify the file exports a Deno.serve handler",
+    "Verify Resend payload includes attachments array with filename and content fields"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
