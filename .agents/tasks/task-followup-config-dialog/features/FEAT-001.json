@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Create a 'Follow-up Configuration Dialog' that appears when a lead is moved to the followups stage (via pipeline drag or lead detail stage dropdown). The dialog lets the salesperson configure: 1) Email snippet selection, 2) Start date & time for email reminders, 3) Frequency (daily/alternate days/weekly), 4) Max days (stop after X days). After the user confirms, the existing handleStageChange() is called with these custom parameters instead of using defaults.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "1. Create a new component file src/components/followup-config-dialog.tsx with a Dialog that contains: (a) A Select dropdown to pick an email snippet from the email_snippets table (fetched via supabase query), with a 'Default template' option, (b) A datetime-local input for when reminders should start (default: 1 hour from now), (c) A Select for frequency: Daily (1), Alternate days (2), Weekly (7), (d) A number input for 'Stop after X days' (default: 7), (e) Confirm and Cancel buttons. The dialog receives props: open, onOpenChange, leadId, clientName, clientEmail, userId, onConfirm callback. Use the same UI patterns as the existing 'reason required' dialog in pipeline.tsx (Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter).",
     "2. Modify src/lib/stage-reminders.ts: Update triggerStageReminder() to accept optional override parameters: snippetId, intervalDays, stopDays, sendAt. When these are provided, use them instead of the defaults from TEMPLATES or admin config. Also update handleStageChange() to accept an optional 'emailConfig' parameter with these fields, and pass them through to triggerStageReminder().",
@@ -23,5 +23,5 @@
     "Run 'bun run build' and confirm it completes successfully with no errors"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Build passes cleanly with bun run build. The dialog integrates seamlessly with the existing pending move pattern in pipeline.tsx. triggerStageReminder and handleStageChange now accept optional emailConfig overrides. The dynamic import pattern was used in pipeline.tsx for the confirm callback to re-call triggerStageReminder with user config after cancelling the default reminder."
 }
