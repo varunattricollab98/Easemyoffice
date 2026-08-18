@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Create the weekly-sales-report edge function that sends a full team comparison to admins and individual reports to each salesperson. Includes week-over-week comparison, top 3 + bottom 3 performers, closing rate, and CSV attachment. Also create the cron SQL file.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create supabase/functions/weekly-sales-report/index.ts following the same structure as daily-sales-report (Deno.serve, corsHeaders, CRON_SECRET auth, Resend API, supabase client).",
     "Time window: previous full week (Monday 00:00 UTC to Sunday 23:59 UTC). Also fetch the week before that for week-over-week comparison.",
@@ -33,5 +33,5 @@
     "Verify individual emails are sent in a loop to each sales/bd user"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Successfully created weekly-sales-report edge function and cron SQL. Build passes. No Deno runtime available locally so TypeScript was verified syntactically only. The function follows the exact same patterns as the daily-sales-report (CRON_SECRET auth, corsHeaders, Resend API, btoa for CSV encoding). Individual emails are sent in a loop for each sales/bd user."
 }
