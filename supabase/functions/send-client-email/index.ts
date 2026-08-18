@@ -72,12 +72,12 @@ Deno.serve(async (req) => {
 
     const fromEmail = safeFrom(from) ?? FROM_EMAIL;
     const payload: Record<string, unknown> = { from: fromEmail, to: toList, subject };
-    if (html) payload.html = CRM_MARKER + html;
+    if (html) payload.html = html + CRM_MARKER;
     if (text) payload.text = text;
     // Ensure the hidden marker rides along even for text-only sends, so the
     // BCC'd copy in the shared inbox is still reliably labelled "CRM-Sent".
     if (!html && text) {
-      payload.html = CRM_MARKER + `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;white-space:pre-wrap;color:#0f172a">${escHtml(text)}</div>`;
+      payload.html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;white-space:pre-wrap;color:#0f172a">${escHtml(text)}</div>` + CRM_MARKER;
     }
     if (isEmail(replyTo)) payload.reply_to = replyTo;
     if (isEmail(cc)) payload.cc = [cc];

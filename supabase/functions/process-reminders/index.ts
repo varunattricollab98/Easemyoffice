@@ -84,7 +84,7 @@ async function sendEmail(toList: string[], subject: string, message: string, isH
   const bodyHtml = isHtml
     ? message
     : `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;white-space:pre-wrap;color:#0f172a">${esc(message)}</div>`;
-  const html = CRM_MARKER + bodyHtml;
+  const html = bodyHtml + CRM_MARKER;
   const from = safeFrom(fromOverride) ?? FROM_EMAIL;
   const payload: Record<string, unknown> = { from, to: toList, subject, html };
   if (!isHtml) payload.text = message;
