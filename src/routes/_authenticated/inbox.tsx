@@ -816,9 +816,8 @@ function LeadInboxPage() {
               )}
 
               {/* Send Quotation composer */}
-              {quotationOpen && (
-                <div className={`rounded-md border p-3 space-y-2 transition-all ${quotationExpanded ? "fixed inset-4 z-[200] bg-background shadow-2xl overflow-y-auto rounded-xl border-2" : "bg-muted/20 flex-1 overflow-y-auto"}`}>
-                  {quotationExpanded && <div className="fixed inset-0 z-[199] bg-black/60" onClick={() => setQuotationExpanded(false)} />}
+              {quotationOpen && !quotationExpanded && (
+                <div className="rounded-md border p-4 space-y-3 bg-muted/20 flex-1 overflow-y-auto">
                   <div className="flex items-center justify-between">
                     <div className="text-xs text-muted-foreground">
                       Send quotation to{" "}
@@ -997,6 +996,74 @@ function LeadInboxPage() {
               </div>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Expanded quotation composer — renders as its own full-screen Dialog */}
+      <Dialog open={quotationOpen && quotationExpanded} onOpenChange={(o) => { if (!o) setQuotationExpanded(false); }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Send Quotation</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="text-sm text-muted-foreground">
+              To: <span className="font-medium text-foreground">{replyTo || "no email"}</span>
+            </div>
+            <div className="grid grid-cols-[80px_1fr] gap-2 items-center">
+              <Label className="text-xs">Snippet:</Label>
+              <Select value={quotationSnippetId} onValueChange={applyQuotationTemplate}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {QUOTATION_TEMPLATES.map((t) => <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>)}
+                  {emailSnippets.length > 0 && emailSnippets.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Label className="text-xs">Subject:</Label>
+              <Input value={quotationSubject} onChange={(e) => setQuotationSubject(e.target.value)} />
+              <Label className="text-xs">Location:</Label>
+              <div className="flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+                <Input value={quotationLocation} onChange={(e) => setQuotationLocation(e.target.value)} />
+              </div>
+            </div>
+            <div className="rounded-md border p-3 space-y-2 bg-muted/30">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Calculator className="h-4 w-4" /> Quick Price Calculator
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <Label className="text-xs flex items-center gap-1"><IndianRupee className="h-3 w-3" /> Base Price</Label>
+                  <Input type="number" min="0" value={quotationBasePrice} onChange={(e) => setQuotationBasePrice(e.target.value)} placeholder="0" />
+                </div>
+                <div>
+                  <Label className="text-xs">GST (18%)</Label>
+                  <Input readOnly value={quotationBasePrice && Number(quotationBasePrice) > 0 ? `₹${Math.round(Number(quotationBasePrice) * 0.18).toLocaleString("en-IN")}` : "Auto"} className="bg-muted/50" />
+                </div>
+                <div>
+                  <Label className="text-xs">Total</Label>
+                  <Input readOnly value={quotationBasePrice && Number(quotationBasePrice) > 0 ? `₹${Math.round(Number(quotationBasePrice) * 1.18).toLocaleString("en-IN")}` : "Auto"} className="bg-muted/50" />
+                </div>
+              </div>
+              {quotationBasePrice && Number(quotationBasePrice) > 0 && (
+                <Button size="sm" variant="outline" className="w-full" onClick={() => {
+                  const base = Number(quotationBasePrice);
+                  const gst = Math.round(base * 0.18);
+                  const total = base + gst;
+                  const priceStr = `₹${base.toLocaleString("en-IN")} + 18% GST = ₹${total.toLocaleString("en-IN")}`;
+                  setQuotationBody(quotationBody.replace("[enter amount]", priceStr));
+                }}>
+                  <IndianRupee className="h-3 w-3 mr-1" /> Insert price into email body
+                </Button>
+              )}
+            </div>
+            <Textarea rows={14} value={quotationBody} onChange={(e) => setQuotationBody(e.target.value)} className="font-mono text-sm" />
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setQuotationExpanded(false)}>Back to email</Button>
+              <Button disabled={sendQuotation.isPending || !quotationBody.trim() || !quotationSubject.trim() || !replyTo} onClick={() => sendQuotation.mutate({ to: replyTo as string, subject: quotationSubject.trim(), text: quotationBody.trim() })}>
+                <Send className="h-4 w-4 mr-1" /> {sendQuotation.isPending ? "Sending..." : "Send Quotation"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
