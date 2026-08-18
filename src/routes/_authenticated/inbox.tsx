@@ -813,7 +813,8 @@ function LeadInboxPage() {
 
               {/* Send Quotation composer */}
               {quotationOpen && (
-                <div className={`shrink-0 rounded-md border bg-muted/20 p-3 space-y-2 transition-all ${quotationExpanded ? "fixed inset-4 z-50 bg-background shadow-xl overflow-y-auto" : ""}`}>
+                <div className={`shrink-0 rounded-md border p-3 space-y-2 transition-all ${quotationExpanded ? "fixed inset-4 z-[200] bg-background shadow-2xl overflow-y-auto rounded-xl border-2" : "bg-muted/20"}`}>
+                  {quotationExpanded && <div className="fixed inset-0 z-[199] bg-black/60" onClick={() => setQuotationExpanded(false)} />}
                   <div className="flex items-center justify-between">
                     <div className="text-xs text-muted-foreground">
                       Send quotation to{" "}
