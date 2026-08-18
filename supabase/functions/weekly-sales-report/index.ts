@@ -532,28 +532,32 @@ Deno.serve(async (req) => {
 
     // 1. Send admin email with CSV attachment
     if (adminEmails.length > 0) {
-      const adminRes = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          from: FROM_EMAIL,
-          to: adminEmails,
-          subject: `📊 Weekly Sales Report | ${weekRangeStr} | ${teamTotal} actions, ${totalBookings} bookings, ₹${totalRevenue.toLocaleString("en-IN")} revenue`,
-          html: adminHtml,
-          attachments: [
-            {
-              filename: `weekly-sales-report-${reportDateStr}.csv`,
-              content: base64CSV,
-            },
-          ],
-        }),
-      });
+      try {
+        const adminRes = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            from: FROM_EMAIL,
+            to: adminEmails,
+            subject: `📊 Weekly Sales Report | ${weekRangeStr} | ${teamTotal} actions, ${totalBookings} bookings, ₹${totalRevenue.toLocaleString("en-IN")} revenue`,
+            html: adminHtml,
+            attachments: [
+              {
+                filename: `weekly-sales-report-${reportDateStr}.csv`,
+                content: base64CSV,
+              },
+            ],
+          }),
+        });
 
-      if (!adminRes.ok) {
-        const errText = await adminRes.text();
-        emailResults.push({ type: "admin", to: adminEmails.join(","), ok: false, error: `Resend ${adminRes.status}: ${errText}` });
-      } else {
-        emailResults.push({ type: "admin", to: adminEmails.join(","), ok: true });
+        if (!adminRes.ok) {
+          const errText = await adminRes.text();
+          emailResults.push({ type: "admin", to: adminEmails.join(","), ok: false, error: `Resend ${adminRes.status}: ${errText}` });
+        } else {
+          emailResults.push({ type: "admin", to: adminEmails.join(","), ok: true });
+        }
+      } catch (adminErr) {
+        emailResults.push({ type: "admin", to: adminEmails.join(","), ok: false, error: `Network error: ${(adminErr as Error).message}` });
       }
     }
 

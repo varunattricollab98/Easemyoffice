@@ -439,26 +439,30 @@ Deno.serve(async (req) => {
     `;
 
     // Send to all admins with CSV attachment
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        from: FROM_EMAIL,
-        to: adminEmails,
-        subject: `📊 Sales Report — ${fmtDate(yesterday)} | ${teamTotal} actions, ${totalBookings} bookings, ₹${totalRevenue.toLocaleString("en-IN")} revenue`,
-        html,
-        attachments: [
-          {
-            filename: `daily-sales-report-${reportDateStr}.csv`,
-            content: base64CSV,
-          },
-        ],
-      }),
-    });
+    try {
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from: FROM_EMAIL,
+          to: adminEmails,
+          subject: `📊 Sales Report — ${fmtDate(yesterday)} | ${teamTotal} actions, ${totalBookings} bookings, ₹${totalRevenue.toLocaleString("en-IN")} revenue`,
+          html,
+          attachments: [
+            {
+              filename: `daily-sales-report-${reportDateStr}.csv`,
+              content: base64CSV,
+            },
+          ],
+        }),
+      });
 
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`Resend ${res.status}: ${errText}`);
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Resend ${res.status}: ${errText}`);
+      }
+    } catch (adminErr) {
+      return json({ ok: false, error: `Admin email send failed: ${(adminErr as Error).message}` }, 200);
     }
 
     return json({
