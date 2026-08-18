@@ -59,18 +59,27 @@ async function getSnippet(id: string) {
   return data;
 }
 
+export type EmailConfigOverride = {
+  snippetId?: string;
+  intervalDays?: number;
+  stopDays?: number;
+  sendAt?: string;
+};
+
 export async function triggerStageReminder({
   leadId,
   newStage,
   clientName,
   clientEmail,
   userId,
+  emailConfig,
 }: {
   leadId: string;
   newStage: string;
   clientName: string;
   clientEmail?: string | null;
   userId: string;
+  emailConfig?: EmailConfigOverride;
 }) {
   if (!TRIGGER_STAGES.has(newStage)) return;
   if (!clientEmail) return; // can't send without an email
@@ -85,17 +94,18 @@ export async function triggerStageReminder({
   const tpl = TEMPLATES[newStage];
   if (!tpl) return;
 
-  // Determine interval and stopDays (admin override or default).
-  const interval = stageCfg?.interval_days ?? tpl.interval;
-  const stopDays = stageCfg?.stop_days ?? tpl.stopDays;
+  // Determine interval and stopDays (user override > admin override > default).
+  const interval = emailConfig?.intervalDays ?? stageCfg?.interval_days ?? tpl.interval;
+  const stopDays = emailConfig?.stopDays ?? stageCfg?.stop_days ?? tpl.stopDays;
 
-  // Determine subject + message (from snippet or default template).
+  // Determine subject + message (from user-chosen snippet > admin snippet > default template).
   let subject = tpl.subject;
   let message = tpl.message;
   let isHtml = false;
 
-  if (stageCfg?.snippet_id) {
-    const snippet = await getSnippet(stageCfg.snippet_id);
+  const snippetIdToUse = emailConfig?.snippetId ?? stageCfg?.snippet_id;
+  if (snippetIdToUse) {
+    const snippet = await getSnippet(snippetIdToUse);
     if (snippet) {
       subject = snippet.subject || subject;
       message = snippet.body_html || message;
@@ -107,11 +117,16 @@ export async function triggerStageReminder({
   subject = subject.replace(/\{\{name\}\}/g, name);
   message = message.replace(/\{\{name\}\}/g, name);
 
-  // Calculate send_at: for lost = next day; for follow-up/not-interested = 1 hour from now
+  // Calculate send_at: user override > default logic
   const DAY = 86400000;
-  const sendAt = newStage === "lost"
-    ? new Date(Date.now() + DAY).toISOString()
-    : new Date(Date.now() + 60 * 60000).toISOString(); // 1 hour
+  let sendAt: string;
+  if (emailConfig?.sendAt) {
+    sendAt = emailConfig.sendAt;
+  } else {
+    sendAt = newStage === "lost"
+      ? new Date(Date.now() + DAY).toISOString()
+      : new Date(Date.now() + 60 * 60000).toISOString(); // 1 hour
+  }
 
   const repeatUntil = stopDays > 0
     ? new Date(Date.now() + stopDays * DAY).toISOString()
@@ -295,6 +310,7 @@ export async function handleStageChange({
   clientName,
   clientEmail,
   userId,
+  emailConfig,
 }: {
   leadId: string;
   oldStage: string;
@@ -302,6 +318,7 @@ export async function handleStageChange({
   clientName: string;
   clientEmail?: string | null;
   userId: string;
+  emailConfig?: EmailConfigOverride;
 }): Promise<{
   followUpCreated: boolean;
   reminderCreated: boolean;
@@ -333,7 +350,7 @@ export async function handleStageChange({
 
     // Create the email reminder sequence (requires an email address)
     if (clientEmail) {
-      await triggerStageReminder({ leadId, newStage, clientName, clientEmail, userId });
+      await triggerStageReminder({ leadId, newStage, clientName, clientEmail, userId, emailConfig });
       reminderCreated = true;
     } else {
       warning = `No email on file for ${clientName} — follow-up task created, but no email reminder could be scheduled.`;

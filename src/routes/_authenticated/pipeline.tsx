@@ -20,6 +20,8 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { PipelineSkeleton } from "@/components/skeletons";
 import { usePagePerf } from "@/lib/perf";
 import { handleStageChange, stopAllFollowUps } from "@/lib/stage-reminders";
+import { FollowupConfigDialog } from "@/components/followup-config-dialog";
+import type { EmailConfig } from "@/components/followup-config-dialog";
 import { subscribeRealtime } from "@/lib/realtime-manager";
 
 export const Route = createFileRoute("/_authenticated/pipeline")({
@@ -58,6 +60,8 @@ function PipelinePage() {
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [pendingMove, setPendingMove] = useState<{ id: string; client: string; fromStage: string; fromLabel: string; toStage: string; toLabel: string } | null>(null);
   const [reasonText, setReasonText] = useState("");
+  const [followupConfigOpen, setFollowupConfigOpen] = useState(false);
+  const [pendingFollowup, setPendingFollowup] = useState<{ id: string; client: string; email: string | null; fromStage: string; toStage: string; toLabel: string } | null>(null);
   const isMobile = useIsMobile();
 
   // Mobile: load ONLY the active stage. Desktop: load all (capped 500).
@@ -172,19 +176,50 @@ function PipelinePage() {
         notify();
         if (user) {
           const lead2 = (leads ?? []).find((l) => l.id === id);
-          const result = await handleStageChange({
-            leadId: id,
-            oldStage: fromStage,
-            newStage: toStage,
-            clientName: lead2?.client_name ?? "",
-            clientEmail: lead2?.email,
-            userId: user.id,
-          });
-          // Surface what happened so the user isn't left guessing
-          if (result.followUpsStopped > 0 || result.remindersStopped > 0) {
-            toast.info(`Auto-stopped ${result.followUpsStopped} follow-up(s) and ${result.remindersStopped} reminder(s)`);
+          // If moving to followups, open config dialog for email reminders
+          const isFollowupTarget = toStage === "followups" || toStage === "follow_up";
+          if (isFollowupTarget) {
+            // Stage moved, now open config dialog. Follow-up task + defaults happen via handleStageChange.
+            // We still call handleStageChange with no emailConfig (defaults) immediately for the follow-up task.
+            // Then we open the dialog to let the user customize email reminders.
+            setPendingFollowup({
+              id,
+              client: lead2?.client_name ?? "",
+              email: lead2?.email ?? null,
+              fromStage,
+              toStage,
+              toLabel,
+            });
+            setFollowupConfigOpen(true);
+            // Create the follow-up task immediately (no email config yet)
+            await handleStageChange({
+              leadId: id,
+              oldStage: fromStage,
+              newStage: toStage,
+              clientName: lead2?.client_name ?? "",
+              clientEmail: lead2?.email,
+              userId: user.id,
+            }).then((result) => {
+              if (result.followUpsStopped > 0 || result.remindersStopped > 0) {
+                toast.info(`Auto-stopped ${result.followUpsStopped} follow-up(s) and ${result.remindersStopped} reminder(s)`);
+              }
+              if (result.warning) toast.warning(result.warning, { duration: 6000 });
+            });
+          } else {
+            const result = await handleStageChange({
+              leadId: id,
+              oldStage: fromStage,
+              newStage: toStage,
+              clientName: lead2?.client_name ?? "",
+              clientEmail: lead2?.email,
+              userId: user.id,
+            });
+            // Surface what happened so the user isn't left guessing
+            if (result.followUpsStopped > 0 || result.remindersStopped > 0) {
+              toast.info(`Auto-stopped ${result.followUpsStopped} follow-up(s) and ${result.remindersStopped} reminder(s)`);
+            }
+            if (result.warning) toast.warning(result.warning, { duration: 6000 });
           }
-          if (result.warning) toast.warning(result.warning, { duration: 6000 });
           // Log stage change in the lead's activity timeline
           supabase.from("lead_activities").insert({ lead_id: id, actor_id: user.id, type: "stage_change" as any, title: `Stage changed to ${toLabel}`, body: `From ${fromLabel}` });
           qc.invalidateQueries({ queryKey: ["pipeline-leads"] });
@@ -342,6 +377,50 @@ function PipelinePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {pendingFollowup && (
+        <FollowupConfigDialog
+          open={followupConfigOpen}
+          onOpenChange={setFollowupConfigOpen}
+          leadId={pendingFollowup.id}
+          clientName={pendingFollowup.client}
+          clientEmail={pendingFollowup.email}
+          userId={user?.id ?? ""}
+          onConfirm={async (config: EmailConfig) => {
+            // User chose custom settings - create reminder with their config
+            if (user && pendingFollowup.email) {
+              const { triggerStageReminder } = await import("@/lib/stage-reminders");
+              // Cancel the default reminder that was already created
+              await supabase
+                .from("reminders")
+                .update({ status: "cancelled" })
+                .eq("lead_id", pendingFollowup.id)
+                .eq("status", "scheduled");
+              // Create new reminder with user's config
+              await triggerStageReminder({
+                leadId: pendingFollowup.id,
+                newStage: pendingFollowup.toStage,
+                clientName: pendingFollowup.client,
+                clientEmail: pendingFollowup.email,
+                userId: user.id,
+                emailConfig: {
+                  snippetId: config.snippetId,
+                  intervalDays: config.intervalDays,
+                  stopDays: config.stopDays,
+                  sendAt: config.sendAt,
+                },
+              });
+              toast.success("Email reminders configured successfully");
+            }
+            setPendingFollowup(null);
+            qc.invalidateQueries({ queryKey: ["pipeline-leads"] });
+          }}
+          onCancel={() => {
+            // User cancelled - lead already moved, defaults already applied
+            setPendingFollowup(null);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -32,7 +32,9 @@ import {
 import { ArrowLeft, Phone, Mail, MessageCircle, Calendar, Plus, Check, Trash2, Send, Loader2, XCircle } from "lucide-react";
 import { INTERESTS, INTENT_FLAGS, SERVICES, SOURCES, STAGES, calcScore, deriveInterest, labelFor } from "@/lib/crm";
 import { useAuth } from "@/lib/auth";
-import { handleStageChange, stopAllFollowUps } from "@/lib/stage-reminders";
+import { handleStageChange, stopAllFollowUps, triggerStageReminder } from "@/lib/stage-reminders";
+import { FollowupConfigDialog } from "@/components/followup-config-dialog";
+import type { EmailConfig } from "@/components/followup-config-dialog";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
@@ -50,6 +52,8 @@ function LeadDetailPage() {
   const [emailOpen, setEmailOpen] = useState(false);
   const [reasonStage, setReasonStage] = useState<string | null>(null);
   const [reasonText, setReasonText] = useState("");
+  const [followupConfigOpen, setFollowupConfigOpen] = useState(false);
+  const [followupPrevStage, setFollowupPrevStage] = useState<string>("");
 
   const { data: lead, isLoading } = useQuery({
     queryKey: ["lead", id],
@@ -207,23 +211,44 @@ function LeadDetailPage() {
                   } else {
                     const stageLabel = STAGES.find((s) => s.id === v)?.label ?? v;
                     const prevStage = lead.stage;
+                    const isFollowupTarget = v === "followups" || v === "follow_up";
                     updateLead.mutate({ stage: v }, {
                       onSuccess: async () => {
                         logActivity("stage_change", `Stage changed to ${stageLabel}`);
                         if (user) {
-                          const result = await handleStageChange({
-                            leadId: id,
-                            oldStage: prevStage,
-                            newStage: v,
-                            clientName: lead.client_name,
-                            clientEmail: lead.email,
-                            userId: user.id,
-                          });
-                          if (result.followUpsStopped > 0 || result.remindersStopped > 0) {
-                            toast.info(`Auto-stopped ${result.followUpsStopped} follow-up(s) and ${result.remindersStopped} reminder(s)`);
+                          if (isFollowupTarget) {
+                            // Open the config dialog for email reminders
+                            setFollowupPrevStage(prevStage);
+                            // Create follow-up task with defaults immediately
+                            const result = await handleStageChange({
+                              leadId: id,
+                              oldStage: prevStage,
+                              newStage: v,
+                              clientName: lead.client_name,
+                              clientEmail: lead.email,
+                              userId: user.id,
+                            });
+                            if (result.followUpsStopped > 0 || result.remindersStopped > 0) {
+                              toast.info(`Auto-stopped ${result.followUpsStopped} follow-up(s) and ${result.remindersStopped} reminder(s)`);
+                            }
+                            if (result.warning) toast.warning(result.warning, { duration: 6000 });
+                            setFollowupConfigOpen(true);
+                            qc.invalidateQueries();
+                          } else {
+                            const result = await handleStageChange({
+                              leadId: id,
+                              oldStage: prevStage,
+                              newStage: v,
+                              clientName: lead.client_name,
+                              clientEmail: lead.email,
+                              userId: user.id,
+                            });
+                            if (result.followUpsStopped > 0 || result.remindersStopped > 0) {
+                              toast.info(`Auto-stopped ${result.followUpsStopped} follow-up(s) and ${result.remindersStopped} reminder(s)`);
+                            }
+                            if (result.warning) toast.warning(result.warning, { duration: 6000 });
+                            qc.invalidateQueries();
                           }
-                          if (result.warning) toast.warning(result.warning, { duration: 6000 });
-                          qc.invalidateQueries();
                         }
                       },
                     });
@@ -292,23 +317,35 @@ function LeadDetailPage() {
         </TabsContent>
 
         <TabsContent value="followups" className="space-y-3">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <FollowUpComposer leadId={id} />
-            {(followups ?? []).some((f: any) => f.status === "pending") && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-destructive hover:text-destructive shrink-0"
-                onClick={async () => {
-                  const { stoppedFollowUps, stoppedReminders } = await stopAllFollowUps(id);
-                  qc.invalidateQueries();
-                  logActivity("followup", "Stopped all follow-ups", `Cancelled ${stoppedFollowUps} follow-up(s) and ${stoppedReminders} email reminder(s)`);
-                  toast.success("All follow-ups stopped");
-                }}
-              >
-                <XCircle className="h-4 w-4 mr-1" /> Stop Follow-ups
-              </Button>
-            )}
+            <div className="flex items-center gap-2 shrink-0">
+              {(lead.stage === "followups" || lead.stage === "follow_up") && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => setFollowupConfigOpen(true)}
+                >
+                  <Mail className="h-4 w-4 mr-1" /> Configure Email Reminders
+                </Button>
+              )}
+              {(followups ?? []).some((f: any) => f.status === "pending") && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive hover:text-destructive shrink-0"
+                  onClick={async () => {
+                    const { stoppedFollowUps, stoppedReminders } = await stopAllFollowUps(id);
+                    qc.invalidateQueries();
+                    logActivity("followup", "Stopped all follow-ups", `Cancelled ${stoppedFollowUps} follow-up(s) and ${stoppedReminders} email reminder(s)`);
+                    toast.success("All follow-ups stopped");
+                  }}
+                >
+                  <XCircle className="h-4 w-4 mr-1" /> Stop Follow-ups
+                </Button>
+              )}
+            </div>
           </div>
           <Card><CardContent className="p-4 space-y-2">
             {(followups ?? []).length === 0 && <div className="text-sm text-muted-foreground">No follow-ups scheduled.</div>}
@@ -416,6 +453,47 @@ function LeadDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {lead && (
+        <FollowupConfigDialog
+          open={followupConfigOpen}
+          onOpenChange={setFollowupConfigOpen}
+          leadId={id}
+          clientName={lead.client_name}
+          clientEmail={lead.email}
+          userId={user?.id ?? ""}
+          onConfirm={async (config: EmailConfig) => {
+            // User chose custom settings - cancel default and re-create with custom config
+            if (user && lead.email) {
+              // Cancel the default reminder that was already created
+              await supabase
+                .from("reminders")
+                .update({ status: "cancelled" })
+                .eq("lead_id", id)
+                .eq("status", "scheduled");
+              // Create new reminder with user's config
+              await triggerStageReminder({
+                leadId: id,
+                newStage: lead.stage,
+                clientName: lead.client_name,
+                clientEmail: lead.email,
+                userId: user.id,
+                emailConfig: {
+                  snippetId: config.snippetId,
+                  intervalDays: config.intervalDays,
+                  stopDays: config.stopDays,
+                  sendAt: config.sendAt,
+                },
+              });
+              toast.success("Email reminders configured successfully");
+              qc.invalidateQueries();
+            }
+          }}
+          onCancel={() => {
+            // User cancelled - defaults already applied
+          }}
+        />
+      )}
     </div>
   );
 }
