@@ -29,11 +29,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Phone, Mail, MailX, MessageCircle, Calendar, Plus, Check, Trash2, Send, Loader2, XCircle, Clock, Pause } from "lucide-react";
+import { ArrowLeft, Phone, Mail, MessageCircle, Calendar, Plus, Check, Trash2, Send, Loader2, XCircle } from "lucide-react";
 import { INTERESTS, INTENT_FLAGS, SERVICES, SOURCES, STAGES, calcScore, deriveInterest, labelFor } from "@/lib/crm";
 import { useAuth } from "@/lib/auth";
 import { handleStageChange, stopAllFollowUps, triggerStageReminder } from "@/lib/stage-reminders";
 import { FollowupConfigDialog } from "@/components/followup-config-dialog";
+import { EmailStatusRow } from "@/components/email-status-row";
 import type { EmailConfig } from "@/components/followup-config-dialog";
 import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
@@ -83,6 +84,7 @@ function LeadDetailPage() {
   // Fetch reminders linked to this lead for unified follow-up + email display
   const { data: leadReminders } = useQuery({
     queryKey: ["lead-reminders", id],
+    refetchInterval: 30000,
     queryFn: async () => {
       const { data } = await supabase
         .from("reminders")
@@ -389,6 +391,7 @@ function LeadDetailPage() {
             {(followups ?? []).length === 0 && <div className="text-sm text-muted-foreground">No follow-ups scheduled.</div>}
             {followups?.map((f: any) => {
               const overdue = f.status === "pending" && new Date(f.due_at) < new Date();
+              const isPending = f.status === "pending";
               return (
                 <div key={f.id} className="flex flex-col gap-2 p-2.5 rounded-md border">
                   {/* Main task row */}
@@ -407,13 +410,15 @@ function LeadDetailPage() {
                       }}><Check className="h-4 w-4" /></Button>
                     )}
                   </div>
-                  {/* Email reminder status row */}
-                  <LeadEmailStatusRow
-                    activeReminder={activeReminder}
-                    pausedReminder={pausedReminder}
-                    sentReminders={sentReminders}
-                    leadReminders={leadReminders ?? []}
-                  />
+                  {/* Email reminder status row - only shown for pending follow-ups */}
+                  {isPending && (
+                    <EmailStatusRow
+                      activeReminder={activeReminder}
+                      pausedReminder={pausedReminder}
+                      sentReminders={sentReminders}
+                      leadReminders={leadReminders ?? []}
+                    />
+                  )}
                 </div>
               );
             })}
@@ -780,106 +785,3 @@ function FollowUpComposer({ leadId, onFollowUpCreated }: { leadId: string; onFol
   );
 }
 
-/** Email status indicator for a follow-up item on the lead detail page */
-function LeadEmailStatusRow({
-  activeReminder,
-  pausedReminder,
-  sentReminders,
-  leadReminders,
-}: {
-  activeReminder: { id: string; subject: string; status: string; send_at: string; repeat_interval_days: number; repeat_until: string | null; occurrences_sent: number } | undefined;
-  pausedReminder: { id: string; subject: string; status: string; occurrences_sent: number } | undefined;
-  sentReminders: Array<{ occurrences_sent: number }>;
-  leadReminders: Array<{ id: string; status: string }>;
-}) {
-  // No reminders at all
-  if (leadReminders.length === 0) {
-    return (
-      <div className="flex items-center gap-2 text-xs text-muted-foreground pl-1">
-        <MailX className="h-3.5 w-3.5" />
-        <span>No email configured</span>
-      </div>
-    );
-  }
-
-  // Active scheduled reminder
-  if (activeReminder) {
-    const nextSend = new Date(activeReminder.send_at);
-    const countdown = formatDistanceToNow(nextSend, { addSuffix: true });
-    const freq = getFrequencyLabel(activeReminder.repeat_interval_days, activeReminder.repeat_until);
-
-    return (
-      <div className="flex flex-wrap items-center gap-2 text-xs pl-1">
-        <Badge variant="secondary" className="gap-1 text-xs font-normal">
-          <Mail className="h-3 w-3 text-green-600" />
-          Email scheduled
-        </Badge>
-        <span className="text-muted-foreground truncate max-w-[180px]" title={activeReminder.subject}>
-          {activeReminder.subject.length > 30 ? activeReminder.subject.slice(0, 30) + "..." : activeReminder.subject}
-        </span>
-        {freq && <span className="text-muted-foreground">({freq})</span>}
-        {activeReminder.occurrences_sent > 0 && (
-          <span className="text-muted-foreground">{activeReminder.occurrences_sent} sent</span>
-        )}
-        <span className="flex items-center gap-1 text-muted-foreground">
-          <Clock className="h-3 w-3" />
-          Next {countdown}
-        </span>
-      </div>
-    );
-  }
-
-  // Paused reminder
-  if (pausedReminder) {
-    return (
-      <div className="flex items-center gap-2 text-xs pl-1">
-        <Badge variant="secondary" className="gap-1 text-xs font-normal">
-          <Pause className="h-3 w-3 text-amber-500" />
-          Email paused
-        </Badge>
-        <span className="text-muted-foreground truncate max-w-[180px]">
-          {pausedReminder.subject.length > 30 ? pausedReminder.subject.slice(0, 30) + "..." : pausedReminder.subject}
-        </span>
-        {pausedReminder.occurrences_sent > 0 && (
-          <span className="text-muted-foreground">{pausedReminder.occurrences_sent} sent</span>
-        )}
-      </div>
-    );
-  }
-
-  // Only sent reminders (completed sequence)
-  if (sentReminders.length > 0) {
-    const totalSent = sentReminders.reduce((sum, r) => sum + r.occurrences_sent, 0);
-    return (
-      <div className="flex items-center gap-2 text-xs pl-1">
-        <Badge variant="secondary" className="gap-1 text-xs font-normal">
-          <Mail className="h-3 w-3 text-blue-500" />
-          Email completed ({totalSent} sent)
-        </Badge>
-      </div>
-    );
-  }
-
-  // Failed reminders
-  return (
-    <div className="flex items-center gap-2 text-xs pl-1">
-      <Badge variant="destructive" className="gap-1 text-xs font-normal">
-        <MailX className="h-3 w-3" />
-        Email failed
-      </Badge>
-    </div>
-  );
-}
-
-/** Helper to generate a human-readable frequency label */
-function getFrequencyLabel(intervalDays: number, repeatUntil: string | null): string {
-  if (intervalDays === 0) return "One-time";
-  if (!repeatUntil) return intervalDays === 1 ? "Daily" : `Every ${intervalDays} days`;
-
-  const now = new Date();
-  const until = new Date(repeatUntil);
-  const daysLeft = Math.max(0, Math.ceil((until.getTime() - now.getTime()) / 86400000));
-
-  const freqLabel = intervalDays === 1 ? "Daily" : intervalDays === 7 ? "Weekly" : `Every ${intervalDays}d`;
-  return `${freqLabel}, ${daysLeft}d left`;
-}
