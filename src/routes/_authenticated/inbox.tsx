@@ -761,14 +761,18 @@ function LeadInboxPage() {
           ) : (
             <>
               {/* Whole conversation in one continuous view; only this area scrolls,
-                  so the popup's close ✕ (top-right) always stays visible. */}
-              <iframe
-                title="email"
-                sandbox=""
-                srcDoc={buildThreadHtml(threadQ.data.messages ?? [])}
-                className="w-full flex-1 min-h-0 rounded-md border bg-white"
-              />
+                  so the popup's close ✕ (top-right) always stays visible.
+                  Hidden when quotation composer is open to avoid overlap. */}
+              {!quotationOpen && (
+                <iframe
+                  title="email"
+                  sandbox=""
+                  srcDoc={buildThreadHtml(threadQ.data.messages ?? [])}
+                  className="w-full flex-1 min-h-0 rounded-md border bg-white"
+                />
+              )}
               {(() => {
+                if (quotationOpen) return null; // Hide attachments when composing quotation
                 const atts = (threadQ.data.messages ?? []).flatMap((m) => m.attachments ?? []);
                 return atts.length > 0 ? (
                   <div className="space-y-1 shrink-0">
@@ -813,7 +817,7 @@ function LeadInboxPage() {
 
               {/* Send Quotation composer */}
               {quotationOpen && (
-                <div className={`shrink-0 rounded-md border p-3 space-y-2 transition-all ${quotationExpanded ? "fixed inset-4 z-[200] bg-background shadow-2xl overflow-y-auto rounded-xl border-2" : "bg-muted/20"}`}>
+                <div className={`rounded-md border p-3 space-y-2 transition-all ${quotationExpanded ? "fixed inset-4 z-[200] bg-background shadow-2xl overflow-y-auto rounded-xl border-2" : "bg-muted/20 flex-1 overflow-y-auto"}`}>
                   {quotationExpanded && <div className="fixed inset-0 z-[199] bg-black/60" onClick={() => setQuotationExpanded(false)} />}
                   <div className="flex items-center justify-between">
                     <div className="text-xs text-muted-foreground">
