@@ -1,0 +1,37 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Create the weekly-sales-report edge function that sends a full team comparison to admins and individual reports to each salesperson. Includes week-over-week comparison, top 3 + bottom 3 performers, closing rate, and CSV attachment. Also create the cron SQL file.",
+  "status": "in_progress",
+  "steps": [
+    "Create supabase/functions/weekly-sales-report/index.ts following the same structure as daily-sales-report (Deno.serve, corsHeaders, CRON_SECRET auth, Resend API, supabase client).",
+    "Time window: previous full week (Monday 00:00 UTC to Sunday 23:59 UTC). Also fetch the week before that for week-over-week comparison.",
+    "Fetch lead_activities, follow_ups (done), leads (created), bookings (with profit) for both weeks, grouped by person.",
+    "Calculate per person: calls, emails, whatsapp, stage_moves, followups_done, new_leads, bookings, revenue, total_score.",
+    "Calculate closing_rate_percent = (bookings / new_leads * 100) per person. If no leads, 'N/A'.",
+    "Calculate week_over_week improvement % = ((this_week_total - last_week_total) / last_week_total * 100).",
+    "Rank all people by total_score descending. Identify Top 3 and Bottom 3 performers.",
+    "Build ADMIN HTML: full team comparison table with all columns including closing rate, WoW improvement, rank. Highlight Top 3 (green) and Bottom 3 (red). Summary cards at top.",
+    "Build INDIVIDUAL HTML: each salesperson gets their own stats only, their rank among team, their WoW improvement, and how they compare to team average.",
+    "Generate CSV with columns: Person, Calls, Emails, WhatsApp, Stage_Moves, Followups_Done, New_Leads, Bookings, Revenue, Closing_Rate_Percent, Improvement_vs_Previous, Total_Score, Rank",
+    "Send admin email with full team CSV attachment. Send individual emails to each salesperson (from profiles + user_roles where role in ['sales','bd']) with their personal summary (no CSV for individuals, just HTML).",
+    "Create setup/ADD_WEEKLY_SALES_REPORT_CRON.sql - schedule for Monday 9 AM IST (3:30 AM UTC) = cron expression '30 3 * * 1'. Follow the exact same template as ADD_DAILY_SALES_REPORT_CRON.sql with placeholders."
+  ],
+  "acceptance_criteria": [
+    "supabase/functions/weekly-sales-report/index.ts exists and is valid Deno/TypeScript",
+    "Admin receives full team report with rankings, top/bottom 3, and CSV attachment",
+    "Each salesperson receives their individual report via separate Resend call",
+    "Week-over-week comparison is calculated correctly",
+    "Closing rate is included per person",
+    "setup/ADD_WEEKLY_SALES_REPORT_CRON.sql exists with Monday 3:30 AM UTC schedule",
+    "Same auth pattern (CRON_SECRET) as daily report"
+  ],
+  "verification": [
+    "Verify supabase/functions/weekly-sales-report/index.ts has Deno.serve export",
+    "Verify setup/ADD_WEEKLY_SALES_REPORT_CRON.sql has correct cron expression '30 3 * * 1'",
+    "Verify Resend payload includes attachments for admin email",
+    "Verify individual emails are sent in a loop to each sales/bd user"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
