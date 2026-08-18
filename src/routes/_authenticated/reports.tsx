@@ -34,6 +34,8 @@ type FollowUp = {
 };
 type Profile = { id: string; full_name: string | null; email: string | null; department: string | null };
 type RoleRow = { user_id: string; role: AppRole };
+type LeadActivity = { actor_id: string | null; type: string; created_at: string };
+type Booking = { sales_agent_name: string; profit: number; total_amount: number; created_at: string };
 
 function csvEscape(v: unknown): string {
   if (v === null || v === undefined) return "";
@@ -84,6 +86,11 @@ function ReportsPage() {
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [roles, setRoles] = useState<RoleRow[]>([]);
+  const [leadActivities, setLeadActivities] = useState<LeadActivity[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+
+  // Sales performance individual download
+  const [individualPerson, setIndividualPerson] = useState<string>("all");
 
   // Global filters
   const [from, setFrom] = useState<string>("");
@@ -99,7 +106,7 @@ function ReportsPage() {
     if (authLoading || !isAdmin) return;
     (async () => {
       setLoading(true);
-      const [l, f, p, r] = await Promise.all([
+      const [l, f, p, r, la, bk] = await Promise.all([
         supabase.from("leads").select(
           "id, lead_code, client_name, mobile, email, company_name, service_required, stage, interest, score, assigned_to, created_by, next_follow_up_at, last_activity_at, created_at",
         ),
@@ -108,11 +115,15 @@ function ReportsPage() {
         ),
         supabase.from("profiles").select("id, full_name, email, department"),
         supabase.from("user_roles").select("user_id, role"),
+        supabase.from("lead_activities").select("actor_id, type, created_at"),
+        supabase.from("bookings").select("sales_agent_name, profit, total_amount, created_at"),
       ]);
       setLeads((l.data ?? []) as Lead[]);
       setFollowUps((f.data ?? []) as FollowUp[]);
       setProfiles((p.data ?? []) as Profile[]);
       setRoles((r.data ?? []) as RoleRow[]);
+      setLeadActivities((la.data ?? []) as LeadActivity[]);
+      setBookings((bk.data ?? []) as Booking[]);
       setLoading(false);
     })();
   }, [authLoading, isAdmin]);
@@ -157,6 +168,114 @@ function ReportsPage() {
 
   const now = Date.now();
   const periodLabel = `${from || "all time"} → ${to || "today"}`;
+
+  // Build name-to-id map for matching bookings (bookings use sales_agent_name not user_id)
+  const nameToIdMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of profiles) {
+      if (p.full_name) map.set(p.full_name.trim().toLowerCase(), p.id);
+      if (p.email) map.set(p.email.trim().toLowerCase(), p.id);
+    }
+    return map;
+  }, [profiles]);
+
+  // Filtered lead activities and bookings for the selected date range
+  const activitiesF = useMemo(
+    () => leadActivities.filter((a) => inDateRange(a.created_at)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [leadActivities, fromTs, toTs],
+  );
+  const bookingsF = useMemo(
+    () => bookings.filter((b) => inDateRange(b.created_at)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [bookings, fromTs, toTs],
+  );
+
+  // Sales Performance aggregation
+  const salesPerformance = useMemo(() => {
+    type PerfStats = {
+      uid: string; name: string; calls: number; emails: number; whatsapp: number;
+      stageChanges: number; followupsDone: number; leadsCreated: number;
+      bookingsCount: number; revenue: number;
+    };
+    const statsMap = new Map<string, PerfStats>();
+    const getStats = (uid: string): PerfStats => {
+      if (!statsMap.has(uid)) {
+        const p = profiles.find((x) => x.id === uid);
+        statsMap.set(uid, {
+          uid, name: p?.full_name || p?.email || uid.slice(0, 8),
+          calls: 0, emails: 0, whatsapp: 0, stageChanges: 0,
+          followupsDone: 0, leadsCreated: 0, bookingsCount: 0, revenue: 0,
+        });
+      }
+      return statsMap.get(uid)!;
+    };
+
+    // Count activities by type
+    for (const a of activitiesF) {
+      if (!a.actor_id) continue;
+      const s = getStats(a.actor_id);
+      if (a.type === "call") s.calls++;
+      else if (a.type === "email") s.emails++;
+      else if (a.type === "whatsapp") s.whatsapp++;
+      else if (a.type === "stage_change") s.stageChanges++;
+    }
+
+    // Follow-ups done
+    for (const f of followUpsF) {
+      if (f.status === "completed" && f.owner_id) {
+        getStats(f.owner_id).followupsDone++;
+      }
+    }
+
+    // Leads created
+    for (const l of leadsF) {
+      if (l.created_by) getStats(l.created_by).leadsCreated++;
+    }
+
+    // Bookings (matched by sales_agent_name)
+    for (const b of bookingsF) {
+      if (b.sales_agent_name) {
+        const uid = nameToIdMap.get(b.sales_agent_name.trim().toLowerCase());
+        if (uid) {
+          const s = getStats(uid);
+          s.bookingsCount++;
+          s.revenue += Number(b.profit) || 0;
+        }
+      }
+    }
+
+    // Convert to array, calculate closing rate & rank
+    const arr = Array.from(statsMap.values())
+      .filter((s) => s.calls > 0 || s.emails > 0 || s.whatsapp > 0 || s.followupsDone > 0 || s.leadsCreated > 0 || s.bookingsCount > 0)
+      .map((s) => ({
+        ...s,
+        closingRate: s.leadsCreated > 0 ? ((s.bookingsCount / s.leadsCreated) * 100).toFixed(1) + "%" : "0%",
+        closingRateNum: s.leadsCreated > 0 ? (s.bookingsCount / s.leadsCreated) * 100 : 0,
+      }))
+      .sort((a, b) => {
+        // Sort by revenue desc, then bookings, then closing rate
+        if (b.revenue !== a.revenue) return b.revenue - a.revenue;
+        if (b.bookingsCount !== a.bookingsCount) return b.bookingsCount - a.bookingsCount;
+        return b.closingRateNum - a.closingRateNum;
+      });
+
+    return arr.map((s, i) => ({
+      user_id: s.uid,
+      name: s.name,
+      calls: s.calls,
+      emails: s.emails,
+      whatsapp: s.whatsapp,
+      stage_moves: s.stageChanges,
+      followups_done: s.followupsDone,
+      leads_created: s.leadsCreated,
+      bookings: s.bookingsCount,
+      revenue: s.revenue,
+      closing_rate: s.closingRate,
+      rank: i + 1,
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profiles, activitiesF, followUpsF, leadsF, bookingsF, nameToIdMap]);
 
   // KPIs
   const totalLeads = leadsF.length;
@@ -366,6 +485,78 @@ function ReportsPage() {
           ])}
         />
       </ReportCard>
+
+      {/* Sales Performance */}
+      <Card>
+        <CardHeader className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 space-y-0">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <BarChart3 className="h-5 w-5 text-blue-500" /> Sales Performance
+              <Badge variant="secondary">{salesPerformance.length} salespeople</Badge>
+            </CardTitle>
+            <CardDescription>Per-salesperson activity breakdown with revenue and closing rate.</CardDescription>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => {
+              const rows = salesPerformance.map(({ user_id: _, ...rest }) => rest);
+              downloadCSV(`sales-performance-full-team-${today()}.csv`, rows);
+            }}>
+              📥 Download Full Team
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* Individual download */}
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="w-56">
+              <Label className="text-xs">Select Person</Label>
+              <Select value={individualPerson} onValueChange={setIndividualPerson}>
+                <SelectTrigger><SelectValue placeholder="Pick a person" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">-- Select person --</SelectItem>
+                  {salesPerformance.map((p) => (
+                    <SelectItem key={p.user_id} value={p.user_id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              variant="outline"
+              disabled={individualPerson === "all"}
+              onClick={() => {
+                const person = salesPerformance.find((p) => p.user_id === individualPerson);
+                if (!person) return;
+                const { user_id: _, ...rest } = person;
+                downloadCSV(`sales-performance-${person.name.replace(/\s+/g, "_")}-${today()}.csv`, [rest]);
+              }}
+            >
+              📥 Download Individual
+            </Button>
+          </div>
+
+          {/* Preview table: top performers */}
+          {salesPerformance.length === 0 ? (
+            <div className="text-sm text-muted-foreground py-4 flex items-center gap-2">
+              <FileSpreadsheet className="h-4 w-4" /> No sales performance data for this period.
+            </div>
+          ) : (
+            <PreviewTable
+              headers={["#", "Name", "Calls", "Emails", "WhatsApp", "Leads", "Bookings", "Revenue", "Closing %"]}
+              rows={salesPerformance.slice(0, 10).map((r) => [
+                String(r.rank),
+                r.name,
+                String(r.calls),
+                String(r.emails),
+                String(r.whatsapp),
+                String(r.leads_created),
+                String(r.bookings),
+                `₹${r.revenue.toLocaleString("en-IN")}`,
+                r.closing_rate,
+              ])}
+            />
+          )}
+        </CardContent>
+      </Card>
 
       {/* Productivity with extra filters */}
       <Card>
