@@ -136,6 +136,7 @@ export function FollowupConfigDialog({
             <Input
               type="datetime-local"
               value={sendAt}
+              min={new Date().toISOString().slice(0, 16)}
               onChange={(e) => setSendAt(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">

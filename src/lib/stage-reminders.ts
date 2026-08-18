@@ -80,19 +80,20 @@ export async function triggerStageReminder({
   clientEmail?: string | null;
   userId: string;
   emailConfig?: EmailConfigOverride;
-}) {
-  if (!TRIGGER_STAGES.has(newStage)) return;
-  if (!clientEmail) return; // can't send without an email
+}): Promise<boolean> {
+  if (!TRIGGER_STAGES.has(newStage)) return false;
+  if (!clientEmail) return false; // can't send without an email
 
   // Load admin config (if set) to check enabled/disabled + custom snippet + interval.
   const adminCfg = await getAutoConfig();
   const stageCfg = adminCfg?.[newStage];
 
-  // If admin explicitly disabled this stage trigger, do nothing.
-  if (stageCfg && stageCfg.enabled === false) return;
+  // If admin explicitly disabled this stage trigger, do nothing -
+  // UNLESS the user provided an explicit emailConfig override (deliberate user intent).
+  if (stageCfg && stageCfg.enabled === false && !emailConfig) return false;
 
   const tpl = TEMPLATES[newStage];
-  if (!tpl) return;
+  if (!tpl) return false;
 
   // Determine interval and stopDays (user override > admin override > default).
   const interval = emailConfig?.intervalDays ?? stageCfg?.interval_days ?? tpl.interval;
@@ -128,8 +129,11 @@ export async function triggerStageReminder({
       : new Date(Date.now() + 60 * 60000).toISOString(); // 1 hour
   }
 
+  // Anchor repeatUntil to sendAt (not Date.now()) so the full stop window
+  // is measured from when the first email fires, not from when the reminder was created.
+  const baseTime = new Date(sendAt).getTime();
   const repeatUntil = stopDays > 0
-    ? new Date(Date.now() + stopDays * DAY).toISOString()
+    ? new Date(baseTime + stopDays * DAY).toISOString()
     : null;
 
   // Cancel any existing scheduled stage-reminders for this lead (avoid duplicates).
@@ -155,6 +159,8 @@ export async function triggerStageReminder({
     created_by: userId,
     assigned_to: userId,
   });
+
+  return true;
 }
 
 

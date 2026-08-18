@@ -463,16 +463,11 @@ function LeadDetailPage() {
           clientEmail={lead.email}
           userId={user?.id ?? ""}
           onConfirm={async (config: EmailConfig) => {
-            // User chose custom settings - cancel default and re-create with custom config
+            // User chose custom settings - triggerStageReminder handles cancellation internally
             if (user && lead.email) {
-              // Cancel the default reminder that was already created
-              await supabase
-                .from("reminders")
-                .update({ status: "cancelled" })
-                .eq("lead_id", id)
-                .eq("status", "scheduled");
-              // Create new reminder with user's config
-              await triggerStageReminder({
+              // Invalidate lead query to get fresh data before calling triggerStageReminder
+              await qc.invalidateQueries({ queryKey: ["lead", id] });
+              const created = await triggerStageReminder({
                 leadId: id,
                 newStage: lead.stage,
                 clientName: lead.client_name,
@@ -485,7 +480,11 @@ function LeadDetailPage() {
                   sendAt: config.sendAt,
                 },
               });
-              toast.success("Email reminders configured successfully");
+              if (created) {
+                toast.success("Email reminders configured successfully");
+              } else {
+                toast.error("Could not create email reminder. The lead may have moved out of the followups stage or the trigger is disabled.");
+              }
               qc.invalidateQueries();
             }
           }}

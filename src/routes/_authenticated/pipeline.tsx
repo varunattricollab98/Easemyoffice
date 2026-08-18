@@ -387,17 +387,10 @@ function PipelinePage() {
           clientEmail={pendingFollowup.email}
           userId={user?.id ?? ""}
           onConfirm={async (config: EmailConfig) => {
-            // User chose custom settings - create reminder with their config
+            // User chose custom settings - triggerStageReminder handles cancellation internally
             if (user && pendingFollowup.email) {
               const { triggerStageReminder } = await import("@/lib/stage-reminders");
-              // Cancel the default reminder that was already created
-              await supabase
-                .from("reminders")
-                .update({ status: "cancelled" })
-                .eq("lead_id", pendingFollowup.id)
-                .eq("status", "scheduled");
-              // Create new reminder with user's config
-              await triggerStageReminder({
+              const created = await triggerStageReminder({
                 leadId: pendingFollowup.id,
                 newStage: pendingFollowup.toStage,
                 clientName: pendingFollowup.client,
@@ -410,7 +403,11 @@ function PipelinePage() {
                   sendAt: config.sendAt,
                 },
               });
-              toast.success("Email reminders configured successfully");
+              if (created) {
+                toast.success("Email reminders configured successfully");
+              } else {
+                toast.error("Could not create email reminder. The stage trigger may be disabled or the lead has no email.");
+              }
             }
             setPendingFollowup(null);
             qc.invalidateQueries({ queryKey: ["pipeline-leads"] });
