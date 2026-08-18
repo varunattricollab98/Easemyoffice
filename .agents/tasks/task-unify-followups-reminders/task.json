@@ -1,0 +1,7 @@
+{
+  "task_id": "task-unify-followups-reminders",
+  "task_description": "Merge the Follow-ups and Reminders systems into ONE unified system. When a follow-up is scheduled, the salesperson sees it as a task AND the system auto-sends emails to the client. Everything managed from one place - the Follow-ups page. Approach: keep both tables (follow_ups + reminders) linked via lead_id but present them as one unified item in the UI. Hide the standalone Reminders page from non-admin users.",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002"],
+  "blocked_reason": null
+}
