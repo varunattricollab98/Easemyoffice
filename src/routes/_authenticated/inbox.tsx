@@ -46,6 +46,15 @@ function buildThreadHtml(messages: { from: string; date: string; html?: string; 
 
 export const Route = createFileRoute("/_authenticated/inbox")({
   head: () => ({ meta: [{ title: "Lead Inbox — EaseMyOffice CRM" }] }),
+  // Prefetch first page on hover/focus so inbox loads faster when navigated to
+  loader: ({ context }) => {
+    const qc = context.queryClient;
+    qc.prefetchQuery({
+      queryKey: ["lead-inbox", 0],
+      queryFn: () => fetchInbox(25, 0),
+      staleTime: 2 * 60 * 1000,
+    });
+  },
   component: LeadInboxPage,
 });
 
@@ -130,11 +139,13 @@ function LeadInboxPage() {
 
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["lead-inbox", page],
-    staleTime: 3 * 60 * 1000,
+    staleTime: 2 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
     placeholderData: (prev) => prev,
     queryFn: () => fetchInbox(PAGE_SIZE, page * PAGE_SIZE),
+    // Show stale data immediately while refetching in the background
+    refetchOnMount: "always",
   });
 
   const emails = data?.emails ?? [];
