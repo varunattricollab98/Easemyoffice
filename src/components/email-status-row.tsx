@@ -4,7 +4,7 @@
  */
 import { Badge } from "@/components/ui/badge";
 import { Mail, MailX, Pause, Clock } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { getFrequencyLabel } from "@/lib/email-utils";
 
 export type Reminder = {
@@ -61,7 +61,7 @@ export function EmailStatusRow({
         )}
         <span className="flex items-center gap-1 text-muted-foreground">
           <Clock className="h-3 w-3" />
-          Next {countdown}
+          Next: {format(nextSend, "dd MMM, h:mm a")} ({countdown})
         </span>
       </div>
     );
