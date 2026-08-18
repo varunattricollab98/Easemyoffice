@@ -764,24 +764,36 @@ function FollowUpComposer({ leadId, onFollowUpCreated }: { leadId: string; onFol
     const d = new Date(); d.setDate(d.getDate() + 1); d.setMinutes(0); d.setSeconds(0);
     return d.toISOString().slice(0, 16);
   });
+
+  const createFollowUp = async (openEmailConfig: boolean) => {
+    if (!action.trim()) return toast.error("Please enter an action first (e.g. Call to confirm KYC)");
+    if (!user) return toast.error("You must be signed in to schedule a follow-up");
+    if (!due) return toast.error("Please pick a date and time");
+    const { error } = await supabase.from("follow_ups").insert({ lead_id: leadId, owner_id: user.id, action: action.trim(), due_at: new Date(due).toISOString() });
+    if (error) return toast.error(error.message);
+    // Log the follow-up creation as an activity on the lead's timeline
+    await supabase.from("lead_activities").insert({ lead_id: leadId, actor_id: user.id, type: "followup" as any, title: "Follow-up scheduled", body: `${action.trim()} — due ${new Date(due).toLocaleDateString()}` });
+    setAction("");
+    qc.invalidateQueries();
+    toast.success("Follow-up scheduled");
+    // Open email config dialog if requested
+    if (openEmailConfig) onFollowUpCreated?.();
+  };
+
   return (
-    <Card><CardContent className="p-3 grid sm:grid-cols-[1fr_auto_auto] gap-2 items-center">
-      <Input placeholder="Next action (e.g. Call to confirm KYC)" value={action} onChange={(e) => setAction(e.target.value)} />
-      <DateTimePicker value={due} onChange={setDue} />
-      <Button onClick={async () => {
-        if (!action.trim()) return toast.error("Please enter an action first (e.g. Call to confirm KYC)");
-        if (!user) return toast.error("You must be signed in to schedule a follow-up");
-        if (!due) return toast.error("Please pick a date and time");
-        const { error } = await supabase.from("follow_ups").insert({ lead_id: leadId, owner_id: user.id, action: action.trim(), due_at: new Date(due).toISOString() });
-        if (error) return toast.error(error.message);
-        // Log the follow-up creation as an activity on the lead's timeline
-        await supabase.from("lead_activities").insert({ lead_id: leadId, actor_id: user.id, type: "followup" as any, title: "Follow-up scheduled", body: `${action.trim()} — due ${new Date(due).toLocaleDateString()}` });
-        setAction("");
-        qc.invalidateQueries();
-        toast.success("Follow-up scheduled");
-        // Trigger email config dialog if applicable
-        onFollowUpCreated?.();
-      }}><Plus className="h-4 w-4 mr-1" /> Schedule</Button>
+    <Card><CardContent className="p-3 space-y-2">
+      <div className="grid sm:grid-cols-[1fr_auto] gap-2 items-center">
+        <Input placeholder="Next action (e.g. Call to confirm KYC)" value={action} onChange={(e) => setAction(e.target.value)} />
+        <DateTimePicker value={due} onChange={setDue} />
+      </div>
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={() => createFollowUp(false)}>
+          <Plus className="h-4 w-4 mr-1" /> Schedule Task Only
+        </Button>
+        <Button size="sm" onClick={() => createFollowUp(true)}>
+          <Mail className="h-4 w-4 mr-1" /> Schedule + Email Client
+        </Button>
+      </div>
     </CardContent></Card>
   );
 }
