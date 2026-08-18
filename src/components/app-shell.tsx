@@ -27,7 +27,7 @@ const NAV: NavItem[] = [
   { to: "/renewals/bookings", label: "Renewal Bookings", icon: BookOpen, roles: ["admin", "renewals"] },
   { to: "/clients", label: "Clients", icon: UserCheck, roles: ["admin", "sales", "bd", "renewals", "accounts"] },
   { to: "/follow-ups", label: "Follow-ups", icon: Bell, roles: ["admin", "sales", "bd", "renewals"] },
-  { to: "/reminders", label: "Reminders", icon: AlarmClock, roles: ["admin", "sales", "bd", "renewals", "accounts"] },
+  { to: "/reminders", label: "Reminders", icon: AlarmClock, roles: ["admin"] },
   { to: "/calendar", label: "Calendar", icon: Calendar },
   { to: "/tasks", label: "Tasks", icon: CheckSquare },
   { to: "/notifications", label: "Notifications", icon: Inbox },
@@ -139,10 +139,10 @@ export function MobileTabBar() {
   const mobileItems = useMemo(() => {
     const isRenewal = !isAdmin && roles.includes("renewals") && !roles.includes("sales") && !roles.includes("bd");
     if (isRenewal) {
-      return NAV.filter((i) => ["/renewals", "/renewals/leads", "/renewals/pipeline", "/reminders", "/tasks"].includes(i.to));
+      return NAV.filter((i) => ["/renewals", "/renewals/leads", "/renewals/pipeline", "/follow-ups", "/tasks"].includes(i.to));
     }
-    // Sales/BD/Admin: Dashboard, Leads, Pipeline, Reminders, Tasks
-    const priority = ["/dashboard", "/leads", "/pipeline", "/reminders", "/tasks"];
+    // Sales/BD/Admin: Dashboard, Leads, Pipeline, Follow-ups, Tasks
+    const priority = ["/dashboard", "/leads", "/pipeline", "/follow-ups", "/tasks"];
     return priority.map((to) => NAV.find((i) => i.to === to)).filter(Boolean) as NavItem[];
   }, [roles, isAdmin]);
 

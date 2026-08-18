@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Rebuild the Follow-ups page (src/routes/_authenticated/follow-ups.tsx) into a unified view that shows both the follow-up task AND its associated email reminder status in one place. Fetch reminders linked by lead_id alongside follow-ups and display email status (scheduled/sent/cancelled), next send time, snippet info. Add unified Stop button that calls stopAllFollowUps. Also modify sidebar navigation in src/components/app-shell.tsx to hide the standalone 'Reminders' link for non-admin users (admins keep it as power-user access).",
+  "status": "in_progress",
+  "steps": [
+    "In src/routes/_authenticated/follow-ups.tsx: Add a second query to fetch reminders (from 'reminders' table) for all lead_ids present in the follow-ups list. Use a single query that filters by lead_id IN [...leadIds] and status in ('scheduled','paused','sent','failed'). Use React Query's enabled: to only run when follow-ups data is loaded.",
+    "Reshape the FU type to include associated reminder data: for each follow-up item, match the reminders by lead_id. Show an email status indicator (icon + badge) in each follow-up card: 'Email scheduled (in X hours)', 'Email sent (2x)', 'Email paused', 'No email configured'.",
+    "For each follow-up card that has an associated scheduled/paused reminder, show: the email subject (truncated), repeat info (e.g. 'Daily for 7 days'), occurrences sent, and a countdown to next send.",
+    "The existing Stop button (XCircle) already calls stopAllFollowUps which cancels BOTH follow-ups and reminders - keep this as-is. Add a visual confirmation showing how many emails were also cancelled.",
+    "Add a 'Configure Email' button per follow-up (only shown when the lead is in followups/follow_up stage and has a pending follow-up). Clicking it opens the existing FollowupConfigDialog component.",
+    "In src/components/app-shell.tsx: Change the 'Reminders' nav entry roles from ['admin', 'sales', 'bd', 'renewals', 'accounts'] to just ['admin']. This hides the standalone Reminders page from non-admin users since everything is now in Follow-ups. Also update the mobile priority nav array to replace '/reminders' with '/follow-ups'.",
+    "Add a new status display: when a follow-up is marked 'done', check if there's still a scheduled reminder for that lead - show a note 'Email sequence still active' with option to stop it."
+  ],
+  "acceptance_criteria": [
+    "The Follow-ups page shows email reminder status (subject, schedule, occurrences) alongside each follow-up task",
+    "Non-admin sidebar no longer shows 'Reminders' as a separate nav item",
+    "Mobile priority nav shows '/follow-ups' instead of '/reminders'",
+    "Stopping a follow-up still cancels both the task and email reminders (existing behavior preserved)",
+    "TypeScript compiles without errors (bun x tsc --noEmit)",
+    "The FollowupConfigDialog can be opened from the Follow-ups page for leads in followup stages"
+  ],
+  "verification": [
+    "Run: cd /projects/sandbox/Easemyoffice && /root/.local/share/mise/shims/bun x tsc --noEmit",
+    "Run: cd /projects/sandbox/Easemyoffice && /root/.local/share/mise/shims/bun run build 2>&1 | grep -E '(error|✓ built)' to confirm client build succeeds"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
