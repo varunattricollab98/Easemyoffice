@@ -29,13 +29,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Phone, Mail, MessageCircle, Calendar, Plus, Check, Trash2, Send, Loader2, XCircle } from "lucide-react";
+import { ArrowLeft, Phone, Mail, MailX, MessageCircle, Calendar, Plus, Check, Trash2, Send, Loader2, XCircle, Clock, Pause } from "lucide-react";
 import { INTERESTS, INTENT_FLAGS, SERVICES, SOURCES, STAGES, calcScore, deriveInterest, labelFor } from "@/lib/crm";
 import { useAuth } from "@/lib/auth";
 import { handleStageChange, stopAllFollowUps, triggerStageReminder } from "@/lib/stage-reminders";
 import { FollowupConfigDialog } from "@/components/followup-config-dialog";
 import type { EmailConfig } from "@/components/followup-config-dialog";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
 
@@ -79,6 +79,35 @@ function LeadDetailPage() {
       return data ?? [];
     },
   });
+
+  // Fetch reminders linked to this lead for unified follow-up + email display
+  const { data: leadReminders } = useQuery({
+    queryKey: ["lead-reminders", id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("reminders")
+        .select("id, lead_id, subject, status, send_at, sent_at, repeat_interval_days, repeat_until, occurrences_sent")
+        .eq("lead_id", id)
+        .in("status", ["scheduled", "paused", "sent", "failed"]);
+      return (data ?? []) as Array<{
+        id: string;
+        lead_id: string | null;
+        subject: string;
+        status: string;
+        send_at: string;
+        sent_at: string | null;
+        repeat_interval_days: number;
+        repeat_until: string | null;
+        occurrences_sent: number;
+      }>;
+    },
+  });
+
+  // Derived reminder states for display
+  const activeReminder = useMemo(() => (leadReminders ?? []).find((r) => r.status === "scheduled"), [leadReminders]);
+  const pausedReminder = useMemo(() => (leadReminders ?? []).find((r) => r.status === "paused"), [leadReminders]);
+  const sentReminders = useMemo(() => (leadReminders ?? []).filter((r) => r.status === "sent"), [leadReminders]);
+  const hasScheduledReminders = !!activeReminder;
 
   const { data: assignableUsers } = useQuery({
     queryKey: ["assignable-users"],
@@ -211,7 +240,7 @@ function LeadDetailPage() {
                   } else {
                     const stageLabel = STAGES.find((s) => s.id === v)?.label ?? v;
                     const prevStage = lead.stage;
-                    const isFollowupTarget = v === "followups" || v === "follow_up";
+                    const isFollowupTarget = v === "followups";
                     updateLead.mutate({ stage: v }, {
                       onSuccess: async () => {
                         logActivity("stage_change", `Stage changed to ${stageLabel}`);
@@ -318,16 +347,25 @@ function LeadDetailPage() {
 
         <TabsContent value="followups" className="space-y-3">
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <FollowUpComposer leadId={id} />
+            <FollowUpComposer
+              leadId={id}
+              onFollowUpCreated={() => {
+                // If lead has email and is in followup stage, open email config dialog
+                const isFollowupStage = lead.stage === "followups";
+                if (isFollowupStage && lead.email) {
+                  setFollowupConfigOpen(true);
+                }
+              }}
+            />
             <div className="flex items-center gap-2 shrink-0">
-              {(lead.stage === "followups" || lead.stage === "follow_up") && (
+              {(lead.stage === "followups") && (
                 <Button
                   variant="outline"
                   size="sm"
                   className="shrink-0"
                   onClick={() => setFollowupConfigOpen(true)}
                 >
-                  <Mail className="h-4 w-4 mr-1" /> Configure Email Reminders
+                  <Mail className="h-4 w-4 mr-1" /> {hasScheduledReminders ? "Reconfigure Emails" : "Add Email Sequence"}
                 </Button>
               )}
               {(followups ?? []).some((f: any) => f.status === "pending") && (
@@ -342,7 +380,7 @@ function LeadDetailPage() {
                     toast.success("All follow-ups stopped");
                   }}
                 >
-                  <XCircle className="h-4 w-4 mr-1" /> Stop Follow-ups
+                  <XCircle className="h-4 w-4 mr-1" /> {hasScheduledReminders ? "Stop All (Task + Emails)" : "Stop Follow-ups"}
                 </Button>
               )}
             </div>
@@ -352,20 +390,30 @@ function LeadDetailPage() {
             {followups?.map((f: any) => {
               const overdue = f.status === "pending" && new Date(f.due_at) < new Date();
               return (
-                <div key={f.id} className="flex items-center gap-3 p-2.5 rounded-md border">
-                  <Calendar className={`h-4 w-4 ${overdue ? "text-destructive" : "text-muted-foreground"}`} />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium">{f.action}</div>
-                    <div className="text-xs text-muted-foreground">{format(new Date(f.due_at), "PPp")} · {f.status}</div>
+                <div key={f.id} className="flex flex-col gap-2 p-2.5 rounded-md border">
+                  {/* Main task row */}
+                  <div className="flex items-center gap-3">
+                    <Calendar className={`h-4 w-4 ${overdue ? "text-destructive" : "text-muted-foreground"}`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium">{f.action}</div>
+                      <div className="text-xs text-muted-foreground">{format(new Date(f.due_at), "PPp")} · {f.status}</div>
+                    </div>
+                    {f.status === "pending" && (
+                      <Button size="sm" variant="outline" onClick={async () => {
+                        await supabase.from("follow_ups").update({ status: "done", completed_at: new Date().toISOString() }).eq("id", f.id);
+                        logActivity("followup", "Follow-up completed", f.action);
+                        qc.invalidateQueries();
+                        toast.success("Marked done");
+                      }}><Check className="h-4 w-4" /></Button>
+                    )}
                   </div>
-                  {f.status === "pending" && (
-                    <Button size="sm" variant="outline" onClick={async () => {
-                      await supabase.from("follow_ups").update({ status: "done", completed_at: new Date().toISOString() }).eq("id", f.id);
-                      logActivity("followup", "Follow-up completed", f.action);
-                      qc.invalidateQueries();
-                      toast.success("Marked done");
-                    }}><Check className="h-4 w-4" /></Button>
-                  )}
+                  {/* Email reminder status row */}
+                  <LeadEmailStatusRow
+                    activeReminder={activeReminder}
+                    pausedReminder={pausedReminder}
+                    sentReminders={sentReminders}
+                    leadReminders={leadReminders ?? []}
+                  />
                 </div>
               );
             })}
@@ -702,7 +750,7 @@ function NoteComposer({ onSubmit }: { onSubmit: (text: string) => Promise<void> 
   );
 }
 
-function FollowUpComposer({ leadId }: { leadId: string }) {
+function FollowUpComposer({ leadId, onFollowUpCreated }: { leadId: string; onFollowUpCreated?: () => void }) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [action, setAction] = useState("");
@@ -725,7 +773,113 @@ function FollowUpComposer({ leadId }: { leadId: string }) {
         setAction("");
         qc.invalidateQueries();
         toast.success("Follow-up scheduled");
+        // Trigger email config dialog if applicable
+        onFollowUpCreated?.();
       }}><Plus className="h-4 w-4 mr-1" /> Schedule</Button>
     </CardContent></Card>
   );
+}
+
+/** Email status indicator for a follow-up item on the lead detail page */
+function LeadEmailStatusRow({
+  activeReminder,
+  pausedReminder,
+  sentReminders,
+  leadReminders,
+}: {
+  activeReminder: { id: string; subject: string; status: string; send_at: string; repeat_interval_days: number; repeat_until: string | null; occurrences_sent: number } | undefined;
+  pausedReminder: { id: string; subject: string; status: string; occurrences_sent: number } | undefined;
+  sentReminders: Array<{ occurrences_sent: number }>;
+  leadReminders: Array<{ id: string; status: string }>;
+}) {
+  // No reminders at all
+  if (leadReminders.length === 0) {
+    return (
+      <div className="flex items-center gap-2 text-xs text-muted-foreground pl-1">
+        <MailX className="h-3.5 w-3.5" />
+        <span>No email configured</span>
+      </div>
+    );
+  }
+
+  // Active scheduled reminder
+  if (activeReminder) {
+    const nextSend = new Date(activeReminder.send_at);
+    const countdown = formatDistanceToNow(nextSend, { addSuffix: true });
+    const freq = getFrequencyLabel(activeReminder.repeat_interval_days, activeReminder.repeat_until);
+
+    return (
+      <div className="flex flex-wrap items-center gap-2 text-xs pl-1">
+        <Badge variant="secondary" className="gap-1 text-xs font-normal">
+          <Mail className="h-3 w-3 text-green-600" />
+          Email scheduled
+        </Badge>
+        <span className="text-muted-foreground truncate max-w-[180px]" title={activeReminder.subject}>
+          {activeReminder.subject.length > 30 ? activeReminder.subject.slice(0, 30) + "..." : activeReminder.subject}
+        </span>
+        {freq && <span className="text-muted-foreground">({freq})</span>}
+        {activeReminder.occurrences_sent > 0 && (
+          <span className="text-muted-foreground">{activeReminder.occurrences_sent} sent</span>
+        )}
+        <span className="flex items-center gap-1 text-muted-foreground">
+          <Clock className="h-3 w-3" />
+          Next {countdown}
+        </span>
+      </div>
+    );
+  }
+
+  // Paused reminder
+  if (pausedReminder) {
+    return (
+      <div className="flex items-center gap-2 text-xs pl-1">
+        <Badge variant="secondary" className="gap-1 text-xs font-normal">
+          <Pause className="h-3 w-3 text-amber-500" />
+          Email paused
+        </Badge>
+        <span className="text-muted-foreground truncate max-w-[180px]">
+          {pausedReminder.subject.length > 30 ? pausedReminder.subject.slice(0, 30) + "..." : pausedReminder.subject}
+        </span>
+        {pausedReminder.occurrences_sent > 0 && (
+          <span className="text-muted-foreground">{pausedReminder.occurrences_sent} sent</span>
+        )}
+      </div>
+    );
+  }
+
+  // Only sent reminders (completed sequence)
+  if (sentReminders.length > 0) {
+    const totalSent = sentReminders.reduce((sum, r) => sum + r.occurrences_sent, 0);
+    return (
+      <div className="flex items-center gap-2 text-xs pl-1">
+        <Badge variant="secondary" className="gap-1 text-xs font-normal">
+          <Mail className="h-3 w-3 text-blue-500" />
+          Email completed ({totalSent} sent)
+        </Badge>
+      </div>
+    );
+  }
+
+  // Failed reminders
+  return (
+    <div className="flex items-center gap-2 text-xs pl-1">
+      <Badge variant="destructive" className="gap-1 text-xs font-normal">
+        <MailX className="h-3 w-3" />
+        Email failed
+      </Badge>
+    </div>
+  );
+}
+
+/** Helper to generate a human-readable frequency label */
+function getFrequencyLabel(intervalDays: number, repeatUntil: string | null): string {
+  if (intervalDays === 0) return "One-time";
+  if (!repeatUntil) return intervalDays === 1 ? "Daily" : `Every ${intervalDays} days`;
+
+  const now = new Date();
+  const until = new Date(repeatUntil);
+  const daysLeft = Math.max(0, Math.ceil((until.getTime() - now.getTime()) / 86400000));
+
+  const freqLabel = intervalDays === 1 ? "Daily" : intervalDays === 7 ? "Weekly" : `Every ${intervalDays}d`;
+  return `${freqLabel}, ${daysLeft}d left`;
 }
