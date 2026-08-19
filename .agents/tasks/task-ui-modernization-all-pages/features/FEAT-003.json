@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "chore",
   "description": "UI modernization pass - Batch 3: Tasks, Calendar, Activity pages. Apply the premium design system. Only change CSS classes - no logic/structure changes.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "In src/routes/_authenticated/tasks.tsx: (1) Change page container from 'p-4 md:p-8' to 'p-5 md:p-10'. (2) On stats strip filter buttons (rounded-xl border p-3), add 'shadow-sm hover:shadow-md transition-all duration-200 ease-out'. (3) On task items (flex items-start gap-3 rounded-xl border p-4), add 'hover:shadow-md hover:scale-[1.01] transition-all duration-200 ease-out' (keep existing conditional classes). (4) On 'New Task' Button, add 'transition-all duration-200 ease-out'. (5) On priority badges, add 'rounded-full'. (6) On the Card wrapping loading/empty states, add 'shadow-sm'. (7) On the delete Button (ghost variant), add 'transition-all duration-200 ease-out'. (8) On Select triggers within task items, add 'transition-all duration-200 ease-out'.",
     "In src/routes/_authenticated/calendar.tsx: (1) Change page container from 'p-4 md:p-8' to 'p-5 md:p-10'. (2) On the calendar Card and right panel Cards, add 'shadow-sm'. (3) On navigation Buttons (ChevronLeft, ChevronRight, Today), add 'transition-all duration-200 ease-out'. (4) On day cell items (rounded-lg border), change to 'rounded-xl' and add 'hover:shadow-sm transition-all duration-200 ease-out'. (5) On calendar day buttons, add 'transition-all duration-200 ease-out'. (6) On the selected day tasks/followup/payment items, the 'rounded-lg border' should become 'rounded-xl border hover:shadow-sm transition-all duration-200 ease-out'. (7) On Badges, add 'rounded-full'. (8) The quick-add '+' button should have 'transition-all duration-200 ease-out'. (9) Make legend Card have 'shadow-sm'.",
@@ -16,5 +16,5 @@
   ],
   "verification": ["cd /projects/sandbox/Easemyoffice && bun run build"],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All three pages (tasks, calendar, activity) updated with premium design system. Build passes cleanly. Applied: p-5 md:p-10 padding, shadow-sm on cards, hover:shadow-md + hover:scale-[1.01] on task items, rounded-xl on day items, transition-all duration-200 ease-out on all interactive elements, rounded-full on badges, text-[11px] text-muted-foreground/70 on timestamps, focus:ring-2 ring-primary/20 on search input."
 }
