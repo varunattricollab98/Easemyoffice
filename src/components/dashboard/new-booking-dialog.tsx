@@ -89,8 +89,8 @@ export function NewBookingDialog() {
   // few minutes, so opening the form is instant instead of waiting on Google.
   const { data: sheetConfig, isLoading: cfgLoading } = useQuery({
     queryKey: ["booking-sheet-config"],
-    staleTime: 5 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
+    staleTime: 30 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
     refetchOnWindowFocus: false,
     queryFn: getSheetConfig,
   });
@@ -290,7 +290,7 @@ export function NewBookingDialog() {
             ) : (
               <Input
                 value={f.plan_name}
-                placeholder={cfgLoading ? "Loading plans…" : "Plan name"}
+                placeholder={cfgLoading ? "⏳ Fetching plans from sheet…" : "Type or select plan name"}
                 onChange={(e) => setF({ ...f, plan_name: e.target.value })}
               />
             )}

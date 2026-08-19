@@ -61,7 +61,7 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
     qc.prefetchQuery(todayFollowupsQuery());
     qc.prefetchQuery(overdueFollowupsQuery());
     // Warm the booking sheet config (plans + next ID) so the New Booking form opens instantly.
-    qc.prefetchQuery({ queryKey: ["booking-sheet-config"], queryFn: getSheetConfig, staleTime: 5 * 60 * 1000 });
+    qc.prefetchQuery({ queryKey: ["booking-sheet-config"], queryFn: getSheetConfig, staleTime: 30 * 60 * 1000 });
   },
   component: DashboardPage,
 });
