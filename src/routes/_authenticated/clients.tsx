@@ -123,10 +123,10 @@ function buildClients(bookings: any[], payCountByBooking: Map<string, number>): 
 
 function TierBadge({ tier }: { tier: ClientRow["tier"] }) {
   if (tier === "Premium")
-    return <Badge className="bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-100 gap-1"><Crown className="h-3 w-3" />Premium</Badge>;
+    return <Badge className="bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-100 gap-1 rounded-full"><Crown className="h-3 w-3" />Premium</Badge>;
   if (tier === "Semi-premium")
-    return <Badge className="bg-violet-100 text-violet-800 border-violet-300 hover:bg-violet-100 gap-1"><Gem className="h-3 w-3" />Semi-premium</Badge>;
-  return <Badge variant="secondary">Normal</Badge>;
+    return <Badge className="bg-violet-100 text-violet-800 border-violet-300 hover:bg-violet-100 gap-1 rounded-full"><Gem className="h-3 w-3" />Semi-premium</Badge>;
+  return <Badge variant="secondary" className="rounded-full">Normal</Badge>;
 }
 
 function ClientsPage() {
@@ -233,7 +233,7 @@ function ClientsPage() {
     });
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-4">
+    <div className="p-5 md:p-10 max-w-7xl mx-auto space-y-4">
       <div className="flex items-end justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">Client Database</h1>
@@ -243,19 +243,19 @@ function ClientsPage() {
         </div>
         <div className="flex items-center gap-2">
           {isAdmin && !mergeMode && (
-            <Button variant="outline" size="sm" onClick={() => setMergeMode(true)}>
+            <Button variant="outline" size="sm" className="transition-all duration-200 ease-out hover:shadow-sm" onClick={() => setMergeMode(true)}>
               <GitMerge className="h-4 w-4 mr-1" /> Merge duplicates
             </Button>
           )}
           <div className="relative w-72 max-w-full">
             <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input className="pl-9" placeholder="Search name, company, phone, email, category…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input className="pl-9 focus:ring-2 ring-primary/20 transition-all duration-200 ease-out" placeholder="Search name, company, phone, email, category…" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
         </div>
       </div>
 
       {mergeMode && (
-        <Card className="p-3 border-primary/40 bg-primary/5 flex flex-wrap items-center gap-3">
+        <Card className="p-3 border-primary/40 bg-primary/5 flex flex-wrap items-center gap-3 shadow-sm">
           <span className="text-sm">
             {picked.size < 2
               ? "Select 2 or more duplicate clients (tick the boxes) to merge them into one."
@@ -278,6 +278,7 @@ function ClientsPage() {
               </div>
               <Button
                 size="sm"
+                className="transition-all duration-200 ease-out hover:shadow-sm"
                 disabled={merge.isPending}
                 onClick={() => {
                   const dupes = pickedClients.filter((c) => c.key !== primary.key);
@@ -294,28 +295,28 @@ function ClientsPage() {
               </Button>
             </>
           )}
-          <Button size="sm" variant="ghost" className="ml-auto" onClick={cancelMerge}>
+          <Button size="sm" variant="ghost" className="ml-auto transition-all duration-200 ease-out" onClick={cancelMerge}>
             <X className="h-4 w-4 mr-1" /> Cancel
           </Button>
         </Card>
       )}
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        <Card className="p-4">
+        <Card className="p-4 shadow-sm rounded-xl hover:shadow-md transition-all duration-200 ease-out">
           <div className="flex items-center gap-2 text-sm text-muted-foreground"><Users2 className="h-4 w-4" /> Unique Clients</div>
           <div className="text-2xl font-bold mt-1">{filtered.length}</div>
         </Card>
-        <Card className="p-4">
+        <Card className="p-4 shadow-sm rounded-xl hover:shadow-md transition-all duration-200 ease-out">
           <div className="flex items-center gap-2 text-sm text-muted-foreground"><Wallet className="h-4 w-4" /> Total Amount Paid (lifetime)</div>
           <div className="text-2xl font-bold mt-1">{fmtINR(totalLifetime)}</div>
         </Card>
-        <Card className="p-4">
+        <Card className="p-4 shadow-sm rounded-xl hover:shadow-md transition-all duration-200 ease-out">
           <div className="flex items-center gap-2 text-sm text-muted-foreground"><Building2 className="h-4 w-4" /> Total Bookings</div>
           <div className="text-2xl font-bold mt-1">{filtered.reduce((s, c) => s + c.count, 0)}</div>
         </Card>
       </div>
 
-      <Card className="overflow-x-auto">
+      <Card className="overflow-x-auto shadow-sm">
         <Table>
           <TableHeader>
             <TableRow>
@@ -336,7 +337,7 @@ function ClientsPage() {
               const isOpen = expanded.has(c.key);
               return (
                 <Fragment key={c.key}>
-                  <TableRow className={`hover:bg-muted/40 ${mergeMode && picked.has(c.key) ? "bg-primary/5" : ""}`}>
+                  <TableRow className={`hover:bg-muted/40 transition-all duration-200 ease-out ${mergeMode && picked.has(c.key) ? "bg-primary/5" : ""}`}>
                     <TableCell className="align-top pt-4">
                       {mergeMode ? (
                         <Checkbox checked={picked.has(c.key)} onCheckedChange={() => togglePick(c.key)} aria-label={`Select ${c.name}`} />
@@ -367,7 +368,7 @@ function ClientsPage() {
                     <TableCell className="text-sm">
                       {c.email ? <button className="flex items-center gap-1.5 text-primary hover:underline" onClick={() => setDetail(c)}><Mail className="h-3 w-3" />{c.email}</button> : "—"}
                     </TableCell>
-                    <TableCell className="text-center"><Badge variant="secondary">{c.count}</Badge></TableCell>
+                    <TableCell className="text-center"><Badge variant="secondary" className="rounded-full">{c.count}</Badge></TableCell>
                     <TableCell className="text-right font-semibold text-emerald-600">{fmtINR(c.totalPaid)}</TableCell>
                     <TableCell className={`text-right ${c.totalBalance > 0 ? "text-amber-600 font-medium" : "text-muted-foreground"}`}>{fmtINR(c.totalBalance)}</TableCell>
                   </TableRow>
@@ -406,7 +407,7 @@ function ClientsPage() {
                                     <TableCell className="text-right text-sm">{fmtINR(Number(b.amount_after_tds))}</TableCell>
                                     <TableCell className="text-right text-sm">{fmtINR(Number(b.amount_received))}</TableCell>
                                     <TableCell className={`text-right text-sm ${bal > 0 ? "text-amber-600" : ""}`}>{fmtINR(bal)}</TableCell>
-                                    <TableCell>{paid ? <Badge variant="secondary">Paid</Badge> : <Badge variant="outline">Pending</Badge>}</TableCell>
+                                    <TableCell>{paid ? <Badge variant="secondary" className="rounded-full">Paid</Badge> : <Badge variant="outline" className="rounded-full">Pending</Badge>}</TableCell>
                                   </TableRow>
                                 );
                               })}

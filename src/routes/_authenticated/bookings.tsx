@@ -66,33 +66,33 @@ function BookingsPage() {
   const overdue = rows.filter((b: any) => !b.balance_paid_at && Number(b.balance_amount) > 0 && b.balance_due_date && b.balance_due_date <= today);
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
+    <div className="p-5 md:p-10 space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold">Bookings</h1>
+          <h1 className="text-2xl md:text-3xl font-bold">Bookings</h1>
           <p className="text-sm text-muted-foreground">All closed bookings synced from + New Booking.</p>
         </div>
         <div className="flex items-center gap-3">
           {isAdmin && (
-            <Button variant="outline" onClick={() => setBulkOpen(true)}>
+            <Button variant="outline" className="transition-all duration-200 ease-out hover:shadow-sm" onClick={() => setBulkOpen(true)}>
               <Upload className="h-4 w-4 mr-1" /> Bulk Upload
             </Button>
           )}
           <div className="relative w-72 max-w-full">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input className="pl-8" placeholder="Search booking, client, plan…" value={q} onChange={(e) => setQ(e.target.value)} />
+            <Input className="pl-8 focus:ring-2 ring-primary/20 transition-all duration-200 ease-out" placeholder="Search booking, client, plan…" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
         </div>
       </div>
 
       {overdue.length > 0 && (
-        <Card className="p-3 border-amber-300 bg-amber-50/50 dark:bg-amber-950/20 flex items-center gap-2">
+        <Card className="p-3 border-amber-300 bg-amber-50/50 dark:bg-amber-950/20 flex items-center gap-2 shadow-sm">
           <AlertCircle className="h-4 w-4 text-amber-600" />
           <span className="text-sm">{overdue.length} booking(s) have a balance due today or overdue.</span>
         </Card>
       )}
 
-      <Card className="overflow-x-auto">
+      <Card className="overflow-x-auto shadow-sm">
         <Table>
           <TableHeader>
             <TableRow>
@@ -117,7 +117,7 @@ function BookingsPage() {
               const isPaid = !!b.balance_paid_at || balance === 0;
               const isOverdue = !isPaid && b.balance_due_date && b.balance_due_date <= today;
               return (
-                <TableRow key={b.id}>
+                <TableRow key={b.id} className="transition-all duration-200 ease-out hover:bg-accent/30">
                   <TableCell className="font-mono text-xs">{b.external_booking_id || b.booking_code}</TableCell>
                   <TableCell>{b.booking_date}</TableCell>
                   <TableCell>
@@ -132,18 +132,18 @@ function BookingsPage() {
                   <TableCell className={isOverdue ? "text-destructive font-medium" : ""}>{b.balance_due_date ?? "—"}</TableCell>
                   <TableCell>
                     {isPaid ? (
-                      <Badge variant="secondary"><CheckCircle2 className="h-3 w-3 mr-1" /> Paid</Badge>
+                      <Badge variant="secondary" className="rounded-full"><CheckCircle2 className="h-3 w-3 mr-1" /> Paid</Badge>
                     ) : isOverdue ? (
-                      <Badge variant="destructive">Overdue</Badge>
+                      <Badge variant="destructive" className="rounded-full">Overdue</Badge>
                     ) : (
-                      <Badge variant="outline">Pending</Badge>
+                      <Badge variant="outline" className="rounded-full">Pending</Badge>
                     )}
                   </TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-2">
-                      <Button size="sm" variant="outline" onClick={() => setSelected(b)}>Open</Button>
+                      <Button size="sm" variant="outline" className="transition-all duration-200 ease-out hover:shadow-sm" onClick={() => setSelected(b)}>Open</Button>
                       {!isPaid && balance > 0 && (
-                        <Button size="sm" variant="outline" disabled={markM.isPending} onClick={() => markM.mutate(b.id)}>
+                        <Button size="sm" variant="outline" className="transition-all duration-200 ease-out hover:shadow-sm" disabled={markM.isPending} onClick={() => markM.mutate(b.id)}>
                           Mark Paid
                         </Button>
                       )}

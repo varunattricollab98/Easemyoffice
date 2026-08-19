@@ -379,7 +379,7 @@ function LeadsListPage() {
   };
 
   return (
-    <div className="p-4 md:p-8 space-y-5 max-w-7xl mx-auto">
+    <div className="p-5 md:p-10 space-y-5 max-w-7xl mx-auto">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">Leads</h1>
@@ -388,21 +388,21 @@ function LeadsListPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={exportCsv} disabled={exporting}>
+          <Button variant="outline" className="transition-all duration-200 ease-out hover:shadow-sm" onClick={exportCsv} disabled={exporting}>
             <Download className="h-4 w-4 mr-2" /> {exporting ? "Exporting…" : "Export"}
           </Button>
-          <Button variant="outline" asChild>
+          <Button variant="outline" className="transition-all duration-200 ease-out hover:shadow-sm" asChild>
             <Link to="/leads/import"><Upload className="h-4 w-4 mr-2" /> Import</Link>
           </Button>
-          <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-2" /> New Lead</Button>
+          <Button className="transition-all duration-200 ease-out hover:shadow-sm" onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-2" /> New Lead</Button>
         </div>
       </div>
 
-      <Card>
+      <Card className="shadow-sm">
         <CardContent className="p-4 flex flex-wrap gap-2">
           <div className="relative flex-1 min-w-56">
             <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input className="pl-9" placeholder="Search name, mobile, company, code…" value={q} onChange={(e) => onSearchChange(e.target.value)} />
+            <Input className="pl-9 focus:ring-2 ring-primary/20 transition-all duration-200 ease-out" placeholder="Search name, mobile, company, code…" value={q} onChange={(e) => onSearchChange(e.target.value)} />
           </div>
           <Select value={stage} onValueChange={setStage}>
             <SelectTrigger className="w-[180px]"><SelectValue placeholder="Stage" /></SelectTrigger>
@@ -441,7 +441,7 @@ function LeadsListPage() {
           {dateRange === "custom" && (
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="w-[150px] justify-start text-left font-normal text-sm">
+                <Button variant="outline" className="w-[150px] justify-start text-left font-normal text-sm transition-all duration-200 ease-out">
                   <CalendarIcon className="h-4 w-4 mr-2 text-muted-foreground" />
                   {customDate ? format(new Date(customDate + "T00:00:00"), "MMM d, yyyy") : "Pick a date"}
                 </Button>
@@ -466,7 +466,7 @@ function LeadsListPage() {
             size="sm"
             variant={showDupes ? "default" : "outline"}
             onClick={() => setShowDupes(!showDupes)}
-            className={showDupes ? "bg-amber-600 hover:bg-amber-700" : ""}
+            className={showDupes ? "bg-amber-600 hover:bg-amber-700 transition-all duration-200 ease-out" : "transition-all duration-200 ease-out"}
           >
             {dupesLoading ? "Checking…" : showDupes ? `Duplicates (${dupeIds.size})` : "Duplicates"}
           </Button>
@@ -475,7 +475,7 @@ function LeadsListPage() {
 
       {/* Duplicate groups panel */}
       {showDupes && dupeGroups.length > 0 && (
-        <Card className="border-amber-300 bg-amber-50/50 dark:bg-amber-950/20">
+        <Card className="border-amber-300 bg-amber-50/50 dark:bg-amber-950/20 shadow-sm">
           <CardContent className="p-4 space-y-4">
             <div className="flex items-center justify-between">
               <div>
@@ -492,9 +492,9 @@ function LeadsListPage() {
                   ? [g.leads.find((l: any) => l.id === overrideId)!, ...g.leads.filter((l: any) => l.id !== overrideId)]
                   : [...g.leads];
                 return (
-                <div key={`${gKey}-${overrideVersion}`} className="rounded-lg border bg-background p-3">
+                <div key={`${gKey}-${overrideVersion}`} className="rounded-xl border bg-background p-3 hover:shadow-sm transition-all duration-200 ease-out">
                   <div className="text-xs text-muted-foreground mb-2">
-                    Matched by <Badge variant="outline" className="text-[10px] ml-1">{g.matchType}</Badge>
+                    Matched by <Badge variant="outline" className="text-[10px] ml-1 rounded-full">{g.matchType}</Badge>
                     <span className="ml-2">({g.leads.length} entries)</span>
                   </div>
                   <div className="space-y-1.5">
@@ -502,12 +502,12 @@ function LeadsListPage() {
                       <div key={l.id} className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm ${li === 0 ? "bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800" : "bg-muted/40 border border-dashed"}`}>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            {li === 0 && <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300 text-[10px]">Original</Badge>}
-                            {li > 0 && <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300">Duplicate</Badge>}
+                            {li === 0 && <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300 text-[10px] rounded-full">Original</Badge>}
+                            {li > 0 && <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300 rounded-full">Duplicate</Badge>}
                             <span className="font-medium truncate">{l.client_name}</span>
                             <span className="text-xs text-muted-foreground">{l.lead_code}</span>
                           </div>
-                          <div className="text-xs text-muted-foreground mt-0.5">
+                          <div className="text-[11px] text-muted-foreground/70 mt-0.5">
                             {l.mobile && <span className="mr-3">{l.mobile}</span>}
                             {l.email && <span className="mr-3">{l.email}</span>}
                             <span>Added {format(new Date(l.created_at), "MMM d, yyyy")}</span>
@@ -519,7 +519,7 @@ function LeadsListPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              className="text-emerald-600 hover:text-emerald-700 border-emerald-300 text-xs"
+                              className="text-emerald-600 hover:text-emerald-700 border-emerald-300 text-xs transition-all duration-200 ease-out"
                               disabled={mergeLead.isPending}
                               onClick={() => {
                                 const others = orderedLeads.filter((_: any, i: number) => i !== li);
@@ -540,7 +540,7 @@ function LeadsListPage() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="text-destructive hover:text-destructive"
+                              className="text-destructive hover:text-destructive transition-all duration-200 ease-out"
                               disabled={deleteLead.isPending}
                               onClick={() => {
                                 if (window.confirm(`Delete duplicate "${l.client_name}" (${l.lead_code})? This cannot be undone.`)) {
@@ -564,7 +564,7 @@ function LeadsListPage() {
       )}
 
       {showDupes && dupeGroups.length === 0 && !dupesLoading && (
-        <Card className="border-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/20">
+        <Card className="border-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/20 shadow-sm">
           <CardContent className="p-4 text-center text-sm text-emerald-700 dark:text-emerald-300">
             No duplicates found — your leads are clean!
           </CardContent>
@@ -572,7 +572,7 @@ function LeadsListPage() {
       )}
 
       {selected.size > 0 && (
-        <Card className="border-primary/40 bg-primary/5">
+        <Card className="border-primary/40 bg-primary/5 shadow-sm">
           <CardContent className="p-3 flex flex-wrap items-center gap-2">
             <span className="text-sm font-medium mr-1">{selected.size} selected</span>
             <Select onValueChange={(v) => bulkAssign.mutate(v)}>
@@ -596,18 +596,18 @@ function LeadsListPage() {
               </SelectContent>
             </Select>
             {isAdmin && (
-              <Button variant="outline" size="sm" className="text-destructive hover:text-destructive"
+              <Button variant="outline" size="sm" className="text-destructive hover:text-destructive transition-all duration-200 ease-out"
                 disabled={bulkDelete.isPending}
                 onClick={() => { if (window.confirm(`Delete ${selected.size} lead(s)? This permanently removes them and cannot be undone.`)) bulkDelete.mutate(); }}>
                 <Trash2 className="h-4 w-4 mr-1" /> Delete
               </Button>
             )}
-            <Button variant="ghost" size="sm" onClick={clearSel}><X className="h-4 w-4 mr-1" /> Clear</Button>
+            <Button variant="ghost" size="sm" className="transition-all duration-200 ease-out" onClick={clearSel}><X className="h-4 w-4 mr-1" /> Clear</Button>
           </CardContent>
         </Card>
       )}
 
-      <Card>
+      <Card className="shadow-sm">
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-8 text-center text-muted-foreground text-sm">Loading…</div>
@@ -689,13 +689,13 @@ function LeadRow({ l, selected, onToggle, nameOf }: { l: any; selected: boolean;
       <Link
         to="/leads/$id"
         params={{ id: l.id }}
-        className="flex-1 grid grid-cols-12 gap-3 items-center px-3 py-3 hover:bg-accent/40"
+        className="flex-1 grid grid-cols-12 gap-3 items-center px-3 py-3 hover:bg-accent/30 transition-all duration-200 ease-out"
       >
         <div className="col-span-12 md:col-span-3 min-w-0">
           <div className="flex items-center gap-2">
             <div className="font-medium truncate">{l.client_name}</div>
             {interestMeta && (
-              <Badge variant="secondary" className={interestMeta.className}>
+              <Badge variant="secondary" className={`${interestMeta.className} rounded-full`}>
                 {interestMeta.emoji} {interestMeta.label}
               </Badge>
             )}
@@ -722,9 +722,9 @@ function LeadRow({ l, selected, onToggle, nameOf }: { l: any; selected: boolean;
         <div className="col-span-4 md:col-span-1 text-xs text-muted-foreground truncate">
           {assigneeName || <span className="text-muted-foreground/50">—</span>}
         </div>
-        <div className="col-span-4 md:col-span-2 text-right text-xs">
+        <div className="col-span-4 md:col-span-2 text-right text-[11px]">
           {l.next_follow_up_at ? (
-            <span className={overdue ? "text-destructive font-medium" : "text-muted-foreground"}>
+            <span className={overdue ? "text-destructive font-medium" : "text-muted-foreground/70"}>
               {overdue ? "Overdue " : ""}{formatDistanceToNow(new Date(l.next_follow_up_at), { addSuffix: true })}
             </span>
           ) : (
@@ -765,8 +765,8 @@ function PaginationBar({
       </div>
 
       <div className="flex items-center gap-1">
-        <Button variant="outline" size="icon" className="h-8 w-8" disabled={page <= 1} onClick={() => onPage(1)} title="First page"><ChevronsLeft className="h-4 w-4" /></Button>
-        <Button variant="outline" size="icon" className="h-8 w-8" disabled={page <= 1} onClick={() => onPage(page - 1)} title="Previous page"><ChevronLeft className="h-4 w-4" /></Button>
+        <Button variant="outline" size="icon" className="h-8 w-8 transition-all duration-200 ease-out hover:shadow-sm" disabled={page <= 1} onClick={() => onPage(1)} title="First page"><ChevronsLeft className="h-4 w-4" /></Button>
+        <Button variant="outline" size="icon" className="h-8 w-8 transition-all duration-200 ease-out hover:shadow-sm" disabled={page <= 1} onClick={() => onPage(page - 1)} title="Previous page"><ChevronLeft className="h-4 w-4" /></Button>
 
         {pages.map((p, i) =>
           p === "…" ? (
@@ -776,7 +776,7 @@ function PaginationBar({
               key={p}
               variant={p === page ? "default" : "outline"}
               size="icon"
-              className="h-8 w-8"
+              className="h-8 w-8 transition-all duration-200 ease-out hover:shadow-sm"
               onClick={() => onPage(p as number)}
             >
               {p}
@@ -784,8 +784,8 @@ function PaginationBar({
           )
         )}
 
-        <Button variant="outline" size="icon" className="h-8 w-8" disabled={page >= totalPages} onClick={() => onPage(page + 1)} title="Next page"><ChevronRight className="h-4 w-4" /></Button>
-        <Button variant="outline" size="icon" className="h-8 w-8" disabled={page >= totalPages} onClick={() => onPage(totalPages)} title="Last page"><ChevronsRight className="h-4 w-4" /></Button>
+        <Button variant="outline" size="icon" className="h-8 w-8 transition-all duration-200 ease-out hover:shadow-sm" disabled={page >= totalPages} onClick={() => onPage(page + 1)} title="Next page"><ChevronRight className="h-4 w-4" /></Button>
+        <Button variant="outline" size="icon" className="h-8 w-8 transition-all duration-200 ease-out hover:shadow-sm" disabled={page >= totalPages} onClick={() => onPage(totalPages)} title="Last page"><ChevronsRight className="h-4 w-4" /></Button>
 
         {totalPages > 5 && (
           <div className="flex items-center gap-1 ml-2">
@@ -796,7 +796,7 @@ function PaginationBar({
               onChange={(e) => setJump(e.target.value.replace(/\D/g, ""))}
               onKeyDown={(e) => { if (e.key === "Enter") go(); }}
             />
-            <Button variant="outline" size="sm" className="h-8" onClick={go}>Go</Button>
+            <Button variant="outline" size="sm" className="h-8 transition-all duration-200 ease-out hover:shadow-sm" onClick={go}>Go</Button>
           </div>
         )}
       </div>
