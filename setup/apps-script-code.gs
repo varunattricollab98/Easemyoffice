@@ -3,7 +3,7 @@
 // keep your TOKEN the same, then Deploy -> Manage deployments -> edit -> Version: New version.
 //
 // It does TWO things:
-//   doPost  -> appends a booking row to the "Bookings" tab (write)
+//   doPost  -> appends a booking row to the "Bookings2627" tab (write)
 //   doGet   -> returns the next unused Booking ID + the plans list (read)
 //
 // OPTIONAL sheets for the read features:
@@ -11,7 +11,11 @@
 //   "Plans" tab      -> header row then data. Recognised headers (any order):
 //        Code | VO Plan | SP Name | Area | City | State | SP Status | SP Payable
 
-const SHEET_NAME = "Bookings";
+// Active tab that new bookings are appended to.
+const SHEET_NAME = "Bookings2627";
+// Older bookings tabs. Still scanned when picking the next Booking ID so an ID
+// already used in a previous year is never handed out again.
+const LEGACY_BOOKING_SHEETS = ["Bookings"];
 const BOOKING_IDS_SHEET = "BookingIDs";
 const PLANS_SHEET = "Plans";
 const TOKEN = "CHANGE-ME-to-a-secret"; // must match BOOKINGS_SHEET_TOKEN in Supabase
@@ -35,7 +39,7 @@ function json(obj) {
 
 // ---- WRITE: append a booking row ----
 // Supports an optional body.sheet parameter to write to a different tab
-// (e.g. "Renewals"). Defaults to the main SHEET_NAME ("Bookings").
+// (e.g. "Renewals"). Defaults to the main SHEET_NAME ("Bookings2627").
 function doPost(e) {
   try {
     var body = JSON.parse(e.postData.contents);
@@ -79,13 +83,18 @@ function getNextBookingId() {
   var ids = idSheet.getRange(1, 1, idSheet.getLastRow(), 1).getValues()
     .map(function (r) { return String(r[0]).trim(); })
     .filter(function (v) { return v && v.toLowerCase() !== "booking id" && v.toLowerCase() !== "id"; });
-  // Booking IDs already used live in the Bookings tab, column C (3rd column).
-  var used = {};
-  var bk = ss.getSheetByName(SHEET_NAME);
-  if (bk && bk.getLastRow() > 1) {
+  // Booking IDs already used live in column C (3rd column) of the active tab and
+  // of every legacy bookings tab — scan them all so an ID is never reused.
+  var used = Object.create(null);
+  [SHEET_NAME].concat(LEGACY_BOOKING_SHEETS).forEach(function (name) {
+    var bk = ss.getSheetByName(name);
+    if (!bk || bk.getLastRow() < 2) return;
     bk.getRange(2, 3, bk.getLastRow() - 1, 1).getValues()
-      .forEach(function (r) { used[String(r[0]).trim()] = true; });
-  }
+      .forEach(function (r) {
+        var v = String(r[0]).trim();
+        if (v) used[v] = true;
+      });
+  });
   for (var i = 0; i < ids.length; i++) { if (!used[ids[i]]) return ids[i]; }
   return "";
 }

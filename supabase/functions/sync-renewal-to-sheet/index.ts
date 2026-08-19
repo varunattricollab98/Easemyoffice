@@ -7,7 +7,7 @@
 //   BOOKINGS_SHEET_TOKEN       -> shared secret
 //
 // The difference: this sends { sheet: "Renewals" } so the Apps Script writes
-// to the "Renewals" tab instead of the default "Bookings" tab.
+// to the "Renewals" tab instead of the default bookings tab ("Bookings2627").
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

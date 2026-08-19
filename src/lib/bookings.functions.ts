@@ -57,7 +57,9 @@ const BookingSchema = z.object({
 });
 
 const GATEWAY = "https://connector-gateway.lovable.dev/google_sheets/v4";
-const SHEET_TAB = "Bookings";
+// Active bookings tab in the linked Google Sheet (FY-scoped; update when the
+// financial year rolls over).
+const SHEET_TAB = "Bookings2627";
 const SHEET_RANGE = `${SHEET_TAB}!A:AK`;
 
 function extractSheetId(input: string): string | null {

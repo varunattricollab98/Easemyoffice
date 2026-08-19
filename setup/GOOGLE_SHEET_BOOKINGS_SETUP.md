@@ -48,8 +48,15 @@ normally (the sheet step is best-effort and never blocks a save).
 
 ## The Apps Script code (also in apps-script-code.gs)
 
+> **Note:** bookings are appended to the **`Bookings2627`** tab. This is the
+> active financial-year tab — the older `Bookings` tab is left untouched as an
+> archive. `apps-script-code.gs` still reads the old tab when picking the next
+> Booking ID, so IDs are never reused. When the financial year rolls over,
+> change `SHEET_NAME` here and `SHEET_TAB` in `src/lib/bookings.functions.ts`,
+> and add the retired tab to `LEGACY_BOOKING_SHEETS`.
+
 ```javascript
-const SHEET_NAME = "Bookings";
+const SHEET_NAME = "Bookings2627";
 const TOKEN = "CHANGE-ME-to-a-secret"; // must match BOOKINGS_SHEET_TOKEN in Supabase
 
 const HEADERS = [
