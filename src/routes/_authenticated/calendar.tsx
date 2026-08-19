@@ -12,14 +12,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   ChevronLeft, ChevronRight, Bell, IndianRupee, Plus, CalendarDays,
-  Flag, CheckCircle2, Circle, Clock, Video, Users, Sparkles,
+  Flag, Video, Users, Sparkles,
+  Link2, ExternalLink, Wifi, WifiOff,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import {
   startOfMonth, endOfMonth, eachDayOfInterval, format, isSameMonth, isSameDay,
-  addMonths, subMonths, startOfWeek, endOfWeek, isToday, isPast,
+  addMonths, subMonths, startOfWeek, endOfWeek, isToday,
 } from "date-fns";
 
 export const Route = createFileRoute("/_authenticated/calendar")({
@@ -54,13 +55,45 @@ function CalendarPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [addType, setAddType] = useState<"task" | "meeting">("task");
   const [taskForm, setTaskForm] = useState({ title: "", description: "", priority: "medium", due_time: "09:00" });
-  const [meetingForm, setMeetingForm] = useState({ title: "", description: "", time: "10:00", duration: "30" });
+  const [meetingForm, setMeetingForm] = useState({
+    title: "", description: "", time: "10:00", duration: "30",
+    clientEmail: "", salesPersonName: "",
+  });
 
   const monthStart = startOfMonth(cursor);
   const monthEnd = endOfMonth(cursor);
   const calStart = startOfWeek(monthStart);
   const calEnd = endOfWeek(monthEnd);
   const days = eachDayOfInterval({ start: calStart, end: calEnd });
+
+  // Check Google Calendar connection status
+  const { data: gcalConnected } = useQuery({
+    queryKey: ["gcal-status"],
+    queryFn: async () => {
+      const { data } = await supabase.from("crm_settings")
+        .select("value")
+        .eq("key", "google_calendar_tokens")
+        .single();
+      return !!(data?.value as any)?.refresh_token;
+    },
+    staleTime: 60_000,
+  });
+
+  // Handle Google auth callback params from URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const authResult = params.get("google_auth");
+    if (authResult === "success") {
+      toast.success("Google Calendar connected successfully!");
+      qc.invalidateQueries({ queryKey: ["gcal-status"] });
+      // Clean URL
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (authResult === "error") {
+      const reason = params.get("reason") || "Unknown error";
+      toast.error(`Google Calendar connection failed: ${reason}`);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [qc]);
 
   // Tasks for the visible calendar range
   const { data: tasks = [] } = useQuery({
@@ -164,27 +197,67 @@ function CalendarPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Add meeting mutation (creates a task with type info in description)
+  // Add meeting mutation - integrates with Google Calendar
   const addMeeting = useMutation({
     mutationFn: async () => {
       if (!meetingForm.title.trim()) throw new Error("Meeting title is required");
       if (!selected) throw new Error("Select a date first");
-      const dueAt = new Date(`${format(selected, "yyyy-MM-dd")}T${meetingForm.time || "10:00"}:00`);
-      const desc = `[Meeting] Duration: ${meetingForm.duration} min${meetingForm.description ? `\n${meetingForm.description}` : ""}`;
-      const { error } = await supabase.from("tasks").insert({
+
+      const startTime = new Date(`${format(selected, "yyyy-MM-dd")}T${meetingForm.time || "10:00"}:00`);
+      const spName = meetingForm.salesPersonName.trim() || user?.user_metadata?.full_name || user?.email || "EaseMyOffice Team";
+
+      let meetLink = "";
+      let eventUrl = "";
+
+      // If Google Calendar is connected and client email is provided, create a Google Meet
+      if (gcalConnected && meetingForm.clientEmail.trim()) {
+        const { data, error } = await supabase.functions.invoke("create-meeting", {
+          body: {
+            title: meetingForm.title.trim(),
+            description: meetingForm.description.trim() || undefined,
+            startTime: startTime.toISOString(),
+            duration: meetingForm.duration,
+            attendeeEmail: meetingForm.clientEmail.trim(),
+            salesPersonName: spName,
+            salesPersonEmail: user?.email || "",
+          },
+        });
+
+        if (error) throw new Error(error.message || "Failed to create Google Meet");
+        if (data && !data.ok) throw new Error(data.error || "Failed to create meeting");
+
+        meetLink = data?.meetLink || "";
+        eventUrl = data?.eventUrl || "";
+      }
+
+      // Store as task in DB (with meet link in description)
+      const meetInfo = meetLink ? `\nGoogle Meet: ${meetLink}` : "";
+      const eventInfo = eventUrl ? `\nEvent: ${eventUrl}` : "";
+      const desc = `[Meeting] Duration: ${meetingForm.duration} min${meetingForm.clientEmail ? `\nClient: ${meetingForm.clientEmail}` : ""}${meetInfo}${eventInfo}${meetingForm.description ? `\n${meetingForm.description}` : ""}`;
+
+      const { error: dbError } = await supabase.from("tasks").insert({
         title: `Meeting: ${meetingForm.title.trim()}`,
         description: desc,
         priority: "high" as never,
-        due_at: dueAt.toISOString(),
+        due_at: startTime.toISOString(),
         owner_id: user?.id ?? null,
         created_by: user?.id ?? null,
         status: "todo" as never,
       });
-      if (error) throw new Error(error.message);
+      if (dbError) throw new Error(dbError.message);
+
+      return { meetLink };
     },
-    onSuccess: () => {
-      toast.success("Meeting scheduled");
-      setMeetingForm({ title: "", description: "", time: "10:00", duration: "30" });
+    onSuccess: (data) => {
+      if (data?.meetLink) {
+        toast.success("Meeting scheduled with Google Meet!", {
+          description: "Notifications sent to all attendees.",
+          duration: 5000,
+        });
+      } else {
+        toast.success("Meeting scheduled");
+      }
+      setMeetingForm({ title: "", description: "", time: "10:00", duration: "30", clientEmail: "", salesPersonName: "" });
       setAddOpen(false);
       qc.invalidateQueries({ queryKey: ["calendar-tasks"] });
       qc.invalidateQueries({ queryKey: ["tasks"] });
@@ -207,6 +280,20 @@ function CalendarPage() {
   // Check if a task is a meeting (by title prefix or description marker)
   const isMeeting = (t: Task) => t.title.startsWith("Meeting:") || (t.description?.startsWith("[Meeting]") ?? false);
 
+  // Extract Google Meet link from task description
+  const getMeetLink = (t: Task): string | null => {
+    if (!t.description) return null;
+    const match = t.description.match(/Google Meet: (https:\/\/meet\.google\.com\/[^\s\n]+)/);
+    return match?.[1] || null;
+  };
+
+  // Connect Google Calendar handler
+  const handleConnectGoogleCalendar = () => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://cfzwdlibvxksrxcrsvpp.supabase.co";
+    const authUrl = `${supabaseUrl}/functions/v1/google-calendar-auth?action=authorize`;
+    window.location.href = authUrl;
+  };
+
   return (
     <div className="p-5 md:p-10 max-w-7xl mx-auto space-y-6">
       {/* Premium Header */}
@@ -220,31 +307,50 @@ function CalendarPage() {
           </h1>
           <p className="text-sm text-muted-foreground/80 ml-[52px]">Tasks, follow-ups, meetings, and payment dues at a glance</p>
         </div>
-        <div className="flex items-center gap-1.5">
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => setCursor(subMonths(cursor, 1))}
-            className="h-9 w-9 rounded-xl hover:bg-accent/60 transition-all duration-300 ease-out hover:scale-105"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => { setCursor(new Date()); setSelected(new Date()); }}
-            className="rounded-xl px-4 font-medium transition-all duration-300 ease-out hover:scale-105 hover:shadow-md border-primary/20 hover:border-primary/40"
-          >
-            Today
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => setCursor(addMonths(cursor, 1))}
-            className="h-9 w-9 rounded-xl hover:bg-accent/60 transition-all duration-300 ease-out hover:scale-105"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+        <div className="flex items-center gap-2">
+          {/* Google Calendar Connection Status */}
+          {gcalConnected ? (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs font-medium">
+              <Wifi className="h-3 w-3" />
+              Google Calendar
+            </div>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleConnectGoogleCalendar}
+              className="rounded-xl text-xs h-8 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950 transition-all duration-300 hover:scale-105 gap-1.5"
+            >
+              <WifiOff className="h-3 w-3" />
+              Connect Google Calendar
+            </Button>
+          )}
+          <div className="flex items-center gap-1.5">
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setCursor(subMonths(cursor, 1))}
+              className="h-9 w-9 rounded-xl hover:bg-accent/60 transition-all duration-300 ease-out hover:scale-105"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => { setCursor(new Date()); setSelected(new Date()); }}
+              className="rounded-xl px-4 font-medium transition-all duration-300 ease-out hover:scale-105 hover:shadow-md border-primary/20 hover:border-primary/40"
+            >
+              Today
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setCursor(addMonths(cursor, 1))}
+              className="h-9 w-9 rounded-xl hover:bg-accent/60 transition-all duration-300 ease-out hover:scale-105"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -384,29 +490,46 @@ function CalendarPage() {
                         <div className="text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
                           <Users className="h-3 w-3" /> Meetings
                         </div>
-                        {selectedEvents.tasks.filter((t) => isMeeting(t)).map((t) => (
-                          <div key={t.id} className={`flex items-start gap-3 p-3 rounded-xl border-l-[3px] border-l-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 hover:shadow-md transition-all duration-300 ease-out hover:translate-x-0.5 ${t.status === "done" ? "opacity-50" : ""}`}>
-                            <Checkbox
-                              checked={t.status === "done"}
-                              onCheckedChange={(checked) => toggleTask.mutate({ id: t.id, done: !!checked })}
-                              className="mt-0.5"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <div className={`text-sm font-semibold ${t.status === "done" ? "line-through text-muted-foreground" : ""}`}>
-                                {t.title.replace("Meeting: ", "")}
-                              </div>
-                              {t.description && (
-                                <div className="text-xs text-muted-foreground/70 mt-0.5 truncate">
-                                  {t.description.replace("[Meeting] ", "").split("\n")[0]}
+                        {selectedEvents.tasks.filter((t) => isMeeting(t)).map((t) => {
+                          const meetLink = getMeetLink(t);
+                          return (
+                            <div key={t.id} className={`flex items-start gap-3 p-3 rounded-xl border-l-[3px] border-l-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 hover:shadow-md transition-all duration-300 ease-out hover:translate-x-0.5 ${t.status === "done" ? "opacity-50" : ""}`}>
+                              <Checkbox
+                                checked={t.status === "done"}
+                                onCheckedChange={(checked) => toggleTask.mutate({ id: t.id, done: !!checked })}
+                                className="mt-0.5"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className={`text-sm font-semibold ${t.status === "done" ? "line-through text-muted-foreground" : ""}`}>
+                                  {t.title.replace("Meeting: ", "")}
                                 </div>
-                              )}
+                                {t.description && (
+                                  <div className="text-xs text-muted-foreground/70 mt-0.5 truncate">
+                                    {t.description.replace("[Meeting] ", "").split("\n")[0]}
+                                  </div>
+                                )}
+                                {/* Join Meeting button */}
+                                {meetLink && t.status !== "done" && (
+                                  <a
+                                    href={meetLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-xs font-semibold shadow-sm hover:shadow-md hover:scale-105 transition-all duration-200"
+                                  >
+                                    <Video className="h-3 w-3" />
+                                    Join Meeting
+                                    <ExternalLink className="h-2.5 w-2.5" />
+                                  </a>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {meetLink && <Link2 className="h-3 w-3 text-emerald-500" />}
+                                <Video className="h-3 w-3 text-emerald-500" />
+                                {t.due_at && <span className="text-[10px] text-muted-foreground font-medium">{format(new Date(t.due_at), "h:mm a")}</span>}
+                              </div>
                             </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <Video className="h-3 w-3 text-emerald-500" />
-                              {t.due_at && <span className="text-[10px] text-muted-foreground font-medium">{format(new Date(t.due_at), "h:mm a")}</span>}
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
 
@@ -622,12 +745,41 @@ function CalendarPage() {
                 />
               </div>
               <div>
+                <Label className="text-xs font-medium">Client Email</Label>
+                <Input
+                  type="email"
+                  value={meetingForm.clientEmail}
+                  onChange={(e) => setMeetingForm({ ...meetingForm, clientEmail: e.target.value })}
+                  placeholder="client@example.com"
+                  className="mt-1.5 rounded-xl focus:ring-2 ring-emerald-500/20 transition-all duration-200"
+                />
+                {gcalConnected && meetingForm.clientEmail.trim() && (
+                  <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">
+                    <Video className="h-2.5 w-2.5" /> Google Meet link will be auto-generated
+                  </p>
+                )}
+                {!gcalConnected && (
+                  <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
+                    <WifiOff className="h-2.5 w-2.5" /> Connect Google Calendar for auto Meet links
+                  </p>
+                )}
+              </div>
+              <div>
+                <Label className="text-xs font-medium">Your Name (Organizer)</Label>
+                <Input
+                  value={meetingForm.salesPersonName}
+                  onChange={(e) => setMeetingForm({ ...meetingForm, salesPersonName: e.target.value })}
+                  placeholder={user?.user_metadata?.full_name || user?.email || "Your name"}
+                  className="mt-1.5 rounded-xl focus:ring-2 ring-emerald-500/20 transition-all duration-200"
+                />
+              </div>
+              <div>
                 <Label className="text-xs font-medium">Notes (optional)</Label>
                 <Textarea
                   rows={2}
                   value={meetingForm.description}
                   onChange={(e) => setMeetingForm({ ...meetingForm, description: e.target.value })}
-                  placeholder="Agenda, attendees, meeting link..."
+                  placeholder="Agenda, discussion points..."
                   className="mt-1.5 rounded-xl focus:ring-2 ring-emerald-500/20 transition-all duration-200"
                 />
               </div>
@@ -675,7 +827,17 @@ function CalendarPage() {
                 onClick={() => addMeeting.mutate()}
                 className="rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-md hover:shadow-lg transition-all duration-300"
               >
-                {addMeeting.isPending ? "Saving..." : "Schedule Meeting"}
+                {addMeeting.isPending ? (
+                  <span className="flex items-center gap-2">
+                    <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>
+                    Creating Meet...
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5">
+                    <Video className="h-3.5 w-3.5" />
+                    Schedule Meeting
+                  </span>
+                )}
               </Button>
             )}
           </DialogFooter>
