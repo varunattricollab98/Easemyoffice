@@ -723,12 +723,17 @@ function CalendarPage() {
                 </div>
                 <div>
                   <Label className="text-xs font-medium">Time</Label>
-                  <Input
-                    type="time"
-                    value={taskForm.due_time}
-                    onChange={(e) => setTaskForm({ ...taskForm, due_time: e.target.value })}
-                    className="mt-1.5 rounded-xl"
-                  />
+                  <Select value={taskForm.due_time} onValueChange={(v) => setTaskForm({ ...taskForm, due_time: v })}>
+                    <SelectTrigger className="mt-1.5 rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {Array.from({ length: 24 }, (_, h) => [0, 15, 30, 45].map((m) => {
+                        const val = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+                        const hr12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+                        const ampm = h < 12 ? "AM" : "PM";
+                        return <SelectItem key={val} value={val}>{hr12}:{String(m).padStart(2, "0")} {ampm}</SelectItem>;
+                      })).flat()}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </div>
@@ -786,12 +791,17 @@ function CalendarPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label className="text-xs font-medium">Time</Label>
-                  <Input
-                    type="time"
-                    value={meetingForm.time}
-                    onChange={(e) => setMeetingForm({ ...meetingForm, time: e.target.value })}
-                    className="mt-1.5 rounded-xl"
-                  />
+                  <Select value={meetingForm.time} onValueChange={(v) => setMeetingForm({ ...meetingForm, time: v })}>
+                    <SelectTrigger className="mt-1.5 rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {Array.from({ length: 24 }, (_, h) => [0, 15, 30, 45].map((m) => {
+                        const val = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+                        const hr12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+                        const ampm = h < 12 ? "AM" : "PM";
+                        return <SelectItem key={val} value={val}>{hr12}:{String(m).padStart(2, "0")} {ampm}</SelectItem>;
+                      })).flat()}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label className="text-xs font-medium">Duration</Label>
