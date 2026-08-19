@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus } from "lucide-react";
+import { Plus, Search, Check, MapPin, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -269,24 +269,13 @@ export function NewBookingDialog() {
           <div>
             <Label className="text-xs">Plan Name</Label>
             {plans.length > 0 ? (
-              <>
-                <Input
-                  list="plan-codes"
-                  value={f.plan_name}
-                  placeholder="Type to search plan…"
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    const match = plans.find((x) => x.code === v);
-                    if (match) applyPlan(v);
-                    else setF((s) => ({ ...s, plan_name: v }));
-                  }}
-                />
-                <datalist id="plan-codes">
-                  {plans.map((p) => (
-                    <option key={p.code} value={p.code} label={[p.sp_name, p.city].filter(Boolean).join(" · ")} />
-                  ))}
-                </datalist>
-              </>
+              <PlanSearchDropdown
+                plans={plans}
+                value={f.plan_name}
+                onSelect={(code) => applyPlan(code)}
+                onChange={(v) => setF((s) => ({ ...s, plan_name: v }))}
+                loading={cfgLoading}
+              />
             ) : (
               <Input
                 value={f.plan_name}
@@ -405,5 +394,107 @@ export function NewBookingDialog() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Searchable plan dropdown — opens BELOW the input, filters as you type
+function PlanSearchDropdown({
+  plans,
+  value,
+  onSelect,
+  onChange,
+  loading,
+}: {
+  plans: { code: string; sp_name?: string; city?: string; area?: string; vo_plan?: string }[];
+  value: string;
+  onSelect: (code: string) => void;
+  onChange: (v: string) => void;
+  loading: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Sync external value changes
+  useEffect(() => { setSearch(value); }, [value]);
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    if (!q) return plans.slice(0, 50);
+    return plans.filter((p) =>
+      p.code.toLowerCase().includes(q) ||
+      (p.sp_name ?? "").toLowerCase().includes(q) ||
+      (p.city ?? "").toLowerCase().includes(q) ||
+      (p.area ?? "").toLowerCase().includes(q) ||
+      (p.vo_plan ?? "").toLowerCase().includes(q)
+    ).slice(0, 50);
+  }, [plans, search]);
+
+  return (
+    <div className="relative">
+      <div className="relative">
+        <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+        <Input
+          ref={inputRef}
+          value={search}
+          placeholder={loading ? "⏳ Loading plans…" : "Search by plan, city, SP name…"}
+          className="pl-8 pr-3 h-9 text-sm rounded-lg"
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 200)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            onChange(e.target.value);
+            setOpen(true);
+          }}
+        />
+      </div>
+
+      {open && filtered.length > 0 && (
+        <div className="absolute z-50 mt-1 w-full max-h-60 overflow-y-auto rounded-xl border bg-popover shadow-xl animate-in fade-in-0 zoom-in-95 slide-in-from-top-2">
+          {filtered.map((p) => {
+            const isSelected = p.code === value;
+            return (
+              <button
+                key={p.code}
+                type="button"
+                className={`w-full text-left px-3 py-2.5 text-sm hover:bg-accent/60 transition-colors border-b border-border/30 last:border-0 flex items-start gap-2 ${isSelected ? "bg-primary/5" : ""}`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onSelect(p.code);
+                  setSearch(p.code);
+                  setOpen(false);
+                }}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-sm flex items-center gap-1.5">
+                    {isSelected && <Check className="h-3 w-3 text-primary shrink-0" />}
+                    {p.code}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2">
+                    <span className="inline-flex items-center gap-0.5">
+                      <Building2 className="h-3 w-3" /> {p.sp_name || "—"}
+                    </span>
+                    <span className="inline-flex items-center gap-0.5">
+                      <MapPin className="h-3 w-3" /> {[p.area, p.city].filter(Boolean).join(", ") || "—"}
+                    </span>
+                  </div>
+                </div>
+                {p.vo_plan && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 shrink-0 mt-0.5">
+                    {p.vo_plan}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {open && search && filtered.length === 0 && (
+        <div className="absolute z-50 mt-1 w-full rounded-xl border bg-popover shadow-lg p-4 text-center text-sm text-muted-foreground">
+          No plans match "{search}"
+        </div>
+      )}
+    </div>
   );
 }
