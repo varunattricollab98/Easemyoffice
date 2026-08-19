@@ -612,39 +612,39 @@ function LeadInboxPage() {
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="p-5 md:p-10 max-w-5xl mx-auto space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2"><Mail className="h-6 w-6 text-primary" /> Lead Inbox</h1>
-          <p className="text-sm text-muted-foreground">New leads from your shared mailbox. Claim one to add it to your leads.</p>
+          <p className="text-sm text-muted-foreground mt-1">New leads from your shared mailbox. Claim one to add it to your leads.</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+        <Button variant="outline" size="sm" className="transition-all duration-200 ease-out hover:shadow-sm" onClick={() => refetch()} disabled={isFetching}>
           <RefreshCcw className={`h-4 w-4 mr-1 ${isFetching ? "animate-spin" : ""}`} /> Refresh
         </Button>
       </div>
 
-      <Card>
-        <CardContent className="p-3 flex flex-wrap items-center gap-2">
-          <div className="flex gap-1">
+      <Card className="shadow-sm">
+        <CardContent className="p-4 flex flex-wrap items-center gap-3">
+          <div className="flex gap-1.5">
             {(["all", "unclaimed", "mine"] as Filter[]).map((f) => (
-              <Button key={f} size="sm" variant={filter === f ? "default" : "outline"} onClick={() => setFilter(f)} className="capitalize">
+              <Button key={f} size="sm" variant={filter === f ? "default" : "ghost"} onClick={() => setFilter(f)} className="capitalize transition-all duration-200 ease-out">
                 {f === "mine" ? "My leads" : f} <span className="ml-1 opacity-70">({counts[f]})</span>
               </Button>
             ))}
           </div>
           <div className="relative flex-1 min-w-48">
             <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input className="pl-9 h-9" placeholder="Search sender, subject…" value={q} onChange={(e) => setQ(e.target.value)} />
+            <Input className="pl-9 h-9 transition-all duration-200 ease-out focus:ring-2 ring-primary/20" placeholder="Search sender, subject…" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardContent className="p-0">
+      <Card className="shadow-sm overflow-hidden">
+        <CardContent className="p-2">
           {isLoading ? (
-            <div className="p-3 space-y-3">
+            <div className="p-3 space-y-2">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="flex items-start gap-3 px-4 py-3 border-b animate-pulse">
+                <div key={i} className="flex items-start gap-3 px-4 py-4 rounded-xl animate-pulse">
                   <div className="flex-1 space-y-2">
                     <div className="h-4 bg-muted rounded w-1/3" />
                     <div className="h-3 bg-muted rounded w-2/3" />
@@ -655,80 +655,83 @@ function LeadInboxPage() {
               ))}
             </div>
           ) : !connected ? (
-            <div className="p-10 text-center space-y-2">
+            <div className="p-12 text-center space-y-3">
               <div className="text-muted-foreground">Gmail inbox isn't connected yet.</div>
               {data?.error && (
-                <div className="text-xs font-mono text-rose-600 bg-rose-50 dark:bg-rose-950/30 inline-block px-3 py-1.5 rounded max-w-full break-words">
+                <div className="text-xs font-mono text-rose-600 bg-rose-50 dark:bg-rose-950/30 inline-block px-3 py-1.5 rounded-lg max-w-full break-words">
                   {data.error}
                 </div>
               )}
               <div className="text-xs text-muted-foreground">Finish setup: Apps Script + the <code>gmail-bridge</code> function + its two secrets.</div>
             </div>
           ) : rows.length === 0 ? (
-            <div className="p-10 text-center text-sm text-muted-foreground">No emails match this filter.</div>
+            <div className="p-12 text-center text-sm text-muted-foreground">No emails match this filter.</div>
           ) : (
-            rows.map((e) => {
+            <div className="space-y-2">
+            {rows.map((e) => {
               const owner = claimedOwner(e.labels);
               const { name, address } = parseFrom(e.from);
               const mine = isMine(e);
               const hasLead = address ? leadByEmail.has(address.trim().toLowerCase()) : false;
               return (
-                <div key={e.threadId} className="flex items-start gap-3 px-4 py-3 border-b last:border-b-0 hover:bg-accent/30 transition-colors">
+                <div key={e.threadId} className="relative flex items-start gap-4 p-4 rounded-xl border border-transparent hover:border-border/50 hover:shadow-md hover:scale-[1.01] transition-all duration-200 ease-out bg-background/50 hover:bg-accent/20">
                   <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setReading(e)} onMouseEnter={() => prefetchThread(e.threadId)} title="Click to read">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium truncate">{name || address || "Unknown sender"}</span>
-                      {e.unread && <span className="h-2 w-2 rounded-full bg-primary" title="Unread" />}
+                      {e.unread && <span className="h-2.5 w-2.5 rounded-full bg-blue-500 shadow-sm shadow-blue-500/50 shrink-0" title="Unread" />}
+                      <span className="font-semibold text-[15px] truncate">{name || address || "Unknown sender"}</span>
                       {owner ? (
-                        <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">🏷 {owner}</Badge>
+                        <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 rounded-full px-2.5 py-0.5 text-[11px] font-medium">🏷 {owner}</Badge>
                       ) : (
-                        <Badge variant="outline">Unclaimed</Badge>
+                        <Badge className="bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-amber-200 dark:border-amber-800 rounded-full px-2.5 py-0.5 text-[11px] font-medium">Unclaimed</Badge>
                       )}
                     </div>
-                    <div className="text-sm truncate">{e.subject || "(no subject)"}</div>
-                    {e.snippet && <div className="text-xs text-muted-foreground truncate">{e.snippet}</div>}
-                    <div className="text-[11px] text-muted-foreground mt-0.5">{address} · {formatDistanceToNow(new Date(e.date), { addSuffix: true })}</div>
+                    <div className="text-sm font-medium mt-1 truncate text-foreground/90">{e.subject || "(no subject)"}</div>
+                    {e.snippet && <div className="text-xs text-muted-foreground mt-0.5 truncate leading-relaxed">{e.snippet}</div>}
+                    <div className="text-[11px] text-muted-foreground/70 mt-1.5">{address}</div>
                   </div>
                   <div className="flex flex-col items-end gap-2 shrink-0">
+                    <span className="text-[11px] text-muted-foreground/70">{formatDistanceToNow(new Date(e.date), { addSuffix: true })}</span>
                     {isAdmin ? (
                       <>
                         <AssignDropdown email={e} />
                         {owner && <span className="text-[10px] text-muted-foreground">Currently: {owner}</span>}
                       </>
                     ) : !owner ? (
-                      <Button size="sm" disabled={claim.isPending} onClick={() => claim.mutate(e)}>
-                        <UserPlus className="h-4 w-4 mr-1" /> Claim as my lead
+                      <Button size="sm" variant="outline" className="text-xs h-8 transition-all duration-200 ease-out hover:shadow-sm hover:border-primary/50 hover:text-primary" disabled={claim.isPending} onClick={() => claim.mutate(e)}>
+                        <UserPlus className="h-3.5 w-3.5 mr-1" /> Claim as my lead
                       </Button>
                     ) : mine ? (
                       <span className="text-[11px] text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
                         <CheckCircle2 className="h-3.5 w-3.5" /> In your leads
                       </span>
                     ) : (
-                      <Button size="sm" variant="outline" disabled={markMine.isPending} onClick={() => markMine.mutate(e)}>
-                        <Hand className="h-4 w-4 mr-1" /> Mark as yours
+                      <Button size="sm" variant="ghost" className="text-xs h-8 transition-all duration-200 ease-out hover:text-primary" disabled={markMine.isPending} onClick={() => markMine.mutate(e)}>
+                        <Hand className="h-3.5 w-3.5 mr-1" /> Mark as yours
                       </Button>
                     )}
                     {!isAdmin && owner && !mine && hasLead && (
                       <span className="text-[10px] text-muted-foreground">In {owner}'s leads</span>
                     )}
-                    <a href={e.url} target="_blank" rel="noreferrer" className="text-xs text-primary inline-flex items-center gap-1 hover:underline">
-                      <ExternalLink className="h-3 w-3" /> Open in Gmail
+                    <a href={e.url} target="_blank" rel="noreferrer" className="text-[11px] text-primary/70 inline-flex items-center gap-1 hover:text-primary hover:underline transition-colors duration-200">
+                      <ExternalLink className="h-3 w-3" /> Gmail
                     </a>
                   </div>
                 </div>
               );
-            })
+            })}
+            </div>
           )}
         </CardContent>
       </Card>
 
       {/* Pagination: 40 per page, navigate to older/newer emails */}
       {connected && (page > 0 || hasMore) && (
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
           <div className="text-xs text-muted-foreground">
             Showing {emails.length} email{emails.length !== 1 ? "s" : ""} on this page {isFetching && "· loading…"}
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" disabled={page === 0 || isFetching} onClick={() => setPage((p) => Math.max(0, p - 1))}>
+            <Button variant="outline" size="sm" className="transition-all duration-200 ease-out hover:shadow-sm" disabled={page === 0 || isFetching} onClick={() => setPage((p) => Math.max(0, p - 1))}>
               <ChevronLeft className="h-4 w-4 mr-1" /> Newer
             </Button>
             <div className="flex items-center gap-1 text-sm">
@@ -738,10 +741,10 @@ function LeadInboxPage() {
                 min={1}
                 value={page + 1}
                 onChange={(ev) => { const n = parseInt(ev.target.value, 10); if (!isNaN(n) && n >= 1) setPage(n - 1); }}
-                className="w-14 h-8 text-center px-1"
+                className="w-14 h-8 text-center px-1 transition-all duration-200 ease-out focus:ring-2 ring-primary/20"
               />
             </div>
-            <Button variant="outline" size="sm" disabled={!hasMore || isFetching} onClick={() => setPage((p) => p + 1)}>
+            <Button variant="outline" size="sm" className="transition-all duration-200 ease-out hover:shadow-sm" disabled={!hasMore || isFetching} onClick={() => setPage((p) => p + 1)}>
               Older <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           </div>
