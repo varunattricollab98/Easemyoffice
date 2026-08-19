@@ -420,14 +420,14 @@ function PlanSearchDropdown({
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
-    if (!q) return plans.slice(0, 50);
+    if (!q) return plans;
     return plans.filter((p) =>
       p.code.toLowerCase().includes(q) ||
       (p.sp_name ?? "").toLowerCase().includes(q) ||
       (p.city ?? "").toLowerCase().includes(q) ||
       (p.area ?? "").toLowerCase().includes(q) ||
       (p.vo_plan ?? "").toLowerCase().includes(q)
-    ).slice(0, 50);
+    );
   }, [plans, search]);
 
   return (
