@@ -197,40 +197,49 @@ function DashboardPage() {
           <div className="flex items-center gap-3">
             <LivePulsePill />
           </div>
+          {/* Two clusters, divided: things that change how the dashboard looks,
+              then the actions that create records. Previously all six buttons sat
+              in one undifferentiated row, so "Edit layout" read as equal in weight
+              to "New Lead". */}
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline" size="sm"
-              className="transition-all duration-200 ease-out hover:shadow-sm"
-              onClick={() => setQuiet(!quiet)}
-              title={quiet ? "Enable motion" : "Quiet / focus mode"}
-              aria-pressed={quiet}
-              aria-label={quiet ? "Enable animations" : "Enable quiet mode"}
-            >
-              {quiet ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-              <span className="hidden sm:inline">{quiet ? "Quiet" : "Live"}</span>
-            </Button>
-            <AddWidgetPanel visible={visible} onChange={setVisible} kpis={kpis} onKpisChange={setKpis} />
-            <Button
-              variant={editing ? "default" : "outline"} size="sm"
-              className="transition-all duration-200 ease-out hover:shadow-sm"
-              onClick={() => setEditing((e) => !e)}
-              aria-pressed={editing}
-            >
-              {editing ? <><Check className="h-4 w-4" /> Done</> : <><LayoutDashboard className="h-4 w-4" /> <span className="hidden sm:inline">Edit layout</span></>}
-            </Button>
-            {editing && (
+            <div className="flex items-center gap-1.5">
               <Button
-                variant="ghost" size="sm"
-                className="transition-all duration-200 ease-out hover:shadow-sm"
-                onClick={() => { resetWidgetLayout(user?.id ?? "anon"); window.location.reload(); }}
+                variant="outline" size="sm"
+                className="btn-elevate"
+                onClick={() => setQuiet(!quiet)}
+                title={quiet ? "Enable motion" : "Quiet / focus mode"}
+                aria-pressed={quiet}
+                aria-label={quiet ? "Enable animations" : "Enable quiet mode"}
               >
-                <RotateCcw className="h-4 w-4" /> Reset
+                {quiet ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                <span className="hidden sm:inline">{quiet ? "Quiet" : "Live"}</span>
               </Button>
-            )}
-            <Suspense fallback={null}><NewBookingDialog /></Suspense>
-            <Button asChild size="sm" className="transition-all duration-200 ease-out hover:shadow-sm">
-              <Link to="/leads/new"><Plus className="h-4 w-4" /> New Lead</Link>
-            </Button>
+              <AddWidgetPanel visible={visible} onChange={setVisible} kpis={kpis} onKpisChange={setKpis} />
+              <Button
+                variant={editing ? "default" : "outline"} size="sm"
+                className="btn-elevate"
+                onClick={() => setEditing((e) => !e)}
+                aria-pressed={editing}
+              >
+                {editing ? <><Check className="h-4 w-4" /> Done</> : <><LayoutDashboard className="h-4 w-4" /> <span className="hidden sm:inline">Edit layout</span></>}
+              </Button>
+              {editing && (
+                <Button
+                  variant="ghost" size="sm"
+                  className="btn-elevate"
+                  onClick={() => { resetWidgetLayout(user?.id ?? "anon"); window.location.reload(); }}
+                >
+                  <RotateCcw className="h-4 w-4" /> Reset
+                </Button>
+              )}
+            </div>
+            <div className="hidden sm:block h-6 w-px bg-border" aria-hidden="true" />
+            <div className="flex items-center gap-2">
+              <Suspense fallback={null}><NewBookingDialog /></Suspense>
+              <Button asChild size="sm" className="btn-elevate">
+                <Link to="/leads/new"><Plus className="h-4 w-4" /> New Lead</Link>
+              </Button>
+            </div>
           </div>
         </div>
 

@@ -53,6 +53,16 @@ export function KpiTile({
     info: "from-info/15",
     rose: "from-rose-500/15",
   };
+  // Tinted chip instead of the old flat `bg-background/60 border`, so the icon
+  // carries the tile's accent instead of sitting in a grey box.
+  const chipMap: Record<string, string> = {
+    primary: "bg-primary/10 border-primary/20",
+    success: "bg-success/10 border-success/20",
+    warning: "bg-warning/10 border-warning/20",
+    destructive: "bg-destructive/10 border-destructive/20",
+    info: "bg-info/10 border-info/20",
+    rose: "bg-rose-500/10 border-rose-500/20",
+  };
 
   const interactive = !!to;
   const ariaLabel = `${label}: ${value ?? "—"}${tooltip ? ` — ${tooltip}` : ""}`;
@@ -66,12 +76,13 @@ export function KpiTile({
         )}
       />
       <div className="relative flex items-start justify-between gap-2">
-        <div className="text-[11px] uppercase tracking-wide font-medium text-muted-foreground">
+        <div className="text-[11px] uppercase tracking-wide font-medium leading-tight text-muted-foreground">
           {label}
         </div>
         <div
           className={cn(
-            "rounded-lg p-1.5 bg-background/60 border flex items-center gap-1",
+            "shrink-0 rounded-lg p-1.5 border flex items-center gap-1",
+            chipMap[accent],
             accentMap[accent],
           )}
         >
@@ -81,13 +92,18 @@ export function KpiTile({
           )}
         </div>
       </div>
-      <div className="relative mt-3 flex items-end justify-between gap-2">
-        <div className="text-3xl font-semibold leading-none">
-          <CountUp value={value} />
+      <div className="relative mt-3">
+        <div className="flex items-end justify-between gap-2">
+          <div className="text-3xl font-semibold leading-none tabular-nums">
+            <CountUp value={value} />
+          </div>
+          {pulse && <span className="pulse-dot mb-1" aria-label="live" />}
         </div>
-        {pulse && <span className="pulse-dot" aria-label="live" />}
+        {/* Always render the hint slot. Only "Total leads" sets a hint, and
+            without a placeholder that one tile grew taller than the rest and
+            knocked the row's numbers out of alignment. */}
+        <div className="mt-1 min-h-4 text-[11px] text-muted-foreground">{hint ?? ""}</div>
       </div>
-      {hint && <div className="relative mt-1 text-[11px] text-muted-foreground">{hint}</div>}
     </>
   );
 
@@ -95,9 +111,11 @@ export function KpiTile({
     "surface-card relative overflow-hidden p-4 lift-in h-full flex flex-col justify-between",
     flash && "row-flash",
   );
+  // Lift + accent border live in `.tile-link` (styles.css) rather than a
+  // `transition-all` here, which was both undurated and re-animating properties
+  // .surface-card already handles.
   const interactiveClass = cn(
-    "group cursor-pointer transition-all",
-    "hover:-translate-y-0.5 hover:shadow-lg hover:border-primary/40",
+    "group tile-link cursor-pointer",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
   );
 

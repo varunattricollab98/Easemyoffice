@@ -142,7 +142,10 @@ export function KpiStrip({
   return (
     <section
       aria-label="Key performance indicators"
-      className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7"
+      // 7 columns at xl left the 8th default KPI stranded alone on a second row.
+      // Stay at 4 (a clean 2x4) until there's genuinely room for all 8 in a line.
+      // gap-3 is deliberate: the density toggle in styles.css keys off that class.
+      className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-8"
     >
       {defs.map((def, i) => {
         const value = stats ? def.value(stats as KpiStats) : undefined;
