@@ -19,7 +19,7 @@ const NewBookingDialog = lazy(() =>
 const HeroOfMonth = lazy(() =>
   import("@/components/dashboard/hero-of-month").then((m) => ({ default: m.HeroOfMonth })),
 );
-import { getSheetConfig } from "@/lib/bookings-sheet";
+import { getSheetPlans } from "@/lib/bookings-sheet";
 import { LivePulsePill } from "@/components/dashboard/live-pulse-pill";
 import { AddWidgetPanel } from "@/components/dashboard/add-widget-panel";
 import { useQuietMode, useVisibleWidgets, useVisibleKpis } from "@/lib/dashboard-prefs";
@@ -60,8 +60,10 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
     // Follow-up queries are scoped by RLS already — no scope param needed.
     qc.prefetchQuery(todayFollowupsQuery());
     qc.prefetchQuery(overdueFollowupsQuery());
-    // Warm the booking sheet config (plans + next ID) so the New Booking form opens instantly.
-    qc.prefetchQuery({ queryKey: ["booking-sheet-config"], queryFn: getSheetConfig, staleTime: 30 * 60 * 1000 });
+    // Warm the plans list so the New Booking form's dropdown is ready instantly.
+    // The next Booking ID is not prefetched on purpose: it must be fresh, so the
+    // form fetches it when it actually opens.
+    qc.prefetchQuery({ queryKey: ["booking-sheet-plans"], queryFn: getSheetPlans, staleTime: 30 * 60 * 1000 });
   },
   component: DashboardPage,
 });

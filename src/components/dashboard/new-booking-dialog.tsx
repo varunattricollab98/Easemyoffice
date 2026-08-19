@@ -10,7 +10,7 @@ import { Plus, Search, Check, MapPin, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
-import { getSheetConfig, syncBookingToSheet } from "@/lib/bookings-sheet";
+import { getSheetPlans, getNextBookingIdFromSheet, syncBookingToSheet } from "@/lib/bookings-sheet";
 
 const SOURCES = ["Website", "Referral", "IndiaMART", "Google Ads", "Meta Ads", "WhatsApp", "Direct", "Other"];
 const SP_STATUSES = ["Active", "Pending", "Inactive"];
@@ -84,27 +84,46 @@ export function NewBookingDialog() {
     },
   });
 
-  // Next Booking ID + plans master, read from the Google Sheet.
-  // Fetched on mount (so it's ready before the dialog opens) and cached for a
-  // few minutes, so opening the form is instant instead of waiting on Google.
-  const { data: sheetConfig, isLoading: cfgLoading } = useQuery({
-    queryKey: ["booking-sheet-config"],
+  // Plans master for the plan dropdown. Fetched on mount (so it's ready before
+  // the dialog opens) and cached for 30 minutes. Split from the Booking ID call
+  // because that one has to scan the whole bookings column (~2s) and was holding
+  // the dropdown hostage.
+  const {
+    data: plansData,
+    isLoading: plansLoading,
+    isFetching: plansFetching,
+    refetch: refetchPlans,
+  } = useQuery({
+    queryKey: ["booking-sheet-plans"],
     staleTime: 30 * 60 * 1000,
     gcTime: 60 * 60 * 1000,
     refetchOnWindowFocus: false,
-    queryFn: getSheetConfig,
+    queryFn: getSheetPlans,
   });
-  const plans = sheetConfig?.plans ?? [];
+  const plans = plansData?.plans ?? [];
+  const plansError = plansData?.error ?? null;
 
-  // When the dialog opens, prefill the next Booking ID from the sheet (if any).
+  // Next Booking ID. Only fetched while the dialog is open and never cached, so
+  // it's as fresh as possible. The form already shows a locally generated ID, so
+  // if this is slow or fails the user is never blocked.
+  const { data: nextIdData } = useQuery({
+    queryKey: ["booking-next-id"],
+    enabled: open,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnWindowFocus: false,
+    queryFn: getNextBookingIdFromSheet,
+  });
+
+  // When the dialog opens, upgrade the local fallback ID to the sheet's one.
   const [cfgApplied, setCfgApplied] = useState(false);
   useEffect(() => {
     if (!open) { if (cfgApplied) setCfgApplied(false); return; }
-    if (!cfgApplied && sheetConfig?.nextBookingId) {
-      setF((s) => ({ ...s, booking_id: sheetConfig.nextBookingId as string }));
+    if (!cfgApplied && nextIdData?.nextBookingId) {
+      setF((s) => ({ ...s, booking_id: nextIdData.nextBookingId as string }));
       setCfgApplied(true);
     }
-  }, [open, sheetConfig, cfgApplied]);
+  }, [open, nextIdData, cfgApplied]);
 
   // Selecting a plan code autofills its details from the sheet.
   const applyPlan = (code: string) => {
@@ -274,14 +293,31 @@ export function NewBookingDialog() {
                 value={f.plan_name}
                 onSelect={(code) => applyPlan(code)}
                 onChange={(v) => setF((s) => ({ ...s, plan_name: v }))}
-                loading={cfgLoading}
+                loading={plansFetching}
               />
             ) : (
-              <Input
-                value={f.plan_name}
-                placeholder={cfgLoading ? "⏳ Fetching plans from sheet…" : "Type or select plan name"}
-                onChange={(e) => setF({ ...f, plan_name: e.target.value })}
-              />
+              <>
+                <Input
+                  value={f.plan_name}
+                  placeholder={plansLoading ? "⏳ Fetching plans from sheet…" : "Type or select plan name"}
+                  onChange={(e) => setF({ ...f, plan_name: e.target.value })}
+                />
+                {/* The plan list is a convenience, not a requirement — the field
+                    stays typeable. Say why autofill is missing and offer a retry
+                    instead of leaving the user staring at a spinner. */}
+                {!plansLoading && plansError && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Plans unavailable — {plansError}.{" "}
+                    <button
+                      type="button"
+                      className="underline underline-offset-2 hover:text-foreground"
+                      onClick={() => refetchPlans()}
+                    >
+                      Retry
+                    </button>
+                  </p>
+                )}
+              </>
             )}
           </div>
           {T("vo_plan", "VO Plan")}
