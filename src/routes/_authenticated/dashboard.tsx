@@ -144,13 +144,13 @@ function DashboardPage() {
     return (
       <div className="min-h-full">
         {availableViews.length > 1 && (
-          <div className="px-4 md:px-8 pt-4 max-w-[1400px] mx-auto">
+          <div className="px-5 md:px-10 pt-4 max-w-[1400px] mx-auto">
             <div className="inline-flex rounded-lg border bg-muted/40 p-1 gap-1">
               {availableViews.map((v) => (
                 <button
                   key={v.id}
                   onClick={() => setDashView(v.id)}
-                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ease-out ${
                     dashView === v.id ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
@@ -167,7 +167,7 @@ function DashboardPage() {
 
   return (
     <div className="dash-canvas min-h-full">
-      <div className="relative p-4 md:p-8 max-w-[1400px] mx-auto space-y-5">
+      <div className="relative p-5 md:p-10 max-w-[1400px] mx-auto space-y-5">
         {/* View switcher for admins */}
         {availableViews.length > 1 && (
           <div className="inline-flex rounded-lg border bg-muted/40 p-1 gap-1">
@@ -175,7 +175,7 @@ function DashboardPage() {
               <button
                 key={v.id}
                 onClick={() => setDashView(v.id)}
-                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ease-out ${
                   dashView === v.id ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -200,6 +200,7 @@ function DashboardPage() {
           <div className="flex items-center gap-2">
             <Button
               variant="outline" size="sm"
+              className="transition-all duration-200 ease-out hover:shadow-sm"
               onClick={() => setQuiet(!quiet)}
               title={quiet ? "Enable motion" : "Quiet / focus mode"}
               aria-pressed={quiet}
@@ -211,6 +212,7 @@ function DashboardPage() {
             <AddWidgetPanel visible={visible} onChange={setVisible} kpis={kpis} onKpisChange={setKpis} />
             <Button
               variant={editing ? "default" : "outline"} size="sm"
+              className="transition-all duration-200 ease-out hover:shadow-sm"
               onClick={() => setEditing((e) => !e)}
               aria-pressed={editing}
             >
@@ -219,13 +221,14 @@ function DashboardPage() {
             {editing && (
               <Button
                 variant="ghost" size="sm"
+                className="transition-all duration-200 ease-out hover:shadow-sm"
                 onClick={() => { resetWidgetLayout(user?.id ?? "anon"); window.location.reload(); }}
               >
                 <RotateCcw className="h-4 w-4" /> Reset
               </Button>
             )}
             <Suspense fallback={null}><NewBookingDialog /></Suspense>
-            <Button asChild size="sm">
+            <Button asChild size="sm" className="transition-all duration-200 ease-out hover:shadow-sm">
               <Link to="/leads/new"><Plus className="h-4 w-4" /> New Lead</Link>
             </Button>
           </div>
@@ -245,7 +248,7 @@ function DashboardPage() {
         </Suspense>
 
         {/* Footer hint */}
-        <p className="text-center text-[11px] text-muted-foreground pt-2">
+        <p className="text-center text-[11px] text-muted-foreground/70 pt-2">
           Tip: tap "Widgets" to choose your stat cards, and "Edit layout" to drag stat cards and widgets into the order you want.
         </p>
       </div>

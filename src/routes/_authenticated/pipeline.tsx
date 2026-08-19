@@ -271,7 +271,7 @@ function PipelinePage() {
       <div className="relative flex-1 min-w-48">
         <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <Input
-          className="pl-9 pr-9"
+          className="pl-9 pr-9 focus:ring-2 ring-primary/20 transition-all duration-200 ease-out"
           placeholder="Search name, company, code…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -299,6 +299,7 @@ function PipelinePage() {
         variant={overdueOnly ? "default" : "outline"}
         onClick={() => setOverdueOnly((v) => !v)}
         size="default"
+        className="transition-all duration-200 ease-out"
       >
         Overdue only
       </Button>
@@ -306,7 +307,7 @@ function PipelinePage() {
   );
 
   return (
-    <div className="p-4 md:p-8 space-y-4 max-w-[1600px] mx-auto">
+    <div className="p-5 md:p-10 space-y-4 max-w-[1600px] mx-auto">
       <div>
         <h1 className="text-2xl md:text-3xl font-bold">Pipeline</h1>
         <p className="text-sm text-muted-foreground">
@@ -323,7 +324,7 @@ function PipelinePage() {
       {/* Mobile / tablet: single stage view, only that stage was queried */}
       <div className="lg:hidden space-y-3">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={goPrev} disabled={activeIdx === 0}>
+          <Button variant="outline" size="icon" onClick={goPrev} disabled={activeIdx === 0} className="transition-all duration-200 ease-out">
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <Select value={activeStage} onValueChange={setActiveStage}>
@@ -336,7 +337,7 @@ function PipelinePage() {
               ))}
             </SelectContent>
           </Select>
-          <Button variant="outline" size="icon" onClick={goNext} disabled={activeIdx === STAGES.length - 1}>
+          <Button variant="outline" size="icon" onClick={goNext} disabled={activeIdx === STAGES.length - 1} className="transition-all duration-200 ease-out">
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
@@ -432,7 +433,7 @@ const StageColumn = memo(function StageColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`w-72 shrink-0 rounded-xl border bg-card/50 p-2 transition-colors ${isOver ? "ring-2 ring-primary" : ""}`}
+      className={`w-72 shrink-0 rounded-xl border bg-card/50 p-2 shadow-sm transition-colors ${isOver ? "ring-2 ring-primary" : ""}`}
     >
       <div className="flex items-center justify-between px-2 py-2">
         <div className="flex items-center gap-2">
@@ -498,7 +499,7 @@ const DraggableLeadCard = memo(function DraggableLeadCard({ lead }: { lead: Lead
       {...listeners}
       {...attributes}
       style={{ transform: transform ? `translate3d(${transform.x}px,${transform.y}px,0)` : undefined }}
-      className={`rounded-lg bg-card border p-3 shadow-sm cursor-grab active:cursor-grabbing ${isDragging ? "opacity-50" : ""}`}
+      className={`rounded-xl bg-card border p-3 shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md hover:scale-[1.01] transition-all duration-200 ease-out ${isDragging ? "opacity-50" : ""}`}
     >
       <LeadCardBody lead={lead} />
     </div>
@@ -507,7 +508,7 @@ const DraggableLeadCard = memo(function DraggableLeadCard({ lead }: { lead: Lead
 
 const StaticLeadCard = memo(function StaticLeadCard({ lead }: { lead: Lead }) {
   return (
-    <div className="rounded-lg bg-card border p-3 shadow-sm">
+    <div className="rounded-xl bg-card border p-3 shadow-sm hover:shadow-md hover:scale-[1.01] transition-all duration-200 ease-out">
       <LeadCardBody lead={lead} />
     </div>
   );
@@ -541,24 +542,24 @@ const LeadCardBody = memo(function LeadCardBody({ lead }: { lead: Lead }) {
         {lead.company_name ?? lead.lead_code}
       </div>
       <div className="flex items-center justify-between mt-2 gap-2 flex-wrap">
-        {interest && <Badge variant="secondary" className={`text-[10px] ${interest.className}`}>{interest.emoji} {interest.label}</Badge>}
+        {interest && <Badge variant="secondary" className={`text-[10px] rounded-full ${interest.className}`}>{interest.emoji} {interest.label}</Badge>}
         {isFollowupStage && (
           <button
             type="button"
             onClick={handleStop}
             onPointerDown={(e) => e.stopPropagation()}
-            className="text-[10px] px-2 py-1 rounded-md bg-destructive/10 border border-destructive/50 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-colors font-semibold inline-flex items-center gap-1 shrink-0"
+            className="text-[11px] px-2 py-1 rounded-md bg-destructive/10 border border-destructive/50 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-colors font-semibold inline-flex items-center gap-1 shrink-0"
             title="Stop all follow-ups & reminders for this lead"
           >
             <X className="h-3 w-3" /> Stop
           </button>
         )}
         {daysInStage !== null && (
-          <span className={`text-[10px] ${daysInStage > 7 ? "text-amber-600" : "text-muted-foreground"}`}>
+          <span className={`text-[11px] ${daysInStage > 7 ? "text-amber-600" : "text-muted-foreground"}`}>
             {daysInStage}d in stage
           </span>
         )}
-        {overdue && <span className="text-[10px] text-destructive font-medium">Overdue</span>}
+        {overdue && <span className="text-[11px] text-destructive font-medium">Overdue</span>}
       </div>
     </>
   );

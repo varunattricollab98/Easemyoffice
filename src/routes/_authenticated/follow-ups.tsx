@@ -178,7 +178,7 @@ function FollowUpsPage() {
   const Section = ({ id, title, items, tone }: { id: "overdue" | "today" | "upcoming"; title: string; items: FU[]; tone: string }) => {
     if (search.filter && search.filter !== id) return null;
     return (
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Bell className={`h-4 w-4 ${tone}`} />{title}
@@ -195,31 +195,32 @@ function FollowUpsPage() {
             const isFollowupStage = f.leads?.stage === "followups";
 
             return (
-              <div key={f.id} className="flex flex-col gap-2 p-3 rounded-md border">
+              <div key={f.id} className="flex flex-col gap-2 p-4 rounded-xl border hover:shadow-md hover:scale-[1.01] transition-all duration-200 ease-out">
                 {/* Main row: task info + actions */}
                 <div className="flex items-center gap-3">
                   <div className="flex-1 min-w-0">
                     <Link to="/leads/$id" params={{ id: f.leads?.id ?? "" }} className="text-sm font-medium hover:underline">
                       {f.action}
                     </Link>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-[11px] text-muted-foreground/70">
                       {f.leads?.client_name} · {format(new Date(f.due_at), "PPp")}
                     </div>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => markDone(f.id, f.lead_id)} title="Mark done">
+                  <Button size="sm" variant="outline" className="transition-all duration-200 ease-out" onClick={() => markDone(f.id, f.lead_id)} title="Mark done">
                     <Check className="h-4 w-4" />
                   </Button>
                   {isFollowupStage && f.status === "pending" && (
                     <Button
                       size="sm"
                       variant="outline"
+                      className="transition-all duration-200 ease-out"
                       onClick={() => openConfigDialog(f.leads?.id ?? "", f.leads?.client_name ?? "client", f.leads?.email ?? null)}
                       title="Configure email reminders"
                     >
                       <Settings2 className="h-4 w-4" />
                     </Button>
                   )}
-                  <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => stopFollowUp(f.leads?.id ?? "", f.leads?.client_name ?? "client")} title="Stop all follow-ups for this lead">
+                  <Button size="sm" variant="outline" className="text-destructive hover:text-destructive transition-all duration-200 ease-out" onClick={() => stopFollowUp(f.leads?.id ?? "", f.leads?.client_name ?? "client")} title="Stop all follow-ups for this lead">
                     <XCircle className="h-4 w-4" />
                   </Button>
                 </div>
@@ -240,11 +241,11 @@ function FollowUpsPage() {
   };
 
   return (
-    <div className="p-4 md:p-8 space-y-4 max-w-5xl mx-auto">
+    <div className="p-5 md:p-10 space-y-4 max-w-5xl mx-auto">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl md:text-3xl font-bold">Follow-ups</h1>
         {search.filter && (
-          <Button variant="outline" size="sm" asChild>
+          <Button variant="outline" size="sm" className="transition-all duration-200 ease-out" asChild>
             <Link to="/follow-ups">Clear filter</Link>
           </Button>
         )}
