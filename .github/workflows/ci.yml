@@ -1,0 +1,51 @@
+name: CI
+
+# Typecheck + build on every PR and every push to main.
+#
+# Why this exists: this repo had no checks at all, so a wrangler.jsonc change
+# that made `vite build` fail outright sat on main undetected and every deploy
+# was broken. A build that must pass before merge catches that class of bug.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Typecheck and build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build
+        # Deliberately runs without Supabase credentials. The build must succeed
+        # on its own, which is precisely what regressed before. Credentials are
+        # only needed to produce a *working* bundle, not a compiling one — see
+        # the note on VITE_* build-time inlining in .env.example.
+        run: bun run build
+
+      - name: Check the worker entry was emitted
+        # `vite build` exiting 0 is not proof the deployable output exists.
+        run: |
+          for f in dist/server/index.js dist/server/wrangler.json; do
+            if [ ! -f "$f" ]; then
+              echo "::error::expected build output missing: $f"
+              exit 1
+            fi
+            echo "ok: $f"
+          done
