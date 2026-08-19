@@ -726,7 +726,7 @@ function CalendarPage() {
                   <Select value={taskForm.due_time} onValueChange={(v) => setTaskForm({ ...taskForm, due_time: v })}>
                     <SelectTrigger className="mt-1.5 rounded-xl"><SelectValue /></SelectTrigger>
                     <SelectContent className="max-h-60">
-                      {Array.from({ length: 24 }, (_, h) => [0, 15, 30, 45].map((m) => {
+                      {Array.from({ length: 24 }, (_, h) => Array.from({ length: 60 }, (__, m) => {
                         const val = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
                         const hr12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
                         const ampm = h < 12 ? "AM" : "PM";
@@ -794,7 +794,7 @@ function CalendarPage() {
                   <Select value={meetingForm.time} onValueChange={(v) => setMeetingForm({ ...meetingForm, time: v })}>
                     <SelectTrigger className="mt-1.5 rounded-xl"><SelectValue /></SelectTrigger>
                     <SelectContent className="max-h-60">
-                      {Array.from({ length: 24 }, (_, h) => [0, 15, 30, 45].map((m) => {
+                      {Array.from({ length: 24 }, (_, h) => Array.from({ length: 60 }, (__, m) => {
                         const val = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
                         const hr12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
                         const ampm = h < 12 ? "AM" : "PM";
