@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "chore",
   "description": "UI modernization pass - Batch 2: Leads list, Bookings, and Clients pages. Apply the premium design system (rounded-xl cards, hover effects, colorful badges, transitions, generous spacing). Only change CSS classes - no logic/structure changes.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "In src/routes/_authenticated/leads/index.tsx: (1) Change page container from 'p-4 md:p-8' to 'p-5 md:p-10'. (2) On Cards (filter card, bulk action card, duplicate panels), add 'shadow-sm'. (3) On search Input, add 'focus:ring-2 ring-primary/20 transition-all duration-200 ease-out'. (4) On all Buttons, add 'transition-all duration-200 ease-out'. (5) On table rows in the lead list (TableRow), add 'hover:bg-accent/30 transition-all duration-200 ease-out'. (6) On all Badge components, add 'rounded-full' where not already present. (7) Make pagination buttons have 'transition-all duration-200 ease-out hover:shadow-sm'. (8) On the duplicate group items (rounded-lg border), change to 'rounded-xl' with 'hover:shadow-sm transition-all duration-200 ease-out'. (9) Timestamps/metadata to text-[11px] text-muted-foreground/70 pattern where applicable.",
     "In src/routes/_authenticated/bookings.tsx: (1) Change page container from 'p-4 md:p-6' to 'p-5 md:p-10'. (2) On the overdue alert Card, add 'shadow-sm'. (3) On the Table Card, add 'shadow-sm'. (4) On search Input, add 'focus:ring-2 ring-primary/20 transition-all duration-200 ease-out'. (5) On Buttons (Bulk Upload, Open, Mark Paid), add 'transition-all duration-200 ease-out hover:shadow-sm'. (6) On Badge components, add 'rounded-full'. (7) On TableRows, add 'transition-all duration-200 ease-out hover:bg-accent/30'. (8) Make the header h1 use 'text-2xl md:text-3xl font-bold' (it currently uses text-2xl font-semibold).",
@@ -16,5 +16,5 @@
   ],
   "verification": ["cd /projects/sandbox/Easemyoffice && bun run build"],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Build passes cleanly. All CSS-only changes applied to leads/index.tsx, bookings.tsx, and clients.tsx. No logic changes made. Applied: shadow-sm on cards, focus:ring-2 on inputs, transition-all on buttons/rows, rounded-full on badges, hover effects on stat cards, p-5 md:p-10 page padding, rounded-xl on duplicate groups, text-[11px] for timestamps."
 }
