@@ -165,7 +165,7 @@ function NotificationsPage() {
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-3xl mx-auto space-y-4">
+    <div className="p-5 md:p-10 max-w-3xl mx-auto space-y-4">
       <div>
         <h1 className="text-2xl md:text-3xl font-bold">Notifications</h1>
         <p className="text-sm text-muted-foreground">In-app inbox of WhatsApp & email reminders. Mark done as you action them.</p>
@@ -173,13 +173,13 @@ function NotificationsPage() {
 
       <div className="flex gap-2 flex-wrap">
         {(["all", "assigned", "overdue", "due", "payments"] as const).map((f) => (
-          <Button key={f} size="sm" variant={filter === f ? "default" : "outline"} onClick={() => setFilter(f)}>
-            {f[0].toUpperCase() + f.slice(1)} <Badge variant="secondary" className="ml-2">{counts[f]}</Badge>
+          <Button key={f} size="sm" variant={filter === f ? "default" : "outline"} className="transition-all duration-200 ease-out" onClick={() => setFilter(f)}>
+            {f[0].toUpperCase() + f.slice(1)} <Badge variant="secondary" className="ml-2 rounded-full">{counts[f]}</Badge>
           </Button>
         ))}
       </div>
 
-      <Card>
+      <Card className="shadow-sm">
         <CardContent className="p-0 divide-y">
           {filtered.length === 0 ? (
             <div className="p-10 text-center text-muted-foreground">All caught up! 🎉</div>
@@ -191,24 +191,24 @@ function NotificationsPage() {
               : "text-blue-600 bg-blue-100 dark:bg-blue-950";
 
             const inner = (
-              <div className="flex gap-3 p-4 hover:bg-muted/30">
-                <div className={`size-9 rounded-full grid place-items-center shrink-0 ${tone}`}>
+              <div className="flex gap-3 p-4 rounded-xl hover:bg-accent/20 hover:shadow-sm transition-all duration-200 ease-out">
+                <div className={`size-9 rounded-full shadow-sm grid place-items-center shrink-0 ${tone}`}>
                   <Icon className="h-4 w-4" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm">{i.title}</div>
-                  <div className="text-xs text-muted-foreground">{i.sub}</div>
+                  <div className="text-[11px] text-muted-foreground/70">{i.sub}</div>
                   <div className="flex gap-1 mt-1">
                     {i.channels.includes("whatsapp") && (
-                      <Badge variant="outline" className="text-[10px] gap-1"><MessageSquare className="h-2.5 w-2.5" /> WhatsApp</Badge>
+                      <Badge variant="outline" className="text-[10px] gap-1 rounded-full"><MessageSquare className="h-2.5 w-2.5" /> WhatsApp</Badge>
                     )}
                     {i.channels.includes("email") && (
-                      <Badge variant="outline" className="text-[10px] gap-1"><Mail className="h-2.5 w-2.5" /> Email</Badge>
+                      <Badge variant="outline" className="text-[10px] gap-1 rounded-full"><Mail className="h-2.5 w-2.5" /> Email</Badge>
                     )}
                   </div>
                 </div>
                 <Button
-                  size="sm" variant="ghost" className="self-center"
+                  size="sm" variant="ghost" className="self-center transition-all duration-200 ease-out"
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); i.onDone(); }}
                 >
                   <Check className="h-4 w-4 mr-1" /> Done

@@ -57,7 +57,7 @@ function PaymentsPage() {
   }), [enriched]);
 
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-4">
+    <div className="p-5 md:p-10 max-w-6xl mx-auto space-y-4">
       <div>
         <h1 className="text-2xl md:text-3xl font-bold">Payments</h1>
         <p className="text-sm text-muted-foreground">Track received, pending and overdue balances across bookings.</p>
@@ -72,7 +72,7 @@ function PaymentsPage() {
       <div className="flex gap-2 flex-wrap">
         <div className="relative flex-1 min-w-48">
           <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input className="pl-9" placeholder="Search client, invoice, booking code…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Input className="pl-9 focus:ring-2 ring-primary/20 transition-all duration-200 ease-out" placeholder="Search client, invoice, booking code…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <Select value={filter} onValueChange={(v: any) => setFilter(v)}>
           <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
@@ -85,15 +85,15 @@ function PaymentsPage() {
         </Select>
       </div>
 
-      <Card>
+      <Card className="shadow-sm">
         <CardContent className="p-0 divide-y">
           {filtered.length === 0 ? (
             <div className="p-10 text-center text-muted-foreground">No payments found.</div>
           ) : filtered.map((b: any) => (
-            <div key={b.id} className="p-4 flex flex-wrap items-center gap-3">
+            <div key={b.id} className="p-4 flex flex-wrap items-center gap-3 rounded-xl hover:bg-accent/20 hover:shadow-sm transition-all duration-200 ease-out">
               <div className="flex-1 min-w-48">
                 <div className="font-medium text-sm">{b.client_name} {b.business_name && <span className="text-muted-foreground">· {b.business_name}</span>}</div>
-                <div className="text-xs text-muted-foreground mt-0.5">
+                <div className="text-[11px] text-muted-foreground/70 mt-0.5">
                   {b.booking_code} · {b.plan_name}
                   {b.invoice_number && <> · Invoice {b.invoice_number}</>}
                 </div>
@@ -122,7 +122,7 @@ function KpiCard({ icon: Icon, label, value, tone }: { icon: any; label: string;
     rose: "from-rose-500/10 to-rose-500/5 text-rose-600",
   };
   return (
-    <Card className={`bg-gradient-to-br ${tones[tone]}`}>
+    <Card className={`bg-gradient-to-br ${tones[tone]} shadow-sm hover:shadow-md transition-all duration-200 ease-out rounded-xl`}>
       <CardContent className="p-4 flex items-center gap-3">
         <Icon className="h-8 w-8" />
         <div>
@@ -135,7 +135,7 @@ function KpiCard({ icon: Icon, label, value, tone }: { icon: any; label: string;
 }
 
 function StatusBadge({ status }: { status: string }) {
-  if (status === "paid") return <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">Paid</Badge>;
-  if (status === "overdue") return <Badge className="bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300">Overdue</Badge>;
-  return <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">Pending</Badge>;
+  if (status === "paid") return <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 rounded-full">Paid</Badge>;
+  if (status === "overdue") return <Badge className="bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 rounded-full">Overdue</Badge>;
+  return <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 rounded-full">Pending</Badge>;
 }

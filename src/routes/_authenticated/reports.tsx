@@ -379,29 +379,29 @@ function ReportsPage() {
     });
 
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-6">
+    <div className="p-5 md:p-10 max-w-6xl mx-auto space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">Operational Reports</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-[11px] text-muted-foreground/70 mt-1">
             Filter, export, and email reports. Period: <span className="font-medium">{periodLabel}</span>
           </p>
         </div>
-        <Button asChild variant="outline">
+        <Button asChild variant="outline" className="transition-all duration-200 ease-out hover:shadow-sm">
           <Link to="/settings"><Mail className="h-4 w-4 mr-2" />Email schedules</Link>
         </Button>
       </div>
 
       {/* Global filters */}
-      <Card>
+      <Card className="shadow-sm">
         <CardContent className="p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
           <div>
             <Label className="text-xs">From</Label>
-            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+            <Input type="date" className="focus:ring-2 ring-primary/20 transition-all duration-200 ease-out" value={from} onChange={(e) => setFrom(e.target.value)} />
           </div>
           <div>
             <Label className="text-xs">To</Label>
-            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+            <Input type="date" className="focus:ring-2 ring-primary/20 transition-all duration-200 ease-out" value={to} onChange={(e) => setTo(e.target.value)} />
           </div>
           <div>
             <Label className="text-xs">Stage</Label>
@@ -487,17 +487,17 @@ function ReportsPage() {
       </ReportCard>
 
       {/* Sales Performance */}
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 space-y-0">
           <div>
             <CardTitle className="flex items-center gap-2 text-lg">
               <BarChart3 className="h-5 w-5 text-blue-500" /> Sales Performance
-              <Badge variant="secondary">{salesPerformance.length} salespeople</Badge>
+              <Badge variant="secondary" className="rounded-full">{salesPerformance.length} salespeople</Badge>
             </CardTitle>
-            <CardDescription>Per-salesperson activity breakdown with revenue and closing rate.</CardDescription>
+            <CardDescription className="text-[11px] text-muted-foreground/70">Per-salesperson activity breakdown with revenue and closing rate.</CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => {
+            <Button variant="outline" className="transition-all duration-200 ease-out hover:shadow-sm" onClick={() => {
               const rows = salesPerformance.map(({ user_id: _, ...rest }) => rest);
               downloadCSV(`sales-performance-full-team-${today()}.csv`, rows);
             }}>
@@ -522,6 +522,7 @@ function ReportsPage() {
             </div>
             <Button
               variant="outline"
+              className="transition-all duration-200 ease-out hover:shadow-sm"
               disabled={individualPerson === "all"}
               onClick={() => {
                 const person = salesPerformance.find((p) => p.user_id === individualPerson);
@@ -559,22 +560,22 @@ function ReportsPage() {
       </Card>
 
       {/* Productivity with extra filters */}
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 space-y-0">
           <div>
             <CardTitle className="flex items-center gap-2 text-lg">
               <Users className="h-5 w-5 text-emerald-500" /> Department Productivity
-              <Badge variant="secondary">{productivity.length} employees</Badge>
+              <Badge variant="secondary" className="rounded-full">{productivity.length} employees</Badge>
             </CardTitle>
-            <CardDescription>Filter by employee or role and export the filtered set.</CardDescription>
+            <CardDescription className="text-[11px] text-muted-foreground/70">Filter by employee or role and export the filtered set.</CardDescription>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() =>
+            <Button variant="outline" className="transition-all duration-200 ease-out hover:shadow-sm" onClick={() =>
               downloadCSV(`team-productivity-${today()}.csv`, stripIds(productivity))
             }>
               <Download className="h-4 w-4 mr-2" /> CSV
             </Button>
-            <Button variant="outline" onClick={() => downloadPDF(
+            <Button variant="outline" className="transition-all duration-200 ease-out hover:shadow-sm" onClick={() => downloadPDF(
               `team-productivity-${today()}.pdf`,
               "Department Productivity", `Period: ${periodLabel}`,
               ["Employee", "Role", "Leads", "Hot", "FU Done", "FU Overdue", "Won", "Win %"],
@@ -638,7 +639,7 @@ function KpiLink({ label, value, tone, to, search }: {
     tone === "primary" ? "text-primary" : "text-foreground";
   return (
     <Link to={to} search={search as never} className="block">
-      <Card className="hover:border-primary/50 transition-colors">
+      <Card className="hover:border-primary/50 transition-all duration-200 ease-out shadow-sm hover:shadow-md rounded-xl">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
@@ -658,20 +659,20 @@ function ReportCard(props: {
   children: React.ReactNode;
 }) {
   return (
-    <Card>
+    <Card className="shadow-sm">
       <CardHeader className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 space-y-0">
         <div>
           <CardTitle className="flex items-center gap-2 text-lg">
             {props.icon} {props.title}
-            <Badge variant={props.countTone === "danger" ? "destructive" : "secondary"}>
+            <Badge variant={props.countTone === "danger" ? "destructive" : "secondary"} className="rounded-full">
               {props.count} {props.countLabel}
             </Badge>
           </CardTitle>
-          <CardDescription>{props.description}</CardDescription>
+          <CardDescription className="text-[11px] text-muted-foreground/70">{props.description}</CardDescription>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={props.onCSV}><Download className="h-4 w-4 mr-2" /> CSV</Button>
-          <Button variant="outline" onClick={props.onPDF}><FileText className="h-4 w-4 mr-2" /> PDF</Button>
+          <Button variant="outline" className="transition-all duration-200 ease-out hover:shadow-sm" onClick={props.onCSV}><Download className="h-4 w-4 mr-2" /> CSV</Button>
+          <Button variant="outline" className="transition-all duration-200 ease-out hover:shadow-sm" onClick={props.onPDF}><FileText className="h-4 w-4 mr-2" /> PDF</Button>
         </div>
       </CardHeader>
       <CardContent>
