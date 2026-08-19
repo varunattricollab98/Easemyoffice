@@ -52,26 +52,75 @@ function doPost(e) {
 }
 
 // ---- READ: next booking id + plans ----
+// ?action=plans     -> plans only. Served from cache, so the booking form's plan
+//                      dropdown does not wait on the Booking ID column scan.
+// ?action=bookingid -> next Booking ID only (the expensive part, ~2s).
+// ?action=config    -> both. The default, and what older clients ask for.
+//
+// Each half has its own try/catch: a failure while scanning Booking IDs used to
+// return ok:false and throw away the plans as well, even though they were
+// already cached and fine.
 function doGet(e) {
-  try {
-    if (TOKEN && e.parameter.token !== TOKEN) return json({ ok: false, error: "unauthorized" });
-    // Booking ID is always computed fresh (so two people never get the same one);
-    // the plans list changes rarely, so it's cached for 5 minutes for speed.
-    return json({ ok: true, nextBookingId: getNextBookingId(), plans: getCachedPlans() });
-  } catch (err) {
-    return json({ ok: false, error: String(err) });
+  var params = (e && e.parameter) ? e.parameter : {};
+  if (TOKEN && params.token !== TOKEN) return json({ ok: false, error: "unauthorized" });
+
+  var action = String(params.action || "config").toLowerCase();
+  if (action !== "plans" && action !== "bookingid") action = "config";
+
+  var out = { ok: true, action: action };
+
+  if (action === "plans" || action === "config") {
+    try {
+      out.plans = getCachedPlans();
+    } catch (err) {
+      out.plans = [];
+      out.plansError = String(err);
+    }
   }
+
+  if (action === "bookingid" || action === "config") {
+    try {
+      out.nextBookingId = getNextBookingId();
+    } catch (err) {
+      out.nextBookingId = null;
+      out.bookingIdError = String(err);
+    }
+  }
+
+  return json(out);
 }
+
+// The plans list changes rarely, so it is cached for 30 minutes to match the
+// client's staleTime. Reading the Plans tab costs ~0.5s otherwise.
+// Bump the cache key whenever the shape of a plan row changes.
+var PLANS_CACHE_KEY = "plans_v2";
+var PLANS_CACHE_SECONDS = 1800;
 
 function getCachedPlans() {
   var cache = CacheService.getScriptCache();
-  var hit = cache.get("plans_v1");
+  var hit = cache.get(PLANS_CACHE_KEY);
   if (hit) return JSON.parse(hit);
   var plans = getPlans();
-  try { cache.put("plans_v1", JSON.stringify(plans), 300); } catch (err) {}
+  try { cache.put(PLANS_CACHE_KEY, JSON.stringify(plans), PLANS_CACHE_SECONDS); } catch (err) {}
   return plans;
 }
 
+// Clears the plans cache. Run this from the editor after editing the Plans tab
+// if you don't want to wait up to 30 minutes for the change to show up.
+function clearPlansCache() {
+  CacheService.getScriptCache().remove(PLANS_CACHE_KEY);
+}
+
+// Returns the first ID from the BookingIDs tab that does not already appear in
+// the bookings tab. This is the slow part of doGet (~2s) because it reads the
+// whole Booking ID column, which is why it is deliberately kept out of
+// ?action=plans.
+//
+// KNOWN LIMITATION: this only reads, it does not reserve. Two people who open
+// the booking form before either of them saves will both be handed the same ID,
+// because it stays "unused" in the sheet until a row is actually appended.
+// Fixing that needs a real reservation (LockService + a stored pointer), not
+// just a fresh read.
 function getNextBookingId() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var idSheet = ss.getSheetByName(BOOKING_IDS_SHEET);

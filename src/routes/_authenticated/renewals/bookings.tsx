@@ -15,7 +15,7 @@ import { Search, Plus, CheckCircle2, Clock, UserCircle2 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { getSheetConfig } from "@/lib/bookings-sheet";
+import { getSheetPlans } from "@/lib/bookings-sheet";
 
 export const Route = createFileRoute("/_authenticated/renewals/bookings")({
   head: () => ({ meta: [{ title: "Renewal Bookings — EaseMyOffice CRM" }] }),
@@ -158,15 +158,17 @@ function NewRenewalBookingDialog({ open, onClose, userId, team }: { open: boolea
   // Calculations
   const vo = num(f.vo_amount);
 
-  // Plans master list from the Google Sheet (same as sales booking form)
-  const { data: sheetConfig } = useQuery({
-    queryKey: ["booking-sheet-config"],
-    staleTime: 5 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
+  // Plans master list from the Google Sheet (same as sales booking form).
+  // Shares the sales form's cache entry and, like it, no longer pays for the
+  // Booking ID column scan it never used.
+  const { data: plansData } = useQuery({
+    queryKey: ["booking-sheet-plans"],
+    staleTime: 30 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
     refetchOnWindowFocus: false,
-    queryFn: getSheetConfig,
+    queryFn: getSheetPlans,
   });
-  const plans = sheetConfig?.plans ?? [];
+  const plans = plansData?.plans ?? [];
 
   // Selecting a plan code autofills its details from the sheet
   const applyPlan = (code: string) => {
