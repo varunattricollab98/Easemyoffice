@@ -13,7 +13,7 @@ There are 3 parts. Do them in order.
 1. Open (or create) the Google Sheet you want bookings to land in.
 2. Top menu: **Extensions -> Apps Script**. A code editor opens in a new tab.
 3. Delete whatever code is there, and paste the code from **`apps-script-code.gs`**
-   in this same folder (or copy it from the block at the bottom of this file).
+   in this same folder.
 4. On the line `const TOKEN = "CHANGE-ME...";`, replace it with any secret phrase
    you invent, e.g. `emo-9x72-secret`. **Remember it** — you'll paste the same
    value into Supabase in Part 3.
@@ -46,49 +46,47 @@ normally (the sheet step is best-effort and never blocks a save).
 
 ---
 
-## The Apps Script code (also in apps-script-code.gs)
 
-> **Note:** bookings are appended to the **`Bookings2627`** tab. This is the
-> active financial-year tab — the older `Bookings` tab is left untouched as an
-> archive. `apps-script-code.gs` still reads the old tab when picking the next
-> Booking ID, so IDs are never reused. When the financial year rolls over,
-> change `SHEET_NAME` here and `SHEET_TAB` in `src/lib/bookings.functions.ts`,
-> and add the retired tab to `LEGACY_BOOKING_SHEETS`.
+## Which tab bookings land in
 
-```javascript
-const SHEET_NAME = "Bookings2627";
-const TOKEN = "CHANGE-ME-to-a-secret"; // must match BOOKINGS_SHEET_TOKEN in Supabase
+New bookings go to the **`Bookings2627`** tab (`SHEET_NAME` in
+`apps-script-code.gs`). The older `Bookings` tab is kept as a read-only archive.
 
-const HEADERS = [
-  "Date","Sales Agent","Booking ID","Booking Source","Plan Name","VO Plan",
-  "SP Name","Area","City","State","SP Status",
-  "VO Amount","VO GST 18%","Add on Services","Add on Amount","Add on GST 18%",
-  "Total Amount (₹)","TDS %","TDS Amount (₹)","Amount After TDS",
-  "Payment Mode / Reference No.","Payment ID/UTR","Invoice Number",
-  "SP Payable (₹)","Add on Payable (₹)","Profit (₹)",
-  "SP Payment Status","VO Status",
-  "Business Name","Client Name","Email Id","Contact No.","Remarks","Sales Month",
-  "Amount Received (₹)","Balance Amount (₹)","Balance Due Date"
-];
+`LEGACY_BOOKING_SHEETS` lists the retired tabs. `getNextBookingId()` scans the
+active tab *and* every legacy tab for already-used Booking IDs, so pointing
+writes at a fresh empty tab never causes an old ID to be handed out twice.
 
-function doPost(e) {
-  try {
-    var body = JSON.parse(e.postData.contents);
-    if (TOKEN && body.token !== TOKEN) {
-      return json({ ok: false, error: "unauthorized" });
-    }
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sh = ss.getSheetByName(SHEET_NAME) || ss.insertSheet(SHEET_NAME);
-    if (sh.getLastRow() === 0) sh.appendRow(HEADERS);
-    sh.appendRow(body.values);
-    return json({ ok: true });
-  } catch (err) {
-    return json({ ok: false, error: String(err) });
-  }
-}
+When the financial year rolls over: set `SHEET_NAME` to the new tab and add the
+retired tab to `LEGACY_BOOKING_SHEETS`.
 
-function json(obj) {
-  return ContentService.createTextOutput(JSON.stringify(obj))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-```
+## Columns are matched by header name, not position
+
+The CRM sends its values in `CANONICAL_HEADERS` order, but the script does
+**not** append them positionally. It reads row 1 of the target tab and places
+each value under the column whose header matches. So a tab may freely have:
+
+- **extra columns the CRM knows nothing about** — e.g. the manual
+  `Sales Remarks` column at the start of `Bookings2627`. These are left blank
+  instead of shifting every other value one column to the left.
+- **reordered columns.**
+- **cosmetically different headers** — `Cont. No.`, `Sp status`, `CIty `,
+  `TDS in (percentage)`, emoji, stray spaces. Matching lowercases the header and
+  strips everything that isn't a letter or digit; anything beyond that is listed
+  in `HEADER_ALIASES`.
+
+If a canonical column is **absent** from the tab, that value simply isn't
+written, and the header is reported back in the `unmapped` array of the JSON
+response. `Bookings2627` currently has no `Amount Received (₹)`,
+`Balance Amount (₹)` or `Balance Due Date` column, so partial-payment details
+are dropped — add those three headers to the tab if you need them.
+
+Because of this, **do not** rename a Sheet column to fix a sync problem. Add the
+spelling to `HEADER_ALIASES` instead.
+
+## The Apps Script code
+
+`apps-script-code.gs` in this folder is the single source of truth — copy it from
+there. (It used to be duplicated inline here, which drifted out of date.)
+
+Remember: after editing the script you must **Deploy -> Manage deployments ->
+edit -> Version: New version**. Saving alone does not change live behaviour.
