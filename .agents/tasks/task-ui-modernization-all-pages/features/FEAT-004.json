@@ -2,7 +2,7 @@
   "id": "FEAT-004",
   "type": "chore",
   "description": "UI modernization pass - Batch 4: Notifications, Payments, and Reports pages. Apply the premium design system. Only change CSS classes - no logic/structure changes.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "In src/routes/_authenticated/notifications.tsx: (1) Change page container from 'p-4 md:p-8' to 'p-5 md:p-10'. (2) On filter Buttons, add 'transition-all duration-200 ease-out'. (3) On Card, add 'shadow-sm'. (4) On each notification item (p-4 flex gap-3 hover:bg-muted/30), change to 'p-4 flex gap-3 rounded-xl hover:bg-accent/20 hover:shadow-sm transition-all duration-200 ease-out'. (5) On icon circles (size-9 rounded-full), add 'shadow-sm'. (6) On Badge components, add 'rounded-full'. (7) On 'Done' Buttons, add 'transition-all duration-200 ease-out'. (8) Make subtitle/timestamp text use 'text-[11px] text-muted-foreground/70' where applicable.",
     "In src/routes/_authenticated/payments.tsx: (1) Change page container from 'p-4 md:p-8' to 'p-5 md:p-10'. (2) On KPI cards (Card with gradient), add 'shadow-sm hover:shadow-md transition-all duration-200 ease-out rounded-xl'. (3) On the main payments Card, add 'shadow-sm'. (4) On each payment item (p-4 flex flex-wrap), add 'rounded-xl hover:bg-accent/20 hover:shadow-sm transition-all duration-200 ease-out'. (5) On search Input, add 'focus:ring-2 ring-primary/20 transition-all duration-200 ease-out'. (6) On StatusBadge components, add 'rounded-full'. (7) Make metadata text (booking codes, plan names) use 'text-[11px] text-muted-foreground/70'.",
@@ -16,5 +16,5 @@
   ],
   "verification": ["cd /projects/sandbox/Easemyoffice && bun run build"],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All three pages (notifications, payments, reports) updated with premium design system. Build passes cleanly. CSS-only changes - no logic modified."
 }
