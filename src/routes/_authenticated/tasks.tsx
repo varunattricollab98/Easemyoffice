@@ -13,11 +13,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   Plus, Trash2, Flag, Clock, CheckCircle2, Circle, Loader2,
-  ListTodo, Timer, Sparkles, UserCircle2,
+  ListTodo, Timer, Sparkles, UserCircle2, AlertTriangle,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
-import { format, isPast, isToday, formatDistanceToNow } from "date-fns";
+import { format, isPast, isToday, formatDistanceToNow, differenceInDays } from "date-fns";
 import { subscribeRealtime } from "@/lib/realtime-manager";
 
 export const Route = createFileRoute("/_authenticated/tasks")({
@@ -31,12 +31,36 @@ type Task = {
   lead_id: string | null; created_at: string;
 };
 
-const PRIORITY_META: Record<string, { label: string; color: string; bg: string; icon: string }> = {
-  urgent: { label: "Urgent", color: "text-rose-600", bg: "bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800", icon: "bg-rose-500" },
-  high: { label: "High", color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800", icon: "bg-amber-500" },
-  medium: { label: "Medium", color: "text-blue-600", bg: "bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800", icon: "bg-blue-500" },
-  low: { label: "Low", color: "text-slate-500", bg: "bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700", icon: "bg-slate-400" },
+const PRIORITY_META: Record<string, { label: string; color: string; bg: string; icon: string; border: string; glow: string }> = {
+  urgent: { label: "Urgent", color: "text-rose-600", bg: "bg-rose-100 dark:bg-rose-950/60 border-rose-300 dark:border-rose-700", icon: "bg-rose-500", border: "border-l-4 border-l-rose-500", glow: "shadow-rose-200 dark:shadow-rose-900/40 shadow-md" },
+  high: { label: "High", color: "text-amber-600", bg: "bg-amber-100 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700", icon: "bg-amber-500", border: "border-l-4 border-l-amber-500", glow: "shadow-amber-100 dark:shadow-amber-900/30" },
+  medium: { label: "Medium", color: "text-blue-600", bg: "bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800", icon: "bg-blue-500", border: "border-l-4 border-l-blue-400", glow: "" },
+  low: { label: "Low", color: "text-slate-500", bg: "bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700", icon: "bg-slate-400", border: "border-l-2 border-l-slate-300", glow: "" },
 };
+
+/** Calculate pending/overdue days info */
+function getPendingInfo(task: Task): { label: string; color: string; days: number; isOverdue: boolean } {
+  const now = new Date();
+  if (task.status === "done") return { label: "", color: "", days: 0, isOverdue: false };
+
+  // If has due date and is overdue
+  if (task.due_at && isPast(new Date(task.due_at)) && !isToday(new Date(task.due_at))) {
+    const days = differenceInDays(now, new Date(task.due_at));
+    return { label: `${days}d overdue`, color: "text-rose-600 bg-rose-100 dark:bg-rose-950/50 border-rose-200", days, isOverdue: true };
+  }
+
+  // Days since creation (pending)
+  const days = differenceInDays(now, new Date(task.created_at));
+  if (days >= 7) return { label: `${days}d pending`, color: "text-rose-600 bg-rose-50 dark:bg-rose-950/30 border-rose-200", days, isOverdue: false };
+  if (days >= 3) return { label: `${days}d pending`, color: "text-amber-600 bg-amber-50 dark:bg-amber-950/30 border-amber-200", days, isOverdue: false };
+  if (days >= 1) return { label: `${days}d pending`, color: "text-slate-500 bg-slate-50 dark:bg-slate-900/30 border-slate-200", days, isOverdue: false };
+  return { label: "Today", color: "text-slate-400 bg-slate-50 dark:bg-slate-900/30 border-slate-200", days: 0, isOverdue: false };
+}
+
+/** Get initials from a name */
+function getInitials(name: string): string {
+  return name.split(" ").map((w) => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
+}
 
 const STATUS_META: Record<string, { label: string; icon: typeof Circle; color: string }> = {
   todo: { label: "To do", icon: Circle, color: "text-muted-foreground" },
@@ -201,14 +225,45 @@ function TasksPage() {
           {filtered.map((t) => {
             const pm = PRIORITY_META[t.priority] ?? PRIORITY_META.medium;
             const overdue = t.due_at && isPast(new Date(t.due_at)) && !isToday(new Date(t.due_at)) && t.status !== "done";
+            const overdueDays = overdue ? differenceInDays(new Date(), new Date(t.due_at!)) : 0;
             const ownerName = t.owner_id ? nameById.get(t.owner_id) : null;
+            const pending = getPendingInfo(t);
+            const isUrgent = t.priority === "urgent" && t.status !== "done";
+            const isHigh = t.priority === "high" && t.status !== "done";
+
+            // Card classes based on priority and overdue state
+            const cardClasses = [
+              "flex items-start gap-3 rounded-xl border p-4 transition-all duration-200 ease-out",
+              "hover:shadow-md hover:scale-[1.01]",
+              t.status === "done" ? "opacity-60 bg-muted/20" : "",
+              t.status !== "done" ? pm.border : "",
+              t.status !== "done" ? pm.glow : "",
+              overdue ? "bg-rose-50/50 dark:bg-rose-950/20 border-l-rose-500" : "",
+              isUrgent && !overdue ? "bg-rose-50/30 dark:bg-rose-950/10" : "",
+              isHigh && !overdue ? "bg-amber-50/30 dark:bg-amber-950/10" : "",
+              !overdue && !isUrgent && !isHigh && t.status !== "done" ? "hover:border-primary/20" : "",
+            ].filter(Boolean).join(" ");
+
             return (
-              <div
-                key={t.id}
-                className={`flex items-start gap-3 rounded-xl border p-4 hover:shadow-md hover:scale-[1.01] transition-all duration-200 ease-out ${
-                  t.status === "done" ? "opacity-60 bg-muted/20" : overdue ? "border-destructive/40 bg-destructive/5" : "hover:border-primary/20"
-                }`}
-              >
+              <div key={t.id} className={cardClasses}>
+                {/* Pulsing indicator for urgent/overdue */}
+                {(overdue || isUrgent) && (
+                  <div className="relative flex-shrink-0 mt-1.5">
+                    <span className="flex h-3 w-3">
+                      <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${overdue ? "bg-rose-400" : "bg-rose-400"}`}></span>
+                      <span className={`relative inline-flex rounded-full h-3 w-3 ${overdue ? "bg-rose-500" : "bg-rose-500"}`}></span>
+                    </span>
+                  </div>
+                )}
+                {isHigh && !overdue && (
+                  <div className="relative flex-shrink-0 mt-1.5">
+                    <span className="flex h-3 w-3">
+                      <span className="animate-pulse absolute inline-flex h-full w-full rounded-full opacity-50 bg-amber-400"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                    </span>
+                  </div>
+                )}
+
                 <Checkbox
                   checked={t.status === "done"}
                   onCheckedChange={(v) => toggle.mutate({ id: t.id, status: v ? "done" : "todo" })}
@@ -217,22 +272,41 @@ function TasksPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={`font-medium ${t.status === "done" ? "line-through text-muted-foreground" : ""}`}>{t.title}</span>
-                    <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border ${pm.bg} ${pm.color}`}>
-                      <span className={`h-1.5 w-1.5 rounded-full ${pm.icon}`} /> {pm.label}
+                    {/* Priority badge - larger, filled */}
+                    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border ${pm.bg} ${pm.color}`}>
+                      <span className={`h-2 w-2 rounded-full ${pm.icon} ${isUrgent ? "animate-pulse" : ""}`} />
+                      {pm.label}
                     </span>
+                    {/* Overdue alarm badge */}
+                    {overdue && (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-700 animate-pulse">
+                        <AlertTriangle className="h-3 w-3" />
+                        Overdue {overdueDays}d
+                      </span>
+                    )}
+                    {/* Pending days badge */}
+                    {pending.label && !overdue && (
+                      <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border ${pending.color}`}>
+                        <Clock className="h-3 w-3" />
+                        {pending.label}
+                      </span>
+                    )}
                   </div>
                   {t.description && <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{t.description}</p>}
                   <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-muted-foreground">
                     {t.due_at && (
-                      <span className={`inline-flex items-center gap-1 ${overdue ? "text-destructive font-medium" : ""}`}>
-                        <Clock className="h-3 w-3" />
-                        {overdue ? "Overdue — " : ""}
+                      <span className={`inline-flex items-center gap-1 ${overdue ? "text-rose-600 dark:text-rose-400 font-semibold" : ""}`}>
+                        <Clock className="h-3.5 w-3.5" />
+                        {overdue ? "Was due " : "Due "}
                         {format(new Date(t.due_at), "MMM d")} at {format(new Date(t.due_at), "h:mm a")}
                       </span>
                     )}
                     {ownerName && (
-                      <span className="inline-flex items-center gap-1">
-                        <UserCircle2 className="h-3 w-3" /> {ownerName}
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-primary/10 text-[10px] font-bold text-primary">
+                          {getInitials(ownerName)}
+                        </span>
+                        <span className="text-muted-foreground">{ownerName}</span>
                       </span>
                     )}
                     <Select value={t.status} onValueChange={(v) => toggle.mutate({ id: t.id, status: v })}>
