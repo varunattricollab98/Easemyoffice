@@ -175,7 +175,7 @@ function CalendarPage() {
   });
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-4">
+    <div className="p-5 md:p-10 max-w-7xl mx-auto space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
@@ -185,16 +185,16 @@ function CalendarPage() {
           <p className="text-sm text-muted-foreground">Your tasks, follow-ups, and payment dues at a glance.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button size="icon" variant="outline" onClick={() => setCursor(subMonths(cursor, 1))}><ChevronLeft className="h-4 w-4" /></Button>
+          <Button size="icon" variant="outline" onClick={() => setCursor(subMonths(cursor, 1))} className="transition-all duration-200 ease-out"><ChevronLeft className="h-4 w-4" /></Button>
           <div className="font-semibold min-w-36 text-center text-lg">{format(cursor, "MMMM yyyy")}</div>
-          <Button size="icon" variant="outline" onClick={() => setCursor(addMonths(cursor, 1))}><ChevronRight className="h-4 w-4" /></Button>
-          <Button size="sm" variant="outline" onClick={() => { setCursor(new Date()); setSelected(new Date()); }}>Today</Button>
+          <Button size="icon" variant="outline" onClick={() => setCursor(addMonths(cursor, 1))} className="transition-all duration-200 ease-out"><ChevronRight className="h-4 w-4" /></Button>
+          <Button size="sm" variant="outline" onClick={() => { setCursor(new Date()); setSelected(new Date()); }} className="transition-all duration-200 ease-out">Today</Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-4">
         {/* Calendar Grid */}
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden shadow-sm">
           <CardContent className="p-0">
             {/* Day headers */}
             <div className="grid grid-cols-7 bg-muted/40 border-b">
@@ -218,7 +218,7 @@ function CalendarPage() {
                   <button
                     key={k}
                     onClick={() => setSelected(d)}
-                    className={`min-h-[88px] p-1.5 border-b border-r text-left transition-all relative group ${
+                    className={`min-h-[88px] p-1.5 border-b border-r text-left transition-all duration-200 ease-out relative group ${
                       !inMonth ? "bg-muted/10 text-muted-foreground/50" : "hover:bg-accent/40"
                     } ${sel ? "bg-primary/5 ring-2 ring-primary ring-inset" : ""}`}
                   >
@@ -249,7 +249,7 @@ function CalendarPage() {
                       <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={(e) => { e.stopPropagation(); setSelected(d); setAddOpen(true); }}
-                          className="h-5 w-5 rounded-full bg-primary text-primary-foreground grid place-items-center text-xs hover:scale-110 transition-transform"
+                          className="h-5 w-5 rounded-full bg-primary text-primary-foreground grid place-items-center text-xs hover:scale-110 transition-all duration-200 ease-out"
                           title="Add task"
                         >
                           <Plus className="h-3 w-3" />
@@ -265,14 +265,14 @@ function CalendarPage() {
 
         {/* Right panel: selected day details */}
         <div className="space-y-3">
-          <Card>
+          <Card className="shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="font-semibold">
                   {selected ? format(selected, "EEE, MMM d") : "Select a day"}
                 </div>
                 {selected && (
-                  <Button size="sm" onClick={() => setAddOpen(true)}>
+                  <Button size="sm" onClick={() => setAddOpen(true)} className="transition-all duration-200 ease-out">
                     <Plus className="h-4 w-4 mr-1" /> Add Task
                   </Button>
                 )}
@@ -285,7 +285,7 @@ function CalendarPage() {
                     <div className="space-y-1.5">
                       <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Tasks</div>
                       {selectedEvents.tasks.map((t) => (
-                        <div key={t.id} className={`flex items-start gap-2 p-2 rounded-lg border ${t.status === "done" ? "opacity-50" : ""}`}>
+                        <div key={t.id} className={`flex items-start gap-2 p-2 rounded-xl border hover:shadow-sm transition-all duration-200 ease-out ${t.status === "done" ? "opacity-50" : ""}`}>
                           <Checkbox
                             checked={t.status === "done"}
                             onCheckedChange={(checked) => toggleTask.mutate({ id: t.id, done: !!checked })}
@@ -309,7 +309,7 @@ function CalendarPage() {
                     <div className="space-y-1.5">
                       <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Follow-ups</div>
                       {selectedEvents.followups.map((f: any) => (
-                        <Link key={f.id} to="/leads/$id" params={{ id: f.lead_id }} className="flex items-center gap-2 p-2 rounded-lg border hover:bg-muted/40 transition-colors">
+                        <Link key={f.id} to="/leads/$id" params={{ id: f.lead_id }} className="flex items-center gap-2 p-2 rounded-xl border hover:bg-muted/40 hover:shadow-sm transition-all duration-200 ease-out">
                           <Bell className="h-3.5 w-3.5 text-blue-600 shrink-0" />
                           <span className="text-sm flex-1 truncate">{f.action}</span>
                           <span className="text-[10px] text-muted-foreground shrink-0">{format(new Date(f.due_at), "h:mm a")}</span>
@@ -323,10 +323,10 @@ function CalendarPage() {
                     <div className="space-y-1.5">
                       <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Payments Due</div>
                       {selectedEvents.payments.map((b: any) => (
-                        <div key={b.id} className="flex items-center gap-2 p-2 rounded-lg border">
+                        <div key={b.id} className="flex items-center gap-2 p-2 rounded-xl border hover:shadow-sm transition-all duration-200 ease-out">
                           <IndianRupee className="h-3.5 w-3.5 text-amber-600 shrink-0" />
                           <span className="text-sm flex-1 truncate">{b.client_name}</span>
-                          <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 text-[10px]">
+                          <Badge className="rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 text-[10px]">
                             {Number(b.balance_amount || 0).toLocaleString("en-IN")}
                           </Badge>
                         </div>
@@ -350,7 +350,7 @@ function CalendarPage() {
           </Card>
 
           {/* Legend */}
-          <Card>
+          <Card className="shadow-sm">
             <CardContent className="p-3">
               <div className="flex flex-wrap gap-3 text-[11px]">
                 <span className="flex items-center gap-1"><Flag className="h-3 w-3 text-violet-600" /> Tasks</span>

@@ -71,7 +71,7 @@ function ActivityPage() {
   }, [activities, search, type, leadMap]);
 
   return (
-    <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-4">
+    <div className="p-5 md:p-10 max-w-4xl mx-auto space-y-4">
       <div>
         <h1 className="text-2xl md:text-3xl font-bold">Activity</h1>
         <p className="text-sm text-muted-foreground">Live feed of calls, emails, WhatsApp, notes & stage changes.</p>
@@ -80,7 +80,7 @@ function ActivityPage() {
       <div className="flex gap-2 flex-wrap">
         <div className="relative flex-1 min-w-48">
           <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input className="pl-9" placeholder="Search activity…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Input className="pl-9 focus:ring-2 ring-primary/20 transition-all duration-200 ease-out" placeholder="Search activity…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <Select value={type} onValueChange={setType}>
           <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
@@ -95,7 +95,7 @@ function ActivityPage() {
         </Select>
       </div>
 
-      <Card>
+      <Card className="shadow-sm">
         <CardContent className="p-0 divide-y">
           {filtered.length === 0 ? (
             <div className="p-10 text-center text-muted-foreground">No activity yet.</div>
@@ -103,19 +103,19 @@ function ActivityPage() {
             const Icon = TYPE_ICONS[a.type] ?? StickyNote;
             const lead: any = leadMap.get(a.lead_id);
             return (
-              <div key={a.id} className="p-4 flex gap-3 hover:bg-muted/30">
-                <div className={`size-9 rounded-full grid place-items-center shrink-0 ${TYPE_COLORS[a.type] ?? ""}`}>
+              <div key={a.id} className="p-4 flex gap-3 rounded-xl hover:bg-accent/20 hover:shadow-sm transition-all duration-200 ease-out">
+                <div className={`size-9 rounded-full grid place-items-center shrink-0 shadow-sm ${TYPE_COLORS[a.type] ?? ""}`}>
                   <Icon className="h-4 w-4" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <div className="font-medium text-sm">{a.title}</div>
-                    <span className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(a.created_at), { addSuffix: true })}</span>
+                    <span className="text-[11px] text-muted-foreground/70">{formatDistanceToNow(new Date(a.created_at), { addSuffix: true })}</span>
                   </div>
                   {a.body && <p className="text-sm text-muted-foreground mt-0.5">{a.body}</p>}
                   {lead && (
                     <Link to="/leads/$id" params={{ id: a.lead_id }} className="inline-block mt-1">
-                      <Badge variant="outline" className="text-xs">
+                      <Badge variant="outline" className="text-xs rounded-full transition-all duration-200 ease-out hover:shadow-sm">
                         {lead.client_name} · {lead.lead_code}
                       </Badge>
                     </Link>

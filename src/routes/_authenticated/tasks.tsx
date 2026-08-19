@@ -143,7 +143,7 @@ function TasksPage() {
   }, [qc, user?.id, nameById]);
 
   return (
-    <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-5">
+    <div className="p-5 md:p-10 max-w-5xl mx-auto space-y-5">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -152,7 +152,7 @@ function TasksPage() {
           </h1>
           <p className="text-sm text-muted-foreground">Your personal & team task board. Stay on top of deadlines.</p>
         </div>
-        <Button onClick={() => setOpen(true)} className="shadow-sm">
+        <Button onClick={() => setOpen(true)} className="shadow-sm transition-all duration-200 ease-out">
           <Plus className="h-4 w-4 mr-2" /> New Task
         </Button>
       </div>
@@ -167,7 +167,7 @@ function TasksPage() {
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`rounded-xl border p-3 text-left transition-all ${
+              className={`rounded-xl border p-3 text-left shadow-sm hover:shadow-md transition-all duration-200 ease-out ${
                 active ? "ring-2 ring-primary bg-primary/5 border-primary/30" : "hover:border-primary/30 hover:bg-accent/40"
               }`}
             >
@@ -185,9 +185,9 @@ function TasksPage() {
 
       {/* Task list */}
       {isLoading ? (
-        <Card><CardContent className="p-10 text-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />Loading tasks...</CardContent></Card>
+        <Card className="shadow-sm"><CardContent className="p-10 text-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />Loading tasks...</CardContent></Card>
       ) : filtered.length === 0 ? (
-        <Card>
+        <Card className="shadow-sm">
           <CardContent className="p-10 text-center">
             <Circle className="h-10 w-10 text-muted-foreground/20 mx-auto mb-3" />
             <p className="text-muted-foreground">No tasks here yet.</p>
@@ -205,8 +205,8 @@ function TasksPage() {
             return (
               <div
                 key={t.id}
-                className={`flex items-start gap-3 rounded-xl border p-4 transition-all ${
-                  t.status === "done" ? "opacity-60 bg-muted/20" : overdue ? "border-destructive/40 bg-destructive/5" : "hover:shadow-sm hover:border-primary/20"
+                className={`flex items-start gap-3 rounded-xl border p-4 hover:shadow-md hover:scale-[1.01] transition-all duration-200 ease-out ${
+                  t.status === "done" ? "opacity-60 bg-muted/20" : overdue ? "border-destructive/40 bg-destructive/5" : "hover:border-primary/20"
                 }`}
               >
                 <Checkbox
@@ -236,7 +236,7 @@ function TasksPage() {
                       </span>
                     )}
                     <Select value={t.status} onValueChange={(v) => toggle.mutate({ id: t.id, status: v })}>
-                      <SelectTrigger className="h-6 w-28 text-[11px] border-dashed"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-6 w-28 text-[11px] border-dashed transition-all duration-200 ease-out"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="todo">To do</SelectItem>
                         <SelectItem value="in_progress">In progress</SelectItem>
@@ -245,7 +245,7 @@ function TasksPage() {
                     </Select>
                     {isAdmin && (
                       <Select value={t.owner_id ?? ""} onValueChange={(v) => reassign.mutate({ id: t.id, owner_id: v })}>
-                        <SelectTrigger className="h-6 w-32 text-[11px] border-dashed">
+                        <SelectTrigger className="h-6 w-32 text-[11px] border-dashed transition-all duration-200 ease-out">
                           <SelectValue placeholder="Assign..." />
                         </SelectTrigger>
                         <SelectContent>
@@ -261,7 +261,7 @@ function TasksPage() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive transition-all duration-200 ease-out"
                     onClick={() => {
                       if (window.confirm("Delete this task?")) del.mutate(t.id);
                     }}
