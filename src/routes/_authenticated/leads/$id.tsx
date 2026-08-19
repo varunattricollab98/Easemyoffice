@@ -30,7 +30,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Phone, Mail, MessageCircle, Calendar, Plus, Check, Trash2, Send, Loader2, XCircle } from "lucide-react";
+import { ArrowLeft, Phone, Mail, MessageCircle, Calendar, Plus, Check, Trash2, Send, Loader2, XCircle, Maximize2, Minimize2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { INTERESTS, INTENT_FLAGS, SERVICES, SOURCES, STAGES, calcScore, deriveInterest, labelFor } from "@/lib/crm";
 import { useAuth } from "@/lib/auth";
 import { handleStageChange, stopAllFollowUps, triggerStageReminder } from "@/lib/stage-reminders";
@@ -601,6 +602,8 @@ function buildTemplate(id: string, lead: any, senderName: string) {
   }
 }
 
+const COMPOSE_EXPANDED_KEY = "lead:email-compose:expanded";
+
 function textToHtml(text: string) {
   const esc = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1e293b;line-height:1.6;white-space:normal">${esc.replace(/\n/g, "<br>")}</div>`;
@@ -617,6 +620,27 @@ function EmailComposeDialog({
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
+  // Remembered across sessions: anyone who prefers composing full-screen almost
+  // certainly wants it that way every time.
+  const [expanded, setExpanded] = useState(false);
+  useEffect(() => {
+    try {
+      setExpanded(localStorage.getItem(COMPOSE_EXPANDED_KEY) === "1");
+    } catch {
+      /* private mode / storage disabled — just use the default */
+    }
+  }, []);
+  const toggleExpanded = () => {
+    setExpanded((v) => {
+      const next = !v;
+      try {
+        localStorage.setItem(COMPOSE_EXPANDED_KEY, next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
 
   // Load the selected template's content into the subject/body fields.
   const applyTemplate = (id: string) => {
@@ -665,36 +689,79 @@ function EmailComposeDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
+      {/* DialogContent is a `grid` by default, which can't give the textarea a
+          growable track. Switching to a fixed-height flex column lets the header
+          and footer stay put while the message field takes whatever is left —
+          that's what makes the expanded mode actually usable. */}
+      <DialogContent
+        className={cn(
+          "flex flex-col gap-0 p-0",
+          expanded
+            ? "h-[94vh] w-[96vw] max-w-6xl"
+            : "max-h-[88vh] w-[calc(100vw-2rem)] sm:max-w-2xl",
+        )}
+      >
+        <DialogHeader className="shrink-0 space-y-1.5 border-b px-6 py-4 pr-24">
           <DialogTitle>Send email to client</DialogTitle>
           <DialogDescription>To: {lead.email}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Template</Label>
-            <Select value={templateId} onValueChange={applyTemplate}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {EMAIL_TEMPLATES.map((t) => <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
+
+        {/* Sits left of DialogContent's own close button, which is at right-4. */}
+        <button
+          type="button"
+          onClick={toggleExpanded}
+          className="absolute right-12 top-4 rounded-sm p-0.5 text-muted-foreground opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-pressed={expanded}
+          aria-label={expanded ? "Exit full screen" : "Expand to full screen"}
+          title={expanded ? "Exit full screen" : "Expand to full screen"}
+        >
+          {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+        </button>
+
+        {/* min-h-0 is what allows this flex child to shrink instead of forcing the
+            dialog taller than its own max height. */}
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-6 py-4">
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,220px)_minmax(0,1fr)]">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Template</Label>
+              <Select value={templateId} onValueChange={applyTemplate}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {EMAIL_TEMPLATES.map((t) => <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Subject</Label>
+              <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Email subject" />
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Subject</Label>
-            <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Email subject" />
-          </div>
-          <div className="space-y-1.5">
+          <div className="flex min-h-0 flex-1 flex-col space-y-1.5">
             <Label className="text-xs">Message</Label>
-            <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={12} placeholder="Write your message…" />
-            <div className="text-xs text-muted-foreground">Replies from the client will go to {user?.email || "your email"}.</div>
+            <Textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder="Write your message…"
+              className={cn(
+                "resize-none leading-relaxed",
+                // Grow to fill when expanded; otherwise a fixed comfortable
+                // height that still shows the sign-off without scrolling.
+                expanded ? "min-h-0 flex-1" : "h-[42vh] min-h-[260px]",
+              )}
+            />
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={sending}>Cancel</Button>
-          <Button onClick={send} disabled={sending}>
-            {sending ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Sending…</> : <><Send className="h-4 w-4 mr-1" /> Send email</>}
-          </Button>
+
+        <DialogFooter className="shrink-0 items-center gap-2 border-t px-6 py-4 sm:justify-between">
+          <span className="text-xs text-muted-foreground sm:mr-auto">
+            Replies from the client will go to {user?.email || "your email"}.
+          </span>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={sending}>Cancel</Button>
+            <Button onClick={send} disabled={sending}>
+              {sending ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Sending…</> : <><Send className="h-4 w-4 mr-1" /> Send email</>}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
