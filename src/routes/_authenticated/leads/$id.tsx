@@ -1091,14 +1091,34 @@ function ScheduleReminderDialog({
               <span className="text-sm">Repeat this reminder</span>
             </label>
             {repeat && (
-              <div className="grid sm:grid-cols-2 gap-3 pl-6">
+              <div className="space-y-3 pl-6">
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Every (days)</Label>
-                  <Input type="number" min="1" value={intervalDays} onChange={(e) => setIntervalDays(e.target.value)} />
+                  <Label className="text-xs">Frequency</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {([
+                      { label: "Every day", value: "1" },
+                      { label: "Alternate day", value: "2" },
+                      { label: "Weekly", value: "7" },
+                    ] as const).map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setIntervalDays(opt.value)}
+                        className={cn(
+                          "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                          intervalDays === opt.value
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-card hover:bg-accent hover:text-accent-foreground",
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 max-w-[200px]">
                   <Label className="text-xs">Stop after (days)</Label>
-                  <Input type="number" min="1" value={stopDays} onChange={(e) => setStopDays(e.target.value)} />
+                  <Input type="number" min="1" placeholder="e.g. 30" value={stopDays} onChange={(e) => setStopDays(e.target.value)} />
                 </div>
               </div>
             )}
