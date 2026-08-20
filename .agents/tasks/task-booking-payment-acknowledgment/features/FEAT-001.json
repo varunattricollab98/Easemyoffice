@@ -1,0 +1,32 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "After a booking is successfully saved, show a confirmation popup (AlertDialog) with two options: 'Send Payment Acknowledgment' (sends a professional email to the client with booking details) and 'Save without Sending' (closes normally). Uses the existing send-client-email Supabase edge function.",
+  "status": "completed",
+  "steps": [
+    "In src/components/dashboard/new-booking-dialog.tsx, add a new state variable (e.g., `showAckDialog`) and a `savedBookingData` ref/state to hold the form values after successful save.",
+    "Modify the `onSuccess` callback of the `submit` mutation: instead of immediately closing the dialog and resetting the form, set `showAckDialog = true` and store the booking details (client_name, email_id, plan_name, booking_id, invoice_number, amount_received, total_amount, payment_mode_ref, business_name, date) in state.",
+    "Create a new component (PaymentAcknowledgmentDialog or inline AlertDialog) that renders when `showAckDialog` is true. It should show: Title: 'Booking Saved Successfully', Description: 'Would you like to send a payment acknowledgment email to the client?', Two buttons: 'Send Payment Acknowledgment' (primary action) and 'Save without Sending' (cancel/outline).",
+    "Implement the 'Send Payment Acknowledgment' button handler: call `supabase.functions.invoke('send-client-email', { body: { to: savedBookingData.email_id, subject: 'Payment Acknowledgment - [booking_id]', html: professionalEmailTemplate, text: plainTextVersion } })`. Show toast on success/failure. Then close the ack dialog, close the main booking dialog, and reset the form.",
+    "Implement the 'Save without Sending' button handler: close the ack dialog, close the main booking dialog, and reset the form (same as current onSuccess behavior).",
+    "Create a professional HTML email template for the payment acknowledgment. Include: company branding (EaseMyOffice), client name, booking ID, plan name, invoice number, amount received, payment mode, date, and a thank-you message. Style it inline for email compatibility.",
+    "If the client email (email_id) is empty, skip showing the popup entirely and just close normally (current behavior) since there is no email to send to.",
+    "Disable the 'Send Payment Acknowledgment' button while the email is being sent (add a sending state), show a loading indicator."
+  ],
+  "acceptance_criteria": [
+    "After clicking Save Booking and the booking saves successfully, if email_id is filled, a popup appears with 'Send Payment Acknowledgment' and 'Save without Sending' options",
+    "Clicking 'Send Payment Acknowledgment' invokes the send-client-email edge function with a properly formatted HTML email containing booking details",
+    "Clicking 'Save without Sending' closes the dialog without sending email (same as old behavior)",
+    "If email_id is empty, the dialog closes immediately without showing the popup (old behavior preserved)",
+    "The email template includes: client name, booking ID, plan name, invoice number, amount received, payment mode, and date",
+    "Success/error toasts are shown for both the email send result and the booking save",
+    "TypeScript compiles without errors (bunx tsc --noEmit passes)",
+    "Full build succeeds (bun run build passes)"
+  ],
+  "verification": [
+    "Run `bunx tsc --noEmit` and confirm zero errors",
+    "Run `bun run build` and confirm successful build with no errors"
+  ],
+  "blocked_reason": null,
+  "findings": "Implementation completed successfully. TypeScript compilation and full Vite build both pass with zero errors. Used standard Button components instead of AlertDialogAction/AlertDialogCancel to have more control over async behavior (disable while sending). The AlertDialog is controlled via open prop tied to showAckDialog state."
+}

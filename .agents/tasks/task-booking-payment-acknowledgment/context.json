@@ -1,0 +1,24 @@
+{
+  "project_type": "React 19 SPA with TanStack Router/Start, Supabase backend, deployed to Cloudflare Workers",
+  "language": "TypeScript (React)",
+  "build_system": "Vite + Bun, deployed via wrangler to Cloudflare",
+  "test_framework": "No unit test framework configured; Playwright for e2e",
+  "build_command": "bun run build",
+  "test_command": "bunx tsc --noEmit",
+  "verification_instructions": "1. Run `bunx tsc --noEmit` to validate types. 2. Run `bun run build` to validate full build.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "Dependencies are pre-installed in node_modules. Just run build/typecheck commands.",
+  "environment_constraints": "No external network for installing packages. All dependencies already in node_modules. Supabase edge functions are deployed separately (Deno).",
+  "contribution_requirements": "Code uses shadcn/ui components, Tailwind CSS 4, TanStack Query for data fetching, supabase-js client for backend calls.",
+  "key_patterns": "Email sending: `supabase.functions.invoke('send-client-email', { body: { to, subject, html, text } })`. UI dialogs use @radix-ui AlertDialog and Dialog components from src/components/ui/. Toast notifications via sonner. Mutations via @tanstack/react-query useMutation.",
+  "relevant_files": [
+    "src/components/dashboard/new-booking-dialog.tsx",
+    "src/components/ui/alert-dialog.tsx",
+    "src/components/ui/dialog.tsx",
+    "src/components/ui/button.tsx",
+    "supabase/functions/send-client-email/index.ts",
+    "src/routes/_authenticated/leads/$id.tsx",
+    "src/routes/_authenticated/reminders.tsx"
+  ],
+  "directory_structure": "src/components/dashboard/ - dashboard components including booking dialog. src/components/ui/ - shadcn/ui components. src/routes/_authenticated/ - app pages. supabase/functions/ - Deno edge functions. src/integrations/supabase/ - supabase client setup. src/lib/ - shared utilities including auth."
+}
