@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,10 +12,11 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter, AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel } from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RichTextEditor, htmlToText } from "@/components/ui/rich-text-editor";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { toast } from "sonner";
-import { AlarmClock, Plus, Send, X, Mail, Repeat, Pause, Play, Paperclip, FileText, Trash2, Pencil, BookmarkPlus } from "lucide-react";
+import { AlarmClock, Plus, Send, X, Mail, Repeat, Pause, Play, Paperclip, FileText, Trash2, Pencil, BookmarkPlus, Maximize2, Minimize2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/reminders")({
   head: () => ({ meta: [{ title: "Reminders — EaseMyOffice CRM" }] }),
@@ -60,6 +62,82 @@ const fmt = (d: string) => { try { return new Date(d).toLocaleString("en-IN", { 
 const BUCKET = "reminder-attachments";
 // From-address used for reminders scheduled/sent by the renewals team.
 const RENEWAL_FROM_EMAIL = "EaseMyOffice Renewals <renewals@easemyoffice.in>";
+
+// ── Built-in reminder templates ──
+const REMINDER_TEMPLATES = [
+  { id: "quotation", label: "Quotation" },
+  { id: "welcome", label: "Welcome / Intro" },
+  { id: "followup", label: "Follow-up" },
+  { id: "documents", label: "Documents required" },
+  { id: "payment", label: "Payment reminder" },
+  { id: "thankyou", label: "Thank you" },
+  { id: "custom", label: "Blank (write my own)" },
+] as const;
+
+function buildReminderTemplate(id: string, clientName: string) {
+  const name = clientName.trim() || "there";
+  const sign = `<br><br>Warm regards,<br>Team EaseMyOffice<br><span style="color:#6b7280;font-size:13px">EaseMyOffice</span>`;
+  const wrap = (html: string) =>
+    `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1e293b;line-height:1.6">${html}</div>`;
+
+  switch (id) {
+    case "quotation":
+      return {
+        subject: "Quotation for your service - EaseMyOffice",
+        body_html: wrap(
+          `Dear ${name},<br><br>Thank you for your interest in our services. As discussed, here is our quotation:<br><br>` +
+          `<ul style="margin:8px 0;padding-left:20px"><li><b>Service:</b> [enter service]</li><li><b>Price:</b> [enter amount]</li><li><b>Inclusions:</b> [enter details]</li><li><b>Validity:</b> 15 days</li></ul><br>` +
+          `Please let me know if you have any questions - we would be glad to help you get started.${sign}`
+        ),
+      };
+    case "welcome":
+      return {
+        subject: `Welcome to EaseMyOffice, ${name}!`,
+        body_html: wrap(
+          `Dear ${name},<br><br>Thank you for choosing EaseMyOffice. We are excited to work with you.<br><br>` +
+          `I will be your point of contact throughout the process. Feel free to reach out any time with questions.${sign}`
+        ),
+      };
+    case "followup":
+      return {
+        subject: "Following up - EaseMyOffice",
+        body_html: wrap(
+          `Dear ${name},<br><br>I hope you are doing well. I wanted to follow up regarding your recent enquiry. ` +
+          `Please let me know if you would like to move ahead or if there is anything I can clarify.<br><br>Happy to help however I can.${sign}`
+        ),
+      };
+    case "documents":
+      return {
+        subject: "Documents required - EaseMyOffice",
+        body_html: wrap(
+          `Dear ${name},<br><br>To proceed with your request, please share the following documents:<br><br>` +
+          `<ul style="margin:8px 0;padding-left:20px"><li>[Document 1]</li><li>[Document 2]</li><li>[Document 3]</li></ul><br>` +
+          `You can simply reply to this email with the files attached. Once received, we will begin processing right away.${sign}`
+        ),
+      };
+    case "payment":
+      return {
+        subject: "Payment reminder - EaseMyOffice",
+        body_html: wrap(
+          `Dear ${name},<br><br>This is a friendly reminder regarding the pending payment. Please find the details below:<br><br>` +
+          `<ul style="margin:8px 0;padding-left:20px"><li><b>Amount:</b> [enter amount]</li><li><b>Payment link / account:</b> [enter details]</li></ul><br>` +
+          `Once the payment is completed, kindly share the confirmation so we can proceed.${sign}`
+        ),
+      };
+    case "thankyou":
+      return {
+        subject: `Thank you, ${name}`,
+        body_html: wrap(
+          `Dear ${name},<br><br>Thank you for your time. It was a pleasure speaking with you. ` +
+          `Please do not hesitate to reach out if you need anything further.${sign}`
+        ),
+      };
+    default:
+      return { subject: "", body_html: wrap(`Dear ${name},<br><br>${sign}`) };
+  }
+}
+
+const COMPOSE_EXPANDED_KEY = "reminders:compose:expanded";
 
 function countdown(sendAt: string, _tick: number) {
   const diff = new Date(sendAt).getTime() - Date.now();
@@ -127,6 +205,22 @@ function RemindersPage() {
   const [snipMgr, setSnipMgr] = useState(false);
   const [snipForm, setSnipForm] = useState<{ id?: string; name: string; subject: string; body_html: string }>({ name: "", subject: "", body_html: "" });
   const [snipEditorKey, setSnipEditorKey] = useState(0);
+
+  // Compose dialog expandable state
+  const [composeExpanded, setComposeExpanded] = useState(false);
+  useEffect(() => {
+    try {
+      setComposeExpanded(localStorage.getItem(COMPOSE_EXPANDED_KEY) === "1");
+    } catch { /* private mode / storage disabled */ }
+  }, []);
+  const toggleComposeExpanded = () => {
+    setComposeExpanded((v) => {
+      const next = !v;
+      try { localStorage.setItem(COMPOSE_EXPANDED_KEY, next ? "1" : "0"); } catch { /* ignore */ }
+      return next;
+    });
+  };
+  const [templateId, setTemplateId] = useState<string>("");
 
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 30_000);
@@ -200,6 +294,13 @@ function RemindersPage() {
     }));
     setEditorKey((k) => k + 1);
     toast.success(`Inserted "${s.name}"`);
+  }
+
+  function applyReminderTemplate(id: string) {
+    setTemplateId(id);
+    const t = buildReminderTemplate(id, form.client_name);
+    setForm((f) => ({ ...f, subject: t.subject, message: t.body_html }));
+    setEditorKey((k) => k + 1);
   }
 
   async function onPickFiles(files: FileList | null) {
@@ -520,11 +621,24 @@ function RemindersPage() {
 
       {/* Schedule dialog */}
       <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
-        <DialogContent className="max-w-2xl p-0 flex flex-col max-h-[90vh] gap-0">
-          <DialogHeader className="p-5 pb-3 shrink-0 border-b">
+        <DialogContent className={cn("flex flex-col gap-0 p-0", composeExpanded ? "h-[94vh] w-[96vw] max-w-6xl" : "max-h-[90vh] max-w-2xl")}>
+          <DialogHeader className="p-5 pb-3 shrink-0 border-b pr-24">
             <DialogTitle>Schedule a client reminder</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 overflow-y-auto px-5 py-4 flex-1">
+
+          {/* Expand / collapse toggle */}
+          <button
+            type="button"
+            onClick={toggleComposeExpanded}
+            className="absolute right-12 top-4 rounded-sm p-0.5 text-muted-foreground opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-pressed={composeExpanded}
+            aria-label={composeExpanded ? "Exit full screen" : "Expand to full screen"}
+            title={composeExpanded ? "Exit full screen" : "Expand to full screen"}
+          >
+            {composeExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </button>
+
+          <div className={cn("space-y-3 overflow-y-auto px-5 py-4 flex-1 min-h-0", composeExpanded && "flex flex-col")}>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">Client Email(s) *</Label>
@@ -536,13 +650,28 @@ function RemindersPage() {
                 <Input placeholder="Optional" value={form.client_name} onChange={(e) => set("client_name", e.target.value)} />
               </div>
             </div>
-            <div>
-              <Label className="text-xs">Subject *</Label>
-              <Input placeholder="e.g. Your virtual office renewal is due" value={form.subject} onChange={(e) => set("subject", e.target.value)} />
+
+            {/* Template + Subject row */}
+            <div className="grid grid-cols-[minmax(0,200px)_minmax(0,1fr)] gap-3">
+              <div>
+                <Label className="text-xs">Template</Label>
+                <Select value={templateId} onValueChange={applyReminderTemplate}>
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="Choose template..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REMINDER_TEMPLATES.map((t) => <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Subject *</Label>
+                <Input placeholder="e.g. Your virtual office renewal is due" value={form.subject} onChange={(e) => set("subject", e.target.value)} />
+              </div>
             </div>
 
             {/* Message + snippet insert */}
-            <div>
+            <div className={cn("flex flex-col", composeExpanded && "flex-1 min-h-0")}>
               <div className="flex items-center justify-between mb-1">
                 <Label className="text-xs">Message *</Label>
                 <div className="flex items-center gap-2">
@@ -551,13 +680,15 @@ function RemindersPage() {
                     value=""
                     onChange={(e) => { const s = snippets.find((x) => x.id === e.target.value); if (s) insertSnippet(s); e.currentTarget.value = ""; }}
                   >
-                    <option value="">Insert snippet…</option>
+                    <option value="">Insert snippet...</option>
                     {snippets.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                   <button type="button" className="text-xs text-primary hover:underline" onClick={() => setSnipMgr(true)}>Manage</button>
                 </div>
               </div>
-              <RichTextEditor key={editorKey} html={form.message} onChange={(v) => set("message", v)} minHeight={200} maxHeight={280} placeholder="Write the email… paste a formatted quotation and it keeps its colours & layout." />
+              <div className={cn(composeExpanded && "flex-1 min-h-0")}>
+                <RichTextEditor key={editorKey} html={form.message} onChange={(v) => set("message", v)} minHeight={composeExpanded ? 320 : 200} maxHeight={composeExpanded ? undefined : 280} placeholder="Write the email... paste a formatted quotation and it keeps its colours & layout." />
+              </div>
               <p className="text-[11px] text-muted-foreground mt-1">Tip: paste a formatted quotation directly — formatting is preserved. Spell-check works via your browser (e.g. Grammarly).</p>
             </div>
 
