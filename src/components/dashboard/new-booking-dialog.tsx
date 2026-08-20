@@ -305,7 +305,14 @@ export function NewBookingDialog() {
       const text = `Dear ${client_name},\n\nThank you for your payment. Here are your booking details:\n\nBooking ID: ${booking_id}\nPlan: ${plan_name}\nInvoice: ${invoice_number}\nAmount Received: ${formattedAmount}\nPayment Mode: ${payment_mode_ref}\nDate: ${formattedDate}\n\nThank you for choosing EaseMyOffice!\n\nRegards,\nTeam EaseMyOffice`;
 
       const { data, error } = await supabase.functions.invoke("send-client-email", {
-        body: { to: email_id, subject, html, text },
+        body: {
+          to: email_id,
+          subject,
+          html,
+          text,
+          from: "EaseMyOffice <contact@easemyoffice.in>",
+          bcc: "contact@easemyoffice.in",
+        },
       });
       if (error) throw new Error(error.message);
       if (!data?.ok) throw new Error(data?.error || "Failed to send email");
