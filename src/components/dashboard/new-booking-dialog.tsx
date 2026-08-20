@@ -100,7 +100,7 @@ function buildPaymentAckEmailHtml(details: {
 <!-- Green receipt bar -->
 <tr>
 <td style="background-color:#16a34a;padding:10px 32px;text-align:center;">
-<p style="margin:0;color:#ffffff;font-size:12px;font-weight:600;">&#129534; Receipt ID: ${payment_id_utr || "N/A"} &middot; ${date} &middot; Status: PAID &#10003;</p>
+<p style="margin:0;color:#ffffff;font-size:12px;font-weight:600;">&#129534; Payment ID / UTR: ${payment_id_utr || "N/A"} &middot; ${date} &middot; Status: PAID &#10003;</p>
 </td>
 </tr>
 
@@ -154,7 +154,7 @@ Thank you for your trust and your prompt payment. We're truly delighted to welco
 <td style="padding:10px 16px;font-size:12px;color:#ffffff;font-weight:700;">Value</td>
 </tr>
 <tr style="background-color:#f9fafb;">
-<td style="padding:12px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;">Transaction ID</td>
+<td style="padding:12px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;">Payment ID / UTR</td>
 <td style="padding:12px 16px;font-size:14px;color:#111827;font-weight:600;border-bottom:1px solid #e5e7eb;">${payment_id_utr || "N/A"}</td>
 </tr>
 <tr>
@@ -533,7 +533,7 @@ export function NewBookingDialog() {
         `Thank you for your trust and your prompt payment. We're truly delighted to welcome you on board. Your premium virtual office is officially in motion.`,
         ``,
         `--- PAYMENT SUMMARY ---`,
-        `Transaction ID: ${payment_id_utr || "N/A"}`,
+        `Payment ID / UTR: ${payment_id_utr || "N/A"}`,
         `Booking ID: ${booking_id}`,
         `Payment Date: ${formattedDate}`,
         `Payment Mode: ${payment_mode_ref || "N/A"}`,
