@@ -57,78 +57,292 @@ function buildPaymentAckEmailHtml(details: {
   amount: string;
   payment_mode: string;
   date: string;
+  payment_id_utr: string;
+  state: string;
+  sales_person_name: string;
 }) {
-  const { client_name, booking_id, plan_name, invoice_number, amount, payment_mode, date } = details;
+  const { client_name, booking_id, plan_name, amount, payment_mode, date, payment_id_utr, state, sales_person_name } = details;
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Payment Acknowledgment</title></head>
 <body style="margin:0;padding:0;background-color:#f4f4f7;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f7;padding:40px 20px;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
-        <!-- Header -->
-        <tr>
-          <td style="background-color:#1e40af;padding:24px 32px;text-align:center;">
-            <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:0.5px;">EaseMyOffice</h1>
-            <p style="margin:4px 0 0;color:#bfdbfe;font-size:13px;">Payment Acknowledgment</p>
-          </td>
-        </tr>
-        <!-- Body -->
-        <tr>
-          <td style="padding:32px;">
-            <p style="margin:0 0 16px;font-size:15px;color:#374151;">Dear <strong>${client_name}</strong>,</p>
-            <p style="margin:0 0 20px;font-size:15px;color:#374151;line-height:1.6;">
-              Thank you for your payment. We are pleased to confirm that we have received your payment successfully. Below are your booking details:
-            </p>
-            <!-- Details Table -->
-            <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;margin-bottom:24px;">
-              <tr style="background-color:#f9fafb;">
-                <td style="padding:12px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;width:40%;">Booking ID</td>
-                <td style="padding:12px 16px;font-size:14px;color:#111827;font-weight:600;border-bottom:1px solid #e5e7eb;">${booking_id}</td>
-              </tr>
-              <tr>
-                <td style="padding:12px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;">Plan Name</td>
-                <td style="padding:12px 16px;font-size:14px;color:#111827;border-bottom:1px solid #e5e7eb;">${plan_name}</td>
-              </tr>
-              <tr style="background-color:#f9fafb;">
-                <td style="padding:12px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;">Invoice Number</td>
-                <td style="padding:12px 16px;font-size:14px;color:#111827;border-bottom:1px solid #e5e7eb;">${invoice_number || "N/A"}</td>
-              </tr>
-              <tr>
-                <td style="padding:12px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;">Amount Received</td>
-                <td style="padding:12px 16px;font-size:14px;color:#059669;font-weight:700;border-bottom:1px solid #e5e7eb;">${amount}</td>
-              </tr>
-              <tr style="background-color:#f9fafb;">
-                <td style="padding:12px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;">Payment Mode</td>
-                <td style="padding:12px 16px;font-size:14px;color:#111827;border-bottom:1px solid #e5e7eb;">${payment_mode || "N/A"}</td>
-              </tr>
-              <tr>
-                <td style="padding:12px 16px;font-size:13px;color:#6b7280;">Date</td>
-                <td style="padding:12px 16px;font-size:14px;color:#111827;">${date}</td>
-              </tr>
-            </table>
-            <p style="margin:0 0 8px;font-size:15px;color:#374151;line-height:1.6;">
-              If you have any questions regarding this payment or your booking, please do not hesitate to reach out to us.
-            </p>
-            <p style="margin:24px 0 0;font-size:15px;color:#374151;">
-              Thank you for choosing <strong>EaseMyOffice</strong>!
-            </p>
-            <p style="margin:8px 0 0;font-size:14px;color:#6b7280;">
-              Warm regards,<br><strong>Team EaseMyOffice</strong>
-            </p>
-          </td>
-        </tr>
-        <!-- Footer -->
-        <tr>
-          <td style="background-color:#f9fafb;padding:20px 32px;border-top:1px solid #e5e7eb;text-align:center;">
-            <p style="margin:0;font-size:12px;color:#9ca3af;">
-              This is an automated email from EaseMyOffice. Please do not reply directly to this email.
-            </p>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-  </table>
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f7;padding:40px 20px;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.10);">
+
+<!-- SECTION 1: Header + Welcome + Thank You -->
+<!-- Top security line -->
+<tr>
+<td style="padding:12px 0;text-align:center;background-color:#ffffff;">
+<p style="margin:0;font-size:11px;color:#9ca3af;letter-spacing:1px;text-transform:uppercase;">&#128274; PAYMENT ACKNOWLEDGEMENT &middot; OFFICIALLY CONFIRMED</p>
+</td>
+</tr>
+<!-- Dark blue hero -->
+<tr>
+<td style="background-color:#1a237e;padding:36px 32px 28px;text-align:center;">
+<div style="margin:0 0 12px;display:inline-block;background-color:#16a34a;color:#ffffff;font-size:12px;font-weight:700;padding:6px 16px;border-radius:20px;letter-spacing:0.5px;">&#9745;&#65039; PAYMENT RECEIVED &amp; CONFIRMED</div>
+<h1 style="margin:16px 0 8px;color:#ffffff;font-size:28px;font-weight:400;letter-spacing:0.5px;">Ease<span style="font-weight:700;font-style:italic;">My</span>Office</h1>
+<p style="margin:0 0 4px;color:#ffffff;font-size:16px;font-weight:600;">Welcome to the EaseMyOffice Family &#127881;</p>
+<p style="margin:0;color:#bfdbfe;font-size:13px;">You're now part of 5,000+ growing brands across India</p>
+</td>
+</tr>
+<!-- Gold bar -->
+<tr>
+<td style="background-color:#d97706;padding:8px 32px;text-align:center;">
+<p style="margin:0;color:#ffffff;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;">A DIVISION OF NARULA TECHNOLOGIES LLP</p>
+</td>
+</tr>
+<!-- Green receipt bar -->
+<tr>
+<td style="background-color:#16a34a;padding:10px 32px;text-align:center;">
+<p style="margin:0;color:#ffffff;font-size:12px;font-weight:600;">&#129534; Receipt ID: ${payment_id_utr || "N/A"} &middot; ${date} &middot; Status: PAID &#10003;</p>
+</td>
+</tr>
+<!-- Thank You Section -->
+<tr>
+<td style="padding:32px 32px 24px;">
+<p style="margin:0 0 16px;font-size:12px;color:#1e40af;font-weight:700;letter-spacing:1px;text-transform:uppercase;font-variant:small-caps;">A HEARTFELT THANK YOU</p>
+<p style="margin:0 0 16px;font-size:20px;color:#111827;font-weight:700;">Hello ${client_name} &#128075;</p>
+<p style="margin:0 0 20px;font-size:15px;color:#374151;line-height:1.7;">
+Thank you for your trust and your prompt payment. We're truly delighted to welcome you on board. Your premium virtual office is officially in motion &mdash; and our team is already working behind the scenes to get you activated quickly and compliantly.
+</p>
+<!-- Green CTA bar -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+<tr><td style="background-color:#dcfce7;border-radius:8px;padding:14px 20px;text-align:center;">
+<p style="margin:0;font-size:14px;color:#166534;font-weight:600;">&#127881; You're now part of the family of 5,000+ growing brands</p>
+</td></tr>
+</table>
+<!-- Stats row -->
+<table width="100%" cellpadding="0" cellspacing="0">
+<tr>
+<td width="25%" style="text-align:center;padding:8px 4px;">
+<p style="margin:0;font-size:16px;font-weight:700;color:#1e40af;">5,000+</p>
+<p style="margin:2px 0 0;font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Clients Served</p>
+</td>
+<td width="25%" style="text-align:center;padding:8px 4px;">
+<p style="margin:0;font-size:16px;font-weight:700;color:#1e40af;">4.9 &#11088;</p>
+<p style="margin:2px 0 0;font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Average Rating</p>
+</td>
+<td width="25%" style="text-align:center;padding:8px 4px;">
+<p style="margin:0;font-size:16px;font-weight:700;color:#16a34a;">97%</p>
+<p style="margin:2px 0 0;font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">GST Approval</p>
+</td>
+<td width="25%" style="text-align:center;padding:8px 4px;">
+<p style="margin:0;font-size:16px;font-weight:700;color:#1e40af;">48 hrs</p>
+<p style="margin:2px 0 0;font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Activation</p>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- SECTION 2: Payment Summary -->
+<tr>
+<td style="padding:0 32px 32px;">
+<div style="margin:0 0 16px;display:inline-block;background-color:#1a237e;color:#ffffff;font-size:11px;font-weight:700;padding:5px 14px;border-radius:16px;letter-spacing:0.5px;">&#128179; PAYMENT SUMMARY</div>
+<p style="margin:0 0 4px;font-size:18px;color:#111827;font-weight:700;">Your Transaction Details</p>
+<p style="margin:0 0 16px;font-size:13px;color:#6b7280;">Kindly retain this email as your official payment record.</p>
+<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+<tr style="background-color:#1a237e;">
+<td style="padding:10px 16px;font-size:12px;color:#ffffff;font-weight:700;width:45%;">Detail</td>
+<td style="padding:10px 16px;font-size:12px;color:#ffffff;font-weight:700;">Value</td>
+</tr>
+<tr style="background-color:#f9fafb;">
+<td style="padding:12px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;">Transaction ID</td>
+<td style="padding:12px 16px;font-size:14px;color:#111827;font-weight:600;border-bottom:1px solid #e5e7eb;">${payment_id_utr || "N/A"}</td>
+</tr>
+<tr>
+<td style="padding:12px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;">Booking ID</td>
+<td style="padding:12px 16px;font-size:14px;color:#111827;font-weight:600;border-bottom:1px solid #e5e7eb;">${booking_id}</td>
+</tr>
+<tr style="background-color:#f9fafb;">
+<td style="padding:12px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;">Payment Date</td>
+<td style="padding:12px 16px;font-size:14px;color:#111827;border-bottom:1px solid #e5e7eb;">${date}</td>
+</tr>
+<tr>
+<td style="padding:12px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;">Payment Mode</td>
+<td style="padding:12px 16px;font-size:14px;color:#111827;border-bottom:1px solid #e5e7eb;">${payment_mode || "N/A"}</td>
+</tr>
+<tr style="background-color:#dcfce7;">
+<td style="padding:12px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;">&#128176; Amount Paid</td>
+<td style="padding:12px 16px;font-size:16px;color:#16a34a;font-weight:700;border-bottom:1px solid #e5e7eb;">${amount}</td>
+</tr>
+<tr style="background-color:#f9fafb;">
+<td style="padding:12px 16px;font-size:13px;color:#6b7280;">Status</td>
+<td style="padding:12px 16px;"><span style="display:inline-block;background-color:#16a34a;color:#ffffff;font-size:11px;font-weight:700;padding:4px 12px;border-radius:12px;">&#10003; SUCCESSFUL</span></td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- SECTION 3: Service Details -->
+<tr>
+<td style="padding:0 32px 32px;">
+<div style="margin:0 0 16px;display:inline-block;background-color:#1a237e;color:#ffffff;font-size:11px;font-weight:700;padding:5px 14px;border-radius:16px;letter-spacing:0.5px;">&#128203; SERVICE DETAILS</div>
+<p style="margin:0 0 4px;font-size:18px;color:#111827;font-weight:700;">What Your Payment Covers</p>
+<p style="margin:0 0 16px;font-size:13px;color:#6b7280;">Your payment has been applied toward the following service references.</p>
+<!-- 2x2 grid -->
+<table width="100%" cellpadding="0" cellspacing="0">
+<tr>
+<td width="50%" style="padding:0 6px 12px 0;vertical-align:top;">
+<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-left:4px solid #1e40af;border-radius:6px;overflow:hidden;">
+<tr><td style="padding:14px 16px;">
+<p style="margin:0 0 4px;font-size:11px;color:#6b7280;text-transform:uppercase;">&#128230; Plan</p>
+<p style="margin:0;font-size:14px;color:#111827;font-weight:600;">${plan_name}</p>
+</td></tr>
+</table>
+</td>
+<td width="50%" style="padding:0 0 12px 6px;vertical-align:top;">
+<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-left:4px solid #1e40af;border-radius:6px;overflow:hidden;">
+<tr><td style="padding:14px 16px;">
+<p style="margin:0 0 4px;font-size:11px;color:#6b7280;text-transform:uppercase;">&#128197;&#65039; Tenure</p>
+<p style="margin:0;font-size:14px;color:#111827;font-weight:600;">1 Year of full address use, documentation &amp; mail handling.</p>
+</td></tr>
+</table>
+</td>
+</tr>
+<tr>
+<td width="50%" style="padding:0 6px 0 0;vertical-align:top;">
+<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-left:4px solid #1e40af;border-radius:6px;overflow:hidden;">
+<tr><td style="padding:14px 16px;">
+<p style="margin:0 0 4px;font-size:11px;color:#6b7280;text-transform:uppercase;">&#128205; Location(s) Covered</p>
+<p style="margin:0;font-size:14px;color:#111827;font-weight:600;">${state || "PAN India"}</p>
+</td></tr>
+</table>
+</td>
+<td width="50%" style="padding:0 0 0 6px;vertical-align:top;">
+<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-left:4px solid #1e40af;border-radius:6px;overflow:hidden;">
+<tr><td style="padding:14px 16px;">
+<p style="margin:0 0 4px;font-size:11px;color:#6b7280;text-transform:uppercase;">&#9889; Activation Window</p>
+<p style="margin:0;font-size:14px;color:#111827;font-weight:600;">Your address will be live within 48 hours.</p>
+</td></tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- SECTION 4: Tax Invoice Request -->
+<tr>
+<td style="padding:0 32px 32px;">
+<div style="margin:0 0 16px;display:inline-block;background-color:#d97706;color:#ffffff;font-size:11px;font-weight:700;padding:5px 14px;border-radius:16px;letter-spacing:0.5px;">&#129534; REQUEST TAX INVOICE</div>
+<p style="margin:0 0 4px;font-size:18px;color:#111827;font-weight:700;">Need a Tax Invoice?</p>
+<p style="margin:0 0 16px;font-size:13px;color:#6b7280;">Provide your business details &amp; get a paid tax invoice from our accounts team.</p>
+<!-- Red-bordered box -->
+<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-left:4px solid #dc2626;border-radius:6px;overflow:hidden;margin-bottom:16px;">
+<tr><td style="padding:16px 20px;">
+<p style="margin:0 0 12px;font-size:13px;color:#374151;font-weight:600;">If you need the tax invoice, we would like you to share your company details below:</p>
+<p style="margin:0 0 8px;font-size:13px;color:#374151;">&#127970; Legal Name: _______________</p>
+<p style="margin:0 0 8px;font-size:13px;color:#374151;">&#128290; GST Number: _______________</p>
+<p style="margin:0;font-size:13px;color:#374151;">&#127380; PAN Number: _______________</p>
+</td></tr>
+</table>
+<!-- Yellow note -->
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#fef9c3;border-radius:6px;overflow:hidden;margin-bottom:12px;">
+<tr><td style="padding:14px 20px;">
+<p style="margin:0;font-size:13px;color:#713f12;">&#128161; Our accounts team will send you the paid tax invoice once we receive your details. Kindly share the above information via reply email, WhatsApp, or using the buttons below.</p>
+</td></tr>
+</table>
+<p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;font-style:italic;">Your details are secure and will be used only for invoicing &amp; compliance.</p>
+</td>
+</tr>
+
+<!-- SECTION 5: Next Steps -->
+<tr>
+<td style="padding:0 32px 32px;">
+<div style="margin:0 0 16px;display:inline-block;background-color:#1a237e;color:#ffffff;font-size:11px;font-weight:700;padding:5px 14px;border-radius:16px;letter-spacing:0.5px;">&#128640; NEXT STEPS</div>
+<p style="margin:0 0 4px;font-size:18px;color:#111827;font-weight:700;">What Happens Next</p>
+<p style="margin:0 0 16px;font-size:13px;color:#6b7280;">Three simple, guided steps &mdash; your dedicated manager handles everything.</p>
+<!-- 3 step cards -->
+<table width="100%" cellpadding="0" cellspacing="0">
+<tr>
+<td width="33%" style="padding:0 4px 0 0;vertical-align:top;">
+<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+<tr><td style="padding:16px 12px;text-align:center;">
+<div style="display:inline-block;width:32px;height:32px;line-height:32px;border-radius:50%;background-color:#1e40af;color:#ffffff;font-size:14px;font-weight:700;text-align:center;margin-bottom:8px;">1</div>
+<p style="margin:0 0 6px;font-size:12px;font-weight:700;color:#111827;">&#128196; Document Verification</p>
+<p style="margin:0;font-size:11px;color:#6b7280;line-height:1.5;">Our team will reach out to collect &amp; verify your KYC documents.</p>
+</td></tr>
+</table>
+</td>
+<td width="33%" style="padding:0 4px;vertical-align:top;">
+<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+<tr><td style="padding:16px 12px;text-align:center;">
+<div style="display:inline-block;width:32px;height:32px;line-height:32px;border-radius:50%;background-color:#1e40af;color:#ffffff;font-size:14px;font-weight:700;text-align:center;margin-bottom:8px;">2</div>
+<p style="margin:0 0 6px;font-size:12px;font-weight:700;color:#111827;">&#128221; Agreement &amp; KYC</p>
+<p style="margin:0;font-size:11px;color:#6b7280;line-height:1.5;">Signed rent agreement, NOC and utility bill prepared in your name.</p>
+</td></tr>
+</table>
+</td>
+<td width="33%" style="padding:0 0 0 4px;vertical-align:top;">
+<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+<tr><td style="padding:16px 12px;text-align:center;">
+<div style="display:inline-block;width:32px;height:32px;line-height:32px;border-radius:50%;background-color:#16a34a;color:#ffffff;font-size:14px;font-weight:700;text-align:center;margin-bottom:8px;">3</div>
+<p style="margin:0 0 6px;font-size:12px;font-weight:700;color:#111827;">&#127970; Address Activation</p>
+<p style="margin:0;font-size:11px;color:#6b7280;line-height:1.5;">Complete GST kit delivered + signage installed. You're live!</p>
+</td></tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- SECTION 6: Signature Placeholder -->
+<tr>
+<td style="padding:0 32px 32px;">
+{{signature}}
+</td>
+</tr>
+
+<!-- SECTION 7: Welcome Aboard + Footer -->
+<tr>
+<td style="background-color:#0f172a;padding:32px;text-align:center;">
+<div style="margin:0 0 12px;display:inline-block;background-color:#1e40af;color:#ffffff;font-size:11px;font-weight:700;padding:5px 14px;border-radius:16px;letter-spacing:0.5px;">&#127968; WELCOME ABOARD</div>
+<p style="margin:0 0 8px;font-size:18px;color:#ffffff;font-weight:700;">Your Premium Address. <span style="border-bottom:2px solid #d97706;">Activated in 48 Hours.</span></p>
+<p style="margin:0 0 20px;font-size:13px;color:#94a3b8;line-height:1.6;">
+Thank you once again for choosing EaseMyOffice, a division of Narula Technologies LLP. We are committed to providing you with the best-in-class virtual office experience across India.
+</p>
+<!-- Buttons -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
+<tr>
+<td width="50%" style="padding:0 6px 0 0;text-align:center;">
+<a href="https://wa.me/918882735038" style="display:inline-block;background-color:#25d366;color:#ffffff;font-size:13px;font-weight:700;padding:12px 20px;border-radius:6px;text-decoration:none;">&#128172; Chat on WhatsApp</a>
+</td>
+<td width="50%" style="padding:0 0 0 6px;text-align:center;">
+<a href="tel:+918882735038" style="display:inline-block;background-color:#1e40af;color:#ffffff;font-size:13px;font-weight:700;padding:12px 20px;border-radius:6px;text-decoration:none;">&#128222; Talk to ${sales_person_name || "Our Team"}</a>
+</td>
+</tr>
+</table>
+<!-- Stats -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
+<tr>
+<td style="text-align:center;padding:6px;">
+<p style="margin:0;font-size:12px;color:#94a3b8;">5,000+ CLIENTS SERVED &nbsp;|&nbsp; 97% APPROVAL RATE &nbsp;|&nbsp; 48 hrs ACTIVATION</p>
+</td>
+</tr>
+</table>
+<p style="margin:0 0 20px;font-size:11px;color:#64748b;">&#128274; Payment secured &middot; &#128737;&#65039; Compliance-first &middot; &#11088; 4.9/5 rated</p>
+</td>
+</tr>
+<!-- Black footer -->
+<tr>
+<td style="background-color:#000000;padding:28px 32px;text-align:center;">
+<h2 style="margin:0 0 8px;color:#ffffff;font-size:18px;font-weight:400;">Ease<span style="font-weight:700;font-style:italic;">My</span>Office</h2>
+<p style="margin:0 0 4px;font-size:12px;color:#94a3b8;">+91 88827 35038</p>
+<p style="margin:0 0 4px;font-size:12px;color:#94a3b8;">contact@easemyoffice.in</p>
+<p style="margin:0 0 12px;font-size:12px;color:#94a3b8;">easemyoffice.in</p>
+<p style="margin:0 0 4px;font-size:11px;color:#64748b;font-weight:600;">Your Virtual Office Partner</p>
+<p style="margin:0 0 12px;font-size:11px;color:#64748b;">India's premium virtual office platform &mdash; PAN India, GST-ready, activated in 48 hours.</p>
+<p style="margin:0 0 8px;font-size:10px;color:#475569;">&copy; 2026 EaseMyOffice &mdash; All rights reserved.</p>
+<p style="margin:0;font-size:10px;color:#475569;">Crafted with precision &middot; Your Virtual Office Partner</p>
+</td>
+</tr>
+
+</table>
+</td></tr>
+</table>
 </body>
 </html>`;
 }
@@ -150,6 +364,9 @@ export function NewBookingDialog() {
     payment_mode_ref: string;
     business_name: string;
     date: string;
+    payment_id_utr: string;
+    state: string;
+    sales_person_name: string;
   } | null>(null);
 
   // Form state
@@ -288,21 +505,64 @@ export function NewBookingDialog() {
     if (!savedBookingData) return;
     setSendingEmail(true);
     try {
-      const { client_name, email_id, plan_name, booking_id, invoice_number, amount_received: amt, payment_mode_ref, date } = savedBookingData;
+      const { client_name, email_id, plan_name, booking_id, amount_received: amt, payment_mode_ref, date, payment_id_utr, state, sales_person_name } = savedBookingData;
       const formattedDate = new Date(date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
       const formattedAmount = amt.toLocaleString("en-IN", { style: "currency", currency: "INR" });
 
-      const subject = `Payment Acknowledgment - ${booking_id}`;
+      const subject = `Payment Acknowledgment \u2014 ${booking_id} | EaseMyOffice`;
       const html = buildPaymentAckEmailHtml({
         client_name,
         booking_id,
         plan_name,
-        invoice_number,
+        invoice_number: savedBookingData.invoice_number,
         amount: formattedAmount,
         payment_mode: payment_mode_ref,
         date: formattedDate,
+        payment_id_utr,
+        state,
+        sales_person_name,
       });
-      const text = `Dear ${client_name},\n\nThank you for your payment. Here are your booking details:\n\nBooking ID: ${booking_id}\nPlan: ${plan_name}\nInvoice: ${invoice_number}\nAmount Received: ${formattedAmount}\nPayment Mode: ${payment_mode_ref}\nDate: ${formattedDate}\n\nThank you for choosing EaseMyOffice!\n\nRegards,\nTeam EaseMyOffice`;
+      const text = [
+        `PAYMENT ACKNOWLEDGEMENT - OFFICIALLY CONFIRMED`,
+        ``,
+        `Hello ${client_name},`,
+        ``,
+        `Thank you for your trust and your prompt payment. We're truly delighted to welcome you on board. Your premium virtual office is officially in motion.`,
+        ``,
+        `--- PAYMENT SUMMARY ---`,
+        `Transaction ID: ${payment_id_utr || "N/A"}`,
+        `Booking ID: ${booking_id}`,
+        `Payment Date: ${formattedDate}`,
+        `Payment Mode: ${payment_mode_ref || "N/A"}`,
+        `Amount Paid: ${formattedAmount}`,
+        `Status: SUCCESSFUL`,
+        ``,
+        `--- SERVICE DETAILS ---`,
+        `Plan: ${plan_name}`,
+        `Tenure: 1 Year of full address use, documentation & mail handling.`,
+        `Location(s) Covered: ${state || "PAN India"}`,
+        `Activation Window: Your address will be live within 48 hours.`,
+        ``,
+        `--- NEXT STEPS ---`,
+        `1. Document Verification: Our team will reach out to collect & verify your KYC documents.`,
+        `2. Agreement & KYC: Signed rent agreement, NOC and utility bill prepared in your name.`,
+        `3. Address Activation: Complete GST kit delivered + signage installed. You're live!`,
+        ``,
+        `--- NEED A TAX INVOICE? ---`,
+        `Share your company details (Legal Name, GST Number, PAN Number) via reply email or WhatsApp.`,
+        ``,
+        `--- CONTACT ---`,
+        `WhatsApp: https://wa.me/918882735038`,
+        `Phone: +91 88827 35038`,
+        `Email: contact@easemyoffice.in`,
+        `Website: easemyoffice.in`,
+        ``,
+        `Thank you for choosing EaseMyOffice!`,
+        `Your Virtual Office Partner`,
+        `A Division of Narula Technologies LLP`,
+        ``,
+        `(c) 2026 EaseMyOffice - All rights reserved.`,
+      ].join("\n");
 
       const { data, error } = await supabase.functions.invoke("send-client-email", {
         body: {
@@ -400,6 +660,9 @@ export function NewBookingDialog() {
           payment_mode_ref: f.payment_mode_ref,
           business_name: f.business_name,
           date: f.date,
+          payment_id_utr: f.payment_id_utr,
+          state: f.state,
+          sales_person_name: profile?.full_name || "",
         });
         setShowAckDialog(true);
       } else {
