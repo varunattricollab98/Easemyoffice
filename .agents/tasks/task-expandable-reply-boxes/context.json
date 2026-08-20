@@ -1,0 +1,21 @@
+{
+  "project_type": "React CRM SPA with TanStack Router/Start, deployed on Cloudflare Workers",
+  "language": "TypeScript / React 19",
+  "build_system": "Vite + Bun, Cloudflare Workers deployment via Wrangler",
+  "test_framework": "No unit test framework; relies on TypeScript checking + ESLint + production build",
+  "build_command": "bun run build",
+  "test_command": "bunx tsc --noEmit",
+  "verification_instructions": "1. Run `bunx tsc --noEmit` - must pass with zero errors. 2. Run `bun run build` - must produce dist/ successfully.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "bun install (already installed)",
+  "environment_constraints": "No unit test runner. Verification is TypeScript typecheck + production build. Network available for package installs.",
+  "contribution_requirements": "Follow existing code patterns. Use cn() from @/lib/utils for conditional classes. Use lucide-react icons. Use shadcn/ui Dialog components.",
+  "key_patterns": "The EmailComposeDialog in leads/$id.tsx is the reference pattern for expandable compose. Key features: flex flex-col layout with min-h-0, localStorage persistence of expanded state, Maximize2/Minimize2 toggle button, conditional sizing classes via cn(). Templates are simple objects with id/label, and a buildTemplate function returns {subject, body}.",
+  "relevant_files": [
+    "src/routes/_authenticated/inbox.tsx",
+    "src/routes/_authenticated/reminders.tsx",
+    "src/routes/_authenticated/leads/$id.tsx",
+    "src/lib/utils.ts"
+  ],
+  "directory_structure": "src/routes/_authenticated/ contains page components. src/components/ui/ has shadcn components. src/lib/ has utilities."
+}

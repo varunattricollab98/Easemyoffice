@@ -1,0 +1,14 @@
+{
+  "task_id": "task-expandable-reply-boxes",
+  "task_description": "Make all reply/compose boxes across the app expandable (full-screen toggle with localStorage persistence) and add HTML email template selection (Quotation, Welcome, Follow-up, Documents, Payment, Thank you, Blank + custom snippets). Covers inbox.tsx reply + quotation composers and reminders.tsx schedule dialog. The leads/$id.tsx EmailComposeDialog is already done (PR #21).",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "TypeScript check (bunx tsc --noEmit) and production build (bun run build) both pass cleanly. Semantic review approved with 3 non-blocking informational items."
+  }
+}
