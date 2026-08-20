@@ -62,6 +62,7 @@ function buildPaymentAckEmailHtml(details: {
   sales_person_name: string;
 }) {
   const { client_name, booking_id, plan_name, amount, payment_mode, date, payment_id_utr, state, sales_person_name } = details;
+  const managerInitials = sales_person_name ? sales_person_name.split(" ").map((w: string) => w[0]).join("").toUpperCase() : "EM";
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Payment Acknowledgment</title></head>
@@ -70,7 +71,7 @@ function buildPaymentAckEmailHtml(details: {
 <tr><td align="center">
 <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.10);">
 
-<!-- SECTION 1: Header + Welcome + Thank You -->
+<!-- SECTION 1: Header -->
 <!-- Top security line -->
 <tr>
 <td style="padding:12px 0;text-align:center;background-color:#ffffff;">
@@ -98,13 +99,14 @@ function buildPaymentAckEmailHtml(details: {
 <p style="margin:0;color:#ffffff;font-size:12px;font-weight:600;">&#129534; Receipt ID: ${payment_id_utr || "N/A"} &middot; ${date} &middot; Status: PAID &#10003;</p>
 </td>
 </tr>
-<!-- Thank You Section -->
+
+<!-- SECTION 2: A Heartfelt Thank You -->
 <tr>
 <td style="padding:32px 32px 24px;">
 <p style="margin:0 0 16px;font-size:12px;color:#1e40af;font-weight:700;letter-spacing:1px;text-transform:uppercase;font-variant:small-caps;">A HEARTFELT THANK YOU</p>
 <p style="margin:0 0 16px;font-size:20px;color:#111827;font-weight:700;">Hello ${client_name} &#128075;</p>
 <p style="margin:0 0 20px;font-size:15px;color:#374151;line-height:1.7;">
-Thank you for your trust and your prompt payment. We're truly delighted to welcome you on board. Your premium virtual office is officially in motion &mdash; and our team is already working behind the scenes to get you activated quickly and compliantly.
+Thank you for your trust and your prompt payment. We're truly delighted to welcome you on board. Your premium virtual office is officially in motion and our team is already working behind the scenes to get you activated quickly and compliantly.
 </p>
 <!-- Green CTA bar -->
 <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
@@ -136,7 +138,7 @@ Thank you for your trust and your prompt payment. We're truly delighted to welco
 </td>
 </tr>
 
-<!-- SECTION 2: Payment Summary -->
+<!-- SECTION 3: Payment Summary -->
 <tr>
 <td style="padding:0 32px 32px;">
 <div style="margin:0 0 16px;display:inline-block;background-color:#1a237e;color:#ffffff;font-size:11px;font-weight:700;padding:5px 14px;border-radius:16px;letter-spacing:0.5px;">&#128179; PAYMENT SUMMARY</div>
@@ -175,7 +177,7 @@ Thank you for your trust and your prompt payment. We're truly delighted to welco
 </td>
 </tr>
 
-<!-- SECTION 3: Service Details -->
+<!-- SECTION 4: Service Details -->
 <tr>
 <td style="padding:0 32px 32px;">
 <div style="margin:0 0 16px;display:inline-block;background-color:#1a237e;color:#ffffff;font-size:11px;font-weight:700;padding:5px 14px;border-radius:16px;letter-spacing:0.5px;">&#128203; SERVICE DETAILS</div>
@@ -223,37 +225,12 @@ Thank you for your trust and your prompt payment. We're truly delighted to welco
 </td>
 </tr>
 
-<!-- SECTION 4: Tax Invoice Request -->
-<tr>
-<td style="padding:0 32px 32px;">
-<div style="margin:0 0 16px;display:inline-block;background-color:#d97706;color:#ffffff;font-size:11px;font-weight:700;padding:5px 14px;border-radius:16px;letter-spacing:0.5px;">&#129534; REQUEST TAX INVOICE</div>
-<p style="margin:0 0 4px;font-size:18px;color:#111827;font-weight:700;">Need a Tax Invoice?</p>
-<p style="margin:0 0 16px;font-size:13px;color:#6b7280;">Provide your business details &amp; get a paid tax invoice from our accounts team.</p>
-<!-- Red-bordered box -->
-<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-left:4px solid #dc2626;border-radius:6px;overflow:hidden;margin-bottom:16px;">
-<tr><td style="padding:16px 20px;">
-<p style="margin:0 0 12px;font-size:13px;color:#374151;font-weight:600;">If you need the tax invoice, we would like you to share your company details below:</p>
-<p style="margin:0 0 8px;font-size:13px;color:#374151;">&#127970; Legal Name: _______________</p>
-<p style="margin:0 0 8px;font-size:13px;color:#374151;">&#128290; GST Number: _______________</p>
-<p style="margin:0;font-size:13px;color:#374151;">&#127380; PAN Number: _______________</p>
-</td></tr>
-</table>
-<!-- Yellow note -->
-<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#fef9c3;border-radius:6px;overflow:hidden;margin-bottom:12px;">
-<tr><td style="padding:14px 20px;">
-<p style="margin:0;font-size:13px;color:#713f12;">&#128161; Our accounts team will send you the paid tax invoice once we receive your details. Kindly share the above information via reply email, WhatsApp, or using the buttons below.</p>
-</td></tr>
-</table>
-<p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;font-style:italic;">Your details are secure and will be used only for invoicing &amp; compliance.</p>
-</td>
-</tr>
-
 <!-- SECTION 5: Next Steps -->
 <tr>
 <td style="padding:0 32px 32px;">
 <div style="margin:0 0 16px;display:inline-block;background-color:#1a237e;color:#ffffff;font-size:11px;font-weight:700;padding:5px 14px;border-radius:16px;letter-spacing:0.5px;">&#128640; NEXT STEPS</div>
 <p style="margin:0 0 4px;font-size:18px;color:#111827;font-weight:700;">What Happens Next</p>
-<p style="margin:0 0 16px;font-size:13px;color:#6b7280;">Three simple, guided steps &mdash; your dedicated manager handles everything.</p>
+<p style="margin:0 0 16px;font-size:13px;color:#6b7280;">Three simple, guided steps - your dedicated manager handles everything.</p>
 <!-- 3 step cards -->
 <table width="100%" cellpadding="0" cellspacing="0">
 <tr>
@@ -289,18 +266,83 @@ Thank you for your trust and your prompt payment. We're truly delighted to welco
 </td>
 </tr>
 
-<!-- SECTION 6: Signature Placeholder -->
+<!-- SECTION 6: Dedicated Manager -->
 <tr>
 <td style="padding:0 32px 32px;">
-{{signature}}
+<div style="margin:0 0 16px;display:inline-block;background-color:#1a237e;color:#ffffff;font-size:11px;font-weight:700;padding:5px 14px;border-radius:16px;letter-spacing:0.5px;">&#128100; YOUR DEDICATED MANAGER</div>
+<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
+<tr><td style="padding:24px;text-align:center;">
+<!-- Avatar with initials -->
+<div style="display:inline-block;width:64px;height:64px;line-height:64px;border-radius:50%;background-color:#1e40af;color:#ffffff;font-size:22px;font-weight:700;text-align:center;margin-bottom:12px;">${managerInitials}</div>
+<p style="margin:0 0 4px;font-size:18px;color:#111827;font-weight:700;">${sales_person_name || "Your Manager"}</p>
+<p style="margin:0 0 12px;font-size:13px;color:#6b7280;">Client Success Manager, EaseMyOffice</p>
+<!-- Badges -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
+<tr><td align="center">
+<span style="display:inline-block;background-color:#dcfce7;color:#166534;font-size:11px;font-weight:600;padding:4px 10px;border-radius:12px;margin:0 4px;">&#128994; ONLINE NOW</span>
+<span style="display:inline-block;background-color:#dbeafe;color:#1e40af;font-size:11px;font-weight:600;padding:4px 10px;border-radius:12px;margin:0 4px;">&#9889; REPLIES IN 5 MIN</span>
+</td></tr>
+</table>
+<!-- Quote -->
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f9fafb;border-radius:8px;overflow:hidden;margin-bottom:16px;">
+<tr><td style="padding:14px 20px;">
+<p style="margin:0;font-size:13px;color:#374151;font-style:italic;line-height:1.6;">"I'm personally assigned to your account. From documentation to activation, I'll ensure everything is smooth and on time. Feel free to reach out anytime!"</p>
+</td></tr>
+</table>
+<!-- Contact cards -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
+<tr>
+<td width="50%" style="padding:0 4px 0 0;">
+<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+<tr><td style="padding:12px;text-align:center;">
+<p style="margin:0 0 4px;font-size:11px;color:#6b7280;text-transform:uppercase;">&#128222; Call Direct</p>
+<p style="margin:0;font-size:13px;color:#1e40af;font-weight:600;">+91 88827 35038</p>
+</td></tr>
+</table>
+</td>
+<td width="50%" style="padding:0 0 0 4px;">
+<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+<tr><td style="padding:12px;text-align:center;">
+<p style="margin:0 0 4px;font-size:11px;color:#6b7280;text-transform:uppercase;">&#128231; Email Me</p>
+<p style="margin:0;font-size:13px;color:#1e40af;font-weight:600;">contact@easemyoffice.in</p>
+</td></tr>
+</table>
+</td>
+</tr>
+</table>
+<!-- Action buttons -->
+<table width="100%" cellpadding="0" cellspacing="0">
+<tr>
+<td width="33%" style="padding:0 3px 0 0;text-align:center;">
+<a href="https://wa.me/918882735038" style="display:inline-block;width:100%;background-color:#25d366;color:#ffffff;font-size:12px;font-weight:700;padding:10px 8px;border-radius:6px;text-decoration:none;">&#128172; WhatsApp</a>
+</td>
+<td width="33%" style="padding:0 3px;text-align:center;">
+<a href="tel:+918882735038" style="display:inline-block;width:100%;background-color:#1e40af;color:#ffffff;font-size:12px;font-weight:700;padding:10px 8px;border-radius:6px;text-decoration:none;">&#128222; Call</a>
+</td>
+<td width="33%" style="padding:0 0 0 3px;text-align:center;">
+<a href="mailto:contact@easemyoffice.in" style="display:inline-block;width:100%;background-color:#6b7280;color:#ffffff;font-size:12px;font-weight:700;padding:10px 8px;border-radius:6px;text-decoration:none;">&#128231; Reply</a>
+</td>
+</tr>
+</table>
+<!-- Working hours -->
+<p style="margin:16px 0 0;font-size:11px;color:#9ca3af;">Working Hours: Mon-Sat, 10:00 AM - 7:00 PM IST</p>
+</td></tr>
+</table>
 </td>
 </tr>
 
-<!-- SECTION 7: Welcome Aboard + Footer -->
+<!-- Terms & Refund Policy -->
+<tr>
+<td style="padding:0 32px 24px;text-align:center;">
+<p style="margin:0;font-size:11px;color:#9ca3af;">By proceeding, you agree to our <span style="color:#1e40af;text-decoration:underline;">Terms of Service</span> &amp; <span style="color:#1e40af;text-decoration:underline;">Refund Policy</span>.</p>
+</td>
+</tr>
+
+<!-- SECTION 7: Welcome Aboard -->
 <tr>
 <td style="background-color:#0f172a;padding:32px;text-align:center;">
 <div style="margin:0 0 12px;display:inline-block;background-color:#1e40af;color:#ffffff;font-size:11px;font-weight:700;padding:5px 14px;border-radius:16px;letter-spacing:0.5px;">&#127968; WELCOME ABOARD</div>
-<p style="margin:0 0 8px;font-size:18px;color:#ffffff;font-weight:700;">Your Premium Address. <span style="border-bottom:2px solid #d97706;">Activated in 48 Hours.</span></p>
+<p style="margin:0 0 8px;font-size:18px;color:#d97706;font-weight:700;">Your Premium Address. <span style="border-bottom:2px solid #d97706;">Activated in 48 Hours.</span></p>
 <p style="margin:0 0 20px;font-size:13px;color:#94a3b8;line-height:1.6;">
 Thank you once again for choosing EaseMyOffice, a division of Narula Technologies LLP. We are committed to providing you with the best-in-class virtual office experience across India.
 </p>
@@ -326,17 +368,34 @@ Thank you once again for choosing EaseMyOffice, a division of Narula Technologie
 <p style="margin:0 0 20px;font-size:11px;color:#64748b;">&#128274; Payment secured &middot; &#128737;&#65039; Compliance-first &middot; &#11088; 4.9/5 rated</p>
 </td>
 </tr>
-<!-- Black footer -->
+
+<!-- SECTION 8: Footer -->
 <tr>
 <td style="background-color:#000000;padding:28px 32px;text-align:center;">
-<h2 style="margin:0 0 8px;color:#ffffff;font-size:18px;font-weight:400;">Ease<span style="font-weight:700;font-style:italic;">My</span>Office</h2>
-<p style="margin:0 0 4px;font-size:12px;color:#94a3b8;">+91 88827 35038</p>
-<p style="margin:0 0 4px;font-size:12px;color:#94a3b8;">contact@easemyoffice.in</p>
-<p style="margin:0 0 12px;font-size:12px;color:#94a3b8;">easemyoffice.in</p>
-<p style="margin:0 0 4px;font-size:11px;color:#64748b;font-weight:600;">Your Virtual Office Partner</p>
-<p style="margin:0 0 12px;font-size:11px;color:#64748b;">India's premium virtual office platform &mdash; PAN India, GST-ready, activated in 48 hours.</p>
-<p style="margin:0 0 8px;font-size:10px;color:#475569;">&copy; 2026 EaseMyOffice &mdash; All rights reserved.</p>
+<h2 style="margin:0 0 4px;color:#ffffff;font-size:18px;font-weight:400;">Ease<span style="font-weight:700;font-style:italic;">My</span>Office</h2>
+<p style="margin:0 0 12px;font-size:11px;color:#64748b;font-weight:600;">Your Virtual Office Partner</p>
+<p style="margin:0 0 4px;font-size:12px;color:#94a3b8;">&#128222; +91 88827 35038</p>
+<p style="margin:0 0 4px;font-size:12px;color:#94a3b8;">&#128231; contact@easemyoffice.in</p>
+<p style="margin:0 0 12px;font-size:12px;color:#94a3b8;">&#127760; easemyoffice.in</p>
+<!-- Social icons placeholder -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
+<tr><td align="center">
+<span style="display:inline-block;width:32px;height:32px;line-height:32px;border-radius:50%;background-color:#1e40af;color:#ffffff;font-size:14px;text-align:center;margin:0 4px;">in</span>
+<span style="display:inline-block;width:32px;height:32px;line-height:32px;border-radius:50%;background-color:#1e40af;color:#ffffff;font-size:14px;text-align:center;margin:0 4px;">&#120143;</span>
+<span style="display:inline-block;width:32px;height:32px;line-height:32px;border-radius:50%;background-color:#1e40af;color:#ffffff;font-size:14px;text-align:center;margin:0 4px;">ig</span>
+<span style="display:inline-block;width:32px;height:32px;line-height:32px;border-radius:50%;background-color:#25d366;color:#ffffff;font-size:14px;text-align:center;margin:0 4px;">wa</span>
+</td></tr>
+</table>
+<p style="margin:0 0 8px;font-size:11px;color:#64748b;">India's premium virtual office platform - PAN India, GST-ready, activated in 48 hours.</p>
+<!-- Registered office info -->
+<table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #333333;margin-top:12px;padding-top:12px;">
+<tr><td style="padding-top:12px;text-align:center;">
+<p style="margin:0 0 4px;font-size:10px;color:#475569;">Registered Office: Narula Technologies LLP, Delhi, India</p>
+<p style="margin:0 0 4px;font-size:10px;color:#475569;">CIN: AAQ-4966 | GSTIN: 07AAUFN4966Q1ZC</p>
+<p style="margin:0 0 8px;font-size:10px;color:#475569;">&copy; 2025 EaseMyOffice - All rights reserved.</p>
 <p style="margin:0;font-size:10px;color:#475569;">Crafted with precision &middot; Your Virtual Office Partner</p>
+</td></tr>
+</table>
 </td>
 </tr>
 
