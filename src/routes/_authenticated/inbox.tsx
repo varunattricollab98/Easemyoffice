@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { Mail, ExternalLink, UserPlus, Search, RefreshCcw, ChevronLeft, ChevronRight, CheckCircle2, Hand, Reply, Send, FileText, Maximize2, Minimize2, MapPin, IndianRupee, Calculator } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import { fetchInbox, fetchThread, claimEmailInGmail, parseFrom, claimedOwner, normalizeOwnerTag, parseWeb3FormLead, isThrowawayAddress, htmlToText, type InboxEmail, type ThreadMessage } from "@/lib/gmail";
 
 function esc(s: unknown) {
@@ -91,9 +92,37 @@ function LeadInboxPage() {
   const [quotationBody, setQuotationBody] = useState("");
   const [quotationSnippetId, setQuotationSnippetId] = useState("quotation");
   const [quotationExpanded, setQuotationExpanded] = useState(false);
+  const [replyExpanded, setReplyExpanded] = useState(false);
+  const [replySnippetId, setReplySnippetId] = useState("custom");
   const [quotationBasePrice, setQuotationBasePrice] = useState("");
   const [quotationLocation, setQuotationLocation] = useState("");
   const PAGE_SIZE = 25;
+
+  // Load expand preferences from localStorage on mount
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("inbox:reply:expanded") === "1") setReplyExpanded(true);
+    } catch { /* storage disabled */ }
+    try {
+      if (localStorage.getItem("inbox:quotation:expanded") === "1") setQuotationExpanded(true);
+    } catch { /* storage disabled */ }
+  }, []);
+
+  const toggleReplyExpanded = () => {
+    setReplyExpanded((v) => {
+      const next = !v;
+      try { localStorage.setItem("inbox:reply:expanded", next ? "1" : "0"); } catch { /* ignore */ }
+      return next;
+    });
+  };
+
+  const toggleQuotationExpanded = () => {
+    setQuotationExpanded((v) => {
+      const next = !v;
+      try { localStorage.setItem("inbox:quotation:expanded", next ? "1" : "0"); } catch { /* ignore */ }
+      return next;
+    });
+  };
 
   const threadQ = useQuery({
     queryKey: ["gmail-thread", reading?.threadId],
@@ -102,7 +131,7 @@ function LeadInboxPage() {
   });
 
   // Reset the reply composer whenever a different email is opened / closed.
-  useEffect(() => { setReplyOpen(false); setReplyText(""); setQuotationOpen(false); setQuotationExpanded(false); setQuotationBasePrice(""); setQuotationLocation(""); }, [reading?.threadId]);
+  useEffect(() => { setReplyOpen(false); setReplyText(""); setReplySnippetId("custom"); setQuotationOpen(false); setQuotationBasePrice(""); setQuotationLocation(""); }, [reading?.threadId]);
 
   // Who a reply should go to: the real customer address. Web3Forms relays put
   // the customer's email in the body, so parse that first; otherwise fall back
@@ -135,7 +164,7 @@ function LeadInboxPage() {
         .order("name");
       return (data ?? []) as { id: string; name: string; subject: string; body_html: string }[];
     },
-    enabled: quotationOpen,
+    enabled: quotationOpen || replyOpen,
   });
 
   // Built-in quotation templates for the Send Quotation composer
@@ -215,6 +244,28 @@ function LeadInboxPage() {
     }
   };
 
+  // Apply a template or snippet to the reply composer
+  const applyReplyTemplate = (id: string) => {
+    setReplySnippetId(id);
+    // Check if it's a custom snippet (UUID format from DB)
+    const snippet = emailSnippets.find((s) => s.id === id);
+    if (snippet) {
+      // Convert HTML to plain text for the textarea
+      const plainBody = snippet.body_html
+        ? snippet.body_html.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ")
+        : "";
+      setReplyText(plainBody);
+    } else {
+      // Parse the client name from the thread body
+      const msgs = threadQ.data?.messages ?? [];
+      const bodyText = msgs.map((m) => (m.body && m.body.trim() ? m.body : htmlToText(m.html || ""))).join("\n");
+      const parsed = parseWeb3FormLead(bodyText);
+      const clientName = parsed.name || "";
+      const t = buildQuotationTemplate(id, clientName);
+      setReplyText(t.body);
+    }
+  };
+
   // Open the quotation composer with the default template pre-filled
   const openQuotationComposer = () => {
     const msgs = threadQ.data?.messages ?? [];
@@ -227,7 +278,6 @@ function LeadInboxPage() {
     setQuotationBody(t.body);
     setQuotationLocation(parsed.location || "");
     setQuotationBasePrice("");
-    setQuotationExpanded(false);
     setQuotationOpen(true);
   };
 
@@ -256,7 +306,6 @@ function LeadInboxPage() {
     onSuccess: () => {
       toast.success("Quotation sent successfully!");
       setQuotationOpen(false);
-      setQuotationExpanded(false);
       setQuotationSubject("");
       setQuotationBody("");
       setQuotationBasePrice("");
@@ -789,14 +838,46 @@ function LeadInboxPage() {
                 ) : null;
               })()}
               {/* In-CRM reply composer */}
-              {replyOpen && (
+              {replyOpen && !replyExpanded && (
                 <div className="shrink-0 rounded-md border bg-muted/20 p-3 space-y-2">
-                  <div className="text-xs text-muted-foreground">
-                    Reply to{" "}
-                    {replyTo
-                      ? <span className="font-medium text-foreground">{replyTo}</span>
-                      : <span className="text-destructive">no customer address found — use "Open in Gmail" instead</span>}
-                    {replyTo && " · sent from your CRM, a copy is saved to the shared inbox"}
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs text-muted-foreground">
+                      Reply to{" "}
+                      {replyTo
+                        ? <span className="font-medium text-foreground">{replyTo}</span>
+                        : <span className="text-destructive">no customer address found — use "Open in Gmail" instead</span>}
+                      {replyTo && " · sent from your CRM, a copy is saved to the shared inbox"}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0"
+                      onClick={toggleReplyExpanded}
+                      title="Expand to full screen"
+                    >
+                      <Maximize2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium w-16 shrink-0">Template:</span>
+                    <Select value={replySnippetId} onValueChange={applyReplyTemplate}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Select template..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {QUOTATION_TEMPLATES.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>
+                        ))}
+                        {emailSnippets.length > 0 && (
+                          <>
+                            <SelectItem disabled value="__divider__">--- Custom Snippets ---</SelectItem>
+                            {emailSnippets.map((s) => (
+                              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                            ))}
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <Textarea
                     rows={4}
@@ -804,6 +885,7 @@ function LeadInboxPage() {
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
                     placeholder="Type your reply…"
+                    className="resize-none"
                   />
                   <div className="flex justify-end gap-2">
                     <Button size="sm" variant="ghost" onClick={() => setReplyOpen(false)}>Cancel</Button>
@@ -832,7 +914,7 @@ function LeadInboxPage() {
                       size="sm"
                       variant="ghost"
                       className="h-7 w-7 p-0"
-                      onClick={() => setQuotationExpanded(!quotationExpanded)}
+                      onClick={toggleQuotationExpanded}
                       title={quotationExpanded ? "Collapse" : "Expand"}
                     >
                       {quotationExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
@@ -939,7 +1021,7 @@ function LeadInboxPage() {
                     className="text-sm"
                   />
                   <div className="flex justify-end gap-2">
-                    <Button size="sm" variant="ghost" onClick={() => { setQuotationOpen(false); setQuotationExpanded(false); }}>Cancel</Button>
+                    <Button size="sm" variant="ghost" onClick={() => { setQuotationOpen(false); }}>Cancel</Button>
                     <Button
                       size="sm"
                       disabled={sendQuotation.isPending || !quotationBody.trim() || !quotationSubject.trim() || !replyTo}
@@ -1004,29 +1086,51 @@ function LeadInboxPage() {
 
       {/* Expanded quotation composer — renders as its own full-screen Dialog */}
       <Dialog open={quotationOpen && quotationExpanded} onOpenChange={(o) => { if (!o) setQuotationExpanded(false); }}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent
+          className={cn(
+            "flex flex-col gap-0 p-0",
+            "h-[94vh] w-[96vw] max-w-6xl",
+          )}
+        >
+          <DialogHeader className="shrink-0 space-y-1.5 border-b px-6 py-4 pr-24">
             <DialogTitle>Send Quotation</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
+
+          <button
+            type="button"
+            onClick={toggleQuotationExpanded}
+            className="absolute right-12 top-4 rounded-sm p-0.5 text-muted-foreground opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-pressed={quotationExpanded}
+            aria-label="Exit full screen"
+            title="Exit full screen"
+          >
+            <Minimize2 className="h-4 w-4" />
+          </button>
+
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-6 py-4">
             <div className="text-sm text-muted-foreground">
               To: <span className="font-medium text-foreground">{replyTo || "no email"}</span>
             </div>
-            <div className="grid grid-cols-[80px_1fr] gap-2 items-center">
-              <Label className="text-xs">Snippet:</Label>
-              <Select value={quotationSnippetId} onValueChange={applyQuotationTemplate}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {QUOTATION_TEMPLATES.map((t) => <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>)}
-                  {emailSnippets.length > 0 && emailSnippets.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Label className="text-xs">Subject:</Label>
-              <Input value={quotationSubject} onChange={(e) => setQuotationSubject(e.target.value)} />
-              <Label className="text-xs">Location:</Label>
-              <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-                <Input value={quotationLocation} onChange={(e) => setQuotationLocation(e.target.value)} />
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,220px)_minmax(0,1fr)]">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Template</Label>
+                <Select value={quotationSnippetId} onValueChange={applyQuotationTemplate}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {QUOTATION_TEMPLATES.map((t) => <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>)}
+                    {emailSnippets.length > 0 && emailSnippets.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Subject</Label>
+                <Input value={quotationSubject} onChange={(e) => setQuotationSubject(e.target.value)} placeholder="Email subject" />
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs flex items-center gap-1"><MapPin className="h-3 w-3" /> Location</Label>
+                <Input value={quotationLocation} onChange={(e) => setQuotationLocation(e.target.value)} placeholder="Client location (auto-filled from lead data)" />
               </div>
             </div>
             <div className="rounded-md border p-3 space-y-2 bg-muted/30">
@@ -1059,11 +1163,96 @@ function LeadInboxPage() {
                 </Button>
               )}
             </div>
-            <Textarea rows={14} value={quotationBody} onChange={(e) => setQuotationBody(e.target.value)} className="font-mono text-sm" />
-            <div className="flex justify-end gap-2">
+            <div className="flex min-h-0 flex-1 flex-col space-y-1.5">
+              <Label className="text-xs">Message</Label>
+              <Textarea
+                value={quotationBody}
+                onChange={(e) => setQuotationBody(e.target.value)}
+                placeholder="Email body..."
+                className="resize-none min-h-0 flex-1 font-mono text-sm leading-relaxed"
+              />
+            </div>
+          </div>
+
+          <div className="shrink-0 flex items-center justify-between gap-2 border-t px-6 py-4">
+            <span className="text-xs text-muted-foreground">Sending quotation to {replyTo || "unknown"}</span>
+            <div className="flex gap-2">
               <Button variant="ghost" onClick={() => setQuotationExpanded(false)}>Back to email</Button>
               <Button disabled={sendQuotation.isPending || !quotationBody.trim() || !quotationSubject.trim() || !replyTo} onClick={() => sendQuotation.mutate({ to: replyTo as string, subject: quotationSubject.trim(), text: quotationBody.trim() })}>
                 <Send className="h-4 w-4 mr-1" /> {sendQuotation.isPending ? "Sending..." : "Send Quotation"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Expanded reply composer — renders as its own full-screen Dialog */}
+      <Dialog open={replyOpen && replyExpanded} onOpenChange={(o) => { if (!o) setReplyExpanded(false); }}>
+        <DialogContent
+          className={cn(
+            "flex flex-col gap-0 p-0",
+            "h-[94vh] w-[96vw] max-w-6xl",
+          )}
+        >
+          <DialogHeader className="shrink-0 space-y-1.5 border-b px-6 py-4 pr-24">
+            <DialogTitle>Reply to email</DialogTitle>
+          </DialogHeader>
+
+          <button
+            type="button"
+            onClick={toggleReplyExpanded}
+            className="absolute right-12 top-4 rounded-sm p-0.5 text-muted-foreground opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-pressed={replyExpanded}
+            aria-label="Exit full screen"
+            title="Exit full screen"
+          >
+            <Minimize2 className="h-4 w-4" />
+          </button>
+
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-6 py-4">
+            <div className="text-sm text-muted-foreground">
+              To: <span className="font-medium text-foreground">{replyTo || "no email"}</span>
+              {replyTo && <span className="text-xs ml-2">· sent from your CRM, a copy is saved to the shared inbox</span>}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,220px)_minmax(0,1fr)]">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Template</Label>
+                <Select value={replySnippetId} onValueChange={applyReplyTemplate}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {QUOTATION_TEMPLATES.map((t) => <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>)}
+                    {emailSnippets.length > 0 && emailSnippets.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Subject</Label>
+                <Input value={replySubject} readOnly className="bg-muted/50" />
+              </div>
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col space-y-1.5">
+              <Label className="text-xs">Message</Label>
+              <Textarea
+                autoFocus
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+                placeholder="Type your reply…"
+                className="resize-none min-h-0 flex-1 leading-relaxed"
+              />
+            </div>
+          </div>
+
+          <div className="shrink-0 flex items-center justify-between gap-2 border-t px-6 py-4">
+            <span className="text-xs text-muted-foreground">
+              Replying to {replyTo || "unknown"}
+            </span>
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={() => setReplyExpanded(false)}>Back to email</Button>
+              <Button
+                disabled={reply.isPending || !replyText.trim() || !replyTo}
+                onClick={() => reply.mutate({ to: replyTo as string, subject: replySubject, text: replyText.trim() })}
+              >
+                <Send className="h-4 w-4 mr-1" /> {reply.isPending ? "Sending…" : "Send reply"}
               </Button>
             </div>
           </div>
