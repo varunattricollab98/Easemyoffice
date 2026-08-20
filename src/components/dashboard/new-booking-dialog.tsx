@@ -122,8 +122,6 @@ function buildPaymentAckEmailHtml(details: {
     <img src="${LOGO}" alt="EaseMyOffice" width="320" style="display:block; margin:0 auto; max-width:320px; height:auto; background:#fff; padding:10px 18px; border-radius:12px;">
     <div style="font-size:22px; color:#fff; margin-top:22px; font-weight:800; letter-spacing:-0.3px;">Welcome to the EaseMyOffice Family &#127881;</div>
     <div style="font-size:14px; color:#E2EAF8; margin-top:8px; font-weight:600; letter-spacing:0.3px;">You're now part of 5,000+ growing brands across India</div>
-    <div style="margin-top:26px; height:1px; background:linear-gradient(90deg, rgba(212,175,55,0) 0%, rgba(212,175,55,0.55) 50%, rgba(212,175,55,0) 100%);"></div>
-    <div style="margin-top:18px; font-size:11px; color:#C7D6F5; letter-spacing:3px; font-weight:700; text-transform:uppercase;">A Division of Narula Technologies LLP</div>
   </td></tr>
 
   <tr><td style="background:#FFE39A; padding:11px 24px; font-size:12px; color:#5A4500; font-weight:700; text-align:center; letter-spacing:0.4px;">
@@ -574,7 +572,7 @@ export function NewBookingDialog() {
         ``,
         `Thank you for choosing EaseMyOffice!`,
         `Your Virtual Office Partner`,
-        `A Division of Narula Technologies LLP`,
+
         ``,
         `(c) 2026 EaseMyOffice - All rights reserved.`,
       ].join("\n");
