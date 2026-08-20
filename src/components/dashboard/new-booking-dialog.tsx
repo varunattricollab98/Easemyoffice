@@ -64,284 +64,296 @@ function buildPaymentAckEmailHtml(details: {
   phone: string;
 }) {
   const { client_name, booking_id, plan_name, amount, payment_mode, date, payment_id_utr, state, sales_person_name } = details;
-  const managerInitials = sales_person_name ? sales_person_name.split(" ").map((w: string) => w[0]).join("").toUpperCase() : "EM";
-  const phone = details.phone || "+91 88827 35038";
-  const signatureHtml = buildEmailSignature({ name: sales_person_name || "Your Manager", phone });
+  const managerName = sales_person_name || "Your Manager";
+  const firstName = managerName.split(" ")[0];
+  const digits = (details.phone || "").replace(/\D/g, "") || "918882735038";
+  const utr = payment_id_utr || "\u2014";
+  const LOGO = "https://easemyoffice.in/wp-content/uploads/2024/09/EaseMyOffice-Logo-1.webp";
+  const signatureHtml = buildEmailSignature({ name: managerName, phone: details.phone, bookingId: booking_id });
+
   return `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Payment Acknowledgment</title></head>
-<body style="margin:0;padding:0;background-color:#f4f4f7;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f7;padding:40px 20px;">
-<tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.10);">
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="x-apple-disable-message-reformatting">
+<meta name="color-scheme" content="light only">
+<meta name="supported-color-schemes" content="light only">
+<title>EaseMyOffice &mdash; Payment Acknowledgment</title>
+<style>
+  body { margin:0; padding:0; background:#EEF1F7; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif; color:#0B1B36; -webkit-font-smoothing:antialiased; }
+  table { border-collapse:collapse; }
+  a { text-decoration:none; }
+  img { border:0; outline:none; -ms-interpolation-mode:bicubic; display:block; }
+  @media only screen and (max-width: 640px) {
+    .container { width:100% !important; }
+    .pad { padding:22px !important; }
+    .pad-lg { padding:28px 22px !important; }
+    .h1 { font-size:28px !important; line-height:1.2 !important; }
+    .h2 { font-size:21px !important; }
+    .stack, .grid-2 td, .grid-3 td, .grid-4 td { display:block !important; width:100% !important; box-sizing:border-box !important; padding:6px 0 !important; }
+    .summary-table th, .summary-table td { font-size:12px !important; padding:10px 10px !important; }
+    .stat-num { font-size:22px !important; }
+    .pill { display:block !important; margin:6px 0 !important; }
+    .hide-m { display:none !important; }
+    .logo-cell { padding:6px !important; }
+  }
+</style>
+</head>
+<body>
 
-<!-- SECTION 1: Header -->
-<!-- Top security line -->
-<tr>
-<td style="padding:12px 0;text-align:center;background-color:#ffffff;">
-<p style="margin:0;font-size:11px;color:#9ca3af;letter-spacing:1px;text-transform:uppercase;">&#128274; PAYMENT ACKNOWLEDGEMENT &middot; OFFICIALLY CONFIRMED</p>
-</td>
-</tr>
-<!-- Dark blue hero -->
-<tr>
-<td style="background-color:#1a237e;padding:36px 32px 28px;text-align:center;">
-<div style="margin:0 0 12px;display:inline-block;background-color:#16a34a;color:#ffffff;font-size:12px;font-weight:700;padding:6px 16px;border-radius:20px;letter-spacing:0.5px;">&#9745;&#65039; PAYMENT RECEIVED &amp; CONFIRMED</div>
-<h1 style="margin:16px 0 8px;color:#ffffff;font-size:28px;font-weight:400;letter-spacing:0.5px;">Ease<span style="font-weight:700;font-style:italic;">My</span>Office</h1>
-<p style="margin:0 0 4px;color:#ffffff;font-size:16px;font-weight:600;">Welcome to the EaseMyOffice Family &#127881;</p>
-<p style="margin:0;color:#bfdbfe;font-size:13px;">You're now part of 5,000+ growing brands across India</p>
-</td>
-</tr>
-<!-- Gold bar -->
-<tr>
-<td style="background-color:#d97706;padding:8px 32px;text-align:center;">
-<p style="margin:0;color:#ffffff;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;">A DIVISION OF NARULA TECHNOLOGIES LLP</p>
-</td>
-</tr>
-<!-- Green receipt bar -->
-<tr>
-<td style="background-color:#16a34a;padding:10px 32px;text-align:center;">
-<p style="margin:0;color:#ffffff;font-size:12px;font-weight:600;">&#129534; Payment ID / UTR: ${payment_id_utr || "N/A"} &middot; ${date} &middot; Status: PAID &#10003;</p>
-</td>
-</tr>
+<div style="display:none; max-height:0; overflow:hidden; opacity:0; color:transparent;">
+  Payment received &amp; confirmed &mdash; Welcome to the EaseMyOffice family of 5,000+ growing brands. Your premium address is being activated.
+</div>
 
-<!-- SECTION 2: A Heartfelt Thank You -->
-<tr>
-<td style="padding:32px 32px 24px;">
-<p style="margin:0 0 16px;font-size:12px;color:#1e40af;font-weight:700;letter-spacing:1px;text-transform:uppercase;font-variant:small-caps;">A HEARTFELT THANK YOU</p>
-<p style="margin:0 0 16px;font-size:20px;color:#111827;font-weight:700;">Hello ${client_name} &#128075;</p>
-<p style="margin:0 0 20px;font-size:15px;color:#374151;line-height:1.7;">
-Thank you for your trust and your prompt payment. We're truly delighted to welcome you on board. Your premium virtual office is officially in motion and our team is already working behind the scenes to get you activated quickly and compliantly.
-</p>
-<!-- Green CTA bar -->
-<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
-<tr><td style="background-color:#dcfce7;border-radius:8px;padding:14px 20px;text-align:center;">
-<p style="margin:0;font-size:14px;color:#166534;font-weight:600;">&#127881; You're now part of the family of 5,000+ growing brands</p>
-</td></tr>
-</table>
-<!-- Stats row -->
-<table width="100%" cellpadding="0" cellspacing="0">
-<tr>
-<td width="25%" style="text-align:center;padding:8px 4px;">
-<p style="margin:0;font-size:16px;font-weight:700;color:#1e40af;">5,000+</p>
-<p style="margin:2px 0 0;font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Clients Served</p>
-</td>
-<td width="25%" style="text-align:center;padding:8px 4px;">
-<p style="margin:0;font-size:16px;font-weight:700;color:#1e40af;">4.9 &#11088;</p>
-<p style="margin:2px 0 0;font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Average Rating</p>
-</td>
-<td width="25%" style="text-align:center;padding:8px 4px;">
-<p style="margin:0;font-size:16px;font-weight:700;color:#16a34a;">97%</p>
-<p style="margin:2px 0 0;font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">GST Approval</p>
-</td>
-<td width="25%" style="text-align:center;padding:8px 4px;">
-<p style="margin:0;font-size:16px;font-weight:700;color:#1e40af;">48 hrs</p>
-<p style="margin:2px 0 0;font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Activation</p>
-</td>
-</tr>
-</table>
-</td>
-</tr>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+<tr><td align="center" style="padding:28px 0; background:#EEF1F7;">
 
-<!-- SECTION 3: Payment Summary -->
-<tr>
-<td style="padding:0 32px 32px;">
-<div style="margin:0 0 16px;display:inline-block;background-color:#1a237e;color:#ffffff;font-size:11px;font-weight:700;padding:5px 14px;border-radius:16px;letter-spacing:0.5px;">&#128179; PAYMENT SUMMARY</div>
-<p style="margin:0 0 4px;font-size:18px;color:#111827;font-weight:700;">Your Transaction Details</p>
-<p style="margin:0 0 16px;font-size:13px;color:#6b7280;">Kindly retain this email as your official payment record.</p>
-<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
-<tr style="background-color:#1a237e;">
-<td style="padding:10px 16px;font-size:12px;color:#ffffff;font-weight:700;width:45%;">Detail</td>
-<td style="padding:10px 16px;font-size:12px;color:#ffffff;font-weight:700;">Value</td>
-</tr>
-<tr style="background-color:#f9fafb;">
-<td style="padding:12px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;">Payment ID / UTR</td>
-<td style="padding:12px 16px;font-size:14px;color:#111827;font-weight:600;border-bottom:1px solid #e5e7eb;">${payment_id_utr || "N/A"}</td>
-</tr>
-<tr>
-<td style="padding:12px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;">Booking ID</td>
-<td style="padding:12px 16px;font-size:14px;color:#111827;font-weight:600;border-bottom:1px solid #e5e7eb;">${booking_id}</td>
-</tr>
-<tr style="background-color:#f9fafb;">
-<td style="padding:12px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;">Payment Date</td>
-<td style="padding:12px 16px;font-size:14px;color:#111827;border-bottom:1px solid #e5e7eb;">${date}</td>
-</tr>
-<tr>
-<td style="padding:12px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;">Payment Mode</td>
-<td style="padding:12px 16px;font-size:14px;color:#111827;border-bottom:1px solid #e5e7eb;">${payment_mode || "N/A"}</td>
-</tr>
-<tr style="background-color:#dcfce7;">
-<td style="padding:12px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;">&#128176; Amount Paid</td>
-<td style="padding:12px 16px;font-size:16px;color:#16a34a;font-weight:700;border-bottom:1px solid #e5e7eb;">${amount}</td>
-</tr>
-<tr style="background-color:#f9fafb;">
-<td style="padding:12px 16px;font-size:13px;color:#6b7280;">Status</td>
-<td style="padding:12px 16px;"><span style="display:inline-block;background-color:#16a34a;color:#ffffff;font-size:11px;font-weight:700;padding:4px 12px;border-radius:12px;">&#10003; SUCCESSFUL</span></td>
-</tr>
-</table>
-</td>
-</tr>
+<table role="presentation" width="960" class="container" cellpadding="0" cellspacing="0" style="max-width:960px; width:100%;">
 
-<!-- SECTION 4: Service Details -->
-<tr>
-<td style="padding:0 32px 32px;">
-<div style="margin:0 0 16px;display:inline-block;background-color:#1a237e;color:#ffffff;font-size:11px;font-weight:700;padding:5px 14px;border-radius:16px;letter-spacing:0.5px;">&#128203; SERVICE DETAILS</div>
-<p style="margin:0 0 4px;font-size:18px;color:#111827;font-weight:700;">What Your Payment Covers</p>
-<p style="margin:0 0 16px;font-size:13px;color:#6b7280;">Your payment has been applied toward the following service references.</p>
-<!-- 2x2 grid -->
-<table width="100%" cellpadding="0" cellspacing="0">
-<tr>
-<td width="50%" style="padding:0 6px 12px 0;vertical-align:top;">
-<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-left:4px solid #1e40af;border-radius:6px;overflow:hidden;">
-<tr><td style="padding:14px 16px;">
-<p style="margin:0 0 4px;font-size:11px;color:#6b7280;text-transform:uppercase;">&#128230; Plan</p>
-<p style="margin:0;font-size:14px;color:#111827;font-weight:600;">${plan_name}</p>
-</td></tr>
-</table>
-</td>
-<td width="50%" style="padding:0 0 12px 6px;vertical-align:top;">
-<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-left:4px solid #1e40af;border-radius:6px;overflow:hidden;">
-<tr><td style="padding:14px 16px;">
-<p style="margin:0 0 4px;font-size:11px;color:#6b7280;text-transform:uppercase;">&#128197;&#65039; Tenure</p>
-<p style="margin:0;font-size:14px;color:#111827;font-weight:600;">1 Year of full address use, documentation &amp; mail handling.</p>
-</td></tr>
-</table>
-</td>
-</tr>
-<tr>
-<td width="50%" style="padding:0 6px 0 0;vertical-align:top;">
-<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-left:4px solid #1e40af;border-radius:6px;overflow:hidden;">
-<tr><td style="padding:14px 16px;">
-<p style="margin:0 0 4px;font-size:11px;color:#6b7280;text-transform:uppercase;">&#128205; Location(s) Covered</p>
-<p style="margin:0;font-size:14px;color:#111827;font-weight:600;">${state || "PAN India"}</p>
-</td></tr>
-</table>
-</td>
-<td width="50%" style="padding:0 0 0 6px;vertical-align:top;">
-<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-left:4px solid #1e40af;border-radius:6px;overflow:hidden;">
-<tr><td style="padding:14px 16px;">
-<p style="margin:0 0 4px;font-size:11px;color:#6b7280;text-transform:uppercase;">&#9889; Activation Window</p>
-<p style="margin:0;font-size:14px;color:#111827;font-weight:600;">Your address will be live within 48 hours.</p>
-</td></tr>
-</table>
-</td>
-</tr>
-</table>
-</td>
-</tr>
+  <tr><td style="text-align:center; padding-bottom:14px; font-size:11px; color:#5A6B85; letter-spacing:2px; font-weight:700; text-transform:uppercase;">
+    &#128274; Payment Acknowledgment &middot; Officially Confirmed
+  </td></tr>
 
-<!-- SECTION 5: Next Steps -->
-<tr>
-<td style="padding:0 32px 32px;">
-<div style="margin:0 0 16px;display:inline-block;background-color:#1a237e;color:#ffffff;font-size:11px;font-weight:700;padding:5px 14px;border-radius:16px;letter-spacing:0.5px;">&#128640; NEXT STEPS</div>
-<p style="margin:0 0 4px;font-size:18px;color:#111827;font-weight:700;">What Happens Next</p>
-<p style="margin:0 0 16px;font-size:13px;color:#6b7280;">Three simple, guided steps - your dedicated manager handles everything.</p>
-<!-- 3 step cards -->
-<table width="100%" cellpadding="0" cellspacing="0">
-<tr>
-<td width="33%" style="padding:0 4px 0 0;vertical-align:top;">
-<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
-<tr><td style="padding:16px 12px;text-align:center;">
-<div style="display:inline-block;width:32px;height:32px;line-height:32px;border-radius:50%;background-color:#1e40af;color:#ffffff;font-size:14px;font-weight:700;text-align:center;margin-bottom:8px;">1</div>
-<p style="margin:0 0 6px;font-size:12px;font-weight:700;color:#111827;">&#128196; Document Verification</p>
-<p style="margin:0;font-size:11px;color:#6b7280;line-height:1.5;">Our team will reach out to collect &amp; verify your KYC documents.</p>
-</td></tr>
-</table>
-</td>
-<td width="33%" style="padding:0 4px;vertical-align:top;">
-<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
-<tr><td style="padding:16px 12px;text-align:center;">
-<div style="display:inline-block;width:32px;height:32px;line-height:32px;border-radius:50%;background-color:#1e40af;color:#ffffff;font-size:14px;font-weight:700;text-align:center;margin-bottom:8px;">2</div>
-<p style="margin:0 0 6px;font-size:12px;font-weight:700;color:#111827;">&#128221; Agreement &amp; KYC</p>
-<p style="margin:0;font-size:11px;color:#6b7280;line-height:1.5;">Signed rent agreement, NOC and utility bill prepared in your name.</p>
-</td></tr>
-</table>
-</td>
-<td width="33%" style="padding:0 0 0 4px;vertical-align:top;">
-<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
-<tr><td style="padding:16px 12px;text-align:center;">
-<div style="display:inline-block;width:32px;height:32px;line-height:32px;border-radius:50%;background-color:#16a34a;color:#ffffff;font-size:14px;font-weight:700;text-align:center;margin-bottom:8px;">3</div>
-<p style="margin:0 0 6px;font-size:12px;font-weight:700;color:#111827;">&#127970; Address Activation</p>
-<p style="margin:0;font-size:11px;color:#6b7280;line-height:1.5;">Complete GST kit delivered + signage installed. You're live!</p>
-</td></tr>
-</table>
-</td>
-</tr>
-</table>
-</td>
-</tr>
+  <tr><td style="background:#0A1535; background:linear-gradient(135deg,#0A1535 0%, #16306B 55%, #1E4DB7 100%); padding:46px 36px; border-radius:18px 18px 0 0; text-align:center;" class="pad-lg">
+    <div style="display:inline-block; background:rgba(22,163,74,0.18); color:#A7F3C5; font-size:11px; font-weight:800; letter-spacing:2px; padding:7px 16px; border-radius:30px; border:1px solid rgba(167,243,197,0.45); margin-bottom:22px;">
+      &#9989; PAYMENT RECEIVED &amp; CONFIRMED
+    </div>
+    <img src="${LOGO}" alt="EaseMyOffice" width="320" style="display:block; margin:0 auto; max-width:320px; height:auto; background:#fff; padding:10px 18px; border-radius:12px;">
+    <div style="font-size:22px; color:#fff; margin-top:22px; font-weight:800; letter-spacing:-0.3px;">Welcome to the EaseMyOffice Family &#127881;</div>
+    <div style="font-size:14px; color:#E2EAF8; margin-top:8px; font-weight:600; letter-spacing:0.3px;">You're now part of 5,000+ growing brands across India</div>
+    <div style="margin-top:26px; height:1px; background:linear-gradient(90deg, rgba(212,175,55,0) 0%, rgba(212,175,55,0.55) 50%, rgba(212,175,55,0) 100%);"></div>
+    <div style="margin-top:18px; font-size:11px; color:#C7D6F5; letter-spacing:3px; font-weight:700; text-transform:uppercase;">A Division of Narula Technologies LLP</div>
+  </td></tr>
 
-<!-- SECTION 6: Dedicated Manager -->
+  <tr><td style="background:#FFE39A; padding:11px 24px; font-size:12px; color:#5A4500; font-weight:700; text-align:center; letter-spacing:0.4px;">
+    &#129534; Payment ID / UTR: ${utr} &nbsp;&middot;&nbsp; ${date} &nbsp;&middot;&nbsp; Status: <span style="color:#15803D;">PAID &#10003;</span>
+  </td></tr>
+
+  <tr><td style="background:#ffffff; padding:36px 32px; text-align:center;" class="pad-lg">
+    <div style="font-size:11px; font-weight:800; color:#1E4DB7; letter-spacing:2px; text-transform:uppercase; margin-bottom:10px;">A Heartfelt Thank You</div>
+    <div style="font-size:28px; font-weight:800; color:#0B1B36; letter-spacing:-0.5px;" class="h2">Hello ${client_name} &#128075;</div>
+    <div style="font-size:14px; color:#475569; margin-top:16px; line-height:1.75; max-width:520px; margin-left:auto; margin-right:auto;">
+      Thank you for your trust and your prompt payment. We're truly delighted to welcome you on board. Your premium virtual office is officially in motion &mdash; and our team is already working behind the scenes to get you activated quickly and compliantly.
+    </div>
+    <div style="margin-top:24px; background:#16A34A; background:linear-gradient(135deg,#15803D,#16A34A); color:#fff; font-weight:700; font-size:14px; padding:14px 18px; border-radius:10px; box-shadow:0 6px 18px rgba(22,163,74,0.22);">
+      &#127881; You're now part of the family of 5,000+ growing brands
+    </div>
+  </td></tr>
+
+  <tr><td style="background:#F6F8FC; padding:30px 28px; text-align:center; border-top:1px solid #E5E9F0;" class="pad-lg">
+    <table role="presentation" width="100%" style="max-width:620px; margin:0 auto;"><tr>
+      <td align="center" class="stack" style="padding:8px;">
+        <div style="font-size:26px; font-weight:800; color:#0B1B36;" class="stat-num">5,000+</div>
+        <div style="font-size:10.5px; color:#5A6B85; letter-spacing:1.2px; text-transform:uppercase; margin-top:4px; font-weight:700;">Clients Served</div>
+      </td>
+      <td align="center" class="stack" style="padding:8px;">
+        <div style="font-size:26px; font-weight:800; color:#0B1B36;" class="stat-num">4.9 &#9733;</div>
+        <div style="font-size:10.5px; color:#5A6B85; letter-spacing:1.2px; text-transform:uppercase; margin-top:4px; font-weight:700;">Average Rating</div>
+      </td>
+      <td align="center" class="stack" style="padding:8px;">
+        <div style="font-size:26px; font-weight:800; color:#16A34A;" class="stat-num">97%</div>
+        <div style="font-size:10.5px; color:#5A6B85; letter-spacing:1.2px; text-transform:uppercase; margin-top:4px; font-weight:700;">GST Approval</div>
+      </td>
+      <td align="center" class="stack" style="padding:8px;">
+        <div style="font-size:26px; font-weight:800; color:#1E4DB7;" class="stat-num">48 hrs</div>
+        <div style="font-size:10.5px; color:#5A6B85; letter-spacing:1.2px; text-transform:uppercase; margin-top:4px; font-weight:700;">Activation</div>
+      </td>
+    </tr></table>
+  </td></tr>
+
+  <tr><td style="background:#ffffff; padding:34px 30px; border-top:1px solid #E5E9F0;" class="pad-lg">
+    <div style="text-align:center; margin-bottom:22px;">
+      <div style="display:inline-block; background:rgba(22,163,74,0.12); color:#15803D; font-size:11px; font-weight:800; padding:6px 14px; border-radius:30px; letter-spacing:1.5px; margin-bottom:10px;">&#128179; PAYMENT SUMMARY</div>
+      <div style="font-size:22px; font-weight:800; color:#0B1B36;" class="h2">Your Transaction Details</div>
+      <div style="font-size:13px; color:#5A6B85; margin-top:6px;">Kindly retain this email as your official payment record.</div>
+    </div>
+    <table role="presentation" width="100%" class="summary-table" style="border-collapse:separate; border-spacing:0; border:1px solid #E5E9F0; border-radius:12px; overflow:hidden;">
+      <tr style="background:#0A1F4D; color:#fff;">
+        <th style="padding:14px 16px; text-align:left; font-size:13px; font-weight:700; width:45%;">Detail</th>
+        <th style="padding:14px 16px; text-align:left; font-size:13px; font-weight:700;">Value</th>
+      </tr>
+      <tr style="background:#fff;">
+        <td style="padding:13px 16px; border-bottom:1px solid #EEF2F8; font-weight:600; color:#5A6B85;">Payment ID / UTR</td>
+        <td style="padding:13px 16px; border-bottom:1px solid #EEF2F8; font-weight:700; color:#0B1B36;">${utr}</td>
+      </tr>
+      <tr style="background:#F6F8FC;">
+        <td style="padding:13px 16px; border-bottom:1px solid #EEF2F8; font-weight:600; color:#5A6B85;">Booking ID</td>
+        <td style="padding:13px 16px; border-bottom:1px solid #EEF2F8; font-weight:700; color:#0B1B36;">${booking_id}</td>
+      </tr>
+      <tr style="background:#fff;">
+        <td style="padding:13px 16px; border-bottom:1px solid #EEF2F8; font-weight:600; color:#5A6B85;">Payment Date</td>
+        <td style="padding:13px 16px; border-bottom:1px solid #EEF2F8; font-weight:700; color:#0B1B36;">${date}</td>
+      </tr>
+      <tr style="background:#F6F8FC;">
+        <td style="padding:13px 16px; border-bottom:1px solid #EEF2F8; font-weight:600; color:#5A6B85;">Payment Mode</td>
+        <td style="padding:13px 16px; border-bottom:1px solid #EEF2F8; font-weight:700; color:#0B1B36;">${payment_mode || "\u2014"}</td>
+      </tr>
+      <tr style="background:#F0FAF4;">
+        <td style="padding:16px; border-bottom:1px solid #EEF2F8; font-weight:700; color:#0B1B36; font-size:14px;">&#128176; Amount Paid</td>
+        <td style="padding:16px; border-bottom:1px solid #EEF2F8; font-weight:800; color:#15803D; font-size:18px;">${amount}</td>
+      </tr>
+      <tr style="background:#fff;">
+        <td style="padding:13px 16px; font-weight:600; color:#5A6B85;">Status</td>
+        <td style="padding:13px 16px;"><span style="display:inline-block; background:#16A34A; color:#fff; font-size:12px; font-weight:800; padding:5px 12px; border-radius:30px; letter-spacing:0.5px;">&#10003; SUCCESSFUL</span></td>
+      </tr>
+    </table>
+  </td></tr>
+
+  <tr><td style="background:#ffffff; padding:34px 30px; border-top:1px solid #E5E9F0;" class="pad-lg">
+    <div style="text-align:center; margin-bottom:22px;">
+      <div style="display:inline-block; background:#FFE39A; color:#5A4500; font-size:11px; font-weight:800; padding:6px 14px; border-radius:30px; letter-spacing:1.5px; margin-bottom:10px;">&#128203; SERVICE DETAILS</div>
+      <div style="font-size:22px; font-weight:800; color:#0B1B36;" class="h2">What Your Payment Covers</div>
+      <div style="font-size:13px; color:#5A6B85; margin-top:6px;">Your payment has been applied toward the following service references.</div>
+    </div>
+    <table role="presentation" width="100%" class="grid-2"><tr>
+      <td class="stack" valign="top" style="width:50%; padding:6px;">
+        <div style="background:#F6F8FC; border:1px solid #E5E9F0; border-left:4px solid #1E4DB7; padding:16px 18px; border-radius:10px;">
+          <div style="font-weight:800; color:#0B1B36; font-size:14px;">&#128230; Plan</div>
+          <div style="font-size:13px; color:#5A6B85; margin-top:6px; line-height:1.5;">${plan_name}</div>
+        </div>
+      </td>
+      <td class="stack" valign="top" style="width:50%; padding:6px;">
+        <div style="background:#F6F8FC; border:1px solid #E5E9F0; border-left:4px solid #1E4DB7; padding:16px 18px; border-radius:10px;">
+          <div style="font-weight:800; color:#0B1B36; font-size:14px;">&#128197; Tenure</div>
+          <div style="font-size:13px; color:#5A6B85; margin-top:6px; line-height:1.5;">1 Year of full address use, documentation &amp; mail handling.</div>
+        </div>
+      </td>
+    </tr><tr>
+      <td class="stack" valign="top" style="width:50%; padding:6px;">
+        <div style="background:#F6F8FC; border:1px solid #E5E9F0; border-left:4px solid #1E4DB7; padding:16px 18px; border-radius:10px;">
+          <div style="font-weight:800; color:#0B1B36; font-size:14px;">&#128205; Location(s) Covered</div>
+          <div style="font-size:13px; color:#5A6B85; margin-top:6px; line-height:1.5;">${state || "PAN India"}</div>
+        </div>
+      </td>
+      <td class="stack" valign="top" style="width:50%; padding:6px;">
+        <div style="background:#F6F8FC; border:1px solid #E5E9F0; border-left:4px solid #1E4DB7; padding:16px 18px; border-radius:10px;">
+          <div style="font-weight:800; color:#0B1B36; font-size:14px;">&#9889; Activation Window</div>
+          <div style="font-size:13px; color:#5A6B85; margin-top:6px; line-height:1.5;">Your address will be live within 48 hours.</div>
+        </div>
+      </td>
+    </tr></table>
+  </td></tr>
+
+  <tr><td style="background:#F6F8FC; padding:34px 30px; border-top:1px solid #E5E9F0;" class="pad-lg">
+    <div style="text-align:center; margin-bottom:24px;">
+      <div style="display:inline-block; background:rgba(30,77,183,0.1); color:#1E4DB7; font-size:11px; font-weight:800; padding:6px 14px; border-radius:30px; letter-spacing:1.5px; margin-bottom:10px;">&#128640; NEXT STEPS</div>
+      <div style="font-size:22px; font-weight:800; color:#0B1B36;" class="h2">What Happens Next</div>
+      <div style="font-size:13px; color:#5A6B85; margin-top:6px;">Three simple, guided steps &mdash; your dedicated manager handles everything.</div>
+    </div>
+    <table role="presentation" width="100%" class="grid-3"><tr>
+      <td class="stack" valign="top" style="width:33.33%; padding:6px;">
+        <div style="background:#fff; border:1px solid #E5E9F0; border-radius:12px; padding:20px 18px; text-align:center; box-shadow:0 2px 6px rgba(11,27,54,0.04);">
+          <div style="width:42px; height:42px; line-height:42px; border-radius:50%; background:linear-gradient(135deg,#1E4DB7,#3D6EE0); color:#fff; font-weight:800; font-size:16px; margin:0 auto 12px;">1</div>
+          <div style="font-weight:800; color:#0B1B36; font-size:14px;">&#128196; Document Verification</div>
+          <div style="font-size:12.5px; color:#5A6B85; margin-top:8px; line-height:1.6;">Our team will reach out to collect &amp; verify your KYC documents.</div>
+        </div>
+      </td>
+      <td class="stack" valign="top" style="width:33.33%; padding:6px;">
+        <div style="background:#fff; border:1px solid #E5E9F0; border-radius:12px; padding:20px 18px; text-align:center; box-shadow:0 2px 6px rgba(11,27,54,0.04);">
+          <div style="width:42px; height:42px; line-height:42px; border-radius:50%; background:linear-gradient(135deg,#1E4DB7,#3D6EE0); color:#fff; font-weight:800; font-size:16px; margin:0 auto 12px;">2</div>
+          <div style="font-weight:800; color:#0B1B36; font-size:14px;">&#128221; Agreement &amp; KYC</div>
+          <div style="font-size:12.5px; color:#5A6B85; margin-top:8px; line-height:1.6;">Signed rent agreement, NOC and utility bill prepared in your name.</div>
+        </div>
+      </td>
+      <td class="stack" valign="top" style="width:33.33%; padding:6px;">
+        <div style="background:#fff; border:1px solid #E5E9F0; border-radius:12px; padding:20px 18px; text-align:center; box-shadow:0 2px 6px rgba(11,27,54,0.04);">
+          <div style="width:42px; height:42px; line-height:42px; border-radius:50%; background:linear-gradient(135deg,#15803D,#16A34A); color:#fff; font-weight:800; font-size:16px; margin:0 auto 12px;">3</div>
+          <div style="font-weight:800; color:#0B1B36; font-size:14px;">&#127970; Address Activation</div>
+          <div style="font-size:12.5px; color:#5A6B85; margin-top:8px; line-height:1.6;">Complete GST kit delivered + signage installed. You're live!</div>
+        </div>
+      </td>
+    </tr></table>
+  </td></tr>
 ${signatureHtml}
+  <tr><td style="background:#F6F8FC; padding:12px 30px; border-top:1px solid #E5E9F0; text-align:center;">
+    <span style="font-size:10px; color:#7A8AA8;">Service governed by our</span>
+    <a href="https://easemyoffice.in/terms-and-conditions/" style="font-size:10px; color:#1E4DB7; font-weight:700; text-decoration:underline; margin:0 3px;">Terms</a>
+    <span style="font-size:10px; color:#7A8AA8;">&amp;</span>
+    <a href="https://easemyoffice.in/refund-policy/" style="font-size:10px; color:#1E4DB7; font-weight:700; text-decoration:underline; margin:0 3px;">Refund Policy</a>
+  </td></tr>
 
-<!-- Terms & Refund Policy -->
-<tr>
-<td style="padding:0 32px 24px;text-align:center;">
-<p style="margin:0;font-size:11px;color:#9ca3af;">By proceeding, you agree to our <span style="color:#1e40af;text-decoration:underline;">Terms of Service</span> &amp; <span style="color:#1e40af;text-decoration:underline;">Refund Policy</span>.</p>
-</td>
-</tr>
+  <tr><td style="background:#05122E; background:linear-gradient(135deg,#05122E 0%, #0A1F4D 50%, #1E3A8A 100%); padding:48px 32px; text-align:center;" class="pad-lg">
+    <div style="display:inline-block; background:rgba(255,227,154,0.12); border:1px solid rgba(255,227,154,0.35); color:#FFE39A; font-size:10px; font-weight:800; letter-spacing:2.5px; padding:7px 16px; border-radius:30px; margin-bottom:20px;">
+      &#127882; WELCOME ABOARD
+    </div>
+    <div style="font-size:30px; font-weight:800; color:#fff; letter-spacing:-0.6px; line-height:1.15;" class="h1">
+      Your Premium Address.<br><span style="color:#FFE39A;">Activated in 48 Hours.</span>
+    </div>
+    <div style="font-size:14px; color:#C7D6F5; margin:16px auto 28px; max-width:460px; line-height:1.6;">
+      Thank you for choosing EaseMyOffice &mdash; a division of Narula Technologies LLP. We're committed to delivering you a compliant, professional, and worry-free virtual office experience.
+    </div>
+    <table role="presentation" align="center" style="margin:0 auto;"><tr>
+      <td style="padding:5px;">
+        <a href="https://wa.me/${digits}" class="pill" style="display:inline-block; background:#FFE39A; background:linear-gradient(135deg,#FFE39A,#F5C842); color:#0A1F4D; padding:16px 32px; border-radius:30px; font-weight:800; font-size:14px; box-shadow:0 10px 28px rgba(245,200,66,0.35);">&#128172; Chat on WhatsApp</a>
+      </td>
+      <td style="padding:5px;">
+        <a href="tel:+${digits}" class="pill" style="display:inline-block; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.25); color:#fff; padding:16px 28px; border-radius:30px; font-weight:700; font-size:14px;">&#128222; Talk to ${firstName}</a>
+      </td>
+    </tr></table>
+    <table role="presentation" width="100%" style="margin-top:32px; max-width:520px; margin-left:auto; margin-right:auto;"><tr>
+      <td align="center" class="stack" style="padding:8px; border-right:1px solid rgba(255,255,255,0.1);">
+        <div style="font-size:20px; font-weight:800; color:#FFE39A;">5,000+</div>
+        <div style="font-size:10px; color:#9BB0D6; letter-spacing:1px; text-transform:uppercase; margin-top:4px;">Clients Served</div>
+      </td>
+      <td align="center" class="stack" style="padding:8px; border-right:1px solid rgba(255,255,255,0.1);">
+        <div style="font-size:20px; font-weight:800; color:#FFE39A;">97%</div>
+        <div style="font-size:10px; color:#9BB0D6; letter-spacing:1px; text-transform:uppercase; margin-top:4px;">Approval Rate</div>
+      </td>
+      <td align="center" class="stack" style="padding:8px;">
+        <div style="font-size:20px; font-weight:800; color:#FFE39A;">48 hrs</div>
+        <div style="font-size:10px; color:#9BB0D6; letter-spacing:1px; text-transform:uppercase; margin-top:4px;">Activation</div>
+      </td>
+    </tr></table>
+    <div style="font-size:11px; color:#7088B5; margin-top:24px; letter-spacing:0.5px;">&#128274; Payment secured &middot; &#128188; Compliance-first &middot; &#11088; 4.9/5 rated</div>
+  </td></tr>
 
-<!-- SECTION 7: Welcome Aboard -->
-<tr>
-<td style="background-color:#0f172a;padding:32px;text-align:center;">
-<div style="margin:0 0 12px;display:inline-block;background-color:#1e40af;color:#ffffff;font-size:11px;font-weight:700;padding:5px 14px;border-radius:16px;letter-spacing:0.5px;">&#127968; WELCOME ABOARD</div>
-<p style="margin:0 0 8px;font-size:18px;color:#d97706;font-weight:700;">Your Premium Address. <span style="border-bottom:2px solid #d97706;">Activated in 48 Hours.</span></p>
-<p style="margin:0 0 20px;font-size:13px;color:#94a3b8;line-height:1.6;">
-Thank you once again for choosing EaseMyOffice, a division of Narula Technologies LLP. We are committed to providing you with the best-in-class virtual office experience across India.
-</p>
-<!-- Buttons -->
-<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
-<tr>
-<td width="50%" style="padding:0 6px 0 0;text-align:center;">
-<a href="https://wa.me/918882735038" style="display:inline-block;background-color:#25d366;color:#ffffff;font-size:13px;font-weight:700;padding:12px 20px;border-radius:6px;text-decoration:none;">&#128172; Chat on WhatsApp</a>
-</td>
-<td width="50%" style="padding:0 0 0 6px;text-align:center;">
-<a href="tel:+918882735038" style="display:inline-block;background-color:#1e40af;color:#ffffff;font-size:13px;font-weight:700;padding:12px 20px;border-radius:6px;text-decoration:none;">&#128222; Talk to ${sales_person_name || "Our Team"}</a>
-</td>
-</tr>
-</table>
-<!-- Stats -->
-<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
-<tr>
-<td style="text-align:center;padding:6px;">
-<p style="margin:0;font-size:12px;color:#94a3b8;">5,000+ CLIENTS SERVED &nbsp;|&nbsp; 97% APPROVAL RATE &nbsp;|&nbsp; 48 hrs ACTIVATION</p>
-</td>
-</tr>
-</table>
-<p style="margin:0 0 20px;font-size:11px;color:#64748b;">&#128274; Payment secured &middot; &#128737;&#65039; Compliance-first &middot; &#11088; 4.9/5 rated</p>
-</td>
-</tr>
-
-<!-- SECTION 8: Footer -->
-<tr>
-<td style="background-color:#000000;padding:28px 32px;text-align:center;">
-<h2 style="margin:0 0 4px;color:#ffffff;font-size:18px;font-weight:400;">Ease<span style="font-weight:700;font-style:italic;">My</span>Office</h2>
-<p style="margin:0 0 12px;font-size:11px;color:#64748b;font-weight:600;">Your Virtual Office Partner</p>
-<p style="margin:0 0 4px;font-size:12px;color:#94a3b8;">&#128222; +91 88827 35038</p>
-<p style="margin:0 0 4px;font-size:12px;color:#94a3b8;">&#128231; contact@easemyoffice.in</p>
-<p style="margin:0 0 12px;font-size:12px;color:#94a3b8;">&#127760; easemyoffice.in</p>
-<!-- Social icons placeholder -->
-<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
-<tr><td align="center">
-<span style="display:inline-block;width:32px;height:32px;line-height:32px;border-radius:50%;background-color:#1e40af;color:#ffffff;font-size:14px;text-align:center;margin:0 4px;">in</span>
-<span style="display:inline-block;width:32px;height:32px;line-height:32px;border-radius:50%;background-color:#1e40af;color:#ffffff;font-size:14px;text-align:center;margin:0 4px;">&#120143;</span>
-<span style="display:inline-block;width:32px;height:32px;line-height:32px;border-radius:50%;background-color:#1e40af;color:#ffffff;font-size:14px;text-align:center;margin:0 4px;">ig</span>
-<span style="display:inline-block;width:32px;height:32px;line-height:32px;border-radius:50%;background-color:#25d366;color:#ffffff;font-size:14px;text-align:center;margin:0 4px;">wa</span>
-</td></tr>
-</table>
-<p style="margin:0 0 8px;font-size:11px;color:#64748b;">India's premium virtual office platform - PAN India, GST-ready, activated in 48 hours.</p>
-<!-- Registered office info -->
-<table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #333333;margin-top:12px;padding-top:12px;">
-<tr><td style="padding-top:12px;text-align:center;">
-<p style="margin:0 0 4px;font-size:10px;color:#475569;">Registered Office: Narula Technologies LLP, Delhi, India</p>
-<p style="margin:0 0 4px;font-size:10px;color:#475569;">CIN: AAQ-4966 | GSTIN: 07AAUFN4966Q1ZC</p>
-<p style="margin:0 0 8px;font-size:10px;color:#475569;">&copy; 2025 EaseMyOffice - All rights reserved.</p>
-<p style="margin:0;font-size:10px;color:#475569;">Crafted with precision &middot; Your Virtual Office Partner</p>
-</td></tr>
-</table>
-</td>
-</tr>
+  <tr><td style="background:#05122E; background:linear-gradient(180deg,#05122E 0%, #0A1535 100%); padding:38px 30px; border-radius:0 0 18px 18px;" class="pad-lg">
+    <table role="presentation" width="100%"><tr>
+      <td class="stack" valign="top" style="width:55%; padding:6px;">
+        <img src="${LOGO}" alt="EaseMyOffice" width="280" style="display:block; width:100%; max-width:280px; height:auto; background:#fff; padding:14px 22px; border-radius:12px;">
+        <div style="font-size:15px; color:#E2EAF8; margin-top:16px; line-height:1.6; font-weight:700;">Your Virtual Office Partner</div>
+        <div style="font-size:13px; color:#B8C5DD; margin-top:6px; line-height:1.6;">India's premium virtual office platform &mdash; PAN India, GST-ready, activated in 48 hours.</div>
+      </td>
+      <td class="stack" valign="top" style="width:45%; padding:6px;" align="right">
+        <div style="font-size:15px; color:#E2EAF8; line-height:2;">
+          <b style="color:#fff; font-size:16px;">&#128222;</b> <span style="color:#fff; font-weight:700; font-size:15px;">+91 88827 35038</span><br>
+          <b style="color:#fff; font-size:16px;">&#128231;</b> <a href="mailto:contact@easemyoffice.in" style="color:#F2D27A; font-weight:700; font-size:15px;">contact@easemyoffice.in</a><br>
+          <b style="color:#fff; font-size:16px;">&#127760;</b> <a href="https://easemyoffice.in" style="color:#F2D27A; font-weight:700; font-size:15px;">easemyoffice.in</a>
+        </div>
+      </td>
+    </tr></table>
+    <div style="margin:26px 0 22px; text-align:center;">
+      <a href="https://wa.me/918882735038" style="display:inline-block; margin:0 10px;">
+        <img src="https://cdn.simpleicons.org/whatsapp/25D366" alt="WhatsApp" width="20" height="20" style="display:block; padding:10px; background:#fff; border-radius:50%; box-shadow:0 4px 12px rgba(37,211,102,0.28);">
+      </a>
+      <a href="https://www.linkedin.com/company/easemyoffice" style="display:inline-block; margin:0 10px;">
+        <img src="https://cdn.simpleicons.org/linkedin/0A66C2" alt="LinkedIn" width="20" height="20" style="display:block; padding:10px; background:#fff; border-radius:50%; box-shadow:0 4px 12px rgba(10,102,194,0.28);">
+      </a>
+      <a href="https://www.instagram.com/easemyoffice" style="display:inline-block; margin:0 10px;">
+        <img src="https://cdn.simpleicons.org/instagram/E4405F" alt="Instagram" width="20" height="20" style="display:block; padding:10px; background:#fff; border-radius:50%; box-shadow:0 4px 12px rgba(228,64,95,0.28);">
+      </a>
+      <a href="https://easemyoffice.in" style="display:inline-block; margin:0 10px;">
+        <img src="https://cdn.simpleicons.org/googlechrome/4285F4" alt="Website" width="20" height="20" style="display:block; padding:10px; background:#fff; border-radius:50%; box-shadow:0 4px 12px rgba(66,133,244,0.28);">
+      </a>
+    </div>
+    <div style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:16px 18px; font-size:12.5px; color:#FFFFFF; line-height:1.8;">
+      <div><span style="color:#F2D27A; font-weight:700;">Registered Office:</span> <span style="color:#FFFFFF;">Narula Technologies LLP, New Delhi, India</span></div>
+      <div style="margin-top:4px;">
+        <span style="color:#F2D27A; font-weight:700;">CIN:</span> <span style="color:#FFFFFF;">AAA-XXXX</span>
+        &nbsp;&middot;&nbsp;
+        <span style="color:#F2D27A; font-weight:700;">GSTIN:</span> <span style="color:#FFFFFF;">07AAXFNXXXXX1ZX</span>
+      </div>
+    </div>
+    <div style="border-top:1px solid rgba(255,255,255,0.08); margin:20px 0 14px; height:1px;"></div>
+    <div style="font-size:11.5px; color:#C2D0E8; text-align:center; line-height:1.7;">
+      &copy; 2026 EaseMyOffice &mdash; All rights reserved.<br>
+      <span style="color:#9BB0D6;">Crafted with precision &middot; Your Virtual Office Partner</span>
+    </div>
+  </td></tr>
 
 </table>
+
 </td></tr>
 </table>
 </body>
