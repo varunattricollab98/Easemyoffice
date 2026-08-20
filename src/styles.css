@@ -193,6 +193,29 @@
   transition: box-shadow 200ms ease, transform 200ms ease, border-color 200ms ease;
 }
 .surface-card:hover { box-shadow: var(--shadow-elevated); }
+
+/* One hover treatment for every clickable dashboard tile. .surface-card already
+   transitions transform/box-shadow/border-color, so these only set the hover end
+   state — which is why none of them need the bare `transition-all` that used to
+   be repeated across the dashboard (and which animated unrelated properties).
+   Lift is reserved for things that actually navigate; static tiles still get the
+   shadow from .surface-card, so a mixed grid reads as one set. */
+.tile-link:hover,
+.tile-link:focus-visible {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--primary) 45%, var(--border));
+}
+
+/* Was `transition-all duration-200 ease-out hover:shadow-sm` copy-pasted onto
+   five separate toolbar buttons. */
+.btn-elevate { transition: box-shadow 200ms ease, transform 200ms ease; }
+.btn-elevate:hover { box-shadow: var(--shadow-soft); }
+
+/* The hero widget has no title row to grab, so unlike the other widgets it never
+   got a react-grid-layout drag handle. This thin grip stands in, and only shows
+   while Edit layout is active. */
+.hero-grip { display: none; }
+.dash-edit .hero-grip { display: flex; }
 .surface-glass {
   background: color-mix(in oklab, var(--card) 70%, transparent);
   backdrop-filter: blur(14px) saturate(140%);

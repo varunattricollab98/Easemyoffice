@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   Target,
   ArrowUpRight,
+  GripHorizontal,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { heroTodayQuery, useDashboardScope } from "@/lib/dashboard-queries";
@@ -82,6 +83,18 @@ export function HeroToday() {
   return (
     <div className="surface-card relative overflow-hidden p-5 lift-in h-full">
       <div className="absolute inset-0" style={{ background: "var(--gradient-soft)" }} />
+
+      {/* react-grid-layout only starts a drag from `.widget-handle`. Every other
+          widget uses its title row; the hero has none, so it could never be
+          dragged at all. This grip is that handle, shown only in Edit layout
+          (see .hero-grip in styles.css). */}
+      <div
+        className="widget-handle hero-grip absolute top-0 left-1/2 z-20 -translate-x-1/2 cursor-grab items-center justify-center rounded-b-md border border-t-0 bg-card/90 px-4 py-0.5 active:cursor-grabbing"
+        aria-hidden="true"
+        title="Drag to move"
+      >
+        <GripHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
+      </div>
 
       <div className="relative grid gap-5 md:grid-cols-[auto_1fr] md:items-center">
         {/* Progress ring */}
@@ -195,7 +208,9 @@ function TrendChart({
     };
   }, [newSeries, closeSeries, dates, range]);
 
-  const W = 600, H = 110, P = 10, BOTTOM = 18;
+  // BOTTOM was 18 to leave room for in-SVG date labels. Those now render in HTML
+  // below the chart, so the plot area gets that space back.
+  const W = 600, H = 110, P = 10, BOTTOM = 8;
   const n = Math.max(sliced.n.length, sliced.c.length, 2);
   const stepX = (W - P * 2) / (n - 1);
   const max = Math.max(1, ...sliced.n, ...sliced.c);
@@ -278,11 +293,16 @@ function TrendChart({
       ? `${fmtDay(sliced.d[hover] ?? "")}: ${sliced.n[hover] ?? 0} new leads, ${sliced.c[hover] ?? 0} closed`
       : `${range}-day trend chart. Use arrow keys to inspect daily totals.`;
 
-  // Show denser X-axis labels on 30d, but skip alternate to avoid clipping.
-  const labelIdxs = (() => {
-    if (n <= 1) return [0];
+  // X-axis ticks, rendered as HTML *below* the chart rather than as <text> inside
+  // it. The SVG is drawn with preserveAspectRatio="none", which scales it
+  // non-uniformly and stretched these glyphs; sitting right above the per-day
+  // totals strip, that read as two cramped, overlapping rows of dates.
+  // Deduped because range===1 pads `n` to 2 and would repeat the same date.
+  const axisLabels = (() => {
+    if (n <= 1) return [fmtDay(sliced.d[0] ?? "")].filter(Boolean);
     const ticks = range >= 30 ? 5 : range >= 14 ? 3 : Math.min(n, 3);
-    return Array.from({ length: ticks }, (_, i) => Math.round((i * (n - 1)) / (ticks - 1)));
+    const idxs = Array.from({ length: ticks }, (_, i) => Math.round((i * (n - 1)) / (ticks - 1)));
+    return [...new Set(idxs)].map((i) => fmtDay(sliced.d[i] ?? "")).filter(Boolean);
   })();
 
   return (
@@ -353,19 +373,17 @@ function TrendChart({
               <circle cx={hoverX} cy={y(sliced.c[hover] ?? 0)} r="3.5" fill="oklch(0.7 0.18 155)" />
             </g>
           )}
-          {labelIdxs.map((i) => (
-            <text
-              key={i}
-              x={P + i * stepX}
-              y={H - 4}
-              textAnchor={i === 0 ? "start" : i === n - 1 ? "end" : "middle"}
-              fontSize="9"
-              fill="var(--muted-foreground)"
-            >
-              {fmtDay(sliced.d[i] ?? "")}
-            </text>
-          ))}
         </svg>
+
+        {/* Axis labels in HTML, so they stay crisp and evenly spaced instead of
+            being stretched with the SVG. */}
+        {axisLabels.length > 1 && (
+          <div className="mt-0.5 flex justify-between px-1 text-[10px] tabular-nums text-muted-foreground">
+            {axisLabels.map((d, i) => (
+              <span key={`${d}-${i}`}>{d}</span>
+            ))}
+          </div>
+        )}
 
         {hover != null && (
           <div
