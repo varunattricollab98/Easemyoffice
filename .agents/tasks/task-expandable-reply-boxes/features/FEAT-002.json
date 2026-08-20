@@ -1,0 +1,27 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Make the reminders page 'Schedule a client reminder' compose dialog expandable with template selection. The dialog is in src/routes/_authenticated/reminders.tsx. It already has snippets support via a dropdown. Add full expandable/collapse treatment matching the lead email compose pattern.",
+  "status": "completed",
+  "steps": [
+    "In src/routes/_authenticated/reminders.tsx, add expandable functionality to the 'Schedule a client reminder' Dialog (around line 575-650). Add: (a) an expanded state with localStorage persistence key 'reminders:compose:expanded', (b) a Maximize2/Minimize2 toggle button positioned at top-right of the dialog (absolute right-12 top-4 like the lead email pattern), (c) DialogContent conditional sizing: expanded = 'h-[94vh] w-[96vw] max-w-6xl', normal = current 'max-w-2xl max-h-[90vh]', (d) change DialogContent from current layout to 'flex flex-col gap-0 p-0' pattern, (e) the RichTextEditor area should grow to fill available space when expanded (wrap in a flex-1 min-h-0 container).",
+    "Add template selection in the compose form. A snippet dropdown already exists in the form (the 'Insert snippet...' select). Additionally add a built-in templates row (same as QUOTATION_TEMPLATES: Quotation, Welcome, Follow-up, Documents, Payment, Thank you, Blank) that pre-fills the subject and rich text body. The existing insertSnippet function already handles DB snippets - add a similar mechanism for built-in templates that generates subject + HTML body.",
+    "Import Maximize2 and Minimize2 from lucide-react (they may not be imported yet in this file). Import cn from @/lib/utils if not already imported.",
+    "Ensure the dialog footer buttons (Cancel, Send now, Schedule reminder) remain at the bottom (shrink-0 border-t) and don't scroll away."
+  ],
+  "acceptance_criteria": [
+    "The reminders compose dialog has a Maximize2/Minimize2 toggle that switches between normal and expanded modes",
+    "Expanded mode shows h-[94vh] w-[96vw] max-w-6xl sizing with textarea/editor growing to fill space",
+    "Built-in email templates (Quotation, Welcome, Follow-up, Documents, Payment, Thank you, Blank) are available as a dropdown that pre-fills subject + body",
+    "Expanded state is persisted in localStorage with key 'reminders:compose:expanded'",
+    "The existing snippet insert dropdown still works alongside the new template dropdown",
+    "TypeScript compiles without errors: bunx tsc --noEmit passes",
+    "Production build succeeds: bun run build passes"
+  ],
+  "verification": [
+    "bunx tsc --noEmit",
+    "bun run build"
+  ],
+  "blocked_reason": null,
+  "findings": "Implementation complete. Added expandable toggle (Maximize2/Minimize2) with localStorage persistence, conditional dialog sizing using cn(), and a built-in template dropdown (Select from shadcn/ui) with 7 template options that pre-fill subject and HTML body. The existing snippet insert dropdown is preserved alongside the new template selector. TypeScript and build both pass cleanly."
+}
