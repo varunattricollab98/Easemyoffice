@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { getSheetPlans, getNextBookingIdFromSheet, syncBookingToSheet } from "@/lib/bookings-sheet";
+import { buildEmailSignature } from "@/lib/email-signature";
 
 const SOURCES = ["Website", "Referral", "IndiaMART", "Google Ads", "Meta Ads", "WhatsApp", "Direct", "Other"];
 const SP_STATUSES = ["Active", "Pending", "Inactive"];
@@ -60,9 +61,12 @@ function buildPaymentAckEmailHtml(details: {
   payment_id_utr: string;
   state: string;
   sales_person_name: string;
+  phone: string;
 }) {
   const { client_name, booking_id, plan_name, amount, payment_mode, date, payment_id_utr, state, sales_person_name } = details;
   const managerInitials = sales_person_name ? sales_person_name.split(" ").map((w: string) => w[0]).join("").toUpperCase() : "EM";
+  const phone = details.phone || "+91 88827 35038";
+  const signatureHtml = buildEmailSignature({ name: sales_person_name || "Your Manager", phone });
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Payment Acknowledgment</title></head>
@@ -267,69 +271,7 @@ Thank you for your trust and your prompt payment. We're truly delighted to welco
 </tr>
 
 <!-- SECTION 6: Dedicated Manager -->
-<tr>
-<td style="padding:0 32px 32px;">
-<div style="margin:0 0 16px;display:inline-block;background-color:#1a237e;color:#ffffff;font-size:11px;font-weight:700;padding:5px 14px;border-radius:16px;letter-spacing:0.5px;">&#128100; YOUR DEDICATED MANAGER</div>
-<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
-<tr><td style="padding:24px;text-align:center;">
-<!-- Avatar with initials -->
-<div style="display:inline-block;width:64px;height:64px;line-height:64px;border-radius:50%;background-color:#1e40af;color:#ffffff;font-size:22px;font-weight:700;text-align:center;margin-bottom:12px;">${managerInitials}</div>
-<p style="margin:0 0 4px;font-size:18px;color:#111827;font-weight:700;">${sales_person_name || "Your Manager"}</p>
-<p style="margin:0 0 12px;font-size:13px;color:#6b7280;">Client Success Manager, EaseMyOffice</p>
-<!-- Badges -->
-<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
-<tr><td align="center">
-<span style="display:inline-block;background-color:#dcfce7;color:#166534;font-size:11px;font-weight:600;padding:4px 10px;border-radius:12px;margin:0 4px;">&#128994; ONLINE NOW</span>
-<span style="display:inline-block;background-color:#dbeafe;color:#1e40af;font-size:11px;font-weight:600;padding:4px 10px;border-radius:12px;margin:0 4px;">&#9889; REPLIES IN 5 MIN</span>
-</td></tr>
-</table>
-<!-- Quote -->
-<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f9fafb;border-radius:8px;overflow:hidden;margin-bottom:16px;">
-<tr><td style="padding:14px 20px;">
-<p style="margin:0;font-size:13px;color:#374151;font-style:italic;line-height:1.6;">"I'm personally assigned to your account. From documentation to activation, I'll ensure everything is smooth and on time. Feel free to reach out anytime!"</p>
-</td></tr>
-</table>
-<!-- Contact cards -->
-<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
-<tr>
-<td width="50%" style="padding:0 4px 0 0;">
-<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
-<tr><td style="padding:12px;text-align:center;">
-<p style="margin:0 0 4px;font-size:11px;color:#6b7280;text-transform:uppercase;">&#128222; Call Direct</p>
-<p style="margin:0;font-size:13px;color:#1e40af;font-weight:600;">+91 88827 35038</p>
-</td></tr>
-</table>
-</td>
-<td width="50%" style="padding:0 0 0 4px;">
-<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
-<tr><td style="padding:12px;text-align:center;">
-<p style="margin:0 0 4px;font-size:11px;color:#6b7280;text-transform:uppercase;">&#128231; Email Me</p>
-<p style="margin:0;font-size:13px;color:#1e40af;font-weight:600;">contact@easemyoffice.in</p>
-</td></tr>
-</table>
-</td>
-</tr>
-</table>
-<!-- Action buttons -->
-<table width="100%" cellpadding="0" cellspacing="0">
-<tr>
-<td width="33%" style="padding:0 3px 0 0;text-align:center;">
-<a href="https://wa.me/918882735038" style="display:inline-block;width:100%;background-color:#25d366;color:#ffffff;font-size:12px;font-weight:700;padding:10px 8px;border-radius:6px;text-decoration:none;">&#128172; WhatsApp</a>
-</td>
-<td width="33%" style="padding:0 3px;text-align:center;">
-<a href="tel:+918882735038" style="display:inline-block;width:100%;background-color:#1e40af;color:#ffffff;font-size:12px;font-weight:700;padding:10px 8px;border-radius:6px;text-decoration:none;">&#128222; Call</a>
-</td>
-<td width="33%" style="padding:0 0 0 3px;text-align:center;">
-<a href="mailto:contact@easemyoffice.in" style="display:inline-block;width:100%;background-color:#6b7280;color:#ffffff;font-size:12px;font-weight:700;padding:10px 8px;border-radius:6px;text-decoration:none;">&#128231; Reply</a>
-</td>
-</tr>
-</table>
-<!-- Working hours -->
-<p style="margin:16px 0 0;font-size:11px;color:#9ca3af;">Working Hours: Mon-Sat, 10:00 AM - 7:00 PM IST</p>
-</td></tr>
-</table>
-</td>
-</tr>
+${signatureHtml}
 
 <!-- Terms & Refund Policy -->
 <tr>
@@ -426,6 +368,7 @@ export function NewBookingDialog() {
     payment_id_utr: string;
     state: string;
     sales_person_name: string;
+    phone: string;
   } | null>(null);
 
   // Form state
@@ -564,7 +507,7 @@ export function NewBookingDialog() {
     if (!savedBookingData) return;
     setSendingEmail(true);
     try {
-      const { client_name, email_id, plan_name, booking_id, amount_received: amt, payment_mode_ref, date, payment_id_utr, state, sales_person_name } = savedBookingData;
+      const { client_name, email_id, plan_name, booking_id, amount_received: amt, payment_mode_ref, date, payment_id_utr, state, sales_person_name, phone } = savedBookingData;
       const formattedDate = new Date(date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
       const formattedAmount = amt.toLocaleString("en-IN", { style: "currency", currency: "INR" });
 
@@ -580,6 +523,7 @@ export function NewBookingDialog() {
         payment_id_utr,
         state,
         sales_person_name,
+        phone,
       });
       const text = [
         `PAYMENT ACKNOWLEDGEMENT - OFFICIALLY CONFIRMED`,
@@ -722,6 +666,7 @@ export function NewBookingDialog() {
           payment_id_utr: f.payment_id_utr,
           state: f.state,
           sales_person_name: profile?.full_name || "",
+          phone: profile?.phone || "",
         });
         setShowAckDialog(true);
       } else {
