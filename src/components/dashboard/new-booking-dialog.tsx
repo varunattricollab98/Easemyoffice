@@ -1,12 +1,20 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Check, MapPin, Building2 } from "lucide-react";
+import { Plus, Search, Check, MapPin, Building2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,10 +49,108 @@ const num = (v: string) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+function buildPaymentAckEmailHtml(details: {
+  client_name: string;
+  booking_id: string;
+  plan_name: string;
+  invoice_number: string;
+  amount: string;
+  payment_mode: string;
+  date: string;
+}) {
+  const { client_name, booking_id, plan_name, invoice_number, amount, payment_mode, date } = details;
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f7;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f7;padding:40px 20px;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+        <!-- Header -->
+        <tr>
+          <td style="background-color:#1e40af;padding:24px 32px;text-align:center;">
+            <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:0.5px;">EaseMyOffice</h1>
+            <p style="margin:4px 0 0;color:#bfdbfe;font-size:13px;">Payment Acknowledgment</p>
+          </td>
+        </tr>
+        <!-- Body -->
+        <tr>
+          <td style="padding:32px;">
+            <p style="margin:0 0 16px;font-size:15px;color:#374151;">Dear <strong>${client_name}</strong>,</p>
+            <p style="margin:0 0 20px;font-size:15px;color:#374151;line-height:1.6;">
+              Thank you for your payment. We are pleased to confirm that we have received your payment successfully. Below are your booking details:
+            </p>
+            <!-- Details Table -->
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;margin-bottom:24px;">
+              <tr style="background-color:#f9fafb;">
+                <td style="padding:12px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;width:40%;">Booking ID</td>
+                <td style="padding:12px 16px;font-size:14px;color:#111827;font-weight:600;border-bottom:1px solid #e5e7eb;">${booking_id}</td>
+              </tr>
+              <tr>
+                <td style="padding:12px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;">Plan Name</td>
+                <td style="padding:12px 16px;font-size:14px;color:#111827;border-bottom:1px solid #e5e7eb;">${plan_name}</td>
+              </tr>
+              <tr style="background-color:#f9fafb;">
+                <td style="padding:12px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;">Invoice Number</td>
+                <td style="padding:12px 16px;font-size:14px;color:#111827;border-bottom:1px solid #e5e7eb;">${invoice_number || "N/A"}</td>
+              </tr>
+              <tr>
+                <td style="padding:12px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;">Amount Received</td>
+                <td style="padding:12px 16px;font-size:14px;color:#059669;font-weight:700;border-bottom:1px solid #e5e7eb;">${amount}</td>
+              </tr>
+              <tr style="background-color:#f9fafb;">
+                <td style="padding:12px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;">Payment Mode</td>
+                <td style="padding:12px 16px;font-size:14px;color:#111827;border-bottom:1px solid #e5e7eb;">${payment_mode || "N/A"}</td>
+              </tr>
+              <tr>
+                <td style="padding:12px 16px;font-size:13px;color:#6b7280;">Date</td>
+                <td style="padding:12px 16px;font-size:14px;color:#111827;">${date}</td>
+              </tr>
+            </table>
+            <p style="margin:0 0 8px;font-size:15px;color:#374151;line-height:1.6;">
+              If you have any questions regarding this payment or your booking, please do not hesitate to reach out to us.
+            </p>
+            <p style="margin:24px 0 0;font-size:15px;color:#374151;">
+              Thank you for choosing <strong>EaseMyOffice</strong>!
+            </p>
+            <p style="margin:8px 0 0;font-size:14px;color:#6b7280;">
+              Warm regards,<br><strong>Team EaseMyOffice</strong>
+            </p>
+          </td>
+        </tr>
+        <!-- Footer -->
+        <tr>
+          <td style="background-color:#f9fafb;padding:20px 32px;border-top:1px solid #e5e7eb;text-align:center;">
+            <p style="margin:0;font-size:12px;color:#9ca3af;">
+              This is an automated email from EaseMyOffice. Please do not reply directly to this email.
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
 export function NewBookingDialog() {
   const { isAdmin, profile, user } = useAuth();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [showAckDialog, setShowAckDialog] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [savedBookingData, setSavedBookingData] = useState<{
+    client_name: string;
+    email_id: string;
+    plan_name: string;
+    booking_id: string;
+    invoice_number: string;
+    amount_received: number;
+    total_amount: number;
+    payment_mode_ref: string;
+    business_name: string;
+    date: string;
+  } | null>(null);
 
   // Form state
   const [f, setF] = useState({
@@ -171,6 +277,58 @@ export function NewBookingDialog() {
   const amountReceived = isPartial ? num(f.amount_received) : afterTds;
   const balanceAmount = isPartial ? Math.max(0, +(afterTds - amountReceived).toFixed(2)) : 0;
 
+  const resetForm = () => {
+    setF((s) => ({ ...s, booking_id: genBookingId(), plan_name: "", vo_plan: "", vo_amount: "",
+      addon_services: "", addon_amount: "", quoted_amount: "", payment_mode_ref: "", payment_id_utr: "", invoice_number: "",
+      sp_payable: "", addon_payable: "", business_name: "", client_name: "", email_id: "", contact_no: "", alt_contact_no: "", alt_contact_no_2: "", remarks: "",
+      payment_type: "full", amount_received: "", balance_due_date: "" }));
+  };
+
+  const handleSendAcknowledgment = async () => {
+    if (!savedBookingData) return;
+    setSendingEmail(true);
+    try {
+      const { client_name, email_id, plan_name, booking_id, invoice_number, amount_received: amt, payment_mode_ref, date } = savedBookingData;
+      const formattedDate = new Date(date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      const formattedAmount = amt.toLocaleString("en-IN", { style: "currency", currency: "INR" });
+
+      const subject = `Payment Acknowledgment - ${booking_id}`;
+      const html = buildPaymentAckEmailHtml({
+        client_name,
+        booking_id,
+        plan_name,
+        invoice_number,
+        amount: formattedAmount,
+        payment_mode: payment_mode_ref,
+        date: formattedDate,
+      });
+      const text = `Dear ${client_name},\n\nThank you for your payment. Here are your booking details:\n\nBooking ID: ${booking_id}\nPlan: ${plan_name}\nInvoice: ${invoice_number}\nAmount Received: ${formattedAmount}\nPayment Mode: ${payment_mode_ref}\nDate: ${formattedDate}\n\nThank you for choosing EaseMyOffice!\n\nRegards,\nTeam EaseMyOffice`;
+
+      const { data, error } = await supabase.functions.invoke("send-client-email", {
+        body: { to: email_id, subject, html, text },
+      });
+      if (error) throw new Error(error.message);
+      if (!data?.ok) throw new Error(data?.error || "Failed to send email");
+
+      toast.success("Payment acknowledgment email sent successfully!");
+    } catch (err: any) {
+      toast.error("Failed to send email: " + (err?.message || "Unknown error"));
+    } finally {
+      setSendingEmail(false);
+      setShowAckDialog(false);
+      setSavedBookingData(null);
+      setOpen(false);
+      resetForm();
+    }
+  };
+
+  const handleSaveWithoutSending = () => {
+    setShowAckDialog(false);
+    setSavedBookingData(null);
+    setOpen(false);
+    resetForm();
+  };
+
   const submit = useMutation({
     mutationFn: async () => {
       // 1) Save to the database (client-side insert, allowed by RLS for
@@ -221,11 +379,27 @@ export function NewBookingDialog() {
     onSuccess: (res) => {
       toast.success("Booking saved" + (res?.sheet?.ok ? " · added to Google Sheet ✓" : ""));
       qc.invalidateQueries({ queryKey: ["bookings"] });
-      setOpen(false);
-      setF((s) => ({ ...s, booking_id: genBookingId(), plan_name: "", vo_plan: "", vo_amount: "",
-        addon_services: "", addon_amount: "", quoted_amount: "", payment_mode_ref: "", payment_id_utr: "", invoice_number: "",
-        sp_payable: "", addon_payable: "", business_name: "", client_name: "", email_id: "", contact_no: "", alt_contact_no: "", alt_contact_no_2: "", remarks: "",
-        payment_type: "full", amount_received: "", balance_due_date: "" }));
+
+      // If email_id is filled, show the acknowledgment dialog instead of closing immediately
+      if (f.email_id.trim()) {
+        setSavedBookingData({
+          client_name: f.client_name,
+          email_id: f.email_id.trim(),
+          plan_name: f.plan_name,
+          booking_id: f.booking_id,
+          invoice_number: f.invoice_number,
+          amount_received: amountReceived,
+          total_amount: total,
+          payment_mode_ref: f.payment_mode_ref,
+          business_name: f.business_name,
+          date: f.date,
+        });
+        setShowAckDialog(true);
+      } else {
+        // No email - close and reset (old behavior)
+        setOpen(false);
+        resetForm();
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -244,6 +418,7 @@ export function NewBookingDialog() {
   );
 
   return (
+    <>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm" variant="outline"><Plus className="h-4 w-4" /> <span className="hidden sm:inline">New Booking</span></Button>
@@ -430,6 +605,42 @@ export function NewBookingDialog() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {/* Payment Acknowledgment Confirmation Dialog */}
+    <AlertDialog open={showAckDialog} onOpenChange={(v) => { if (!v && !sendingEmail) handleSaveWithoutSending(); }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Booking Saved Successfully</AlertDialogTitle>
+          <AlertDialogDescription>
+            Would you like to send a payment acknowledgment email to the client
+            {savedBookingData ? ` (${savedBookingData.email_id})` : ""}?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <Button
+            variant="outline"
+            onClick={handleSaveWithoutSending}
+            disabled={sendingEmail}
+          >
+            Save without Sending
+          </Button>
+          <Button
+            onClick={handleSendAcknowledgment}
+            disabled={sendingEmail}
+          >
+            {sendingEmail ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Sending...
+              </>
+            ) : (
+              "Send Payment Acknowledgment"
+            )}
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
 

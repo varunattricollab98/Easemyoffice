@@ -1,0 +1,7 @@
+{
+  "task_id": "task-booking-payment-acknowledgment",
+  "task_description": "After saving a new booking, show a popup with two options: Send Payment Acknowledgment (sends a professional email to the client with booking details via the existing send-client-email edge function) or Save without Sending (current close behavior). Only show the popup if the client email is filled.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001"],
+  "blocked_reason": null
+}
