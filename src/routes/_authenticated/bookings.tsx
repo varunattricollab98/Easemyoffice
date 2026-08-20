@@ -164,7 +164,7 @@ function SortHeader({
 }
 
 function BookingsPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<BookingRow | null>(null);
@@ -172,14 +172,21 @@ function BookingsPage() {
   const [sort, setSort] = useState<SortState>({ key: "date", dir: "desc" });
 
   const { data, isLoading } = useQuery({
-    queryKey: ["bookings"],
+    queryKey: ["bookings", isAdmin ? "all" : user?.id],
     queryFn: async () => {
-      // RLS returns all bookings for admins, and only own bookings for sales.
-      const { data, error } = await supabase
+      // Admin sees all bookings; a salesperson sees only their own (assigned or
+      // created by them). This explicit filter is layered on top of RLS — it
+      // ensures sales users never see other people's records even if they hold a
+      // secondary role (accounts/documentation) that RLS would permit.
+      let q = supabase
         .from("bookings")
         .select("*")
         .order("created_at", { ascending: false })
         .limit(1000);
+      if (!isAdmin && user?.id) {
+        q = q.or(`assigned_to.eq.${user.id},created_by.eq.${user.id}`);
+      }
+      const { data, error } = await q;
       if (error) throw new Error(error.message);
       return { bookings: data ?? [] };
     },
