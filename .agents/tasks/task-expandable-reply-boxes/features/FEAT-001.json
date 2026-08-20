@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Make the inbox reply box and Send Quotation composer fully expandable with template selection. The inbox.tsx file has two compose areas: (1) the inline reply composer (replyOpen block with Textarea 'Type your reply...') and (2) the Send Quotation composer (quotationOpen block). Both need the full expandable treatment with template selection like the lead email dialog.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "In src/routes/_authenticated/inbox.tsx, convert the inline reply composer (the replyOpen block around line 770-790) from a simple textarea into an expandable dialog. Add: (a) a localStorage key 'inbox:reply:expanded' for persistence, (b) Maximize2/Minimize2 toggle, (c) template selection dropdown using the same QUOTATION_TEMPLATES array already defined in this file plus the emailSnippets from DB, (d) when expanded, render as a full dialog with flex-col layout matching the pattern from leads/$id.tsx EmailComposeDialog (h-[94vh] w-[96vw] max-w-6xl expanded, max-h-[88vh] sm:max-w-2xl normal), (e) textarea grows with resize-none and flex-1 in expanded mode.",
     "For the Send Quotation composer in inbox.tsx, it already has a quotationExpanded state and Maximize2/Minimize2 toggle. Improve it to: (a) persist expand preference in localStorage with key 'inbox:quotation:expanded', (b) make the expanded dialog use the same flex-col layout pattern (h-[94vh] w-[96vw] max-w-6xl), (c) ensure the textarea grows to fill available space in expanded mode (min-h-0 flex-1 resize-none), (d) template selection is already present - ensure it matches the UX pattern.",
@@ -21,5 +21,5 @@
     "bun run build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Implementation complete. Added cn import, replyExpanded state with localStorage persistence, template selection dropdown for reply composer, full-screen expanded Dialog for reply, upgraded quotation expanded Dialog to proper flex-col layout with growing textarea. Both composers persist expand preference. TypeScript and production build pass cleanly."
 }
