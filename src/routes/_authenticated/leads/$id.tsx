@@ -940,6 +940,19 @@ function ScheduleReminderDialog({
   const [stopDays, setStopDays] = useState("30");
   const [submitting, setSubmitting] = useState(false);
 
+  // Expand toggle — remembered so "full screen" preference sticks.
+  const [expanded, setExpanded] = useState(false);
+  useEffect(() => {
+    try { setExpanded(localStorage.getItem("lead:schedule-reminder:expanded") === "1"); } catch { /* */ }
+  }, []);
+  const toggleExpanded = () => {
+    setExpanded((v) => {
+      const next = !v;
+      try { localStorage.setItem("lead:schedule-reminder:expanded", next ? "1" : "0"); } catch { /* */ }
+      return next;
+    });
+  };
+
   // Apply template when selected
   const applyTemplate = (id: string) => {
     setTemplateId(id);
@@ -1012,8 +1025,15 @@ function ScheduleReminderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex flex-col gap-0 p-0 max-h-[90vh] w-[calc(100vw-2rem)] sm:max-w-2xl">
-        <DialogHeader className="shrink-0 space-y-1.5 border-b px-6 py-4">
+      <DialogContent
+        className={cn(
+          "flex flex-col gap-0 p-0",
+          expanded
+            ? "h-[94vh] w-[96vw] max-w-6xl"
+            : "max-h-[90vh] w-[calc(100vw-2rem)] sm:max-w-2xl",
+        )}
+      >
+        <DialogHeader className="shrink-0 space-y-1.5 border-b px-6 py-4 pr-24">
           <DialogTitle className="flex items-center gap-2">
             <AlarmClock className="h-5 w-5" /> Schedule Reminder
           </DialogTitle>
@@ -1022,7 +1042,19 @@ function ScheduleReminderDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        {/* Expand toggle — next to the close X */}
+        <button
+          type="button"
+          onClick={toggleExpanded}
+          className="absolute right-12 top-4 rounded-sm p-0.5 text-muted-foreground opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-pressed={expanded}
+          aria-label={expanded ? "Exit full screen" : "Expand to full screen"}
+          title={expanded ? "Exit full screen" : "Expand to full screen"}
+        >
+          {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+        </button>
+
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4 space-y-4">
           {/* Template selector */}
           <div className="space-y-1.5">
             <Label className="text-xs">Template</Label>
@@ -1041,9 +1073,9 @@ function ScheduleReminderDialog({
           </div>
 
           {/* Message body */}
-          <div className="space-y-1.5">
+          <div className={cn("space-y-1.5", expanded && "flex min-h-0 flex-1 flex-col")}>
             <Label className="text-xs">Message</Label>
-            <RichTextEditor key={editorKey} html={message} onChange={setMessage} minHeight={200} />
+            <RichTextEditor key={editorKey} html={message} onChange={setMessage} minHeight={expanded ? 400 : 200} />
           </div>
 
           {/* Send at */}
