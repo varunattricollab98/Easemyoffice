@@ -27,7 +27,7 @@ const NAV: NavItem[] = [
   { to: "/renewals/bookings", label: "Renewal Bookings", icon: BookOpen, roles: ["admin", "renewals"] },
   { to: "/clients", label: "Clients", icon: UserCheck, roles: ["admin", "sales", "bd", "renewals", "accounts"] },
   { to: "/follow-ups", label: "Follow-ups", icon: Bell, roles: ["admin", "sales", "bd", "renewals"] },
-  { to: "/reminders", label: "Reminders", icon: AlarmClock, roles: ["admin"] },
+  { to: "/reminders", label: "Reminders", icon: AlarmClock, roles: ["admin", "sales", "bd", "renewals"] },
   { to: "/calendar", label: "Calendar", icon: Calendar },
   { to: "/tasks", label: "Tasks", icon: CheckSquare },
   { to: "/notifications", label: "Notifications", icon: Inbox },

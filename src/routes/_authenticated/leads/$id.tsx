@@ -30,7 +30,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Phone, Mail, MessageCircle, Calendar, Plus, Check, Trash2, Send, Loader2, XCircle, Maximize2, Minimize2 } from "lucide-react";
+import { ArrowLeft, Phone, Mail, MessageCircle, Calendar, Plus, Check, Trash2, Send, Loader2, XCircle, Maximize2, Minimize2, AlarmClock } from "lucide-react";
+import { RichTextEditor, htmlToText } from "@/components/ui/rich-text-editor";
 import { cn } from "@/lib/utils";
 import { INTERESTS, INTENT_FLAGS, SERVICES, SOURCES, STAGES, calcScore, deriveInterest, labelFor } from "@/lib/crm";
 import { useAuth } from "@/lib/auth";
@@ -53,6 +54,7 @@ function LeadDetailPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [emailOpen, setEmailOpen] = useState(false);
+  const [reminderOpen, setReminderOpen] = useState(false);
   const [reasonStage, setReasonStage] = useState<string | null>(null);
   const [reasonText, setReasonText] = useState("");
   const [followupConfigOpen, setFollowupConfigOpen] = useState(false);
@@ -172,6 +174,7 @@ function LeadDetailPage() {
           <Button variant="outline" size="sm" onClick={() => { window.location.href = `tel:${lead.mobile}`; logActivity("call", `Called ${lead.client_name}`, `Phone: ${lead.mobile}`); }}><Phone className="h-4 w-4 mr-1" /> Call</Button>
           <Button variant="outline" size="sm" onClick={() => { window.location.href = `https://wa.me/${lead.mobile.replace(/\D/g,"")}`; logActivity("whatsapp", `WhatsApp to ${lead.client_name}`, `Phone: ${lead.mobile}`); }}><MessageCircle className="h-4 w-4 mr-1" /> WhatsApp</Button>
           {lead.email && <Button variant="outline" size="sm" onClick={() => setEmailOpen(true)}><Mail className="h-4 w-4 mr-1" /> Email</Button>}
+          {lead.email && <Button variant="outline" size="sm" onClick={() => setReminderOpen(true)}><AlarmClock className="h-4 w-4 mr-1" /> Schedule Reminder</Button>}
           {isAdmin && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -455,6 +458,16 @@ function LeadDetailPage() {
           open={emailOpen}
           onOpenChange={setEmailOpen}
           onSent={(subject) => logActivity("email", `Emailed ${lead.email}`, subject)}
+        />
+      )}
+
+      {lead.email && (
+        <ScheduleReminderDialog
+          lead={lead}
+          open={reminderOpen}
+          onOpenChange={setReminderOpen}
+          userId={user?.id ?? ""}
+          onScheduled={(subject) => logActivity("reminder", `Scheduled reminder for ${lead.email}`, subject)}
         />
       )}
 
@@ -865,3 +878,208 @@ function FollowUpComposer({ leadId, onFollowUpCreated }: { leadId: string; onFol
   );
 }
 
+// ── Schedule Reminder Dialog ──
+
+const SCHEDULE_REMINDER_TEMPLATES = [
+  { id: "quotation", label: "Quotation" },
+  { id: "welcome", label: "Welcome / Intro" },
+  { id: "followup", label: "Follow-up" },
+  { id: "documents", label: "Documents required" },
+  { id: "payment", label: "Payment reminder" },
+  { id: "thankyou", label: "Thank you" },
+  { id: "custom", label: "Blank (write my own)" },
+] as const;
+
+function buildScheduleTemplate(id: string, clientName: string) {
+  const name = clientName.trim() || "there";
+  const sign = `<br><br>Warm regards,<br>Team EaseMyOffice<br><span style="color:#6b7280;font-size:13px">EaseMyOffice</span>`;
+  const wrap = (html: string) =>
+    `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1e293b;line-height:1.6">${html}</div>`;
+
+  switch (id) {
+    case "quotation":
+      return { subject: "Quotation for your service - EaseMyOffice", body_html: wrap(`Dear ${name},<br><br>Thank you for your interest in our services. As discussed, here is our quotation:<br><br><ul style="margin:8px 0;padding-left:20px"><li><b>Service:</b> [enter service]</li><li><b>Price:</b> [enter amount]</li><li><b>Inclusions:</b> [enter details]</li><li><b>Validity:</b> 15 days</li></ul><br>Please let me know if you have any questions.${sign}`) };
+    case "welcome":
+      return { subject: `Welcome to EaseMyOffice, ${name}!`, body_html: wrap(`Dear ${name},<br><br>Thank you for choosing EaseMyOffice. We are excited to work with you.<br><br>I will be your point of contact throughout the process. Feel free to reach out any time with questions.${sign}`) };
+    case "followup":
+      return { subject: "Following up - EaseMyOffice", body_html: wrap(`Dear ${name},<br><br>I hope you are doing well. I wanted to follow up regarding your recent enquiry. Please let me know if you would like to move ahead or if there is anything I can clarify.<br><br>Happy to help however I can.${sign}`) };
+    case "documents":
+      return { subject: "Documents required - EaseMyOffice", body_html: wrap(`Dear ${name},<br><br>To proceed with your request, please share the following documents:<br><br><ul style="margin:8px 0;padding-left:20px"><li>[Document 1]</li><li>[Document 2]</li><li>[Document 3]</li></ul><br>You can simply reply to this email with the files attached.${sign}`) };
+    case "payment":
+      return { subject: "Payment reminder - EaseMyOffice", body_html: wrap(`Dear ${name},<br><br>This is a friendly reminder regarding the pending payment. Please find the details below:<br><br><ul style="margin:8px 0;padding-left:20px"><li><b>Amount:</b> [enter amount]</li><li><b>Payment link / account:</b> [enter details]</li></ul><br>Once the payment is completed, kindly share the confirmation so we can proceed.${sign}`) };
+    case "thankyou":
+      return { subject: `Thank you, ${name}`, body_html: wrap(`Dear ${name},<br><br>Thank you for your time. It was a pleasure speaking with you. Please do not hesitate to reach out if you need anything further.${sign}`) };
+    default:
+      return { subject: "", body_html: wrap(`Dear ${name},<br><br>${sign}`) };
+  }
+}
+
+function defaultReminderSendAt() {
+  const d = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 16);
+}
+
+function ScheduleReminderDialog({
+  lead, open, onOpenChange, userId, onScheduled,
+}: {
+  lead: any; open: boolean; onOpenChange: (v: boolean) => void; userId: string; onScheduled: (subject: string) => void;
+}) {
+  const { roles } = useAuth();
+  const qc = useQueryClient();
+  const isRenewalUser = roles.includes("renewals") && !roles.includes("sales") && !roles.includes("bd");
+  const reminderFromEmail = isRenewalUser ? "EaseMyOffice Renewals <renewals@easemyoffice.in>" : null;
+
+  const [templateId, setTemplateId] = useState<string>("followup");
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [editorKey, setEditorKey] = useState(0);
+  const [sendAt, setSendAt] = useState(defaultReminderSendAt);
+  const [repeat, setRepeat] = useState(false);
+  const [intervalDays, setIntervalDays] = useState("7");
+  const [stopDays, setStopDays] = useState("30");
+  const [submitting, setSubmitting] = useState(false);
+
+  // Apply template when selected
+  const applyTemplate = (id: string) => {
+    setTemplateId(id);
+    const t = buildScheduleTemplate(id, lead.client_name);
+    setSubject(t.subject);
+    setMessage(t.body_html);
+    setEditorKey((k) => k + 1);
+  };
+
+  // Pre-fill when dialog opens
+  useEffect(() => {
+    if (open) {
+      const t = buildScheduleTemplate("followup", lead.client_name);
+      setTemplateId("followup");
+      setSubject(t.subject);
+      setMessage(t.body_html);
+      setEditorKey((k) => k + 1);
+      setSendAt(defaultReminderSendAt());
+      setRepeat(false);
+      setIntervalDays("7");
+      setStopDays("30");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const handleSchedule = async () => {
+    if (!subject.trim()) return toast.error("Subject is required.");
+    if (!htmlToText(message).trim()) return toast.error("Message is required.");
+    if (!sendAt) return toast.error("Pick a date & time to send.");
+
+    setSubmitting(true);
+    try {
+      const start = new Date(sendAt);
+      let interval = 0;
+      let until: string | null = null;
+      if (repeat) {
+        interval = Math.max(1, parseInt(intervalDays, 10) || 7);
+        const stopD = Math.max(1, parseInt(stopDays, 10) || 30);
+        until = new Date(start.getTime() + stopD * 86400000).toISOString();
+      }
+
+      const { error } = await supabase.from("reminders").insert({
+        to_email: lead.email.trim(),
+        client_name: lead.client_name?.trim() || "",
+        subject: subject.trim(),
+        message,
+        is_html: true,
+        send_at: start.toISOString(),
+        status: "scheduled",
+        repeat_interval_days: interval,
+        repeat_until: until,
+        created_by: userId,
+        assigned_to: userId,
+        from_email: reminderFromEmail,
+        lead_id: lead.id,
+      });
+      if (error) throw new Error(error.message);
+
+      toast.success("Reminder scheduled");
+      onScheduled(subject.trim());
+      qc.invalidateQueries({ queryKey: ["reminders"] });
+      qc.invalidateQueries({ queryKey: ["lead-reminders", lead.id] });
+      onOpenChange(false);
+    } catch (e: any) {
+      toast.error(e.message || "Could not schedule reminder");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex flex-col gap-0 p-0 max-h-[90vh] w-[calc(100vw-2rem)] sm:max-w-2xl">
+        <DialogHeader className="shrink-0 space-y-1.5 border-b px-6 py-4">
+          <DialogTitle className="flex items-center gap-2">
+            <AlarmClock className="h-5 w-5" /> Schedule Reminder
+          </DialogTitle>
+          <DialogDescription>
+            Schedule an email reminder to {lead.email}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+          {/* Template selector */}
+          <div className="space-y-1.5">
+            <Label className="text-xs">Template</Label>
+            <Select value={templateId} onValueChange={applyTemplate}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {SCHEDULE_REMINDER_TEMPLATES.map((t) => <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Subject */}
+          <div className="space-y-1.5">
+            <Label className="text-xs">Subject</Label>
+            <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Email subject" />
+          </div>
+
+          {/* Message body */}
+          <div className="space-y-1.5">
+            <Label className="text-xs">Message</Label>
+            <RichTextEditor key={editorKey} html={message} onChange={setMessage} minHeight={200} />
+          </div>
+
+          {/* Send at */}
+          <div className="space-y-1.5">
+            <Label className="text-xs">Send at</Label>
+            <DateTimePicker value={sendAt} onChange={setSendAt} />
+          </div>
+
+          {/* Repeat config */}
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <Checkbox checked={repeat} onCheckedChange={(v) => setRepeat(!!v)} />
+              <span className="text-sm">Repeat this reminder</span>
+            </label>
+            {repeat && (
+              <div className="grid sm:grid-cols-2 gap-3 pl-6">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Every (days)</Label>
+                  <Input type="number" min="1" value={intervalDays} onChange={(e) => setIntervalDays(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Stop after (days)</Label>
+                  <Input type="number" min="1" value={stopDays} onChange={(e) => setStopDays(e.target.value)} />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter className="shrink-0 border-t px-6 py-4">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>
+          <Button onClick={handleSchedule} disabled={submitting}>
+            {submitting ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Scheduling...</> : <><AlarmClock className="h-4 w-4 mr-1" /> Schedule Reminder</>}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
