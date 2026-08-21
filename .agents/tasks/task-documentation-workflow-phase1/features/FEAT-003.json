@@ -29,5 +29,5 @@
     "Run bun run build and confirm successful build"
   ],
   "blocked_reason": null,
-  "findings": "Complete rewrite done. Used a separate profiles query for assignee names instead of FK join (FK constraint name is auto-generated). RLS filtering is relied upon for admin vs documentation user access. All 4 stats cards, time filter, search, stage badge, and stage-change dropdown are implemented. tsc and build both pass cleanly."
+  "findings": "Complete rewrite done. Used a separate profiles query for assignee names instead of FK join (FK constraint name is auto-generated). RLS filtering is relied upon for admin vs documentation user access. All 4 stats cards, time filter, search, stage badge, and stage-change dropdown are implemented. tsc and build both pass cleanly. Post-review fix: stage dropdown now only shows current stage and forward stages (prevents accidental backward transitions)."
 }

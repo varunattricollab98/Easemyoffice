@@ -21,5 +21,5 @@
     "Run bun run build and confirm successful build"
   ],
   "blocked_reason": null,
-  "findings": "Migration file and types update completed successfully. TypeScript compilation and production build both pass cleanly. The documentation_tasks table type was inserted between bookings and follow_ups in types.ts (alphabetically). The doc_task_stage enum was added both to the Database Enums interface and the Constants.public.Enums runtime object."
+  "findings": "Migration file and types update completed successfully. TypeScript compilation and production build both pass cleanly. The documentation_tasks table type was inserted between bookings and follow_ups in types.ts (alphabetically). The doc_task_stage enum was added both to the Database Enums interface and the Constants.public.Enums runtime object. Post-review fix: removed overly broad has_role(documentation) clause from SELECT RLS policy (documentation users now only see their own tasks via assigned_to = auth.uid()), and added a unique index on booking_id to prevent duplicate assignments."
 }
