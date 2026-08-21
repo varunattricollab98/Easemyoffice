@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS public.documentation_tasks (
 CREATE INDEX IF NOT EXISTS idx_documentation_tasks_booking_id ON public.documentation_tasks(booking_id);
 CREATE INDEX IF NOT EXISTS idx_documentation_tasks_assigned_to ON public.documentation_tasks(assigned_to);
 CREATE INDEX IF NOT EXISTS idx_documentation_tasks_stage ON public.documentation_tasks(stage);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_documentation_tasks_booking_unique ON public.documentation_tasks(booking_id);
 
 -- updated_at trigger
 CREATE TRIGGER trg_documentation_tasks_updated_at
@@ -36,13 +37,12 @@ FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 -- Enable RLS
 ALTER TABLE public.documentation_tasks ENABLE ROW LEVEL SECURITY;
 
--- SELECT: admin sees all, assigned_to sees own, documentation role sees all
+-- SELECT: admin sees all, assigned_to sees own
 CREATE POLICY documentation_tasks_select ON public.documentation_tasks
 FOR SELECT TO authenticated
 USING (
   public.is_admin(auth.uid())
   OR assigned_to = auth.uid()
-  OR public.has_role(auth.uid(), 'documentation')
 );
 
 -- INSERT: admin, sales, or bd can assign

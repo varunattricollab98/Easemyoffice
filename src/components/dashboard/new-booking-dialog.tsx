@@ -797,20 +797,38 @@ export function NewBookingDialog() {
       setSendingEmail(false);
       setShowAckDialog(false);
       setSavedBookingData(null);
-      // Show documentation assignment dialog instead of closing
-      setShowDocAssignDialog(true);
+      // Show documentation assignment dialog only if booking UUID is available
+      if (docAssignBookingId) {
+        setShowDocAssignDialog(true);
+      } else {
+        setOpen(false);
+        resetForm();
+      }
     }
   };
 
   const handleSaveWithoutSending = () => {
     setShowAckDialog(false);
     setSavedBookingData(null);
-    // Show documentation assignment dialog instead of closing
-    setShowDocAssignDialog(true);
+    // Show documentation assignment dialog only if booking UUID is available
+    if (docAssignBookingId) {
+      setShowDocAssignDialog(true);
+    } else {
+      setOpen(false);
+      resetForm();
+    }
   };
 
   const handleDocAssign = async () => {
-    if (!docAssignBookingId || !selectedDocUser) return;
+    if (!docAssignBookingId) {
+      toast.warning("Booking ID is unavailable. Cannot assign to documentation team.");
+      setShowDocAssignDialog(false);
+      setSelectedDocUser("");
+      setOpen(false);
+      resetForm();
+      return;
+    }
+    if (!selectedDocUser) return;
     await docAssignMutation.mutateAsync({ bookingId: docAssignBookingId, assignedTo: selectedDocUser });
     setShowDocAssignDialog(false);
     setDocAssignBookingId(null);
@@ -949,7 +967,11 @@ export function NewBookingDialog() {
       qc.invalidateQueries({ queryKey: ["booking-next-id"] });
 
       // Store the booking UUID for documentation assignment
-      if (bookingUuid) setDocAssignBookingId(bookingUuid);
+      if (bookingUuid) {
+        setDocAssignBookingId(bookingUuid);
+      } else {
+        toast.warning("Booking ID unavailable - documentation assignment skipped.");
+      }
 
       // If email_id is filled, show the acknowledgment dialog instead of closing immediately
       if (f.email_id.trim()) {
@@ -973,9 +995,13 @@ export function NewBookingDialog() {
           balance_due_date: f.balance_due_date,
         });
         setShowAckDialog(true);
-      } else {
-        // No email - show documentation assignment dialog directly
+      } else if (bookingUuid) {
+        // No email - show documentation assignment dialog directly (only if UUID is available)
         setShowDocAssignDialog(true);
+      } else {
+        // No email and no UUID - just close
+        setOpen(false);
+        resetForm();
       }
 
       // Auto-create balance reminders for partial payments

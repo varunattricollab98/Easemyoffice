@@ -316,7 +316,7 @@ function DocumentationPage() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {DOC_STAGES.map((s) => (
+                          {DOC_STAGES.filter((_, idx) => idx >= DOC_STAGES.findIndex((s) => s.id === task.stage)).map((s) => (
                             <SelectItem key={s.id} value={s.id}>
                               {s.label}
                             </SelectItem>
