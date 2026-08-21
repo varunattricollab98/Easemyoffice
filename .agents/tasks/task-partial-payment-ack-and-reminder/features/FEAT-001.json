@@ -1,0 +1,33 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Update payment acknowledgment email to differentiate partial vs full payment, and auto-create a balance reminder when a partial payment booking is saved.",
+  "status": "completed",
+  "steps": [
+    "Step 1: Modify the `buildPaymentAckEmailHtml` function in src/components/dashboard/new-booking-dialog.tsx. Add three new optional parameters to its `details` argument: `payment_type` (string, 'full' | 'partial'), `balance_amount` (string, formatted INR or empty), and `balance_due_date` (string or empty). These determine whether the email shows full or partial payment branding.",
+    "Step 2: Inside the email HTML template, in the Status row of the payment summary table (the row that currently always shows '✓ SUCCESSFUL' green badge), add conditional logic: if payment_type is 'partial', show an amber/orange badge '⏳ PARTIAL PAYMENT' instead of the green '✓ SUCCESSFUL' badge. Keep the green badge for full payments.",
+    "Step 3: When payment_type is 'partial', add two additional rows to the summary table AFTER the 'Amount Paid' row: (a) 'Balance Remaining' showing balance_amount in amber/orange color, and (b) 'Balance Due Date' showing balance_due_date. These rows should NOT appear for full payments.",
+    "Step 4: In the yellow status bar below the header (the one that shows 'Status: PAID ✓'), when partial, change it to show 'Status: PARTIAL PAYMENT ⏳' in amber color instead of green 'PAID ✓'.",
+    "Step 5: Update the `savedBookingData` state interface to include three new fields: `payment_type: 'full' | 'partial'`, `balance_amount: number`, and `balance_due_date: string`. Update the `setSavedBookingData` call in onSuccess to pass these from the form state (f.payment_type, balanceAmount, f.balance_due_date).",
+    "Step 6: In `handleSendAcknowledgment`, pass the new fields to `buildPaymentAckEmailHtml`: payment_type from savedBookingData.payment_type, balance_amount formatted as INR string (use toLocaleString pattern), balance_due_date formatted as date string (use the same en-IN date format). Also update the plaintext `text` version to conditionally include 'Status: PARTIAL PAYMENT' + balance info.",
+    "Step 7: In the `onSuccess` handler of the `submit` mutation, AFTER the existing setSavedBookingData / setShowAckDialog logic, add auto-reminder creation: if `isPartial && f.balance_due_date && f.email_id.trim()`, insert a reminder into supabase.from('reminders') with: to_email = f.email_id.trim(), client_name = f.client_name, subject = 'Payment Reminder - Balance Due | EaseMyOffice', message = an HTML message informing the client that their balance of ₹{balanceAmount} for booking {bookingId} is due on {f.balance_due_date}, is_html = true, attachments = [], send_at = f.balance_due_date + 'T09:00:00' (9 AM on due date, in ISO format), status = 'scheduled', repeat_interval_days = 0, repeat_until = null, created_by = user?.id, assigned_to = f.sales_agent_id || user?.id. This ensures the pg_cron process-reminders function will automatically send the reminder on the due date.",
+    "Step 8: Also insert a second reminder for the salesperson notification. Query the salesperson's email from the profiles table (or use a simpler approach: just create a second reminder with to_email targeting the sales agent's email if available from the profile data). If profile?.email is available, insert a similar reminder with subject 'Balance Payment Due - {client_name} | {bookingId}' and a message informing the salesperson that the client's balance payment is pending."
+  ],
+  "acceptance_criteria": [
+    "buildPaymentAckEmailHtml accepts payment_type, balance_amount, balance_due_date parameters",
+    "When payment_type is 'partial', email shows 'PARTIAL PAYMENT' badge instead of 'SUCCESSFUL', displays balance amount and due date rows",
+    "When payment_type is 'full' (or not set), email shows original 'SUCCESSFUL' badge with no balance rows",
+    "savedBookingData includes payment_type, balance_amount, balance_due_date",
+    "handleSendAcknowledgment passes these new fields correctly to the email builder",
+    "On partial payment booking save, a reminder is auto-inserted into the reminders table scheduled for the balance due date",
+    "A salesperson notification reminder is also created",
+    "bunx tsc --noEmit passes with no errors",
+    "bun run build succeeds"
+  ],
+  "verification": [
+    "Run `bunx tsc --noEmit` and confirm zero errors",
+    "Run `bun run build` and confirm build completes successfully"
+  ],
+  "blocked_reason": null,
+  "findings": "All changes confined to new-booking-dialog.tsx. TypeScript noEmit and Vite build both pass cleanly. The reminder insert uses .then() fire-and-forget pattern to avoid blocking the onSuccess handler. Post-review fixes applied: (1) booking insert now uses .select('id').single() to retrieve the generated UUID, which is passed to reminder inserts as booking_id FK; (2) send_at timestamps now include +05:30 timezone offset for IST; (3) reminder insert failures now surface a toast.warning to the user."
+}
