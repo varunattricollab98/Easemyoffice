@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Add escalation columns to documentation_tasks table (migration + types update) and restructure the documentation page with Tabs (Admin: Analytics/Tasks/Settings; Documentation person: My Stats/My Tasks)",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create setup/ADD_DOC_ESCALATION.sql migration that adds: escalated boolean DEFAULT false, escalation_reason text, escalated_at timestamptz to documentation_tasks table. Include appropriate RLS policies (admin can update escalation fields, assigned user can read).",
     "Update src/integrations/supabase/types.ts to add the new columns (escalated: boolean, escalation_reason: string | null, escalated_at: string | null) to the documentation_tasks Row/Insert/Update types.",
@@ -26,5 +26,5 @@
     "cd /projects/sandbox/Easemyoffice && bun run build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All acceptance criteria met. TypeScript and build pass cleanly. The documentation page now uses shadcn Tabs with role-based tab visibility. Escalation system includes both manual (admin popover) and auto-detection (client-side threshold check). Settings tab uses app_settings key doc_escalation_days with upsert pattern."
 }
