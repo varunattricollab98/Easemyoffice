@@ -22,7 +22,10 @@ async function invokeWithTimeout<T>(
       })),
       new Promise<{ data: T | null; error: string }>((resolve) => {
         const took = timeoutMs >= 1000 ? `${Math.round(timeoutMs / 1000)}s` : `${timeoutMs}ms`;
-        timer = setTimeout(() => resolve({ data: null, error: `Timed out after ${took}` }), timeoutMs);
+        timer = setTimeout(
+          () => resolve({ data: null, error: `Timed out after ${took}` }),
+          timeoutMs,
+        );
       }),
     ]);
   } catch (e) {
@@ -107,13 +110,26 @@ export interface NextBookingIdResult {
 
 // Next unused Booking ID, fetched separately from the plans on purpose: Apps
 // Script has to scan the entire bookings column for this (~2.2s of the ~2.7s
-// total), and the plan dropdown should never be held up by it. The booking form
-// already shows a locally generated fallback ID, so failing here is harmless.
+// total), and the plan dropdown should never be held up by it.
+//
+// The caller must treat a null id as a real problem, not a shrug. Saving with a
+// locally generated fallback is what puts non-sequential EMO-BK-* ids into the
+// sheet, which then have to be cleaned up by hand.
 export async function getNextBookingIdFromSheet(): Promise<NextBookingIdResult> {
   const raw = await readSheetConfig("bookingid");
-  if (raw.ok === false) return { nextBookingId: null, error: raw.error ?? "Could not reach the sheet" };
-  return {
-    nextBookingId: raw.nextBookingId ?? null,
-    error: raw.bookingIdError ?? null,
-  };
+  if (raw.ok === false)
+    return { nextBookingId: null, error: raw.error ?? "Could not reach the sheet" };
+  if (raw.bookingIdError) return { nextBookingId: null, error: raw.bookingIdError };
+
+  const id = typeof raw.nextBookingId === "string" ? raw.nextBookingId.trim() : "";
+  // Apps Script returns "" when the BookingIDs tab is missing/empty or every id
+  // in it has already been used. That is a distinct, actionable condition —
+  // don't let it look like a network failure.
+  if (!id) {
+    return {
+      nextBookingId: null,
+      error: "No unused Booking ID left in the sheet's BookingIDs tab",
+    };
+  }
+  return { nextBookingId: id, error: null };
 }
