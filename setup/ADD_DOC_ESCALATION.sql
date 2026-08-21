@@ -4,6 +4,12 @@ ALTER TABLE documentation_tasks
   ADD COLUMN IF NOT EXISTS escalation_reason text,
   ADD COLUMN IF NOT EXISTS escalated_at timestamptz;
 
+-- Drop existing policies if they exist to avoid OR-semantics conflicts
+-- (Supabase evaluates multiple policies on the same operation with OR,
+-- which can unintentionally widen access if old policies remain.)
+DROP POLICY IF EXISTS "admin_can_update_escalation" ON documentation_tasks;
+DROP POLICY IF EXISTS "assigned_user_can_read_own_tasks" ON documentation_tasks;
+
 -- RLS policy: admin can update escalation fields
 CREATE POLICY "admin_can_update_escalation"
   ON documentation_tasks

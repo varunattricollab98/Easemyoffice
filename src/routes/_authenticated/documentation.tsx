@@ -39,7 +39,7 @@ import {
   Settings,
   User,
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   format,
   startOfDay,
@@ -134,6 +134,25 @@ function StageBadge({ stage }: { stage: DocStage }) {
       {s?.label ?? stage}
     </Badge>
   );
+}
+
+// ─── Shared hook: single source of truth for escalation threshold ─────────────
+// All components that need the escalation days threshold should use this hook
+// to ensure a consistent query key and avoid cache fragmentation.
+function useEscalationThreshold() {
+  return useQuery({
+    queryKey: ["doc-escalation-days"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "doc_escalation_days")
+        .maybeSingle();
+      if (error) throw error;
+      const val = data?.value as number | null;
+      return val ?? 3;
+    },
+  });
 }
 
 function DocumentationPage() {
@@ -240,20 +259,8 @@ function AnalyticsTab() {
   const [period, setPeriod] = useState<Period>("monthly");
   const filterISO = useMemo(() => periodStart(period).toISOString(), [period]);
 
-  // Fetch escalation threshold for stuck detection
-  const { data: escalationDays = 3 } = useQuery({
-    queryKey: ["doc-escalation-days"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("app_settings")
-        .select("value")
-        .eq("key", "doc_escalation_days")
-        .maybeSingle();
-      if (error) throw error;
-      const val = data?.value as number | null;
-      return val ?? 3;
-    },
-  });
+  // Use shared escalation threshold hook for stuck detection
+  const { data: escalationDays = 3 } = useEscalationThreshold();
 
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ["doc-analytics-tasks", period],
@@ -296,6 +303,7 @@ function AnalyticsTab() {
       if (t.escalated) entry.escalated++;
     }
     // Calculate avg days per person
+    // NOTE: Uses updated_at as completion-time proxy (see avgDaysToComplete note above)
     for (const [key, entry] of map.entries()) {
       const personCompletedTasks = tasks.filter((t) => t.assigned_to === key && t.stage === "completed");
       if (personCompletedTasks.length > 0) {
@@ -348,6 +356,10 @@ function AnalyticsTab() {
   const totalCompleted = tasks.filter((t) => t.stage === "completed").length;
 
   // Avg days to complete
+  // NOTE: This uses updated_at as a proxy for completion time. If updated_at
+  // is modified by post-completion edits (e.g., notes, stage corrections), this
+  // metric may be inflated. A dedicated completed_at timestamp would be more
+  // accurate but is not available in the current schema.
   const avgDaysToComplete = useMemo(() => {
     const completedTasks = tasks.filter((t) => t.stage === "completed");
     if (completedTasks.length === 0) return null;
@@ -779,22 +791,11 @@ function SettingsTab() {
   const queryClient = useQueryClient();
   const [days, setDays] = useState<string>("");
 
-  const { data: currentDays, isLoading } = useQuery({
-    queryKey: ["doc-escalation-days-setting"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("app_settings")
-        .select("value")
-        .eq("key", "doc_escalation_days")
-        .maybeSingle();
-      if (error) throw error;
-      const val = data?.value as number | null;
-      return val ?? 3;
-    },
-  });
+  // Use shared escalation threshold hook (same query key as other tabs)
+  const { data: currentDays, isLoading } = useEscalationThreshold();
 
   // Sync local state when data loads
-  useMemo(() => {
+  useEffect(() => {
     if (currentDays !== undefined && days === "") {
       setDays(String(currentDays));
     }
@@ -809,7 +810,6 @@ function SettingsTab() {
     },
     onSuccess: () => {
       toast.success("Escalation threshold updated");
-      queryClient.invalidateQueries({ queryKey: ["doc-escalation-days-setting"] });
       queryClient.invalidateQueries({ queryKey: ["doc-escalation-days"] });
     },
     onError: (err: unknown) => {
@@ -879,20 +879,8 @@ function TasksTab({ isAdmin }: { isAdmin: boolean }) {
 
   const filterISO = useMemo(() => periodStart(period).toISOString(), [period]);
 
-  // Fetch escalation threshold from app_settings
-  const { data: escalationDays = 3 } = useQuery({
-    queryKey: ["doc-escalation-days"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("app_settings")
-        .select("value")
-        .eq("key", "doc_escalation_days")
-        .maybeSingle();
-      if (error) throw error;
-      const val = data?.value as number | null;
-      return val ?? 3;
-    },
-  });
+  // Use shared escalation threshold hook for auto-escalation detection
+  const { data: escalationDays = 3 } = useEscalationThreshold();
 
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ["documentation-tasks", period, isAdmin ? "all" : user?.id],
@@ -986,6 +974,11 @@ function TasksTab({ isAdmin }: { isAdmin: boolean }) {
   }, [tasks, search]);
 
   // Check if a task is auto-escalated (client-side detection)
+  // V1 TRADE-OFF: Auto-escalation is computed client-side only and is NOT
+  // persisted to the database. This means the `escalated` column in the DB
+  // only reflects manual escalations. Any external system (reports, exports,
+  // notifications) querying the DB directly will not see auto-detected
+  // escalations. This is intentional to avoid background jobs in V1.
   const isAutoEscalated = (task: DocTaskRow): boolean => {
     if (task.stage === "completed") return false;
     const daysSinceUpdate = differenceInDays(new Date(), new Date(task.updated_at));
