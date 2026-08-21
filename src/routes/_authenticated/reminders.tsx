@@ -203,6 +203,9 @@ function RemindersPage() {
 
   // Snippet manager
   const [snipMgr, setSnipMgr] = useState(false);
+  const [snipExpanded, setSnipExpanded] = useState(() => {
+    try { return localStorage.getItem("snippets:editor:expanded") === "1"; } catch { return false; }
+  });
   const [snipForm, setSnipForm] = useState<{ id?: string; name: string; subject: string; body_html: string }>({ name: "", subject: "", body_html: "" });
   const [snipEditorKey, setSnipEditorKey] = useState(0);
 
@@ -771,10 +774,29 @@ function RemindersPage() {
 
       {/* Snippet manager dialog */}
       <Dialog open={snipMgr} onOpenChange={setSnipMgr}>
-        <DialogContent className="max-w-2xl p-0 flex flex-col max-h-[90vh] gap-0">
-          <DialogHeader className="p-5 pb-3 shrink-0 border-b">
+        <DialogContent className={cn(
+          "flex flex-col gap-0 p-0",
+          snipExpanded ? "h-[94vh] w-[96vw] max-w-6xl" : "max-w-2xl max-h-[90vh]",
+        )}>
+          <DialogHeader className="p-5 pb-3 shrink-0 border-b pr-24">
             <DialogTitle>{snipForm.id ? "Edit snippet" : "New snippet"}</DialogTitle>
           </DialogHeader>
+
+          {/* Expand toggle */}
+          <button
+            type="button"
+            onClick={() => {
+              setSnipExpanded((v) => {
+                try { localStorage.setItem("snippets:editor:expanded", !v ? "1" : "0"); } catch { /* */ }
+                return !v;
+              });
+            }}
+            className="absolute right-12 top-5 rounded-sm p-0.5 text-muted-foreground opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={snipExpanded ? "Exit full screen" : "Expand to full screen"}
+            title={snipExpanded ? "Exit full screen" : "Expand to full screen"}
+          >
+            {snipExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </button>
 
           <div className="overflow-y-auto px-5 py-4 flex-1 space-y-4">
             {/* add / edit form with full rich editor */}
@@ -791,7 +813,7 @@ function RemindersPage() {
               </div>
               <div>
                 <Label className="text-xs">Body (formatting, colours &amp; pasted quotations supported)</Label>
-                <RichTextEditor key={`snip-${snipEditorKey}`} html={snipForm.body_html} onChange={(v) => setSnipForm((s) => ({ ...s, body_html: v }))} minHeight={180} maxHeight={300} placeholder="Write the snippet content…" />
+                <RichTextEditor key={`snip-${snipEditorKey}`} html={snipForm.body_html} onChange={(v) => setSnipForm((s) => ({ ...s, body_html: v }))} minHeight={snipExpanded ? 400 : 180} maxHeight={snipExpanded ? undefined : 300} placeholder="Write the snippet content…" />
               </div>
               <div className="flex justify-end gap-2">
                 {snipForm.id && <Button variant="outline" size="sm" onClick={() => { setSnipForm({ name: "", subject: "", body_html: "" }); setSnipEditorKey((k) => k + 1); }}>Clear / new</Button>}

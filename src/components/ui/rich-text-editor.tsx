@@ -11,7 +11,7 @@ export function RichTextEditor({
   onChange,
   placeholder,
   minHeight = 200,
-  maxHeight = 300,
+  maxHeight,
 }: {
   html: string;
   onChange: (html: string) => void;
