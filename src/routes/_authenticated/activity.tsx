@@ -108,6 +108,7 @@ function dateLabel(dateStr: string): string {
 function ActivityPage() {
   const [search, setSearch] = useState("");
   const [type, setType] = useState<string>("all");
+  const [dateRange, setDateRange] = useState<string>("7d");
 
   const { data: activities = [], isLoading } = useQuery({
     queryKey: ["activity-feed"],
@@ -139,8 +140,24 @@ function ActivityPage() {
 
   const filtered = useMemo(() => {
     const t = search.trim().toLowerCase();
+    // Date range filter
+    const now = new Date();
+    let rangeStart: Date | null = null;
+    switch (dateRange) {
+      case "today": rangeStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()); break;
+      case "yesterday": rangeStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1); break;
+      case "7d": rangeStart = new Date(now.getTime() - 7 * 86400000); break;
+      case "30d": rangeStart = new Date(now.getTime() - 30 * 86400000); break;
+      case "90d": rangeStart = new Date(now.getTime() - 90 * 86400000); break;
+      default: rangeStart = null; // "all" = no date filter
+    }
+
     return activities.filter((a) => {
+      // Date filter
+      if (rangeStart && new Date(a.created_at) < rangeStart) return false;
+      // Type filter
       if (type !== "all" && a.type !== type) return false;
+      // Search filter
       if (!t) return true;
       const lead: any = leadMap.get(a.lead_id);
       return (
@@ -149,7 +166,7 @@ function ActivityPage() {
         (lead?.client_name ?? "").toLowerCase().includes(t)
       );
     });
-  }, [activities, search, type, leadMap]);
+  }, [activities, search, type, leadMap, dateRange]);
 
   // Group by date for timeline sections
   const grouped = useMemo(() => {
@@ -234,8 +251,21 @@ function ActivityPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
+        <Select value={dateRange} onValueChange={setDateRange}>
+          <SelectTrigger className="w-[140px] bg-card">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="today">Today</SelectItem>
+            <SelectItem value="yesterday">Since Yesterday</SelectItem>
+            <SelectItem value="7d">Last 7 days</SelectItem>
+            <SelectItem value="30d">Last 30 days</SelectItem>
+            <SelectItem value="90d">Last 90 days</SelectItem>
+            <SelectItem value="all">All time</SelectItem>
+          </SelectContent>
+        </Select>
         <Select value={type} onValueChange={setType}>
-          <SelectTrigger className="w-[180px] bg-card">
+          <SelectTrigger className="w-[160px] bg-card">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
