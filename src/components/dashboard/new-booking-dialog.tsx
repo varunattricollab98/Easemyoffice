@@ -415,6 +415,9 @@ export function NewBookingDialog() {
   const [open, setOpen] = useState(false);
   const [showAckDialog, setShowAckDialog] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [showDocAssignDialog, setShowDocAssignDialog] = useState(false);
+  const [docAssignBookingId, setDocAssignBookingId] = useState<string | null>(null);
+  const [selectedDocUser, setSelectedDocUser] = useState("");
   const [savedBookingData, setSavedBookingData] = useState<{
     client_name: string;
     email_id: string;
@@ -491,6 +494,46 @@ export function NewBookingDialog() {
         .select("id, full_name, email")
         .order("full_name", { ascending: true });
       return data ?? [];
+    },
+  });
+
+  // Documentation team users for post-booking assignment
+  const { data: docTeamUsers = [], isLoading: docTeamLoading } = useQuery({
+    queryKey: ["documentation-team-users"],
+    enabled: showDocAssignDialog,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "documentation");
+      if (!data || data.length === 0) return [];
+      const userIds = data.map((r) => r.user_id);
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .in("id", userIds)
+        .order("full_name", { ascending: true });
+      return profiles ?? [];
+    },
+  });
+
+  // Mutation to assign a booking to documentation team
+  const docAssignMutation = useMutation({
+    mutationFn: async ({ bookingId, assignedTo }: { bookingId: string; assignedTo: string }) => {
+      const { error } = await supabase.from("documentation_tasks").insert({
+        booking_id: bookingId,
+        assigned_to: assignedTo,
+        assigned_by: user?.id ?? null,
+        stage: "assigned",
+      });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      toast.success("Assigned to documentation team");
+      qc.invalidateQueries({ queryKey: ["documentation-tasks"] });
+    },
+    onError: (e: Error) => {
+      toast.error("Failed to assign: " + e.message);
     },
   });
 
@@ -754,14 +797,32 @@ export function NewBookingDialog() {
       setSendingEmail(false);
       setShowAckDialog(false);
       setSavedBookingData(null);
-      setOpen(false);
-      resetForm();
+      // Show documentation assignment dialog instead of closing
+      setShowDocAssignDialog(true);
     }
   };
 
   const handleSaveWithoutSending = () => {
     setShowAckDialog(false);
     setSavedBookingData(null);
+    // Show documentation assignment dialog instead of closing
+    setShowDocAssignDialog(true);
+  };
+
+  const handleDocAssign = async () => {
+    if (!docAssignBookingId || !selectedDocUser) return;
+    await docAssignMutation.mutateAsync({ bookingId: docAssignBookingId, assignedTo: selectedDocUser });
+    setShowDocAssignDialog(false);
+    setDocAssignBookingId(null);
+    setSelectedDocUser("");
+    setOpen(false);
+    resetForm();
+  };
+
+  const handleDocSkip = () => {
+    setShowDocAssignDialog(false);
+    setDocAssignBookingId(null);
+    setSelectedDocUser("");
     setOpen(false);
     resetForm();
   };
@@ -887,6 +948,9 @@ export function NewBookingDialog() {
       // the sheet again instead of reusing it from cache.
       qc.invalidateQueries({ queryKey: ["booking-next-id"] });
 
+      // Store the booking UUID for documentation assignment
+      if (bookingUuid) setDocAssignBookingId(bookingUuid);
+
       // If email_id is filled, show the acknowledgment dialog instead of closing immediately
       if (f.email_id.trim()) {
         setSavedBookingData({
@@ -910,9 +974,8 @@ export function NewBookingDialog() {
         });
         setShowAckDialog(true);
       } else {
-        // No email - close and reset (old behavior)
-        setOpen(false);
-        resetForm();
+        // No email - show documentation assignment dialog directly
+        setShowDocAssignDialog(true);
       }
 
       // Auto-create balance reminders for partial payments
@@ -1411,6 +1474,61 @@ export function NewBookingDialog() {
                 </>
               ) : (
                 "Send Payment Acknowledgment"
+              )}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Documentation Assignment Dialog */}
+      <AlertDialog
+        open={showDocAssignDialog}
+        onOpenChange={(v) => {
+          if (!v) handleDocSkip();
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Assign to Documentation</AlertDialogTitle>
+            <AlertDialogDescription>
+              Select a documentation team member to assign this booking for document processing.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4">
+            <Label className="text-xs mb-2 block">Documentation Team Member</Label>
+            <Select value={selectedDocUser} onValueChange={setSelectedDocUser}>
+              <SelectTrigger>
+                <SelectValue placeholder={docTeamLoading ? "Loading..." : "Select team member"} />
+              </SelectTrigger>
+              <SelectContent>
+                {docTeamUsers.map((u) => (
+                  <SelectItem key={u.id} value={u.id}>
+                    {u.full_name || u.email || u.id}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {!docTeamLoading && docTeamUsers.length === 0 && (
+              <p className="text-xs text-muted-foreground mt-2">
+                No users with the documentation role found.
+              </p>
+            )}
+          </div>
+          <AlertDialogFooter>
+            <Button variant="outline" onClick={handleDocSkip} disabled={docAssignMutation.isPending}>
+              Skip
+            </Button>
+            <Button
+              onClick={handleDocAssign}
+              disabled={!selectedDocUser || docAssignMutation.isPending}
+            >
+              {docAssignMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Assigning...
+                </>
+              ) : (
+                "Assign"
               )}
             </Button>
           </AlertDialogFooter>
