@@ -217,8 +217,11 @@ function DocPersonView() {
           Track your assigned documentation tasks and personal performance.
         </p>
       </div>
-      <Tabs defaultValue="my-stats">
+      <Tabs defaultValue="assigned-bookings">
         <TabsList>
+          <TabsTrigger value="assigned-bookings">
+            <FileText className="h-4 w-4 mr-1.5" /> Bookings Assigned
+          </TabsTrigger>
           <TabsTrigger value="my-stats">
             <User className="h-4 w-4 mr-1.5" /> My Stats
           </TabsTrigger>
@@ -226,6 +229,9 @@ function DocPersonView() {
             <FileText className="h-4 w-4 mr-1.5" /> My Tasks
           </TabsTrigger>
         </TabsList>
+        <TabsContent value="assigned-bookings">
+          <BookingsAssignedTab />
+        </TabsContent>
         <TabsContent value="my-stats">
           <MyStatsTab />
         </TabsContent>
@@ -233,6 +239,129 @@ function DocPersonView() {
           <TasksTab isAdmin={false} />
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+// ─── Bookings Assigned Tab (Documentation Person) ───────────────────────────
+// Shows ALL bookings assigned by the sales team to this documentation user,
+// without time-period filtering so nothing is hidden.
+
+function BookingsAssignedTab() {
+  const { user } = useAuth();
+  const [search, setSearch] = useState("");
+
+  const { data: tasks = [], isLoading } = useQuery({
+    queryKey: ["doc-bookings-assigned", user?.id],
+    queryFn: async (): Promise<DocTaskRow[]> => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from("documentation_tasks")
+        .select(
+          "id, booking_id, assigned_to, assigned_by, stage, notes, created_at, updated_at, escalated, escalation_reason, escalated_at, bookings(client_name, plan_name, business_name, contact_no, email_id, external_booking_id)",
+        )
+        .eq("assigned_to", user.id)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      // Fetch assigned_by names
+      const rows = (data ?? []) as unknown as DocTaskRow[];
+      const assignerIds = Array.from(
+        new Set(rows.map((r) => r.assigned_by).filter((id): id is string => !!id)),
+      );
+      let assignerMap = new Map<string, string | null>();
+      if (assignerIds.length > 0) {
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("id, full_name")
+          .in("id", assignerIds);
+        assignerMap = new Map((profs ?? []).map((p) => [p.id, p.full_name]));
+      }
+      return rows.map((r) => ({
+        ...r,
+        assignee_name: assignerMap.get(r.assigned_by ?? "") ?? null,
+      }));
+    },
+    enabled: !!user?.id,
+  });
+
+  const filtered = useMemo(() => {
+    const t = search.trim().toLowerCase();
+    if (!t) return tasks;
+    return tasks.filter((task) => {
+      const b = task.bookings;
+      return [b?.client_name, b?.plan_name, b?.business_name, b?.external_booking_id].some((v) =>
+        (v ?? "").toLowerCase().includes(t),
+      );
+    });
+  }, [tasks, search]);
+
+  return (
+    <div className="space-y-4 mt-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">
+          All Bookings Assigned to You ({tasks.length})
+        </h2>
+      </div>
+
+      <div className="relative max-w-md">
+        <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          className="pl-9"
+          placeholder="Search by client, plan, business or booking ID..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+
+      <Card>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-10 text-center text-muted-foreground">Loading assigned bookings...</div>
+          ) : filtered.length === 0 ? (
+            <div className="p-10 text-center text-muted-foreground">No bookings assigned yet.</div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Client Name</TableHead>
+                  <TableHead>Plan</TableHead>
+                  <TableHead>Booking ID</TableHead>
+                  <TableHead>Stage</TableHead>
+                  <TableHead>Assigned By</TableHead>
+                  <TableHead>Date</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((task) => (
+                  <TableRow key={task.id}>
+                    <TableCell>
+                      <div className="font-medium">{task.bookings?.client_name ?? "-"}</div>
+                      {task.bookings?.business_name && (
+                        <div className="text-xs text-muted-foreground">
+                          {task.bookings.business_name}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm">{task.bookings?.plan_name ?? "-"}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {task.bookings?.external_booking_id ?? "-"}
+                    </TableCell>
+                    <TableCell>
+                      <StageBadge stage={task.stage} />
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {task.assignee_name ?? "-"}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {format(new Date(task.created_at), "MMM d, yyyy")}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

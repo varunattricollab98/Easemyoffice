@@ -30,6 +30,7 @@ import { pushPulse } from "@/lib/realtime-pulse";
 import { subscribeRealtime } from "@/lib/realtime-manager";
 import { usePagePerf } from "@/lib/perf";
 import { RenewalDashboardInline } from "@/components/dashboard/renewal-dashboard-inline";
+import { DocumentationDashboardInline } from "@/components/dashboard/documentation-dashboard-inline";
 import {
   affectedKeysFor,
   resolveScope,
@@ -95,6 +96,13 @@ function DashboardPage() {
   // Renewal-only users default to Renewal view; admins can switch
   const isRenewalOnly =
     !isAdmin && roles.includes("renewals") && !roles.includes("sales") && !roles.includes("bd");
+  // Documentation-only users get their own dashboard
+  const isDocOnly =
+    !isAdmin &&
+    roles.includes("documentation") &&
+    !roles.includes("sales") &&
+    !roles.includes("bd") &&
+    !roles.includes("renewals");
   const [dashView, setDashView] = useState<"fresh" | "renewals">(
     isRenewalOnly ? "renewals" : "fresh",
   );
@@ -163,6 +171,15 @@ function DashboardPage() {
   // Redirect renewal-only users before rendering the sales dashboard.
   if (isRenewalOnly && dashView === "fresh") {
     setDashView("renewals");
+  }
+
+  // Documentation-only users see their own dedicated dashboard
+  if (isDocOnly) {
+    return (
+      <div className="min-h-full">
+        <DocumentationDashboardInline />
+      </div>
+    );
   }
 
   // If viewing renewals, render the renewal dashboard inline
