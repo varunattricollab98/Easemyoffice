@@ -1,0 +1,26 @@
+{
+  "project_type": "React 19 SPA with TanStack Router/Start, Supabase backend (PostgreSQL + edge functions), deployed to Cloudflare Workers",
+  "language": "TypeScript (React TSX)",
+  "build_system": "Vite + Bun. Uses @lovable.dev/vite-tanstack-config. No Makefile.",
+  "test_framework": "No unit test framework configured. Playwright e2e exists but not relevant for this task.",
+  "build_command": "bunx tsc --noEmit && bun run build",
+  "test_command": "bunx tsc --noEmit",
+  "verification_instructions": "1. Run bunx tsc --noEmit - must pass with 0 errors. 2. Run bun run build - must produce dist/ successfully.",
+  "snapshot_or_generated_files": "src/integrations/supabase/types.ts is auto-generated but we manually update it when adding new tables since we cannot run supabase CLI in this environment.",
+  "setup_instructions": "bun install (already done, node_modules exists)",
+  "environment_constraints": "No Supabase CLI available - migrations are written as SQL files but cannot be applied/tested. No Docker daemon. Types file must be manually updated to match new tables.",
+  "contribution_requirements": "Migrations go in supabase/migrations/ with format YYYYMMDDHHMMSS_name.sql. RLS must be enabled on all new tables. Use public.is_admin(auth.uid()) for admin access patterns. Use public.has_role(auth.uid(), 'documentation') for documentation role checks.",
+  "key_patterns": "- Queries: useQuery from @tanstack/react-query with queryKey and queryFn calling supabase client\n- Mutations: useMutation with onSuccess invalidating relevant queryKeys\n- Toast: import { toast } from 'sonner'\n- Auth: useAuth() returns { user, profile, roles, isAdmin, hasRole }\n- Tables: shadcn Table components\n- Cards: shadcn Card\n- Badges: shadcn Badge\n- Select dropdowns: shadcn Select\n- Route definition: createFileRoute('/_authenticated/path')({ component: PageComponent })\n- Date formatting: date-fns format()\n- Currency: toLocaleString('en-IN', { style: 'currency', currency: 'INR' })\n- RLS: is_admin for admin, assigned_to = auth.uid() for user-scoped, has_role for role-based",
+  "relevant_files": [
+    "supabase/migrations/20260513065703_e3d6d99b-b29d-4ba9-85eb-229d576142b6.sql (bookings table + RLS pattern)",
+    "src/components/dashboard/new-booking-dialog.tsx (where assign button goes after booking save)",
+    "src/routes/_authenticated/documentation.tsx (page to completely redesign)",
+    "src/lib/auth.tsx (useAuth hook, AppRole type)",
+    "src/lib/crm.ts (STAGES constants pattern)",
+    "src/integrations/supabase/types.ts (generated types - must update manually)",
+    "src/integrations/supabase/client.ts (supabase client import)",
+    "src/components/app-shell.tsx (sidebar nav - already has documentation entry)",
+    "src/routes/_authenticated/bookings.tsx (reference for table page patterns)"
+  ],
+  "directory_structure": "src/routes/_authenticated/ - page routes\nsrc/components/ - reusable components\nsrc/components/dashboard/ - dashboard-specific components\nsrc/lib/ - utilities, auth, constants\nsrc/integrations/supabase/ - client + generated types\nsupabase/migrations/ - SQL migration files"
+}

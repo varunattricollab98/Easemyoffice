@@ -1,0 +1,7 @@
+{
+  "task_id": "task-documentation-workflow-phase1",
+  "task_description": "Documentation workflow Phase 1: Create documentation_tasks table, add Assign to Documentation button after booking save, redesign Documentation Dashboard with stats/filters/stage-change functionality.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}

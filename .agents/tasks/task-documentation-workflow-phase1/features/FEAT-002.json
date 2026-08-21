@@ -1,0 +1,28 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Add 'Assign to Documentation' button in the new-booking-dialog onSuccess flow. After booking is saved and the payment acknowledgment dialog is shown/handled, show a button/dialog to assign to a documentation team user. Also add assign functionality directly from the acknowledgment dialog.",
+  "status": "pending",
+  "steps": [
+    "In src/components/dashboard/new-booking-dialog.tsx, add a new state variable to track whether the documentation assignment dialog should show (e.g. showDocAssignDialog, docAssignBookingId storing the bookingUuid from onSuccess).",
+    "Add a query to fetch documentation team users: useQuery with queryKey ['documentation-team-users'], querying user_roles table to find users with role='documentation', then joining/fetching their profiles (full_name). Pattern: query user_roles where role='documentation', then fetch profiles for those user_ids. Enable only when the assign dialog is open.",
+    "Create a new AlertDialog (or Dialog) component inline or as a separate component that shows after the payment acknowledgment flow completes. It should: display a dropdown (Select) of documentation team users, have an 'Assign' button that inserts into documentation_tasks table (booking_id, assigned_to, assigned_by = current user), show a 'Skip' button to close without assigning.",
+    "Wire the flow: In the handleSendAcknowledgment function's finally block and in handleSaveWithoutSending, after closing the ack dialog, set showDocAssignDialog to true (only if bookingUuid is available). When the doc assign dialog is submitted or skipped, reset all state and close the main dialog.",
+    "The mutation for assigning should: insert into documentation_tasks with booking_id=bookingUuid, assigned_to=selected user, assigned_by=current user id, stage='assigned'. On success: toast.success('Assigned to documentation team'), invalidate relevant queries. On error: toast.error with the error message.",
+    "After successful assignment or skip, fully reset the form and close all dialogs."
+  ],
+  "acceptance_criteria": [
+    "After saving a booking, after the payment acknowledgment popup (send or skip), a new dialog appears asking to assign to documentation team",
+    "The dialog shows a dropdown populated with users who have the 'documentation' role",
+    "Selecting a user and clicking 'Assign' inserts a row into documentation_tasks with stage='assigned'",
+    "Clicking 'Skip' closes the dialog without creating a documentation_tasks row",
+    "Toast notifications confirm success or show errors",
+    "bunx tsc --noEmit passes without errors"
+  ],
+  "verification": [
+    "Run bunx tsc --noEmit and confirm zero errors",
+    "Run bun run build and confirm successful build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

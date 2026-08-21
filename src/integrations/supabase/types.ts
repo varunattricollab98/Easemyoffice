@@ -464,6 +464,47 @@ export type Database = {
         }
         Relationships: []
       }
+      documentation_tasks: {
+        Row: {
+          id: string
+          booking_id: string
+          assigned_to: string
+          assigned_by: string | null
+          stage: Database["public"]["Enums"]["doc_task_stage"]
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          booking_id: string
+          assigned_to: string
+          assigned_by?: string | null
+          stage?: Database["public"]["Enums"]["doc_task_stage"]
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          booking_id?: string
+          assigned_to?: string
+          assigned_by?: string | null
+          stage?: Database["public"]["Enums"]["doc_task_stage"]
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documentation_tasks_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       follow_ups: {
         Row: {
           action: string
@@ -951,6 +992,16 @@ export type Database = {
         | "accounts"
         | "renewals"
         | "bd"
+      doc_task_stage:
+        | "assigned"
+        | "docs_requested"
+        | "docs_received"
+        | "draft_shared"
+        | "draft_approved"
+        | "agreement_shared"
+        | "countersigned"
+        | "part_b_shared"
+        | "completed"
       followup_status: "pending" | "done" | "missed"
       lead_interest: "hot" | "warm" | "cold" | "dead"
       lead_source:
@@ -1134,6 +1185,17 @@ export const Constants = {
         "accounts",
         "renewals",
         "bd",
+      ],
+      doc_task_stage: [
+        "assigned",
+        "docs_requested",
+        "docs_received",
+        "draft_shared",
+        "draft_approved",
+        "agreement_shared",
+        "countersigned",
+        "part_b_shared",
+        "completed",
       ],
       followup_status: ["pending", "done", "missed"],
       lead_interest: ["hot", "warm", "cold", "dead"],

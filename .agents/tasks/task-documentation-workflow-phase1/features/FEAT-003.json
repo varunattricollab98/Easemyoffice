@@ -1,0 +1,33 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Completely redesign the Documentation page (src/routes/_authenticated/documentation.tsx) with: stats cards (Total/Active/Completed/Partial docs) with daily/weekly/monthly/yearly time filters, assigned documents list with stage badges and stage-change buttons, admin sees all tasks while documentation users see only their assigned tasks.",
+  "status": "pending",
+  "steps": [
+    "Completely rewrite src/routes/_authenticated/documentation.tsx. Remove all existing code in the component. Keep the route definition pattern: createFileRoute('/_authenticated/documentation').",
+    "Add time filter state (period: 'daily' | 'weekly' | 'monthly' | 'yearly', default 'monthly') with a Select dropdown or Tabs component at the top.",
+    "Add a useQuery to fetch documentation_tasks from supabase. The query should: select all columns plus a join to bookings (client_name, plan_name, business_name, contact_no, email_id, external_booking_id) and profiles for assigned_to (full_name as assignee_name). Use .select('*, bookings(client_name, plan_name, business_name, contact_no, email_id, external_booking_id), profiles!documentation_tasks_assigned_to_fkey(full_name)'). Apply time filter based on created_at. If not admin and has documentation role, RLS will auto-filter to assigned_to = current user (no extra .eq needed).",
+    "Add stats cards row: Total (count all fetched tasks), Active (tasks NOT in 'completed' stage), Completed (tasks in 'completed' stage), Partial (tasks in intermediate stages like docs_requested, docs_received - tasks that have started but not completed). Use Card components styled like the existing documentation page stats cards.",
+    "Add a search input to filter the task list by client_name, plan_name, business_name.",
+    "Add the main task list as a Table (shadcn Table) with columns: Client Name, Plan, Stage (as a Badge with color), Assigned To, Created Date, Actions. Each row shows the documentation task with its booking info.",
+    "For each task row, add stage-change buttons/dropdown: a Select dropdown showing the current stage, allowing the user to change to the next logical stage. The stages in order are: assigned -> docs_requested -> docs_received -> draft_shared -> draft_approved -> agreement_shared -> countersigned -> part_b_shared -> completed. When changed, run a mutation that updates the documentation_tasks row's stage.",
+    "Add stage Badge component with color coding: assigned=slate, docs_requested=blue, docs_received=cyan, draft_shared=violet, draft_approved=teal, agreement_shared=amber, countersigned=emerald, part_b_shared=indigo, completed=green.",
+    "Define a constant DOC_STAGES array (similar to STAGES in crm.ts) with id, label, color for each documentation task stage. This can be defined at the top of the documentation.tsx file or in a new lib file.",
+    "Admin sees all tasks (isAdmin from useAuth). Documentation users see only their own (RLS handles this automatically). Add a visual indicator (e.g. showing assignee column only when isAdmin)."
+  ],
+  "acceptance_criteria": [
+    "Documentation page shows 4 stats cards: Total, Active, Completed, Partial with correct counts",
+    "Time filter (daily/weekly/monthly/yearly) filters tasks by created_at",
+    "Task list shows booking client_name, plan_name, current stage as colored Badge, assigned user name, creation date",
+    "Stage dropdown allows changing the stage and persists to supabase via mutation",
+    "Admin users see all documentation tasks; documentation role users see only their assigned tasks (via RLS)",
+    "Search filters tasks by client name, plan name, or business name",
+    "bunx tsc --noEmit passes without errors"
+  ],
+  "verification": [
+    "Run bunx tsc --noEmit and confirm zero errors",
+    "Run bun run build and confirm successful build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
