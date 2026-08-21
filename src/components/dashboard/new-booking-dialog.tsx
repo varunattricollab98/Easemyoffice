@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -13,7 +20,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Plus, Search, Check, MapPin, Building2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
@@ -21,7 +34,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { getSheetPlans, getNextBookingIdFromSheet, syncBookingToSheet } from "@/lib/bookings-sheet";
 import { buildEmailSignature } from "@/lib/email-signature";
 
-const SOURCES = ["Website", "Referral", "IndiaMART", "Google Ads", "Meta Ads", "WhatsApp", "Direct", "Other"];
+const SOURCES = [
+  "Website",
+  "Referral",
+  "IndiaMART",
+  "Google Ads",
+  "Meta Ads",
+  "WhatsApp",
+  "Direct",
+  "Other",
+];
 const SP_STATUSES = ["Active", "Pending", "Inactive"];
 const PAY_STATUSES = ["Pending", "Paid", "Partial"];
 const VO_STATUSES = ["Pending", "Active", "Delivered"];
@@ -63,13 +85,27 @@ function buildPaymentAckEmailHtml(details: {
   sales_person_name: string;
   phone: string;
 }) {
-  const { client_name, booking_id, plan_name, amount, payment_mode, date, payment_id_utr, state, sales_person_name } = details;
+  const {
+    client_name,
+    booking_id,
+    plan_name,
+    amount,
+    payment_mode,
+    date,
+    payment_id_utr,
+    state,
+    sales_person_name,
+  } = details;
   const managerName = sales_person_name || "Your Manager";
   const firstName = managerName.split(" ")[0];
   const digits = (details.phone || "").replace(/\D/g, "") || "918882735038";
   const utr = payment_id_utr || "\u2014";
   const LOGO = "https://easemyoffice.in/wp-content/uploads/2024/09/EaseMyOffice-Logo-1.webp";
-  const signatureHtml = buildEmailSignature({ name: managerName, phone: details.phone, bookingId: booking_id });
+  const signatureHtml = buildEmailSignature({
+    name: managerName,
+    phone: details.phone,
+    bookingId: booking_id,
+  });
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -390,15 +426,29 @@ export function NewBookingDialog() {
     booking_source: "Website",
     plan_name: "",
     vo_plan: "",
-    sp_name: "", area: "", city: "", state: "", sp_status: "Active",
-    vo_amount: "", addon_services: "", addon_amount: "",
+    sp_name: "",
+    area: "",
+    city: "",
+    state: "",
+    sp_status: "Active",
+    vo_amount: "",
+    addon_services: "",
+    addon_amount: "",
     quoted_amount: "",
     tds_pct: "0",
-    payment_mode_ref: "", payment_id_utr: "", invoice_number: "",
-    sp_payable: "", addon_payable: "",
-    sp_payment_status: "Pending", vo_status: "Pending",
-    business_name: "", client_name: "", email_id: "", contact_no: "",
-    alt_contact_no: "", alt_contact_no_2: "",
+    payment_mode_ref: "",
+    payment_id_utr: "",
+    invoice_number: "",
+    sp_payable: "",
+    addon_payable: "",
+    sp_payment_status: "Pending",
+    vo_status: "Pending",
+    business_name: "",
+    client_name: "",
+    email_id: "",
+    contact_no: "",
+    alt_contact_no: "",
+    alt_contact_no_2: "",
     remarks: "",
     payment_type: "full" as "full" | "partial",
     amount_received: "",
@@ -406,7 +456,11 @@ export function NewBookingDialog() {
   });
 
   useEffect(() => {
-    setF((s) => ({ ...s, sales_agent: profile?.full_name ?? user?.email ?? "", sales_agent_id: user?.id ?? "" }));
+    setF((s) => ({
+      ...s,
+      sales_agent: profile?.full_name ?? user?.email ?? "",
+      sales_agent_id: user?.id ?? "",
+    }));
   }, [profile, user]);
 
   // Team members available to be picked as the sales agent (admin only).
@@ -414,7 +468,10 @@ export function NewBookingDialog() {
     queryKey: ["booking-team-users"],
     enabled: open && !!isAdmin,
     queryFn: async () => {
-      const { data } = await supabase.from("profiles").select("id, full_name, email").order("full_name", { ascending: true });
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .order("full_name", { ascending: true });
       return data ?? [];
     },
   });
@@ -438,27 +495,52 @@ export function NewBookingDialog() {
   const plans = plansData?.plans ?? [];
   const plansError = plansData?.error ?? null;
 
-  // Next Booking ID. Only fetched while the dialog is open and never cached, so
-  // it's as fresh as possible. The form already shows a locally generated ID, so
-  // if this is slow or fails the user is never blocked.
-  const { data: nextIdData } = useQuery({
+  // Next Booking ID from the sheet's BookingIDs tab.
+  //
+  // Fetched on mount rather than only when the dialog opens: the Apps Script
+  // needs ~2.2s to scan the used-id column, and waiting until the form is
+  // already on screen is what let people start typing against the local
+  // fallback id. A short staleTime keeps it warm without going stale enough to
+  // hand out an id someone else just consumed, and the dialog refetches on open.
+  const {
+    data: nextIdData,
+    isFetching: idFetching,
+    refetch: refetchNextId,
+  } = useQuery({
     queryKey: ["booking-next-id"],
-    enabled: open,
-    staleTime: 0,
-    gcTime: 0,
+    staleTime: 60 * 1000,
+    gcTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
+    retry: 2,
+    retryDelay: 1000,
     queryFn: getNextBookingIdFromSheet,
   });
 
-  // When the dialog opens, upgrade the local fallback ID to the sheet's one.
+  const sheetBookingId = nextIdData?.nextBookingId ?? null;
+  const bookingIdError = nextIdData?.error ?? null;
+  // True while the field still holds a locally generated id. Surfaced in the UI
+  // so a failed fetch can't quietly end up saved to the sheet.
+  const usingFallbackId = !!f.booking_id && f.booking_id.startsWith("EMO-BK-");
+
+  // Ask for a fresh id each time the dialog opens, so two people opening the
+  // form minutes apart don't both get the same one.
+  useEffect(() => {
+    if (open) refetchNextId();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // Apply the sheet's id whenever it arrives, replacing the local fallback.
   const [cfgApplied, setCfgApplied] = useState(false);
   useEffect(() => {
-    if (!open) { if (cfgApplied) setCfgApplied(false); return; }
-    if (!cfgApplied && nextIdData?.nextBookingId) {
-      setF((s) => ({ ...s, booking_id: nextIdData.nextBookingId as string }));
+    if (!open) {
+      if (cfgApplied) setCfgApplied(false);
+      return;
+    }
+    if (!cfgApplied && sheetBookingId) {
+      setF((s) => ({ ...s, booking_id: sheetBookingId }));
       setCfgApplied(true);
     }
-  }, [open, nextIdData, cfgApplied]);
+  }, [open, sheetBookingId, cfgApplied]);
 
   // Selecting a plan code autofills its details from the sheet.
   const applyPlan = (code: string) => {
@@ -472,7 +554,10 @@ export function NewBookingDialog() {
       city: p?.city || s.city,
       state: p?.state || s.state,
       sp_status: p?.sp_status || s.sp_status,
-      sp_payable: (p?.sp_payable !== undefined && p?.sp_payable !== null && p?.sp_payable !== "") ? String(p.sp_payable) : s.sp_payable,
+      sp_payable:
+        p?.sp_payable !== undefined && p?.sp_payable !== null && p?.sp_payable !== ""
+          ? String(p.sp_payable)
+          : s.sp_payable,
     }));
   };
 
@@ -507,18 +592,55 @@ export function NewBookingDialog() {
   const balanceAmount = isPartial ? Math.max(0, +(afterTds - amountReceived).toFixed(2)) : 0;
 
   const resetForm = () => {
-    setF((s) => ({ ...s, booking_id: genBookingId(), plan_name: "", vo_plan: "", vo_amount: "",
-      addon_services: "", addon_amount: "", quoted_amount: "", payment_mode_ref: "", payment_id_utr: "", invoice_number: "",
-      sp_payable: "", addon_payable: "", business_name: "", client_name: "", email_id: "", contact_no: "", alt_contact_no: "", alt_contact_no_2: "", remarks: "",
-      payment_type: "full", amount_received: "", balance_due_date: "" }));
+    setF((s) => ({
+      ...s,
+      booking_id: genBookingId(),
+      plan_name: "",
+      vo_plan: "",
+      vo_amount: "",
+      addon_services: "",
+      addon_amount: "",
+      quoted_amount: "",
+      payment_mode_ref: "",
+      payment_id_utr: "",
+      invoice_number: "",
+      sp_payable: "",
+      addon_payable: "",
+      business_name: "",
+      client_name: "",
+      email_id: "",
+      contact_no: "",
+      alt_contact_no: "",
+      alt_contact_no_2: "",
+      remarks: "",
+      payment_type: "full",
+      amount_received: "",
+      balance_due_date: "",
+    }));
   };
 
   const handleSendAcknowledgment = async () => {
     if (!savedBookingData) return;
     setSendingEmail(true);
     try {
-      const { client_name, email_id, plan_name, booking_id, amount_received: amt, payment_mode_ref, date, payment_id_utr, state, sales_person_name, phone } = savedBookingData;
-      const formattedDate = new Date(date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      const {
+        client_name,
+        email_id,
+        plan_name,
+        booking_id,
+        amount_received: amt,
+        payment_mode_ref,
+        date,
+        payment_id_utr,
+        state,
+        sales_person_name,
+        phone,
+      } = savedBookingData;
+      const formattedDate = new Date(date).toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
       const formattedAmount = amt.toLocaleString("en-IN", { style: "currency", currency: "INR" });
 
       const subject = `Payment Acknowledgment \u2014 ${booking_id} | EaseMyOffice`;
@@ -611,28 +733,60 @@ export function NewBookingDialog() {
 
   const submit = useMutation({
     mutationFn: async () => {
+      // Last chance to pick up the sheet's id. If the fetch was still in flight
+      // when the user hit Save, use the result rather than the local fallback —
+      // otherwise a slow round trip silently writes an EMO-BK-* id to the sheet.
+      let bookingId = f.booking_id;
+      if (bookingId.startsWith("EMO-BK-")) {
+        const fresh = await getNextBookingIdFromSheet();
+        if (fresh.nextBookingId) {
+          bookingId = fresh.nextBookingId;
+          setF((s) => ({ ...s, booking_id: fresh.nextBookingId as string }));
+        }
+      }
+
       // 1) Save to the database (client-side insert, allowed by RLS for
       //    admin / sales / bd). This always happens.
       const { error } = await supabase.from("bookings").insert({
-        external_booking_id: f.booking_id,
+        external_booking_id: bookingId,
         booking_date: f.date,
         sales_agent_id: f.sales_agent_id || user?.id || null,
         sales_agent_name: f.sales_agent,
         booking_source: f.booking_source,
         plan_name: f.plan_name,
         vo_plan: f.vo_plan,
-        sp_name: f.sp_name, area: f.area, city: f.city, state: f.state, sp_status: f.sp_status,
-        vo_amount: vo, vo_gst: voGst,
-        addon_services: f.addon_services, addon_amount: addOn, addon_gst: addOnGst,
-        total_amount: total, quoted_amount: quoted, discount_amount: discount,
-        tds_pct: tdsPct, tds_amount: tdsAmt, amount_after_tds: afterTds,
-        payment_mode_ref: f.payment_mode_ref, payment_id_utr: f.payment_id_utr, invoice_number: f.invoice_number,
-        sp_payable: spPay, addon_payable: addOnPay, profit,
-        sp_payment_status: f.sp_payment_status, vo_status: f.vo_status,
-        business_name: f.business_name, client_name: f.client_name,
-        email_id: f.email_id, contact_no: f.contact_no,
-        alt_contact_no: f.alt_contact_no, alt_contact_no_2: f.alt_contact_no_2,
-        remarks: f.remarks, sales_month: month,
+        sp_name: f.sp_name,
+        area: f.area,
+        city: f.city,
+        state: f.state,
+        sp_status: f.sp_status,
+        vo_amount: vo,
+        vo_gst: voGst,
+        addon_services: f.addon_services,
+        addon_amount: addOn,
+        addon_gst: addOnGst,
+        total_amount: total,
+        quoted_amount: quoted,
+        discount_amount: discount,
+        tds_pct: tdsPct,
+        tds_amount: tdsAmt,
+        amount_after_tds: afterTds,
+        payment_mode_ref: f.payment_mode_ref,
+        payment_id_utr: f.payment_id_utr,
+        invoice_number: f.invoice_number,
+        sp_payable: spPay,
+        addon_payable: addOnPay,
+        profit,
+        sp_payment_status: f.sp_payment_status,
+        vo_status: f.vo_status,
+        business_name: f.business_name,
+        client_name: f.client_name,
+        email_id: f.email_id,
+        contact_no: f.contact_no,
+        alt_contact_no: f.alt_contact_no,
+        alt_contact_no_2: f.alt_contact_no_2,
+        remarks: f.remarks,
+        sales_month: month,
         amount_received: amountReceived,
         balance_amount: balanceAmount,
         balance_due_date: isPartial && f.balance_due_date ? f.balance_due_date : null,
@@ -643,22 +797,56 @@ export function NewBookingDialog() {
 
       // 2) Best-effort: append the same row to the connected Google Sheet.
       const values = [
-        f.date, f.sales_agent, f.booking_id, f.booking_source, f.plan_name, f.vo_plan,
-        f.sp_name, f.area, f.city, f.state, f.sp_status,
-        vo, voGst, f.addon_services, addOn, addOnGst,
-        total, tdsPct, tdsAmt, afterTds,
-        f.payment_mode_ref, f.payment_id_utr, f.invoice_number,
-        spPay, addOnPay, profit,
-        f.sp_payment_status, f.vo_status,
-        f.business_name, f.client_name, f.email_id, f.contact_no, f.remarks, month,
-        amountReceived, balanceAmount, (isPartial && f.balance_due_date) ? f.balance_due_date : "",
+        f.date,
+        f.sales_agent,
+        bookingId,
+        f.booking_source,
+        f.plan_name,
+        f.vo_plan,
+        f.sp_name,
+        f.area,
+        f.city,
+        f.state,
+        f.sp_status,
+        vo,
+        voGst,
+        f.addon_services,
+        addOn,
+        addOnGst,
+        total,
+        tdsPct,
+        tdsAmt,
+        afterTds,
+        f.payment_mode_ref,
+        f.payment_id_utr,
+        f.invoice_number,
+        spPay,
+        addOnPay,
+        profit,
+        f.sp_payment_status,
+        f.vo_status,
+        f.business_name,
+        f.client_name,
+        f.email_id,
+        f.contact_no,
+        f.remarks,
+        month,
+        amountReceived,
+        balanceAmount,
+        isPartial && f.balance_due_date ? f.balance_due_date : "",
       ];
       const sheet = await syncBookingToSheet(values);
-      return { sheet };
+      // Hand the resolved id back: onSuccess can't see the local variable, and
+      // f.booking_id may still hold the pre-resolution fallback.
+      return { sheet, bookingId };
     },
     onSuccess: (res) => {
+      const bookingId = res.bookingId;
       toast.success("Booking saved" + (res?.sheet?.ok ? " · added to Google Sheet ✓" : ""));
       qc.invalidateQueries({ queryKey: ["bookings"] });
+      // The id we just consumed is now used — make sure the next form open asks
+      // the sheet again instead of reusing it from cache.
+      qc.invalidateQueries({ queryKey: ["booking-next-id"] });
 
       // If email_id is filled, show the acknowledgment dialog instead of closing immediately
       if (f.email_id.trim()) {
@@ -666,7 +854,7 @@ export function NewBookingDialog() {
           client_name: f.client_name,
           email_id: f.email_id.trim(),
           plan_name: f.plan_name,
-          booking_id: f.booking_id,
+          booking_id: bookingId,
           invoice_number: f.invoice_number,
           amount_received: amountReceived,
           total_amount: total,
@@ -688,14 +876,22 @@ export function NewBookingDialog() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const T = (k: keyof typeof f, label: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}, err?: string) => (
+  const T = (
+    k: keyof typeof f,
+    label: string,
+    props: React.InputHTMLAttributes<HTMLInputElement> = {},
+    err?: string,
+  ) => (
     <div>
       <Label className="text-xs">{label}</Label>
       <Input
         value={f[k]}
         onChange={(e) => setF({ ...f, [k]: e.target.value })}
         {...props}
-        className={`${(props.className as string) ?? ""} ${err ? "border-destructive focus-visible:ring-destructive" : ""}`.trim() || undefined}
+        className={
+          `${(props.className as string) ?? ""} ${err ? "border-destructive focus-visible:ring-destructive" : ""}`.trim() ||
+          undefined
+        }
       />
       {err && <p className="text-[11px] text-destructive mt-0.5">{err}</p>}
     </div>
@@ -703,227 +899,395 @@ export function NewBookingDialog() {
 
   return (
     <>
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline"><Plus className="h-4 w-4" /> <span className="hidden sm:inline">New Booking</span></Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>New Booking</DialogTitle>
-        </DialogHeader>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <Button size="sm" variant="outline">
+            <Plus className="h-4 w-4" /> <span className="hidden sm:inline">New Booking</span>
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>New Booking</DialogTitle>
+          </DialogHeader>
 
-        <div className="grid gap-3 md:grid-cols-3">
-          {T("date", "Date", { type: "date" })}
-          <div>
-            <Label className="text-xs">Sales Agent</Label>
-            {isAdmin ? (
-              <Select
-                value={f.sales_agent_id}
-                onValueChange={(v) => {
-                  const u = (teamUsers as any[]).find((x) => x.id === v);
-                  setF({ ...f, sales_agent_id: v, sales_agent: u?.full_name || u?.email || "" });
-                }}
-              >
-                <SelectTrigger><SelectValue placeholder="Select agent" /></SelectTrigger>
-                <SelectContent>
-                  {(teamUsers as any[]).map((u) => (
-                    <SelectItem key={u.id} value={u.id}>{u.full_name || u.email}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <Input value={f.sales_agent} readOnly className="bg-muted/40" />
-            )}
-          </div>
-          {T("booking_id", "Booking ID")}
-
-          <div>
-            <Label className="text-xs">Booking Source</Label>
-            <Select value={f.booking_source} onValueChange={(v) => setF({ ...f, booking_source: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{SOURCES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label className="text-xs">Plan Name</Label>
-            {plans.length > 0 ? (
-              <PlanSearchDropdown
-                plans={plans}
-                value={f.plan_name}
-                onSelect={(code) => applyPlan(code)}
-                onChange={(v) => setF((s) => ({ ...s, plan_name: v }))}
-                loading={plansFetching}
-              />
-            ) : (
-              <>
-                <Input
-                  value={f.plan_name}
-                  placeholder={plansLoading ? "⏳ Fetching plans from sheet…" : "Type or select plan name"}
-                  onChange={(e) => setF({ ...f, plan_name: e.target.value })}
-                />
-                {/* The plan list is a convenience, not a requirement — the field
-                    stays typeable. Say why autofill is missing and offer a retry
-                    instead of leaving the user staring at a spinner. */}
-                {!plansLoading && plansError && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Plans unavailable — {plansError}.{" "}
+          <div className="grid gap-3 md:grid-cols-3">
+            {T("date", "Date", { type: "date" })}
+            <div>
+              <Label className="text-xs">Sales Agent</Label>
+              {isAdmin ? (
+                <Select
+                  value={f.sales_agent_id}
+                  onValueChange={(v) => {
+                    const u = (teamUsers as any[]).find((x) => x.id === v);
+                    setF({ ...f, sales_agent_id: v, sales_agent: u?.full_name || u?.email || "" });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select agent" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(teamUsers as any[]).map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.full_name || u.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input value={f.sales_agent} readOnly className="bg-muted/40" />
+              )}
+            </div>
+            {/* Booking ID with explicit provenance. The old version silently showed
+              a locally generated id when the sheet lookup failed, which is how
+              non-sequential EMO-BK-* ids ended up in the sheet. */}
+            <div>
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs">Booking ID</Label>
+                {idFetching ? (
+                  <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" /> fetching…
+                  </span>
+                ) : (
+                  (bookingIdError || usingFallbackId) && (
                     <button
                       type="button"
-                      className="underline underline-offset-2 hover:text-foreground"
-                      onClick={() => refetchPlans()}
+                      onClick={() => refetchNextId()}
+                      className="text-[11px] text-primary underline underline-offset-2 hover:no-underline"
                     >
                       Retry
                     </button>
-                  </p>
+                  )
                 )}
-              </>
-            )}
-          </div>
-          {T("vo_plan", "VO Plan")}
+              </div>
+              <Input
+                value={f.booking_id}
+                onChange={(e) => setF({ ...f, booking_id: e.target.value })}
+                className={
+                  usingFallbackId && !idFetching
+                    ? "border-amber-400 focus-visible:ring-amber-400/30"
+                    : ""
+                }
+              />
+              {!idFetching && usingFallbackId && (
+                <p className="mt-1 text-[11px] text-amber-600">
+                  Temporary ID — not from the sheet{bookingIdError ? `: ${bookingIdError}` : ""}.
+                  Retry, or edit it manually before saving.
+                </p>
+              )}
+            </div>
 
-          {T("sp_name", "SP Name")}
-          {T("area", "Area")}
-          {T("city", "City")}
-
-          {T("state", "State")}
-          <div>
-            <Label className="text-xs">SP Status</Label>
-            <Select value={f.sp_status} onValueChange={(v) => setF({ ...f, sp_status: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{SP_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          {T("vo_amount", "VO Amount (₹)", { type: "number", min: 0, step: "0.01" })}
-
-          <div><Label className="text-xs">VO GST 18% (auto)</Label><Input value={voGst} readOnly className="bg-muted/40" /></div>
-          {T("addon_services", "Add on Services")}
-          {T("addon_amount", "Add on Amount (₹)", { type: "number", min: 0, step: "0.01" })}
-
-          <div><Label className="text-xs">Add on GST 18% (auto)</Label><Input value={addOnGst} readOnly className="bg-muted/40" /></div>
-          <div><Label className="text-xs">Total Amount ₹ (auto)</Label><Input value={total} readOnly className="bg-muted/40 font-medium" /></div>
-          {T("quoted_amount", "Quoted Price ₹ (before discount)", { type: "number", min: 0, step: "0.01" })}
-          <div><Label className="text-xs">Discount Given ₹ (auto)</Label>
-            <Input value={discount} readOnly className={`bg-muted/40 font-medium ${discount > 0 ? "text-amber-600" : ""}`} /></div>
-
-          {T("tds_pct", "TDS %", { type: "number", min: 0, max: 100, step: "0.01" })}
-
-          <div><Label className="text-xs">TDS Amount ₹ (auto)</Label><Input value={tdsAmt} readOnly className="bg-muted/40" /></div>
-          <div><Label className="text-xs">Amount After TDS (auto)</Label><Input value={afterTds} readOnly className="bg-muted/40" /></div>
-          {T("payment_mode_ref", "Payment Mode / Ref No.")}
-
-          {T("payment_id_utr", "Payment ID / UTR")}
-          {T("invoice_number", "Invoice Number")}
-          {T("sp_payable", "SP Payable ₹", { type: "number", min: 0, step: "0.01" })}
-
-          {T("addon_payable", "Add on Payable ₹", { type: "number", min: 0, step: "0.01" })}
-          <div><Label className="text-xs">Profit ₹ (auto)</Label>
-            <Input value={profit} readOnly className={`bg-muted/40 font-medium ${profit < 0 ? "text-destructive" : ""}`} /></div>
-          <div>
-            <Label className="text-xs">SP Payment Status</Label>
-            <Select value={f.sp_payment_status} onValueChange={(v) => setF({ ...f, sp_payment_status: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{PAY_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label className="text-xs">VO Status</Label>
-            <Select value={f.vo_status} onValueChange={(v) => setF({ ...f, vo_status: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{VO_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          {T("business_name", "Business Name")}
-          {T("client_name", "Client Name *")}
-
-          {T("email_id", "Email Id", { type: "email" }, f.email_id.trim() && !emailOk ? "Enter a valid email" : undefined)}
-          {T("contact_no", "Contact No. *", { inputMode: "tel" }, f.contact_no.trim() && !contactOk ? "At least 10 digits" : undefined)}
-          {T("alt_contact_no", "Alternative Contact No.", { inputMode: "tel" }, !altOk ? "At least 10 digits" : undefined)}
-
-          {T("alt_contact_no_2", "Alternative Contact No. 2", { inputMode: "tel" }, !alt2Ok ? "At least 10 digits" : undefined)}
-          <div><Label className="text-xs">Sales Month (auto)</Label><Input value={month} readOnly className="bg-muted/40" /></div>
-        </div>
-
-        <div className="mt-3 rounded-md border bg-muted/20 p-3 space-y-3">
-          <div className="text-sm font-medium">Payment Received</div>
-          <div className="grid gap-3 md:grid-cols-4">
             <div>
-              <Label className="text-xs">Payment Type</Label>
-              <Select value={f.payment_type} onValueChange={(v) => setF({ ...f, payment_type: v as "full" | "partial" })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Label className="text-xs">Booking Source</Label>
+              <Select
+                value={f.booking_source}
+                onValueChange={(v) => setF({ ...f, booking_source: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="full">Full Payment</SelectItem>
-                  <SelectItem value="partial">Partial (e.g. 50%)</SelectItem>
+                  {SOURCES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
-            {isPartial && (
-              <>
-                {T("amount_received", "Amount Received ₹ *", { type: "number", min: 0, step: "0.01" })}
-                <div><Label className="text-xs">Balance ₹ (auto)</Label>
-                  <Input value={balanceAmount} readOnly className="bg-muted/40 font-medium text-amber-600" /></div>
-                {T("balance_due_date", "Balance Due Date *", { type: "date" })}
-              </>
+            <div>
+              <Label className="text-xs">Plan Name</Label>
+              {plans.length > 0 ? (
+                <PlanSearchDropdown
+                  plans={plans}
+                  value={f.plan_name}
+                  onSelect={(code) => applyPlan(code)}
+                  onChange={(v) => setF((s) => ({ ...s, plan_name: v }))}
+                  loading={plansFetching}
+                />
+              ) : (
+                <>
+                  <Input
+                    value={f.plan_name}
+                    placeholder={
+                      plansLoading ? "⏳ Fetching plans from sheet…" : "Type or select plan name"
+                    }
+                    onChange={(e) => setF({ ...f, plan_name: e.target.value })}
+                  />
+                  {/* The plan list is a convenience, not a requirement — the field
+                    stays typeable. Say why autofill is missing and offer a retry
+                    instead of leaving the user staring at a spinner. */}
+                  {!plansLoading && plansError && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Plans unavailable — {plansError}.{" "}
+                      <button
+                        type="button"
+                        className="underline underline-offset-2 hover:text-foreground"
+                        onClick={() => refetchPlans()}
+                      >
+                        Retry
+                      </button>
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+            {T("vo_plan", "VO Plan")}
+
+            {T("sp_name", "SP Name")}
+            {T("area", "Area")}
+            {T("city", "City")}
+
+            {T("state", "State")}
+            <div>
+              <Label className="text-xs">SP Status</Label>
+              <Select value={f.sp_status} onValueChange={(v) => setF({ ...f, sp_status: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SP_STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {T("vo_amount", "VO Amount (₹)", { type: "number", min: 0, step: "0.01" })}
+
+            <div>
+              <Label className="text-xs">VO GST 18% (auto)</Label>
+              <Input value={voGst} readOnly className="bg-muted/40" />
+            </div>
+            {T("addon_services", "Add on Services")}
+            {T("addon_amount", "Add on Amount (₹)", { type: "number", min: 0, step: "0.01" })}
+
+            <div>
+              <Label className="text-xs">Add on GST 18% (auto)</Label>
+              <Input value={addOnGst} readOnly className="bg-muted/40" />
+            </div>
+            <div>
+              <Label className="text-xs">Total Amount ₹ (auto)</Label>
+              <Input value={total} readOnly className="bg-muted/40 font-medium" />
+            </div>
+            {T("quoted_amount", "Quoted Price ₹ (before discount)", {
+              type: "number",
+              min: 0,
+              step: "0.01",
+            })}
+            <div>
+              <Label className="text-xs">Discount Given ₹ (auto)</Label>
+              <Input
+                value={discount}
+                readOnly
+                className={`bg-muted/40 font-medium ${discount > 0 ? "text-amber-600" : ""}`}
+              />
+            </div>
+
+            {T("tds_pct", "TDS %", { type: "number", min: 0, max: 100, step: "0.01" })}
+
+            <div>
+              <Label className="text-xs">TDS Amount ₹ (auto)</Label>
+              <Input value={tdsAmt} readOnly className="bg-muted/40" />
+            </div>
+            <div>
+              <Label className="text-xs">Amount After TDS (auto)</Label>
+              <Input value={afterTds} readOnly className="bg-muted/40" />
+            </div>
+            {T("payment_mode_ref", "Payment Mode / Ref No.")}
+
+            {T("payment_id_utr", "Payment ID / UTR")}
+            {T("invoice_number", "Invoice Number")}
+            {T("sp_payable", "SP Payable ₹", { type: "number", min: 0, step: "0.01" })}
+
+            {T("addon_payable", "Add on Payable ₹", { type: "number", min: 0, step: "0.01" })}
+            <div>
+              <Label className="text-xs">Profit ₹ (auto)</Label>
+              <Input
+                value={profit}
+                readOnly
+                className={`bg-muted/40 font-medium ${profit < 0 ? "text-destructive" : ""}`}
+              />
+            </div>
+            <div>
+              <Label className="text-xs">SP Payment Status</Label>
+              <Select
+                value={f.sp_payment_status}
+                onValueChange={(v) => setF({ ...f, sp_payment_status: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAY_STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="text-xs">VO Status</Label>
+              <Select value={f.vo_status} onValueChange={(v) => setF({ ...f, vo_status: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {VO_STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {T("business_name", "Business Name")}
+            {T("client_name", "Client Name *")}
+
+            {T(
+              "email_id",
+              "Email Id",
+              { type: "email" },
+              f.email_id.trim() && !emailOk ? "Enter a valid email" : undefined,
+            )}
+            {T(
+              "contact_no",
+              "Contact No. *",
+              { inputMode: "tel" },
+              f.contact_no.trim() && !contactOk ? "At least 10 digits" : undefined,
+            )}
+            {T(
+              "alt_contact_no",
+              "Alternative Contact No.",
+              { inputMode: "tel" },
+              !altOk ? "At least 10 digits" : undefined,
+            )}
+
+            {T(
+              "alt_contact_no_2",
+              "Alternative Contact No. 2",
+              { inputMode: "tel" },
+              !alt2Ok ? "At least 10 digits" : undefined,
+            )}
+            <div>
+              <Label className="text-xs">Sales Month (auto)</Label>
+              <Input value={month} readOnly className="bg-muted/40" />
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-md border bg-muted/20 p-3 space-y-3">
+            <div className="text-sm font-medium">Payment Received</div>
+            <div className="grid gap-3 md:grid-cols-4">
+              <div>
+                <Label className="text-xs">Payment Type</Label>
+                <Select
+                  value={f.payment_type}
+                  onValueChange={(v) => setF({ ...f, payment_type: v as "full" | "partial" })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="full">Full Payment</SelectItem>
+                    <SelectItem value="partial">Partial (e.g. 50%)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {isPartial && (
+                <>
+                  {T("amount_received", "Amount Received ₹ *", {
+                    type: "number",
+                    min: 0,
+                    step: "0.01",
+                  })}
+                  <div>
+                    <Label className="text-xs">Balance ₹ (auto)</Label>
+                    <Input
+                      value={balanceAmount}
+                      readOnly
+                      className="bg-muted/40 font-medium text-amber-600"
+                    />
+                  </div>
+                  {T("balance_due_date", "Balance Due Date *", { type: "date" })}
+                </>
+              )}
+            </div>
+            {isPartial && f.balance_due_date && (
+              <div className="text-xs text-muted-foreground">
+                ⏰ A WhatsApp + email reminder will be sent to client and sales agent on{" "}
+                {f.balance_due_date} for ₹{balanceAmount}.
+              </div>
             )}
           </div>
-          {isPartial && f.balance_due_date && (
-            <div className="text-xs text-muted-foreground">
-              ⏰ A WhatsApp + email reminder will be sent to client and sales agent on {f.balance_due_date} for ₹{balanceAmount}.
-            </div>
-          )}
-        </div>
 
-        <div className="mt-2">
-          <Label className="text-xs">Remarks</Label>
-          <Textarea rows={2} value={f.remarks} onChange={(e) => setF({ ...f, remarks: e.target.value })} />
-        </div>
+          <div className="mt-2">
+            <Label className="text-xs">Remarks</Label>
+            <Textarea
+              rows={2}
+              value={f.remarks}
+              onChange={(e) => setF({ ...f, remarks: e.target.value })}
+            />
+          </div>
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button
-            disabled={submit.isPending || !f.client_name || !f.contact_no || !f.plan_name || !f.vo_amount || !emailOk || !contactOk || !altOk || !alt2Ok || (isPartial && (!f.amount_received || !f.balance_due_date))}
-            onClick={() => submit.mutate()}
-          >
-            {submit.isPending ? "Saving…" : "Save Booking"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={
+                submit.isPending ||
+                !f.client_name ||
+                !f.contact_no ||
+                !f.plan_name ||
+                !f.vo_amount ||
+                !emailOk ||
+                !contactOk ||
+                !altOk ||
+                !alt2Ok ||
+                (isPartial && (!f.amount_received || !f.balance_due_date))
+              }
+              onClick={() => submit.mutate()}
+            >
+              {submit.isPending ? "Saving…" : "Save Booking"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-    {/* Payment Acknowledgment Confirmation Dialog */}
-    <AlertDialog open={showAckDialog} onOpenChange={(v) => { if (!v && !sendingEmail) handleSaveWithoutSending(); }}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Booking Saved Successfully</AlertDialogTitle>
-          <AlertDialogDescription>
-            Would you like to send a payment acknowledgment email to the client
-            {savedBookingData ? ` (${savedBookingData.email_id})` : ""}?
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <Button
-            variant="outline"
-            onClick={handleSaveWithoutSending}
-            disabled={sendingEmail}
-          >
-            Save without Sending
-          </Button>
-          <Button
-            onClick={handleSendAcknowledgment}
-            disabled={sendingEmail}
-          >
-            {sendingEmail ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Sending...
-              </>
-            ) : (
-              "Send Payment Acknowledgment"
-            )}
-          </Button>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+      {/* Payment Acknowledgment Confirmation Dialog */}
+      <AlertDialog
+        open={showAckDialog}
+        onOpenChange={(v) => {
+          if (!v && !sendingEmail) handleSaveWithoutSending();
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Booking Saved Successfully</AlertDialogTitle>
+            <AlertDialogDescription>
+              Would you like to send a payment acknowledgment email to the client
+              {savedBookingData ? ` (${savedBookingData.email_id})` : ""}?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button variant="outline" onClick={handleSaveWithoutSending} disabled={sendingEmail}>
+              Save without Sending
+            </Button>
+            <Button onClick={handleSendAcknowledgment} disabled={sendingEmail}>
+              {sendingEmail ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                "Send Payment Acknowledgment"
+              )}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
@@ -947,17 +1311,20 @@ function PlanSearchDropdown({
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Sync external value changes
-  useEffect(() => { setSearch(value); }, [value]);
+  useEffect(() => {
+    setSearch(value);
+  }, [value]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
     if (!q) return plans;
-    return plans.filter((p) =>
-      p.code.toLowerCase().includes(q) ||
-      (p.sp_name ?? "").toLowerCase().includes(q) ||
-      (p.city ?? "").toLowerCase().includes(q) ||
-      (p.area ?? "").toLowerCase().includes(q) ||
-      (p.vo_plan ?? "").toLowerCase().includes(q)
+    return plans.filter(
+      (p) =>
+        p.code.toLowerCase().includes(q) ||
+        (p.sp_name ?? "").toLowerCase().includes(q) ||
+        (p.city ?? "").toLowerCase().includes(q) ||
+        (p.area ?? "").toLowerCase().includes(q) ||
+        (p.vo_plan ?? "").toLowerCase().includes(q),
     );
   }, [plans, search]);
 
@@ -1006,7 +1373,8 @@ function PlanSearchDropdown({
                       <Building2 className="h-3 w-3" /> {p.sp_name || "—"}
                     </span>
                     <span className="inline-flex items-center gap-0.5">
-                      <MapPin className="h-3 w-3" /> {[p.area, p.city].filter(Boolean).join(", ") || "—"}
+                      <MapPin className="h-3 w-3" />{" "}
+                      {[p.area, p.city].filter(Boolean).join(", ") || "—"}
                     </span>
                   </div>
                 </div>

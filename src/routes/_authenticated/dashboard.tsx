@@ -14,12 +14,14 @@ const WidgetGrid = lazy(() =>
 
 // Lazy-load below-fold / interaction-gated components
 const NewBookingDialog = lazy(() =>
-  import("@/components/dashboard/new-booking-dialog").then((m) => ({ default: m.NewBookingDialog })),
+  import("@/components/dashboard/new-booking-dialog").then((m) => ({
+    default: m.NewBookingDialog,
+  })),
 );
 const HeroOfMonth = lazy(() =>
   import("@/components/dashboard/hero-of-month").then((m) => ({ default: m.HeroOfMonth })),
 );
-import { getSheetPlans } from "@/lib/bookings-sheet";
+import { getSheetPlans, getNextBookingIdFromSheet } from "@/lib/bookings-sheet";
 import { LivePulsePill } from "@/components/dashboard/live-pulse-pill";
 import { AddWidgetPanel } from "@/components/dashboard/add-widget-panel";
 import { useQuietMode, useVisibleWidgets, useVisibleKpis } from "@/lib/dashboard-prefs";
@@ -63,7 +65,19 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
     // Warm the plans list so the New Booking form's dropdown is ready instantly.
     // The next Booking ID is not prefetched on purpose: it must be fresh, so the
     // form fetches it when it actually opens.
-    qc.prefetchQuery({ queryKey: ["booking-sheet-plans"], queryFn: getSheetPlans, staleTime: 30 * 60 * 1000 });
+    qc.prefetchQuery({
+      queryKey: ["booking-sheet-plans"],
+      queryFn: getSheetPlans,
+      staleTime: 30 * 60 * 1000,
+    });
+    // Warm the next Booking ID too. The Apps Script needs ~2.2s to scan the
+    // used-id column, so fetching it only when the form opens is what left
+    // people looking at (and saving) the local fallback id.
+    qc.prefetchQuery({
+      queryKey: ["booking-next-id"],
+      queryFn: getNextBookingIdFromSheet,
+      staleTime: 60 * 1000,
+    });
   },
   component: DashboardPage,
 });
@@ -79,13 +93,17 @@ function DashboardPage() {
   usePagePerf("Dashboard", false);
 
   // Renewal-only users default to Renewal view; admins can switch
-  const isRenewalOnly = !isAdmin && roles.includes("renewals") && !roles.includes("sales") && !roles.includes("bd");
-  const [dashView, setDashView] = useState<"fresh" | "renewals">(isRenewalOnly ? "renewals" : "fresh");
+  const isRenewalOnly =
+    !isAdmin && roles.includes("renewals") && !roles.includes("sales") && !roles.includes("bd");
+  const [dashView, setDashView] = useState<"fresh" | "renewals">(
+    isRenewalOnly ? "renewals" : "fresh",
+  );
 
   // Available views based on role
   const availableViews = useMemo(() => {
     const views: { id: "fresh" | "renewals"; label: string }[] = [];
-    if (isAdmin || roles.includes("sales") || roles.includes("bd")) views.push({ id: "fresh", label: "Fresh Sales" });
+    if (isAdmin || roles.includes("sales") || roles.includes("bd"))
+      views.push({ id: "fresh", label: "Fresh Sales" });
     if (isAdmin || roles.includes("renewals")) views.push({ id: "renewals", label: "Renewals" });
     return views;
   }, [isAdmin, roles]);
@@ -120,19 +138,25 @@ function DashboardPage() {
         } else if (event.table === "lead_activities") {
           pushPulse({ kind: "activity" });
         }
-        schedule(affectedKeysFor({
-          table: event.table as "leads" | "follow_ups" | "lead_activities",
-          eventType: event.eventType,
-          new: event.new,
-          old: event.old,
-        }));
+        schedule(
+          affectedKeysFor({
+            table: event.table as "leads" | "follow_ups" | "lead_activities",
+            eventType: event.eventType,
+            new: event.new,
+            old: event.old,
+          }),
+        );
       },
     );
-    return () => { if (timer) clearTimeout(timer); unsub(); };
+    return () => {
+      if (timer) clearTimeout(timer);
+      unsub();
+    };
   }, [qc]);
 
   const dateLabel = useMemo(
-    () => new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }),
+    () =>
+      new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }),
     [],
   );
 
@@ -153,7 +177,9 @@ function DashboardPage() {
                   key={v.id}
                   onClick={() => setDashView(v.id)}
                   className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ease-out ${
-                    dashView === v.id ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                    dashView === v.id
+                      ? "bg-background shadow-sm text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   {v.label}
@@ -178,7 +204,9 @@ function DashboardPage() {
                 key={v.id}
                 onClick={() => setDashView(v.id)}
                 className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ease-out ${
-                  dashView === v.id ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                  dashView === v.id
+                    ? "bg-background shadow-sm text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {v.label}
@@ -191,7 +219,9 @@ function DashboardPage() {
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
             {profile?.full_name?.split(" ")[0] ?? "Your"}'s Dashboard
           </h1>
-          <p className="text-sm text-muted-foreground">{dateLabel} · Your sales performance at a glance</p>
+          <p className="text-sm text-muted-foreground">
+            {dateLabel} · Your sales performance at a glance
+          </p>
         </div>
 
         {/* Actions bar */}
@@ -206,7 +236,8 @@ function DashboardPage() {
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5">
               <Button
-                variant="outline" size="sm"
+                variant="outline"
+                size="sm"
                 className="btn-elevate"
                 onClick={() => setQuiet(!quiet)}
                 title={quiet ? "Enable motion" : "Quiet / focus mode"}
@@ -216,20 +247,39 @@ function DashboardPage() {
                 {quiet ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                 <span className="hidden sm:inline">{quiet ? "Quiet" : "Live"}</span>
               </Button>
-              <AddWidgetPanel visible={visible} onChange={setVisible} kpis={kpis} onKpisChange={setKpis} />
+              <AddWidgetPanel
+                visible={visible}
+                onChange={setVisible}
+                kpis={kpis}
+                onKpisChange={setKpis}
+              />
               <Button
-                variant={editing ? "default" : "outline"} size="sm"
+                variant={editing ? "default" : "outline"}
+                size="sm"
                 className="btn-elevate"
                 onClick={() => setEditing((e) => !e)}
                 aria-pressed={editing}
               >
-                {editing ? <><Check className="h-4 w-4" /> Done</> : <><LayoutDashboard className="h-4 w-4" /> <span className="hidden sm:inline">Edit layout</span></>}
+                {editing ? (
+                  <>
+                    <Check className="h-4 w-4" /> Done
+                  </>
+                ) : (
+                  <>
+                    <LayoutDashboard className="h-4 w-4" />{" "}
+                    <span className="hidden sm:inline">Edit layout</span>
+                  </>
+                )}
               </Button>
               {editing && (
                 <Button
-                  variant="ghost" size="sm"
+                  variant="ghost"
+                  size="sm"
                   className="btn-elevate"
-                  onClick={() => { resetWidgetLayout(user?.id ?? "anon"); window.location.reload(); }}
+                  onClick={() => {
+                    resetWidgetLayout(user?.id ?? "anon");
+                    window.location.reload();
+                  }}
                 >
                   <RotateCcw className="h-4 w-4" /> Reset
                 </Button>
@@ -237,9 +287,13 @@ function DashboardPage() {
             </div>
             <div className="hidden sm:block h-6 w-px bg-border" aria-hidden="true" />
             <div className="flex items-center gap-2">
-              <Suspense fallback={null}><NewBookingDialog /></Suspense>
+              <Suspense fallback={null}>
+                <NewBookingDialog />
+              </Suspense>
               <Button asChild size="sm" className="btn-elevate">
-                <Link to="/leads/new"><Plus className="h-4 w-4" /> New Lead</Link>
+                <Link to="/leads/new">
+                  <Plus className="h-4 w-4" /> New Lead
+                </Link>
               </Button>
             </div>
           </div>
@@ -249,7 +303,15 @@ function DashboardPage() {
         <KpiStrip pulseTick={pulseTick} editing={editing} kpis={kpis} onReorder={setKpis} />
 
         {/* Customizable widget grid */}
-        <Suspense fallback={<div className="grid gap-3 grid-cols-1 md:grid-cols-2 animate-pulse">{Array.from({length: 4}, (_, i) => <div key={i} className="h-64 rounded-xl bg-muted/40" />)}</div>}>
+        <Suspense
+          fallback={
+            <div className="grid gap-3 grid-cols-1 md:grid-cols-2 animate-pulse">
+              {Array.from({ length: 4 }, (_, i) => (
+                <div key={i} className="h-64 rounded-xl bg-muted/40" />
+              ))}
+            </div>
+          }
+        >
           <WidgetGrid editing={editing} pulseTick={pulseTick} visible={visible} />
         </Suspense>
 
@@ -260,7 +322,8 @@ function DashboardPage() {
 
         {/* Footer hint */}
         <p className="text-center text-[11px] text-muted-foreground/70 pt-2">
-          Tip: tap "Widgets" to choose your stat cards, and "Edit layout" to drag stat cards and widgets into the order you want.
+          Tip: tap "Widgets" to choose your stat cards, and "Edit layout" to drag stat cards and
+          widgets into the order you want.
         </p>
       </div>
     </div>
