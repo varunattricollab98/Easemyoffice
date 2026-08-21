@@ -13,7 +13,6 @@ import {
   Search,
   Calendar,
   Bell,
-  CheckCircle2,
   type LucideIcon,
 } from "lucide-react";
 import { useState, useMemo } from "react";
@@ -39,54 +38,54 @@ const TYPE_CONFIG: Record<
   string,
   { icon: LucideIcon; label: string; gradient: string; ring: string; dot: string }
 > = {
-  call_logged: {
+  call: {
     icon: Phone,
     label: "Call",
     gradient: "from-blue-500 to-blue-600",
     ring: "ring-blue-200 dark:ring-blue-900",
     dot: "bg-blue-500",
   },
-  email_sent: {
+  email: {
     icon: Mail,
     label: "Email",
     gradient: "from-violet-500 to-purple-600",
     ring: "ring-violet-200 dark:ring-violet-900",
     dot: "bg-violet-500",
   },
-  whatsapp_sent: {
+  whatsapp: {
     icon: MessageSquare,
     label: "WhatsApp",
     gradient: "from-emerald-500 to-green-600",
     ring: "ring-emerald-200 dark:ring-emerald-900",
     dot: "bg-emerald-500",
   },
-  note_added: {
+  note: {
     icon: StickyNote,
     label: "Note",
     gradient: "from-amber-500 to-orange-500",
     ring: "ring-amber-200 dark:ring-amber-900",
     dot: "bg-amber-500",
   },
-  stage_changed: {
+  stage_change: {
     icon: ArrowRightLeft,
     label: "Stage",
     gradient: "from-cyan-500 to-teal-600",
     ring: "ring-cyan-200 dark:ring-cyan-900",
     dot: "bg-cyan-500",
   },
-  followup_scheduled: {
+  followup: {
     icon: Bell,
     label: "Follow-up",
     gradient: "from-rose-500 to-pink-600",
     ring: "ring-rose-200 dark:ring-rose-900",
     dot: "bg-rose-500",
   },
-  followup_completed: {
-    icon: CheckCircle2,
-    label: "Done",
-    gradient: "from-green-500 to-emerald-600",
-    ring: "ring-green-200 dark:ring-green-900",
-    dot: "bg-green-500",
+  reminder: {
+    icon: Calendar,
+    label: "Reminder",
+    gradient: "from-indigo-500 to-blue-600",
+    ring: "ring-indigo-200 dark:ring-indigo-900",
+    dot: "bg-indigo-500",
   },
 };
 
@@ -270,12 +269,13 @@ function ActivityPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All types</SelectItem>
-            <SelectItem value="call_logged">📞 Calls</SelectItem>
-            <SelectItem value="email_sent">📧 Emails</SelectItem>
-            <SelectItem value="whatsapp_sent">💬 WhatsApp</SelectItem>
-            <SelectItem value="note_added">📝 Notes</SelectItem>
-            <SelectItem value="stage_changed">🔄 Stage changes</SelectItem>
-            <SelectItem value="followup_scheduled">🔔 Follow-ups</SelectItem>
+            <SelectItem value="call">📞 Calls</SelectItem>
+            <SelectItem value="email">📧 Emails</SelectItem>
+            <SelectItem value="whatsapp">💬 WhatsApp</SelectItem>
+            <SelectItem value="note">📝 Notes</SelectItem>
+            <SelectItem value="stage_change">🔄 Stage changes</SelectItem>
+            <SelectItem value="followup">🔔 Follow-ups</SelectItem>
+            <SelectItem value="reminder">📅 Reminders</SelectItem>
           </SelectContent>
         </Select>
       </div>
