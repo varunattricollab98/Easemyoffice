@@ -16,6 +16,7 @@ import { Mail, ExternalLink, UserPlus, Search, RefreshCcw, ChevronLeft, ChevronR
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { fetchInbox, fetchThread, claimEmailInGmail, parseFrom, claimedOwner, normalizeOwnerTag, parseWeb3FormLead, isThrowawayAddress, htmlToText, type InboxEmail, type ThreadMessage } from "@/lib/gmail";
+import { SendQuotationDialog } from "@/components/send-quotation-dialog";
 
 function esc(s: unknown) {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -96,6 +97,7 @@ function LeadInboxPage() {
   const [replySnippetId, setReplySnippetId] = useState("custom");
   const [quotationBasePrice, setQuotationBasePrice] = useState("");
   const [quotationLocation, setQuotationLocation] = useState("");
+  const [premiumQuotationOpen, setPremiumQuotationOpen] = useState(false);
   const PAGE_SIZE = 25;
 
   // Load expand preferences from localStorage on mount
@@ -1072,6 +1074,11 @@ function LeadInboxPage() {
                     <FileText className="h-4 w-4 mr-1" /> Send Quotation
                   </Button>
                 )}
+                {replyTo && !quotationOpen && (
+                  <Button size="sm" variant="default" onClick={() => setPremiumQuotationOpen(true)}>
+                    <FileText className="h-4 w-4 mr-1" /> Premium Quotation
+                  </Button>
+                )}
                 {(threadQ.data.url || reading?.url) && (
                   <a href={threadQ.data.url || reading?.url} target="_blank" rel="noreferrer" className="text-sm text-primary inline-flex items-center gap-1 hover:underline">
                     <ExternalLink className="h-3.5 w-3.5" /> Open in Gmail
@@ -1258,6 +1265,19 @@ function LeadInboxPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Premium Quotation Dialog */}
+      {replyTo && (
+        <SendQuotationDialog
+          open={premiumQuotationOpen}
+          onOpenChange={setPremiumQuotationOpen}
+          clientName=""
+          clientEmail={replyTo}
+          onSent={() => {
+            toast.success("Premium quotation sent");
+          }}
+        />
+      )}
     </div>
   );
 }

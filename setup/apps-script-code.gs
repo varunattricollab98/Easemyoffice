@@ -154,6 +154,9 @@ function getPlans() {
   var iState = idx(["state"]);
   var iStatus = idx(["sp status", "sp_status", "status"]);
   var iPay = idx(["sp payable", "sp_payable", "payable"]);
+  var iSellingPrice = idx(["selling price", "selling_price", "price", "client price"]);
+  var iGstPct = idx(["gst %", "gst%", "gst_pct", "gst percent"]);
+  var iServiceType = idx(["service type", "service_type", "service"]);
   var out = [];
   for (var r = 1; r < values.length; r++) {
     var row = values[r];
@@ -167,7 +170,10 @@ function getPlans() {
       city: iCity >= 0 ? String(row[iCity]).trim() : "",
       state: iState >= 0 ? String(row[iState]).trim() : "",
       sp_status: iStatus >= 0 ? String(row[iStatus]).trim() : "",
-      sp_payable: iPay >= 0 ? row[iPay] : ""
+      sp_payable: iPay >= 0 ? row[iPay] : "",
+      selling_price: iSellingPrice >= 0 ? row[iSellingPrice] : "",
+      gst_pct: iGstPct >= 0 ? row[iGstPct] : "",
+      service_type: iServiceType >= 0 ? String(row[iServiceType]).trim() : ""
     });
   }
   return out;

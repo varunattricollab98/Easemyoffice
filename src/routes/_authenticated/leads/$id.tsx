@@ -30,13 +30,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Phone, Mail, MessageCircle, Calendar, Plus, Check, Trash2, Send, Loader2, XCircle, Maximize2, Minimize2, AlarmClock } from "lucide-react";
+import { ArrowLeft, Phone, Mail, MessageCircle, Calendar, Plus, Check, Trash2, Send, Loader2, XCircle, Maximize2, Minimize2, AlarmClock, FileText } from "lucide-react";
 import { RichTextEditor, htmlToText } from "@/components/ui/rich-text-editor";
 import { cn } from "@/lib/utils";
 import { INTERESTS, INTENT_FLAGS, SERVICES, SOURCES, STAGES, calcScore, deriveInterest, labelFor } from "@/lib/crm";
 import { useAuth } from "@/lib/auth";
 import { handleStageChange, stopAllFollowUps, triggerStageReminder } from "@/lib/stage-reminders";
 import { FollowupConfigDialog } from "@/components/followup-config-dialog";
+import { SendQuotationDialog } from "@/components/send-quotation-dialog";
 import { EmailStatusRow } from "@/components/email-status-row";
 import type { EmailConfig } from "@/components/followup-config-dialog";
 import { useState, useEffect, useMemo } from "react";
@@ -55,6 +56,7 @@ function LeadDetailPage() {
   const navigate = useNavigate();
   const [emailOpen, setEmailOpen] = useState(false);
   const [reminderOpen, setReminderOpen] = useState(false);
+  const [quotationDialogOpen, setQuotationDialogOpen] = useState(false);
   const [reasonStage, setReasonStage] = useState<string | null>(null);
   const [reasonText, setReasonText] = useState("");
   const [followupConfigOpen, setFollowupConfigOpen] = useState(false);
@@ -174,6 +176,7 @@ function LeadDetailPage() {
           <Button variant="outline" size="sm" onClick={() => { window.location.href = `tel:${lead.mobile}`; logActivity("call", `Called ${lead.client_name}`, `Phone: ${lead.mobile}`); }}><Phone className="h-4 w-4 mr-1" /> Call</Button>
           <Button variant="outline" size="sm" onClick={() => { window.location.href = `https://wa.me/${lead.mobile.replace(/\D/g,"")}`; logActivity("whatsapp", `WhatsApp to ${lead.client_name}`, `Phone: ${lead.mobile}`); }}><MessageCircle className="h-4 w-4 mr-1" /> WhatsApp</Button>
           {lead.email && <Button variant="outline" size="sm" onClick={() => setEmailOpen(true)}><Mail className="h-4 w-4 mr-1" /> Email</Button>}
+          {lead.email && <Button variant="outline" size="sm" onClick={() => setQuotationDialogOpen(true)}><FileText className="h-4 w-4 mr-1" /> Send Quotation</Button>}
           {lead.email && <Button variant="outline" size="sm" onClick={() => setReminderOpen(true)}><AlarmClock className="h-4 w-4 mr-1" /> Schedule Reminder</Button>}
           {isAdmin && (
             <AlertDialog>
@@ -468,6 +471,18 @@ function LeadDetailPage() {
           onOpenChange={setReminderOpen}
           userId={user?.id ?? ""}
           onScheduled={(subject) => logActivity("reminder", `Scheduled reminder for ${lead.email}`, subject)}
+        />
+      )}
+
+      {lead.email && (
+        <SendQuotationDialog
+          open={quotationDialogOpen}
+          onOpenChange={setQuotationDialogOpen}
+          clientName={lead.client_name || ""}
+          clientEmail={lead.email}
+          defaultState={lead.state || ""}
+          defaultCity={lead.city || ""}
+          onSent={(subject) => logActivity("email", `Sent quotation to ${lead.email}`, subject)}
         />
       )}
 
