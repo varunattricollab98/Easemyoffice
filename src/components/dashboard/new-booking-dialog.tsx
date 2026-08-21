@@ -782,7 +782,9 @@ export function NewBookingDialog() {
 
       // 1) Save to the database (client-side insert, allowed by RLS for
       //    admin / sales / bd). This always happens.
-      const { error } = await supabase.from("bookings").insert({
+      //    We use .select("id").single() to get the generated UUID back for
+      //    linking reminders via the booking_id FK.
+      const { data: insertedBooking, error } = await supabase.from("bookings").insert({
         external_booking_id: bookingId,
         booking_date: f.date,
         sales_agent_id: f.sales_agent_id || user?.id || null,
@@ -827,7 +829,7 @@ export function NewBookingDialog() {
         balance_due_date: isPartial && f.balance_due_date ? f.balance_due_date : null,
         assigned_to: user?.id ?? null,
         created_by: user?.id ?? null,
-      });
+      }).select("id").single();
       if (error) throw new Error(error.message);
 
       // 2) Best-effort: append the same row to the connected Google Sheet.
@@ -873,10 +875,12 @@ export function NewBookingDialog() {
       const sheet = await syncBookingToSheet(values);
       // Hand the resolved id back: onSuccess can't see the local variable, and
       // f.booking_id may still hold the pre-resolution fallback.
-      return { sheet, bookingId };
+      // Also pass the database UUID for use in reminder FK references.
+      return { sheet, bookingId, bookingUuid: insertedBooking?.id ?? null };
     },
     onSuccess: (res) => {
       const bookingId = res.bookingId;
+      const bookingUuid = res.bookingUuid;
       toast.success("Booking saved" + (res?.sheet?.ok ? " · added to Google Sheet ✓" : ""));
       qc.invalidateQueries({ queryKey: ["bookings"] });
       // The id we just consumed is now used — make sure the next form open asks
@@ -942,16 +946,19 @@ export function NewBookingDialog() {
           message: clientReminderHtml,
           is_html: true,
           attachments: [],
-          send_at: `${f.balance_due_date}T09:00:00`,
+          send_at: `${f.balance_due_date}T09:00:00+05:30`,
           status: "scheduled",
           repeat_interval_days: 0,
           repeat_until: null,
           created_by: user?.id || null,
           assigned_to: f.sales_agent_id || user?.id || null,
-          booking_id: bookingId,
+          booking_id: bookingUuid,
           from_email: "EaseMyOffice <contact@easemyoffice.in>",
         }).then(({ error: remErr }) => {
-          if (remErr) console.error("Failed to create client reminder:", remErr.message);
+          if (remErr) {
+            console.error("Failed to create client reminder:", remErr.message);
+            toast.warning("Booking saved, but client reminder could not be scheduled: " + remErr.message);
+          }
         });
 
         // Reminder for the salesperson
@@ -977,16 +984,19 @@ export function NewBookingDialog() {
             message: salesReminderHtml,
             is_html: true,
             attachments: [],
-            send_at: `${f.balance_due_date}T09:00:00`,
+            send_at: `${f.balance_due_date}T09:00:00+05:30`,
             status: "scheduled",
             repeat_interval_days: 0,
             repeat_until: null,
             created_by: user?.id || null,
             assigned_to: f.sales_agent_id || user?.id || null,
-            booking_id: bookingId,
+            booking_id: bookingUuid,
             from_email: "EaseMyOffice <contact@easemyoffice.in>",
           }).then(({ error: remErr }) => {
-            if (remErr) console.error("Failed to create salesperson reminder:", remErr.message);
+            if (remErr) {
+              console.error("Failed to create salesperson reminder:", remErr.message);
+              toast.warning("Booking saved, but salesperson reminder could not be scheduled: " + remErr.message);
+            }
           });
         }
       }

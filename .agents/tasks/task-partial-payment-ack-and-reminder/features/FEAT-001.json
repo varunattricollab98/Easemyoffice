@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Update payment acknowledgment email to differentiate partial vs full payment, and auto-create a balance reminder when a partial payment booking is saved.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Step 1: Modify the `buildPaymentAckEmailHtml` function in src/components/dashboard/new-booking-dialog.tsx. Add three new optional parameters to its `details` argument: `payment_type` (string, 'full' | 'partial'), `balance_amount` (string, formatted INR or empty), and `balance_due_date` (string or empty). These determine whether the email shows full or partial payment branding.",
     "Step 2: Inside the email HTML template, in the Status row of the payment summary table (the row that currently always shows '✓ SUCCESSFUL' green badge), add conditional logic: if payment_type is 'partial', show an amber/orange badge '⏳ PARTIAL PAYMENT' instead of the green '✓ SUCCESSFUL' badge. Keep the green badge for full payments.",
@@ -29,5 +29,5 @@
     "Run `bun run build` and confirm build completes successfully"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All changes confined to new-booking-dialog.tsx. TypeScript noEmit and Vite build both pass cleanly. The reminder insert uses .then() fire-and-forget pattern to avoid blocking the onSuccess handler. Post-review fixes applied: (1) booking insert now uses .select('id').single() to retrieve the generated UUID, which is passed to reminder inserts as booking_id FK; (2) send_at timestamps now include +05:30 timezone offset for IST; (3) reminder insert failures now surface a toast.warning to the user."
 }
