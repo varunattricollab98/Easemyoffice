@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Create the documentation_tasks table migration with stages enum, RLS policies, and update the TypeScript types file to include the new table type definitions.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create a new migration file at supabase/migrations/20260514000001_documentation_tasks.sql with: 1) A new enum type public.doc_task_stage with values: assigned, docs_requested, docs_received, draft_shared, draft_approved, agreement_shared, countersigned, part_b_shared, completed. 2) A documentation_tasks table with columns: id (uuid PK, gen_random_uuid()), booking_id (uuid NOT NULL references public.bookings(id) ON DELETE CASCADE), assigned_to (uuid NOT NULL references auth.users(id)), assigned_by (uuid references auth.users(id)), stage (doc_task_stage NOT NULL DEFAULT 'assigned'), notes (text), created_at (timestamptz DEFAULT now()), updated_at (timestamptz DEFAULT now()). 3) Enable RLS. 4) Indexes on booking_id, assigned_to, stage. 5) RLS policies: SELECT - admin sees all OR assigned_to = auth.uid() OR has_role documentation; INSERT - admin OR sales OR bd (they assign after booking); UPDATE - admin OR assigned_to = auth.uid() (documentation person updates stage); DELETE - admin only. 6) updated_at trigger using existing set_updated_at function.",
     "Update src/integrations/supabase/types.ts to add a documentation_tasks table type definition in the Tables section (after bookings, alphabetically or at end of Tables block). Row type should include: id: string, booking_id: string, assigned_to: string, assigned_by: string | null, stage: Database['public']['Enums']['doc_task_stage'], notes: string | null, created_at: string, updated_at: string. Insert type should have booking_id, assigned_to required; rest optional. Update type: all optional. Also add the doc_task_stage enum to the Enums section of the types file with all 9 values.",
@@ -21,5 +21,5 @@
     "Run bun run build and confirm successful build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Migration file and types update completed successfully. TypeScript compilation and production build both pass cleanly. The documentation_tasks table type was inserted between bookings and follow_ups in types.ts (alphabetically). The doc_task_stage enum was added both to the Database Enums interface and the Constants.public.Enums runtime object."
 }
