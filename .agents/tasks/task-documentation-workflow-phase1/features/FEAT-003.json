@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "Completely redesign the Documentation page (src/routes/_authenticated/documentation.tsx) with: stats cards (Total/Active/Completed/Partial docs) with daily/weekly/monthly/yearly time filters, assigned documents list with stage badges and stage-change buttons, admin sees all tasks while documentation users see only their assigned tasks.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Completely rewrite src/routes/_authenticated/documentation.tsx. Remove all existing code in the component. Keep the route definition pattern: createFileRoute('/_authenticated/documentation').",
     "Add time filter state (period: 'daily' | 'weekly' | 'monthly' | 'yearly', default 'monthly') with a Select dropdown or Tabs component at the top.",
@@ -29,5 +29,5 @@
     "Run bun run build and confirm successful build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Complete rewrite done. Used a separate profiles query for assignee names instead of FK join (FK constraint name is auto-generated). RLS filtering is relied upon for admin vs documentation user access. All 4 stats cards, time filter, search, stage badge, and stage-change dropdown are implemented. tsc and build both pass cleanly."
 }
