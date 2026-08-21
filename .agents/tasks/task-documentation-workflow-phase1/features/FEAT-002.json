@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Add 'Assign to Documentation' button in the new-booking-dialog onSuccess flow. After booking is saved and the payment acknowledgment dialog is shown/handled, show a button/dialog to assign to a documentation team user. Also add assign functionality directly from the acknowledgment dialog.",
-  "status": "pending",
+  "status": "completed",
   "steps": [
     "In src/components/dashboard/new-booking-dialog.tsx, add a new state variable to track whether the documentation assignment dialog should show (e.g. showDocAssignDialog, docAssignBookingId storing the bookingUuid from onSuccess).",
     "Add a query to fetch documentation team users: useQuery with queryKey ['documentation-team-users'], querying user_roles table to find users with role='documentation', then joining/fetching their profiles (full_name). Pattern: query user_roles where role='documentation', then fetch profiles for those user_ids. Enable only when the assign dialog is open.",
@@ -24,5 +24,5 @@
     "Run bun run build and confirm successful build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Implementation completed successfully. The 'Assign to Documentation' dialog appears after the payment acknowledgment flow (whether email is sent, skipped, or no email at all). Uses useQuery with enabled=showDocAssignDialog so the documentation team users are only fetched when the dialog is visible. The mutation inserts into documentation_tasks with booking_id (UUID FK), assigned_to, assigned_by, and stage='assigned'. TypeScript and production build both pass. Note: the docTeamUsers query fetches from user_roles filtered by role='documentation', then fetches profiles for those user_ids."
 }
