@@ -11,7 +11,7 @@ import {
 import { toast } from "sonner";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, X, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { PipelineSkeleton } from "@/components/skeletons";
 import { usePagePerf } from "@/lib/perf";
-import { handleStageChange, stopAllFollowUps } from "@/lib/stage-reminders";
+import { handleStageChange, stopAllFollowUps, triggerStageReminder } from "@/lib/stage-reminders";
 import { FollowupConfigDialog } from "@/components/followup-config-dialog";
 import type { EmailConfig } from "@/components/followup-config-dialog";
 import { subscribeRealtime } from "@/lib/realtime-manager";
@@ -521,16 +521,34 @@ const LeadCardBody = memo(function LeadCardBody({ lead }: { lead: Lead }) {
   const daysInStage = ref ? Math.max(0, Math.floor((Date.now() - new Date(ref).getTime()) / 86400000)) : null;
   const qc = useQueryClient();
   const isFollowupStage = lead.stage === "followups" || lead.stage === "follow_up";
+  const [stopped, setStopped] = useState(false);
 
   const handleStop = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     const { stoppedFollowUps, stoppedReminders } = await stopAllFollowUps(lead.id);
+    setStopped(true);
     qc.invalidateQueries({ queryKey: ["pipeline-leads"] });
     toast.success(
       `Stopped follow-ups for ${lead.client_name}` +
       (stoppedReminders > 0 ? ` (+${stoppedReminders} email${stoppedReminders > 1 ? "s" : ""} cancelled)` : ""),
     );
+  };
+
+  const handleResume = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Re-trigger the stage reminder to resume follow-ups
+    await triggerStageReminder({
+      leadId: lead.id,
+      newStage: lead.stage,
+      clientName: lead.client_name,
+      clientEmail: lead.email ?? "",
+      userId: "",
+    });
+    setStopped(false);
+    qc.invalidateQueries({ queryKey: ["pipeline-leads"] });
+    toast.success(`Resumed follow-ups for ${lead.client_name}`);
   };
 
   return (
@@ -544,15 +562,27 @@ const LeadCardBody = memo(function LeadCardBody({ lead }: { lead: Lead }) {
       <div className="flex items-center justify-between mt-2 gap-2 flex-wrap">
         {interest && <Badge variant="secondary" className={`text-[10px] rounded-full ${interest.className}`}>{interest.emoji} {interest.label}</Badge>}
         {isFollowupStage && (
-          <button
-            type="button"
-            onClick={handleStop}
-            onPointerDown={(e) => e.stopPropagation()}
-            className="text-[11px] px-2 py-1 rounded-md bg-destructive/10 border border-destructive/50 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-colors font-semibold inline-flex items-center gap-1 shrink-0"
-            title="Stop all follow-ups & reminders for this lead"
-          >
-            <X className="h-3 w-3" /> Stop
-          </button>
+          stopped ? (
+            <button
+              type="button"
+              onClick={handleResume}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="text-[11px] px-2 py-1 rounded-md bg-emerald-100 border border-emerald-400 text-emerald-700 hover:bg-emerald-600 hover:text-white transition-colors font-semibold inline-flex items-center gap-1 shrink-0"
+              title="Resume follow-ups & reminders for this lead"
+            >
+              <Play className="h-3 w-3" /> Resume
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleStop}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="text-[11px] px-2 py-1 rounded-md bg-destructive/10 border border-destructive/50 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-colors font-semibold inline-flex items-center gap-1 shrink-0"
+              title="Stop all follow-ups & reminders for this lead"
+            >
+              <X className="h-3 w-3" /> Stop
+            </button>
+          )
         )}
         {daysInStage !== null && (
           <span className={`text-[11px] ${daysInStage > 7 ? "text-amber-600" : "text-muted-foreground"}`}>
