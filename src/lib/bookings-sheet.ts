@@ -62,6 +62,9 @@ export interface PlanRow {
   state?: string;
   sp_status?: string;
   sp_payable?: string | number;
+  selling_price?: string | number;
+  gst_pct?: string | number;
+  service_type?: string;
 }
 
 interface RawSheetConfig {
