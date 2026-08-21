@@ -34,7 +34,7 @@ import { useAuth } from "@/lib/auth";
 
 // ── Types ──
 
-type ServiceType = "gst" | "business_reg";
+type ServiceType = "gst" | "business_reg" | "virtual_office" | "iec" | "trademark";
 
 interface SendQuotationDialogProps {
   open: boolean;
@@ -83,15 +83,35 @@ function buildQuotationHtml(opts: {
   const { clientName, serviceType, location, plans, quoteId, validityDate, signatureHtml } = opts;
 
   const isGst = serviceType === "gst";
-  const serviceLabel = isGst ? "GST Registration" : "Business Registration";
+  const serviceLabel = (() => {
+    switch (serviceType) {
+      case "gst": return "GST Registration";
+      case "business_reg": return "Business Registration";
+      case "virtual_office": return "Virtual Office";
+      case "iec": return "IEC (Import Export Code)";
+      case "trademark": return "Trademark Registration";
+    }
+  })();
 
   // Address item changes per service type
-  const addressTitle = isGst
-    ? "Premium Business Address"
-    : "Premium Business Address for MCA";
-  const addressDesc = isGst
-    ? "Real commercial address for your Business communications"
-    : "Real commercial address to Register LLP, PVT LTD &amp; OPC";
+  const addressTitle = (() => {
+    switch (serviceType) {
+      case "gst": return "Premium Business Address";
+      case "business_reg": return "Premium Business Address for MCA";
+      case "virtual_office": return "Premium Virtual Office Address";
+      case "iec": return "Premium Business Address for IEC";
+      case "trademark": return "Registered Office Address";
+    }
+  })();
+  const addressDesc = (() => {
+    switch (serviceType) {
+      case "gst": return "Real commercial address for your Business communications";
+      case "business_reg": return "Real commercial address to Register LLP, PVT LTD &amp; OPC";
+      case "virtual_office": return "Professional business address with mail handling &amp; GST compliance";
+      case "iec": return "Commercial address for Import Export Code registration with DGFT";
+      case "trademark": return "Registered address for trademark filing &amp; IP protection";
+    }
+  })();
 
   // Package items (5x2 grid = 10 items)
   const packageItems = [
@@ -539,8 +559,15 @@ export function SendQuotationDialog({
     plans = plans.filter((p) => {
       if (!p.service_type) return true; // show plans without service_type tagged
       const st = p.service_type.toLowerCase().trim();
-      if (serviceType === "gst") return st.includes("gst") || st === "" || st === "all";
-      return st.includes("business") || st.includes("mca") || st.includes("reg") || st === "" || st === "all";
+      if (st === "" || st === "all") return true;
+      switch (serviceType) {
+        case "gst": return st.includes("gst");
+        case "business_reg": return st.includes("business") || st.includes("mca") || st.includes("reg");
+        case "virtual_office": return st.includes("virtual") || st.includes("vo");
+        case "iec": return st.includes("iec") || st.includes("import") || st.includes("export");
+        case "trademark": return st.includes("trademark") || st.includes("tm") || st.includes("ip");
+        default: return true;
+      }
     });
 
     // Filter by state
@@ -562,9 +589,16 @@ export function SendQuotationDialog({
     : selectedState || "India";
 
   // Subject line
-  const subject = serviceType === "gst"
-    ? `Virtual Office for GST Registration in ${locationLabel}| EaseMyOffice`
-    : `Virtual Office for Business Registration in ${locationLabel}| EaseMyOffice`;
+  const serviceLabelForSubject = (() => {
+    switch (serviceType) {
+      case "gst": return "GST Registration";
+      case "business_reg": return "Business Registration";
+      case "virtual_office": return "Virtual Office";
+      case "iec": return "IEC (Import Export Code)";
+      case "trademark": return "Trademark Registration";
+    }
+  })();
+  const subject = `Virtual Office for ${serviceLabelForSubject} in ${locationLabel}| EaseMyOffice`;
 
   // Generate email HTML
   const quoteId = useMemo(() => generateQuoteId(), [open]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -673,6 +707,9 @@ export function SendQuotationDialog({
                 <SelectContent>
                   <SelectItem value="gst">GST Registration</SelectItem>
                   <SelectItem value="business_reg">Business Registration (MCA)</SelectItem>
+                  <SelectItem value="virtual_office">Virtual Office</SelectItem>
+                  <SelectItem value="iec">IEC (Import Export Code)</SelectItem>
+                  <SelectItem value="trademark">Trademark Registration</SelectItem>
                 </SelectContent>
               </Select>
             </div>
