@@ -745,12 +745,12 @@ export function SendQuotationDialog({
             {selectedState && cities.length > 0 && (
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">City <span className="text-muted-foreground">(optional - leave blank for all cities)</span></Label>
-                <Select value={selectedCity} onValueChange={setSelectedCity}>
+                <Select value={selectedCity || "__all__"} onValueChange={(v) => setSelectedCity(v === "__all__" ? "" : v)}>
                   <SelectTrigger>
                     <SelectValue placeholder="All cities in state" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All cities</SelectItem>
+                    <SelectItem value="__all__">All cities</SelectItem>
                     {cities.map((c) => (
                       <SelectItem key={c} value={c}>{c}</SelectItem>
                     ))}
