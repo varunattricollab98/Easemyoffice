@@ -345,7 +345,7 @@ function BookingsPage() {
       <Card className="overflow-hidden shadow-sm">
         <Table>
           <TableHeader>
-            <TableRow className="bg-muted/40 hover:bg-muted/40">
+            <TableRow className="bg-muted/50 hover:bg-muted/50 border-b-2 border-border">
               <SortHeader label="Booking" sortKey="booking" sort={sort} onSort={onSort} />
               <SortHeader label="Date" sortKey="date" sort={sort} onSort={onSort} />
               <SortHeader label="Client" sortKey="client" sort={sort} onSort={onSort} />
@@ -399,23 +399,23 @@ function BookingsPage() {
                 </TableCell>
               </TableRow>
             )}
-            {rows.map((b) => {
+            {rows.map((b, idx) => {
               const balance = Number(b.balance_amount ?? 0);
               const isPaid = !!b.balance_paid_at || balance === 0;
               const isOverdue = !isPaid && b.balance_due_date && b.balance_due_date <= today;
               return (
                 <TableRow
                   key={b.id}
-                  className="transition-all duration-200 ease-out hover:bg-accent/30"
+                  className={`transition-all duration-150 hover:bg-primary/5 ${idx % 2 === 1 ? "bg-muted/20" : ""}`}
                 >
-                  <TableCell className="font-mono text-xs whitespace-nowrap">
+                  <TableCell className="font-mono text-[11px] whitespace-nowrap text-muted-foreground">
                     {b.external_booking_id || b.booking_code}
                   </TableCell>
-                  <TableCell className="whitespace-nowrap tabular-nums">
+                  <TableCell className="whitespace-nowrap tabular-nums text-sm">
                     {fmtDate(b.booking_date)}
                   </TableCell>
                   <TableCell>
-                    <div className="max-w-[180px] truncate font-medium" title={b.client_name ?? ""}>
+                    <div className="max-w-[160px] truncate font-semibold text-sm" title={b.client_name ?? ""}>
                       {b.client_name}
                     </div>
                     {b.business_name && (
@@ -493,7 +493,7 @@ function BookingsPage() {
           </TableBody>
           {!isLoading && rows.length > 0 && (
             <TableFooter>
-              <TableRow className="hover:bg-transparent">
+              <TableRow className="hover:bg-transparent bg-muted/30 border-t-2 border-border font-semibold">
                 <TableCell colSpan={5} className="text-xs text-muted-foreground">
                   {q ? "Filtered total" : "Total"}
                 </TableCell>
