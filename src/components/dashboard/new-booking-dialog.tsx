@@ -84,6 +84,9 @@ function buildPaymentAckEmailHtml(details: {
   state: string;
   sales_person_name: string;
   phone: string;
+  payment_type?: "full" | "partial";
+  balance_amount?: string;
+  balance_due_date?: string;
 }) {
   const {
     client_name,
@@ -95,7 +98,11 @@ function buildPaymentAckEmailHtml(details: {
     payment_id_utr,
     state,
     sales_person_name,
+    payment_type,
+    balance_amount,
+    balance_due_date,
   } = details;
+  const isPartialPayment = payment_type === "partial";
   const managerName = sales_person_name || "Your Manager";
   const firstName = managerName.split(" ")[0];
   const digits = (details.phone || "").replace(/\D/g, "") || "918882735038";
@@ -161,7 +168,7 @@ function buildPaymentAckEmailHtml(details: {
   </td></tr>
 
   <tr><td style="background:#FFE39A; padding:11px 24px; font-size:12px; color:#5A4500; font-weight:700; text-align:center; letter-spacing:0.4px;">
-    &#129534; Payment ID / UTR: ${utr} &nbsp;&middot;&nbsp; ${date} &nbsp;&middot;&nbsp; Status: <span style="color:#15803D;">PAID &#10003;</span>
+    &#129534; Payment ID / UTR: ${utr} &nbsp;&middot;&nbsp; ${date} &nbsp;&middot;&nbsp; Status: ${isPartialPayment ? '<span style="color:#B45309;">PARTIAL PAYMENT &#9203;</span>' : '<span style="color:#15803D;">PAID &#10003;</span>'}
   </td></tr>
 
   <tr><td style="background:#ffffff; padding:36px 32px; text-align:center;" class="pad-lg">
@@ -225,11 +232,19 @@ function buildPaymentAckEmailHtml(details: {
       </tr>
       <tr style="background:#F0FAF4;">
         <td style="padding:16px; border-bottom:1px solid #EEF2F8; font-weight:700; color:#0B1B36; font-size:14px;">&#128176; Amount Paid</td>
-        <td style="padding:16px; border-bottom:1px solid #EEF2F8; font-weight:800; color:#15803D; font-size:18px;">${amount}</td>
+        <td style="padding:16px; border-bottom:1px solid #EEF2F8; font-weight:800; color:#15803D; font-size:18px;">${amount}${isPartialPayment ? ' <span style="font-size:12px; font-weight:700; color:#B45309; background:#FEF3C7; padding:2px 8px; border-radius:20px; margin-left:8px;">Half Payment</span>' : ''}</td>
+      </tr>${isPartialPayment && balance_amount ? `
+      <tr style="background:#FFF7ED;">
+        <td style="padding:13px 16px; border-bottom:1px solid #EEF2F8; font-weight:700; color:#0B1B36; font-size:14px;">&#9888;&#65039; Balance Remaining</td>
+        <td style="padding:13px 16px; border-bottom:1px solid #EEF2F8; font-weight:800; color:#B45309; font-size:16px;">${balance_amount}</td>
       </tr>
       <tr style="background:#fff;">
+        <td style="padding:13px 16px; border-bottom:1px solid #EEF2F8; font-weight:600; color:#5A6B85;">Balance Due Date</td>
+        <td style="padding:13px 16px; border-bottom:1px solid #EEF2F8; font-weight:700; color:#0B1B36;">${balance_due_date || "\u2014"}</td>
+      </tr>` : ''}
+      <tr style="background:#fff;">
         <td style="padding:13px 16px; font-weight:600; color:#5A6B85;">Status</td>
-        <td style="padding:13px 16px;"><span style="display:inline-block; background:#16A34A; color:#fff; font-size:12px; font-weight:800; padding:5px 12px; border-radius:30px; letter-spacing:0.5px;">&#10003; SUCCESSFUL</span></td>
+        <td style="padding:13px 16px;">${isPartialPayment ? '<span style="display:inline-block; background:#D97706; color:#fff; font-size:12px; font-weight:800; padding:5px 12px; border-radius:30px; letter-spacing:0.5px;">&#9203; PARTIAL PAYMENT</span>' : '<span style="display:inline-block; background:#16A34A; color:#fff; font-size:12px; font-weight:800; padding:5px 12px; border-radius:30px; letter-spacing:0.5px;">&#10003; SUCCESSFUL</span>'}</td>
       </tr>
     </table>
   </td></tr>
@@ -415,6 +430,9 @@ export function NewBookingDialog() {
     state: string;
     sales_person_name: string;
     phone: string;
+    payment_type: "full" | "partial";
+    balance_amount: number;
+    balance_due_date: string;
   } | null>(null);
 
   // Form state
@@ -635,6 +653,9 @@ export function NewBookingDialog() {
         state,
         sales_person_name,
         phone,
+        payment_type: pType,
+        balance_amount: bal,
+        balance_due_date: balDueDate,
       } = savedBookingData;
       const formattedDate = new Date(date).toLocaleDateString("en-IN", {
         day: "2-digit",
@@ -642,6 +663,10 @@ export function NewBookingDialog() {
         year: "numeric",
       });
       const formattedAmount = amt.toLocaleString("en-IN", { style: "currency", currency: "INR" });
+      const formattedBalance = bal > 0 ? bal.toLocaleString("en-IN", { style: "currency", currency: "INR" }) : "";
+      const formattedBalDueDate = balDueDate
+        ? new Date(balDueDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+        : "";
 
       const subject = `Payment Acknowledgment \u2014 ${booking_id} | EaseMyOffice`;
       const html = buildPaymentAckEmailHtml({
@@ -656,7 +681,11 @@ export function NewBookingDialog() {
         state,
         sales_person_name,
         phone,
+        payment_type: pType,
+        balance_amount: formattedBalance,
+        balance_due_date: formattedBalDueDate,
       });
+      const isPartialAck = pType === "partial";
       const text = [
         `PAYMENT ACKNOWLEDGEMENT - OFFICIALLY CONFIRMED`,
         ``,
@@ -669,8 +698,14 @@ export function NewBookingDialog() {
         `Booking ID: ${booking_id}`,
         `Payment Date: ${formattedDate}`,
         `Payment Mode: ${payment_mode_ref || "N/A"}`,
-        `Amount Paid: ${formattedAmount}`,
-        `Status: SUCCESSFUL`,
+        `Amount Paid: ${formattedAmount}${isPartialAck ? " (Half Payment)" : ""}`,
+        `Status: ${isPartialAck ? "PARTIAL PAYMENT" : "SUCCESSFUL"}`,
+        ...(isPartialAck && formattedBalance
+          ? [
+              `Balance Remaining: ${formattedBalance}`,
+              `Balance Due Date: ${formattedBalDueDate || "N/A"}`,
+            ]
+          : []),
         ``,
         `--- SERVICE DETAILS ---`,
         `Plan: ${plan_name}`,
@@ -865,12 +900,95 @@ export function NewBookingDialog() {
           state: f.state,
           sales_person_name: profile?.full_name || "",
           phone: profile?.phone || "",
+          payment_type: f.payment_type,
+          balance_amount: balanceAmount,
+          balance_due_date: f.balance_due_date,
         });
         setShowAckDialog(true);
       } else {
         // No email - close and reset (old behavior)
         setOpen(false);
         resetForm();
+      }
+
+      // Auto-create balance reminders for partial payments
+      if (isPartial && f.balance_due_date && f.email_id.trim()) {
+        const formattedBal = balanceAmount.toLocaleString("en-IN", { style: "currency", currency: "INR" });
+        const formattedDueDate = new Date(f.balance_due_date).toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        });
+
+        // Reminder for the client
+        const clientReminderHtml = `
+          <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+            <div style="background:#FEF3C7;border:1px solid #F59E0B;border-radius:12px;padding:20px;margin-bottom:20px;">
+              <div style="font-size:16px;font-weight:700;color:#92400E;margin-bottom:8px;">&#9888;&#65039; Payment Reminder</div>
+              <div style="font-size:14px;color:#78350F;">Your balance payment of <strong>${formattedBal}</strong> for booking <strong>${bookingId}</strong> is due on <strong>${formattedDueDate}</strong>.</div>
+            </div>
+            <div style="font-size:14px;color:#374151;line-height:1.6;">
+              <p>Dear ${f.client_name},</p>
+              <p>This is a friendly reminder that your pending balance of <strong>${formattedBal}</strong> is due. Please arrange the payment at your earliest convenience.</p>
+              <p>If you have already made the payment, please ignore this reminder.</p>
+              <p style="margin-top:16px;">Thank you for choosing EaseMyOffice!</p>
+            </div>
+          </div>`;
+
+        supabase.from("reminders").insert({
+          to_email: f.email_id.trim(),
+          client_name: f.client_name,
+          subject: `Payment Reminder - Balance Due | EaseMyOffice`,
+          message: clientReminderHtml,
+          is_html: true,
+          attachments: [],
+          send_at: `${f.balance_due_date}T09:00:00`,
+          status: "scheduled",
+          repeat_interval_days: 0,
+          repeat_until: null,
+          created_by: user?.id || null,
+          assigned_to: f.sales_agent_id || user?.id || null,
+          booking_id: bookingId,
+          from_email: "EaseMyOffice <contact@easemyoffice.in>",
+        }).then(({ error: remErr }) => {
+          if (remErr) console.error("Failed to create client reminder:", remErr.message);
+        });
+
+        // Reminder for the salesperson
+        const salesEmail = profile?.email || user?.email;
+        if (salesEmail) {
+          const salesReminderHtml = `
+            <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+              <div style="background:#DBEAFE;border:1px solid #3B82F6;border-radius:12px;padding:20px;margin-bottom:20px;">
+                <div style="font-size:16px;font-weight:700;color:#1E40AF;margin-bottom:8px;">&#128176; Balance Payment Due</div>
+                <div style="font-size:14px;color:#1E3A5F;">Client <strong>${f.client_name}</strong> has a pending balance of <strong>${formattedBal}</strong> for booking <strong>${bookingId}</strong>, due on <strong>${formattedDueDate}</strong>.</div>
+              </div>
+              <div style="font-size:14px;color:#374151;line-height:1.6;">
+                <p>Please follow up with the client to ensure timely payment.</p>
+                <p><strong>Client Email:</strong> ${f.email_id.trim()}</p>
+                <p><strong>Client Phone:</strong> ${f.contact_no || "N/A"}</p>
+              </div>
+            </div>`;
+
+          supabase.from("reminders").insert({
+            to_email: salesEmail,
+            client_name: f.client_name,
+            subject: `Balance Payment Due - ${f.client_name} | ${bookingId}`,
+            message: salesReminderHtml,
+            is_html: true,
+            attachments: [],
+            send_at: `${f.balance_due_date}T09:00:00`,
+            status: "scheduled",
+            repeat_interval_days: 0,
+            repeat_until: null,
+            created_by: user?.id || null,
+            assigned_to: f.sales_agent_id || user?.id || null,
+            booking_id: bookingId,
+            from_email: "EaseMyOffice <contact@easemyoffice.in>",
+          }).then(({ error: remErr }) => {
+            if (remErr) console.error("Failed to create salesperson reminder:", remErr.message);
+          });
+        }
       }
     },
     onError: (e: Error) => toast.error(e.message),

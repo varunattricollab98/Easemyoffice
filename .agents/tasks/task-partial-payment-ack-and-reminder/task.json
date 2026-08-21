@@ -1,0 +1,7 @@
+{
+  "task_id": "task-partial-payment-ack-and-reminder",
+  "task_description": "Modify payment acknowledgment email to show 'PARTIAL PAYMENT' label with balance details when a half payment is received, and auto-create scheduled reminders for both the client and salesperson when a partial payment booking is saved, so they are notified on the balance due date.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001"],
+  "blocked_reason": null
+}

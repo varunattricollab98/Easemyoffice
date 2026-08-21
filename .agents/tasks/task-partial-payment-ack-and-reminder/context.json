@@ -1,0 +1,22 @@
+{
+  "project_type": "React 19 SPA with TanStack Router/Start, Supabase backend, Cloudflare Workers deploy",
+  "language": "TypeScript / TSX",
+  "build_system": "Vite + Bun, Cloudflare Workers deploy via wrangler",
+  "test_framework": "No unit tests in the project; validation is TypeScript type-checking + build",
+  "build_command": "bunx tsc --noEmit && bun run build",
+  "test_command": "bunx tsc --noEmit",
+  "verification_instructions": "1. Run bunx tsc --noEmit to confirm no type errors. 2. Run bun run build to confirm Vite build succeeds.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "bun install (already done, node_modules present)",
+  "environment_constraints": "Cloudflare Git-build does NOT deliver server env/secrets to TanStack createServerFn. All ops are client-side Supabase or Edge Functions. File naming: *.client.ts breaks TanStack Start build, never use it.",
+  "contribution_requirements": "Code follows existing patterns. Email templates are inline HTML strings in the same file. Reminders are inserted client-side via supabase.from('reminders').insert(). The pg_cron process-reminders function picks up scheduled reminders and sends them via Resend.",
+  "key_patterns": "buildPaymentAckEmailHtml() in new-booking-dialog.tsx produces the payment ack email. savedBookingData state holds booking info after save for the ack dialog. The onSuccess handler of submit mutation sets savedBookingData and shows the ack dialog. Reminders are inserted with fields: to_email, client_name, subject, message, is_html, attachments, send_at, status, repeat_interval_days, repeat_until, created_by, assigned_to, booking_id, from_email.",
+  "relevant_files": [
+    "src/components/dashboard/new-booking-dialog.tsx",
+    "src/lib/stage-reminders.ts",
+    "src/routes/_authenticated/reminders.tsx",
+    "src/routes/_authenticated/bookings.tsx",
+    "supabase/functions/process-reminders/index.ts"
+  ],
+  "directory_structure": "src/components/dashboard/ has booking form dialogs. src/routes/_authenticated/ has page routes. src/lib/ has helpers. supabase/functions/ has edge functions."
+}
