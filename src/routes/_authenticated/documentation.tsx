@@ -2,9 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -20,7 +22,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, FileText, CheckCircle2, Clock, Loader2 } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Search,
+  FileText,
+  CheckCircle2,
+  Clock,
+  Loader2,
+  AlertTriangle,
+  BarChart3,
+  Settings,
+  User,
+} from "lucide-react";
 import { useState, useMemo } from "react";
 import {
   format,
@@ -28,6 +46,7 @@ import {
   startOfWeek,
   startOfMonth,
   startOfYear,
+  differenceInDays,
 } from "date-fns";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
@@ -49,7 +68,6 @@ const DOC_STAGES = [
 
 const STAGE_MAP = new Map(DOC_STAGES.map((s) => [s.id, s]));
 
-// Intermediate stages: started but not completed (past "assigned", before "completed").
 const PARTIAL_STAGES: DocStage[] = [
   "docs_requested",
   "docs_received",
@@ -95,6 +113,9 @@ interface DocTaskRow {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  escalated: boolean;
+  escalation_reason: string | null;
+  escalated_at: string | null;
   bookings: {
     client_name: string | null;
     plan_name: string | null;
@@ -116,28 +137,573 @@ function StageBadge({ stage }: { stage: DocStage }) {
 }
 
 function DocumentationPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, hasRole } = useAuth();
+  const isDocPerson = hasRole("documentation") && !isAdmin;
+
+  if (isAdmin) {
+    return <AdminDocumentationView />;
+  }
+  if (isDocPerson) {
+    return <DocPersonView />;
+  }
+  // Other roles: just show tasks table
+  return <TasksOnlyView />;
+}
+
+// ─── Admin View: Analytics | Tasks | Settings ────────────────────────────────
+
+function AdminDocumentationView() {
+  return (
+    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-4">
+      <div>
+        <h1 className="text-2xl md:text-3xl font-bold">Documentation</h1>
+        <p className="text-sm text-muted-foreground">
+          Manage documentation tasks, view analytics, and configure settings.
+        </p>
+      </div>
+      <Tabs defaultValue="analytics">
+        <TabsList>
+          <TabsTrigger value="analytics">
+            <BarChart3 className="h-4 w-4 mr-1.5" /> Analytics
+          </TabsTrigger>
+          <TabsTrigger value="tasks">
+            <FileText className="h-4 w-4 mr-1.5" /> Tasks
+          </TabsTrigger>
+          <TabsTrigger value="settings">
+            <Settings className="h-4 w-4 mr-1.5" /> Settings
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="analytics">
+          <AnalyticsTab />
+        </TabsContent>
+        <TabsContent value="tasks">
+          <TasksTab isAdmin />
+        </TabsContent>
+        <TabsContent value="settings">
+          <SettingsTab />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+// ─── Documentation Person View: My Stats | My Tasks ──────────────────────────
+
+function DocPersonView() {
+  return (
+    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-4">
+      <div>
+        <h1 className="text-2xl md:text-3xl font-bold">Documentation</h1>
+        <p className="text-sm text-muted-foreground">
+          Track your assigned documentation tasks and personal performance.
+        </p>
+      </div>
+      <Tabs defaultValue="my-stats">
+        <TabsList>
+          <TabsTrigger value="my-stats">
+            <User className="h-4 w-4 mr-1.5" /> My Stats
+          </TabsTrigger>
+          <TabsTrigger value="my-tasks">
+            <FileText className="h-4 w-4 mr-1.5" /> My Tasks
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="my-stats">
+          <MyStatsTab />
+        </TabsContent>
+        <TabsContent value="my-tasks">
+          <TasksTab isAdmin={false} />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+// ─── Tasks Only View (other roles) ──────────────────────────────────────────
+
+function TasksOnlyView() {
+  return (
+    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-4">
+      <div>
+        <h1 className="text-2xl md:text-3xl font-bold">Documentation</h1>
+        <p className="text-sm text-muted-foreground">
+          Track assigned documentation tasks and move them through each stage.
+        </p>
+      </div>
+      <TasksTab isAdmin={false} />
+    </div>
+  );
+}
+
+// ─── Analytics Tab (Admin) ───────────────────────────────────────────────────
+
+function AnalyticsTab() {
+  const [period, setPeriod] = useState<Period>("monthly");
+  const filterISO = useMemo(() => periodStart(period).toISOString(), [period]);
+
+  const { data: tasks = [], isLoading } = useQuery({
+    queryKey: ["doc-analytics-tasks", period],
+    queryFn: async (): Promise<DocTaskRow[]> => {
+      const { data, error } = await supabase
+        .from("documentation_tasks")
+        .select(
+          "id, booking_id, assigned_to, assigned_by, stage, notes, created_at, updated_at, escalated, escalation_reason, escalated_at, bookings(client_name, plan_name, business_name, contact_no, email_id, external_booking_id)",
+        )
+        .gte("created_at", filterISO)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      const rows = (data ?? []) as unknown as DocTaskRow[];
+      const assigneeIds = Array.from(new Set(rows.map((r) => r.assigned_to).filter(Boolean)));
+      if (assigneeIds.length > 0) {
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("id, full_name")
+          .in("id", assigneeIds);
+        const nameMap = new Map((profs ?? []).map((p) => [p.id, p.full_name]));
+        for (const r of rows) {
+          r.assignee_name = nameMap.get(r.assigned_to) ?? null;
+        }
+      }
+      return rows;
+    },
+  });
+
+  const perPerson = useMemo(() => {
+    const map = new Map<string, { name: string; total: number; completed: number; escalated: number }>();
+    for (const t of tasks) {
+      const key = t.assigned_to;
+      if (!map.has(key)) {
+        map.set(key, { name: t.assignee_name ?? "Unknown", total: 0, completed: 0, escalated: 0 });
+      }
+      const entry = map.get(key)!;
+      entry.total++;
+      if (t.stage === "completed") entry.completed++;
+      if (t.escalated) entry.escalated++;
+    }
+    return Array.from(map.values()).sort((a, b) => b.total - a.total);
+  }, [tasks]);
+
+  const bottleneckStages = useMemo(() => {
+    const stageCount = new Map<DocStage, number>();
+    for (const t of tasks) {
+      if (t.stage !== "completed") {
+        stageCount.set(t.stage, (stageCount.get(t.stage) ?? 0) + 1);
+      }
+    }
+    return Array.from(stageCount.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+  }, [tasks]);
+
+  const totalEscalated = tasks.filter((t) => t.escalated).length;
+  const totalCompleted = tasks.filter((t) => t.stage === "completed").length;
+
+  return (
+    <div className="space-y-4 mt-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Team Performance</h2>
+        <div className="w-40">
+          <Select value={period} onValueChange={(v) => setPeriod(v as Period)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Period" />
+            </SelectTrigger>
+            <SelectContent>
+              {PERIOD_OPTIONS.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="p-10 text-center text-muted-foreground">Loading analytics...</div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                  <FileText className="h-4 w-4" /> Total Tasks
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{tasks.length}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4" /> Completed
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{totalCompleted}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-red-500" /> Escalated
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-600">{totalEscalated}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                  <Clock className="h-4 w-4" /> Active
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{tasks.length - totalCompleted}</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Per-person performance */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Per-Person Performance</CardTitle>
+              <CardDescription>Task distribution and completion rate per team member.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Person</TableHead>
+                    <TableHead>Total</TableHead>
+                    <TableHead>Completed</TableHead>
+                    <TableHead>Escalated</TableHead>
+                    <TableHead>Completion Rate</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {perPerson.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
+                        No data available for this period.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    perPerson.map((p) => (
+                      <TableRow key={p.name}>
+                        <TableCell className="font-medium">{p.name}</TableCell>
+                        <TableCell>{p.total}</TableCell>
+                        <TableCell>{p.completed}</TableCell>
+                        <TableCell>
+                          {p.escalated > 0 ? (
+                            <span className="text-red-600 font-medium">{p.escalated}</span>
+                          ) : (
+                            "0"
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {p.total > 0 ? `${Math.round((p.completed / p.total) * 100)}%` : "—"}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          {/* Bottleneck stages */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Stage Bottlenecks</CardTitle>
+              <CardDescription>Stages with the most active (non-completed) tasks.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {bottleneckStages.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No bottlenecks detected.</div>
+              ) : (
+                <div className="space-y-2">
+                  {bottleneckStages.map(([stage, count]) => {
+                    const info = STAGE_MAP.get(stage);
+                    return (
+                      <div key={stage} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className={`h-3 w-3 rounded-full ${info?.color ?? "bg-slate-500"}`} />
+                          <span className="text-sm">{info?.label ?? stage}</span>
+                        </div>
+                        <Badge variant="outline">{count} tasks</Badge>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── My Stats Tab (Documentation Person) ────────────────────────────────────
+
+function MyStatsTab() {
+  const { user } = useAuth();
+  const [period, setPeriod] = useState<Period>("monthly");
+  const filterISO = useMemo(() => periodStart(period).toISOString(), [period]);
+
+  const { data: tasks = [], isLoading } = useQuery({
+    queryKey: ["doc-my-stats", period, user?.id],
+    queryFn: async (): Promise<DocTaskRow[]> => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from("documentation_tasks")
+        .select(
+          "id, booking_id, assigned_to, assigned_by, stage, notes, created_at, updated_at, escalated, escalation_reason, escalated_at, bookings(client_name, plan_name, business_name, contact_no, email_id, external_booking_id)",
+        )
+        .eq("assigned_to", user.id)
+        .gte("created_at", filterISO)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as DocTaskRow[];
+    },
+    enabled: !!user?.id,
+  });
+
+  const stats = useMemo(() => {
+    const total = tasks.length;
+    const completed = tasks.filter((t) => t.stage === "completed").length;
+    const active = tasks.filter((t) => t.stage !== "completed").length;
+    const escalated = tasks.filter((t) => t.escalated).length;
+    return { total, completed, active, escalated };
+  }, [tasks]);
+
+  return (
+    <div className="space-y-4 mt-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">My Performance</h2>
+        <div className="w-40">
+          <Select value={period} onValueChange={(v) => setPeriod(v as Period)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Period" />
+            </SelectTrigger>
+            <SelectContent>
+              {PERIOD_OPTIONS.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="p-10 text-center text-muted-foreground">Loading stats...</div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                  <FileText className="h-4 w-4" /> Total
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.total}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                  <Clock className="h-4 w-4" /> Active
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.active}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4" /> Completed
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.completed}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-red-500" /> Escalated
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-600">{stats.escalated}</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Completion Rate</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">
+                {stats.total > 0 ? `${Math.round((stats.completed / stats.total) * 100)}%` : "—"}
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                {stats.completed} of {stats.total} tasks completed this period.
+              </p>
+            </CardContent>
+          </Card>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── Settings Tab (Admin) ────────────────────────────────────────────────────
+
+function SettingsTab() {
+  const queryClient = useQueryClient();
+  const [days, setDays] = useState<string>("");
+
+  const { data: currentDays, isLoading } = useQuery({
+    queryKey: ["doc-escalation-days-setting"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "doc_escalation_days")
+        .maybeSingle();
+      if (error) throw error;
+      const val = data?.value as number | null;
+      return val ?? 3;
+    },
+  });
+
+  // Sync local state when data loads
+  useMemo(() => {
+    if (currentDays !== undefined && days === "") {
+      setDays(String(currentDays));
+    }
+  }, [currentDays]);
+
+  const saveMutation = useMutation({
+    mutationFn: async (newDays: number) => {
+      const { error } = await supabase
+        .from("app_settings")
+        .upsert({ key: "doc_escalation_days", value: newDays as unknown as Database["public"]["Tables"]["app_settings"]["Row"]["value"] }, { onConflict: "key" });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Escalation threshold updated");
+      queryClient.invalidateQueries({ queryKey: ["doc-escalation-days-setting"] });
+      queryClient.invalidateQueries({ queryKey: ["doc-escalation-days"] });
+    },
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "Failed to save setting");
+    },
+  });
+
+  const handleSave = () => {
+    const num = parseInt(days, 10);
+    if (isNaN(num) || num < 1) {
+      toast.error("Please enter a valid number of days (minimum 1)");
+      return;
+    }
+    saveMutation.mutate(num);
+  };
+
+  return (
+    <div className="space-y-4 mt-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Escalation Settings</CardTitle>
+          <CardDescription>
+            Configure how many days a task can stay without progress before being auto-flagged as escalated.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {isLoading ? (
+            <div className="text-sm text-muted-foreground">Loading...</div>
+          ) : (
+            <>
+              <div className="max-w-xs space-y-2">
+                <Label htmlFor="escalation-days" className="text-sm">
+                  Escalation threshold (days)
+                </Label>
+                <Input
+                  id="escalation-days"
+                  type="number"
+                  min={1}
+                  value={days}
+                  onChange={(e) => setDays(e.target.value)}
+                  placeholder="3"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Tasks with no update for more than this many days will be visually flagged as escalated.
+                  Current threshold: <strong>{currentDays} days</strong>.
+                </p>
+              </div>
+              <Button onClick={handleSave} disabled={saveMutation.isPending}>
+                {saveMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Save Setting
+              </Button>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Tasks Tab (shared between Admin and Doc Person) ─────────────────────────
+
+function TasksTab({ isAdmin }: { isAdmin: boolean }) {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [period, setPeriod] = useState<Period>("monthly");
   const [search, setSearch] = useState("");
 
   const filterISO = useMemo(() => periodStart(period).toISOString(), [period]);
 
-  const { data: tasks = [], isLoading } = useQuery({
-    queryKey: ["documentation-tasks", period],
-    queryFn: async (): Promise<DocTaskRow[]> => {
+  // Fetch escalation threshold from app_settings
+  const { data: escalationDays = 3 } = useQuery({
+    queryKey: ["doc-escalation-days"],
+    queryFn: async () => {
       const { data, error } = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "doc_escalation_days")
+        .maybeSingle();
+      if (error) throw error;
+      const val = data?.value as number | null;
+      return val ?? 3;
+    },
+  });
+
+  const { data: tasks = [], isLoading } = useQuery({
+    queryKey: ["documentation-tasks", period, isAdmin ? "all" : user?.id],
+    queryFn: async (): Promise<DocTaskRow[]> => {
+      let query = supabase
         .from("documentation_tasks")
         .select(
-          "id, booking_id, assigned_to, assigned_by, stage, notes, created_at, updated_at, bookings(client_name, plan_name, business_name, contact_no, email_id, external_booking_id)",
+          "id, booking_id, assigned_to, assigned_by, stage, notes, created_at, updated_at, escalated, escalation_reason, escalated_at, bookings(client_name, plan_name, business_name, contact_no, email_id, external_booking_id)",
         )
         .gte("created_at", filterISO)
         .order("created_at", { ascending: false });
+
+      if (!isAdmin && user?.id) {
+        query = query.eq("assigned_to", user.id);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       const rows = (data ?? []) as unknown as DocTaskRow[];
 
-      // Resolve assignee names via a separate profiles query (FK constraint
-      // name is auto-generated, so we avoid the embedded profile join).
       const assigneeIds = Array.from(new Set(rows.map((r) => r.assigned_to).filter(Boolean)));
       if (assigneeIds.length > 0) {
         const { data: profs } = await supabase
@@ -170,6 +736,27 @@ function DocumentationPage() {
     },
   });
 
+  const escalateMutation = useMutation({
+    mutationFn: async ({ taskId, reason }: { taskId: string; reason: string }) => {
+      const { error } = await supabase
+        .from("documentation_tasks")
+        .update({
+          escalated: true,
+          escalation_reason: reason,
+          escalated_at: new Date().toISOString(),
+        })
+        .eq("id", taskId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Task escalated");
+      queryClient.invalidateQueries({ queryKey: ["documentation-tasks"] });
+    },
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "Failed to escalate task");
+    },
+  });
+
   const stats = useMemo(() => {
     const total = tasks.length;
     const completed = tasks.filter((t) => t.stage === "completed").length;
@@ -189,14 +776,62 @@ function DocumentationPage() {
     });
   }, [tasks, search]);
 
+  // Check if a task is auto-escalated (client-side detection)
+  const isAutoEscalated = (task: DocTaskRow): boolean => {
+    if (task.stage === "completed") return false;
+    const daysSinceUpdate = differenceInDays(new Date(), new Date(task.updated_at));
+    return daysSinceUpdate > escalationDays;
+  };
+
+  // Check if a task should show as escalated (either manual or auto)
+  const isEscalated = (task: DocTaskRow): boolean => {
+    return task.escalated || isAutoEscalated(task);
+  };
+
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-4">
+    <div className="space-y-4 mt-4">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold">Documentation</h1>
-          <p className="text-sm text-muted-foreground">
-            Track assigned documentation tasks and move them through each stage.
-          </p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 flex-1">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                <FileText className="h-4 w-4" /> Total
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.total}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                <Clock className="h-4 w-4" /> Active
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.active}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                <Loader2 className="h-4 w-4" /> Partial
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.partial}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4" /> Completed
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.completed}</div>
+            </CardContent>
+          </Card>
         </div>
         <div className="w-full md:w-40">
           <Select value={period} onValueChange={(v) => setPeriod(v as Period)}>
@@ -214,54 +849,11 @@ function DocumentationPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
-              <FileText className="h-4 w-4" /> Total
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
-              <Clock className="h-4 w-4" /> Active
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.active}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
-              <Loader2 className="h-4 w-4" /> Partial
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.partial}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4" /> Completed
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.completed}</div>
-          </CardContent>
-        </Card>
-      </div>
-
       <div className="relative max-w-md">
         <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <Input
           className="pl-9"
-          placeholder="Search by client, plan or business…"
+          placeholder="Search by client, plan or business..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -270,7 +862,7 @@ function DocumentationPage() {
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-10 text-center text-muted-foreground">Loading documentation tasks…</div>
+            <div className="p-10 text-center text-muted-foreground">Loading documentation tasks...</div>
           ) : filtered.length === 0 ? (
             <div className="p-10 text-center text-muted-foreground">No documentation tasks found.</div>
           ) : (
@@ -286,51 +878,148 @@ function DocumentationPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((task) => (
-                  <TableRow key={task.id}>
-                    <TableCell>
-                      <div className="font-medium">{task.bookings?.client_name ?? "—"}</div>
-                      {task.bookings?.business_name && (
-                        <div className="text-xs text-muted-foreground">{task.bookings.business_name}</div>
+                {filtered.map((task) => {
+                  const escalated = isEscalated(task);
+                  return (
+                    <TableRow
+                      key={task.id}
+                      className={escalated ? "bg-red-50 dark:bg-red-950/20" : ""}
+                    >
+                      <TableCell>
+                        <div className="font-medium">{task.bookings?.client_name ?? "—"}</div>
+                        {task.bookings?.business_name && (
+                          <div className="text-xs text-muted-foreground">{task.bookings.business_name}</div>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm">{task.bookings?.plan_name ?? "—"}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <StageBadge stage={task.stage} />
+                          {escalated && (
+                            <Badge className="bg-red-600 text-white hover:bg-red-700">
+                              Escalated
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      {isAdmin && (
+                        <TableCell className="text-sm">{task.assignee_name ?? "—"}</TableCell>
                       )}
-                    </TableCell>
-                    <TableCell className="text-sm">{task.bookings?.plan_name ?? "—"}</TableCell>
-                    <TableCell>
-                      <StageBadge stage={task.stage} />
-                    </TableCell>
-                    {isAdmin && (
-                      <TableCell className="text-sm">{task.assignee_name ?? "—"}</TableCell>
-                    )}
-                    <TableCell className="text-sm text-muted-foreground">
-                      {format(new Date(task.created_at), "MMM d, yyyy")}
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={task.stage}
-                        onValueChange={(v) =>
-                          stageMutation.mutate({ taskId: task.id, stage: v as DocStage })
-                        }
-                        disabled={stageMutation.isPending}
-                      >
-                        <SelectTrigger className="h-8">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {DOC_STAGES.filter((_, idx) => idx >= DOC_STAGES.findIndex((s) => s.id === task.stage)).map((s) => (
-                            <SelectItem key={s.id} value={s.id}>
-                              {s.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      <TableCell className="text-sm text-muted-foreground">
+                        {format(new Date(task.created_at), "MMM d, yyyy")}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Select
+                            value={task.stage}
+                            onValueChange={(v) =>
+                              stageMutation.mutate({ taskId: task.id, stage: v as DocStage })
+                            }
+                            disabled={stageMutation.isPending}
+                          >
+                            <SelectTrigger className="h-8 flex-1">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {DOC_STAGES.filter((_, idx) => idx >= DOC_STAGES.findIndex((s) => s.id === task.stage)).map((s) => (
+                                <SelectItem key={s.id} value={s.id}>
+                                  {s.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {isAdmin && !task.escalated && (
+                            <EscalateButton
+                              taskId={task.id}
+                              onEscalate={(reason) =>
+                                escalateMutation.mutate({ taskId: task.id, reason })
+                              }
+                              isPending={escalateMutation.isPending}
+                            />
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// ─── Escalate Button with Popover ────────────────────────────────────────────
+
+function EscalateButton({
+  taskId,
+  onEscalate,
+  isPending,
+}: {
+  taskId: string;
+  onEscalate: (reason: string) => void;
+  isPending: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+
+  const handleSubmit = () => {
+    if (!reason.trim()) {
+      toast.error("Please provide an escalation reason");
+      return;
+    }
+    onEscalate(reason.trim());
+    setReason("");
+    setOpen(false);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="h-8 px-2 text-red-600 border-red-200 hover:bg-red-50">
+          <AlertTriangle className="h-3.5 w-3.5" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80" align="end">
+        <div className="space-y-3">
+          <div>
+            <h4 className="font-medium text-sm">Escalate Task</h4>
+            <p className="text-xs text-muted-foreground">
+              Flag this task as escalated. Provide a reason below.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`reason-${taskId}`} className="text-xs">
+              Escalation Reason
+            </Label>
+            <Input
+              id={`reason-${taskId}`}
+              placeholder="e.g., Client not responding..."
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSubmit();
+              }}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={handleSubmit}
+              disabled={isPending}
+            >
+              {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
+              Escalate
+            </Button>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

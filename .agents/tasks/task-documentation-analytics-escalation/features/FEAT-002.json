@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Implement Admin Analytics tab content, Documentation person's My Stats tab, and Settings tab with configurable escalation threshold",
+  "status": "pending",
+  "steps": [
+    "In the Analytics tab (admin only), build the following sections: (a) Performance Metrics cards: average days to complete (from created_at to updated_at where stage=completed), completion rate % (completed/total), tasks completed this period. (b) Per-person breakdown table: name, assigned count, completed count, avg days to complete, pending count. (c) Bottleneck indicators: show which stage has the most stuck tasks (tasks where updated_at is > threshold days ago and stage != completed). Display as a list or bar showing stage name + count. (d) Escalated tasks section: list all tasks where escalated=true OR auto-detected as stuck, with red highlighting, showing client name, assignee, days stuck, and escalation reason.",
+    "In the My Stats tab (documentation person only), show personal performance: (a) My completion rate (completed / total assigned to me). (b) Average time to complete (days). (c) Pending count. (d) Stage distribution: a simple breakdown showing how many of my tasks are at each stage (could be a small bar chart or list).",
+    "In the Settings tab (admin only), add an escalation threshold setting: (a) Label: 'Escalation threshold (days)'. (b) Input field with current value loaded from app_settings key 'doc_escalation_days'. (c) Default value: 3 if not set in DB. (d) Save button that upserts to app_settings with key 'doc_escalation_days'. (e) Use the same pattern as other app_settings usages (supabase.from('app_settings').upsert({ key: 'doc_escalation_days', value: number })).",
+    "Ensure the escalation threshold is fetched once and shared across all tabs that need it (Analytics tab for bottleneck detection, Tasks tab for auto-escalation highlighting). Use a single useQuery for this.",
+    "Make sure all computations are client-side using the already-fetched tasks data - no additional Supabase RPC or server functions needed."
+  ],
+  "acceptance_criteria": [
+    "Admin Analytics tab shows: avg days to complete, completion rate %, completed count for the period",
+    "Admin Analytics tab shows per-person breakdown table with name/assigned/completed/avg days/pending",
+    "Admin Analytics tab shows bottleneck indicators (which stage has most stuck tasks)",
+    "Admin Analytics tab shows escalated tasks section with red highlighting",
+    "Documentation person My Stats tab shows: personal completion rate, avg time, pending count, stage distribution",
+    "Settings tab has input for escalation threshold (days) that reads/writes doc_escalation_days from app_settings",
+    "Default threshold is 3 days when no setting exists",
+    "bunx tsc --noEmit passes with zero errors",
+    "bun run build succeeds"
+  ],
+  "verification": [
+    "cd /projects/sandbox/Easemyoffice && bunx tsc --noEmit",
+    "cd /projects/sandbox/Easemyoffice && bun run build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

@@ -1,0 +1,7 @@
+{
+  "task_id": "task-documentation-analytics-escalation",
+  "task_description": "Phase 3 (Admin Analytics + Escalation) and Phase 4 (Settings & Performance Stats) for the Documentation module. Adds admin analytics with per-person performance, bottleneck detection, escalation system, documentation person personal stats, and configurable escalation threshold setting.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002"],
+  "blocked_reason": null
+}

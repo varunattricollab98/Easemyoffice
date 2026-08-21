@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Add escalation columns to documentation_tasks table (migration + types update) and restructure the documentation page with Tabs (Admin: Analytics/Tasks/Settings; Documentation person: My Stats/My Tasks)",
+  "status": "in_progress",
+  "steps": [
+    "Create setup/ADD_DOC_ESCALATION.sql migration that adds: escalated boolean DEFAULT false, escalation_reason text, escalated_at timestamptz to documentation_tasks table. Include appropriate RLS policies (admin can update escalation fields, assigned user can read).",
+    "Update src/integrations/supabase/types.ts to add the new columns (escalated: boolean, escalation_reason: string | null, escalated_at: string | null) to the documentation_tasks Row/Insert/Update types.",
+    "Restructure src/routes/_authenticated/documentation.tsx to use shadcn Tabs component: (a) Admin gets three tabs: 'Analytics', 'Tasks', 'Settings'. (b) Documentation role user gets two tabs: 'My Stats', 'My Tasks'. (c) Move existing task table into the Tasks/My Tasks tab. (d) Create placeholder components for Analytics, My Stats, and Settings tabs that will be filled in FEAT-002.",
+    "Update the data query to also fetch the new escalation fields (escalated, escalation_reason, escalated_at) from documentation_tasks.",
+    "In the Tasks tab, add visual indicator for escalated tasks: red Badge 'Escalated' next to stage badge. Add a button for admin to manually escalate (opens a small dialog/popover for entering escalation_reason). Add client-side auto-detection: if task.updated_at is older than threshold days (read from app_settings key doc_escalation_days, default 3) and stage != completed, show as auto-escalated.",
+    "Escalated tasks should get a red-tinted row background (e.g., bg-red-50 dark:bg-red-950/20) in the table."
+  ],
+  "acceptance_criteria": [
+    "Migration SQL file exists at setup/ADD_DOC_ESCALATION.sql with correct ALTER TABLE statements",
+    "TypeScript types updated with escalated, escalation_reason, escalated_at fields",
+    "Documentation page uses Tabs component - admin sees Analytics/Tasks/Settings tabs, documentation person sees My Stats/My Tasks tabs",
+    "Escalated tasks show red 'Escalated' badge and tinted row",
+    "Admin can manually escalate a task via UI (button + reason input)",
+    "Client-side auto-escalation detection works based on threshold from app_settings",
+    "bunx tsc --noEmit passes with zero errors",
+    "bun run build succeeds"
+  ],
+  "verification": [
+    "cd /projects/sandbox/Easemyoffice && bunx tsc --noEmit",
+    "cd /projects/sandbox/Easemyoffice && bun run build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
