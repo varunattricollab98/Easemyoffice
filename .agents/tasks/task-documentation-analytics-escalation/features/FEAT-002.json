@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Implement Admin Analytics tab content, Documentation person's My Stats tab, and Settings tab with configurable escalation threshold",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "In the Analytics tab (admin only), build the following sections: (a) Performance Metrics cards: average days to complete (from created_at to updated_at where stage=completed), completion rate % (completed/total), tasks completed this period. (b) Per-person breakdown table: name, assigned count, completed count, avg days to complete, pending count. (c) Bottleneck indicators: show which stage has the most stuck tasks (tasks where updated_at is > threshold days ago and stage != completed). Display as a list or bar showing stage name + count. (d) Escalated tasks section: list all tasks where escalated=true OR auto-detected as stuck, with red highlighting, showing client name, assignee, days stuck, and escalation reason.",
     "In the My Stats tab (documentation person only), show personal performance: (a) My completion rate (completed / total assigned to me). (b) Average time to complete (days). (c) Pending count. (d) Stage distribution: a simple breakdown showing how many of my tasks are at each stage (could be a small bar chart or list).",

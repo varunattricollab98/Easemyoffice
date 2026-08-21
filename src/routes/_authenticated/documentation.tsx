@@ -240,6 +240,21 @@ function AnalyticsTab() {
   const [period, setPeriod] = useState<Period>("monthly");
   const filterISO = useMemo(() => periodStart(period).toISOString(), [period]);
 
+  // Fetch escalation threshold for stuck detection
+  const { data: escalationDays = 3 } = useQuery({
+    queryKey: ["doc-escalation-days"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "doc_escalation_days")
+        .maybeSingle();
+      if (error) throw error;
+      const val = data?.value as number | null;
+      return val ?? 3;
+    },
+  });
+
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ["doc-analytics-tasks", period],
     queryFn: async (): Promise<DocTaskRow[]> => {
@@ -268,34 +283,82 @@ function AnalyticsTab() {
   });
 
   const perPerson = useMemo(() => {
-    const map = new Map<string, { name: string; total: number; completed: number; escalated: number }>();
+    const map = new Map<string, { name: string; total: number; completed: number; escalated: number; pending: number; avgDays: number }>();
     for (const t of tasks) {
       const key = t.assigned_to;
       if (!map.has(key)) {
-        map.set(key, { name: t.assignee_name ?? "Unknown", total: 0, completed: 0, escalated: 0 });
+        map.set(key, { name: t.assignee_name ?? "Unknown", total: 0, completed: 0, escalated: 0, pending: 0, avgDays: 0 });
       }
       const entry = map.get(key)!;
       entry.total++;
       if (t.stage === "completed") entry.completed++;
+      else entry.pending++;
       if (t.escalated) entry.escalated++;
+    }
+    // Calculate avg days per person
+    for (const [key, entry] of map.entries()) {
+      const personCompletedTasks = tasks.filter((t) => t.assigned_to === key && t.stage === "completed");
+      if (personCompletedTasks.length > 0) {
+        const totalDays = personCompletedTasks.reduce((sum, t) => {
+          return sum + differenceInDays(new Date(t.updated_at), new Date(t.created_at));
+        }, 0);
+        entry.avgDays = Math.round(totalDays / personCompletedTasks.length);
+      }
     }
     return Array.from(map.values()).sort((a, b) => b.total - a.total);
   }, [tasks]);
 
+  // Bottleneck: stuck tasks (updated_at > escalationDays ago AND stage != completed)
   const bottleneckStages = useMemo(() => {
+    const now = new Date();
     const stageCount = new Map<DocStage, number>();
     for (const t of tasks) {
       if (t.stage !== "completed") {
-        stageCount.set(t.stage, (stageCount.get(t.stage) ?? 0) + 1);
+        const daysSinceUpdate = differenceInDays(now, new Date(t.updated_at));
+        if (daysSinceUpdate > escalationDays) {
+          stageCount.set(t.stage, (stageCount.get(t.stage) ?? 0) + 1);
+        }
       }
     }
     return Array.from(stageCount.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5);
+  }, [tasks, escalationDays]);
+
+  // Escalated tasks list: manually escalated OR auto-detected stuck
+  const escalatedTasks = useMemo(() => {
+    const now = new Date();
+    return tasks
+      .filter((t) => {
+        if (t.escalated) return true;
+        if (t.stage !== "completed") {
+          const daysSinceUpdate = differenceInDays(now, new Date(t.updated_at));
+          return daysSinceUpdate > escalationDays;
+        }
+        return false;
+      })
+      .map((t) => ({
+        ...t,
+        daysStuck: differenceInDays(now, new Date(t.updated_at)),
+      }))
+      .sort((a, b) => b.daysStuck - a.daysStuck);
+  }, [tasks, escalationDays]);
+
+  const totalEscalated = escalatedTasks.length;
+  const totalCompleted = tasks.filter((t) => t.stage === "completed").length;
+
+  // Avg days to complete
+  const avgDaysToComplete = useMemo(() => {
+    const completedTasks = tasks.filter((t) => t.stage === "completed");
+    if (completedTasks.length === 0) return null;
+    const totalDays = completedTasks.reduce((sum, t) => {
+      return sum + differenceInDays(new Date(t.updated_at), new Date(t.created_at));
+    }, 0);
+    return Math.round(totalDays / completedTasks.length);
   }, [tasks]);
 
-  const totalEscalated = tasks.filter((t) => t.escalated).length;
-  const totalCompleted = tasks.filter((t) => t.stage === "completed").length;
+  // Completion rate
+  const completionRate = tasks.length > 0 ? Math.round((totalCompleted / tasks.length) * 100) : 0;
 
   return (
     <div className="space-y-4 mt-4">
@@ -321,7 +384,7 @@ function AnalyticsTab() {
         <div className="p-10 text-center text-muted-foreground">Loading analytics...</div>
       ) : (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
@@ -362,13 +425,36 @@ function AnalyticsTab() {
                 <div className="text-2xl font-bold">{tasks.length - totalCompleted}</div>
               </CardContent>
             </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                  <Clock className="h-4 w-4" /> Avg Days
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {avgDaysToComplete !== null ? avgDaysToComplete : "-"}
+                </div>
+                <p className="text-xs text-muted-foreground">to complete</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" /> Completion Rate
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{completionRate}%</div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Per-person performance */}
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Per-Person Performance</CardTitle>
-              <CardDescription>Task distribution and completion rate per team member.</CardDescription>
+              <CardDescription>Task distribution, completion rate, and average days per team member.</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
@@ -377,14 +463,16 @@ function AnalyticsTab() {
                     <TableHead>Person</TableHead>
                     <TableHead>Total</TableHead>
                     <TableHead>Completed</TableHead>
+                    <TableHead>Pending</TableHead>
                     <TableHead>Escalated</TableHead>
+                    <TableHead>Avg Days</TableHead>
                     <TableHead>Completion Rate</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {perPerson.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
+                      <TableCell colSpan={7} className="text-center text-muted-foreground py-6">
                         No data available for this period.
                       </TableCell>
                     </TableRow>
@@ -394,6 +482,7 @@ function AnalyticsTab() {
                         <TableCell className="font-medium">{p.name}</TableCell>
                         <TableCell>{p.total}</TableCell>
                         <TableCell>{p.completed}</TableCell>
+                        <TableCell>{p.pending}</TableCell>
                         <TableCell>
                           {p.escalated > 0 ? (
                             <span className="text-red-600 font-medium">{p.escalated}</span>
@@ -402,7 +491,10 @@ function AnalyticsTab() {
                           )}
                         </TableCell>
                         <TableCell>
-                          {p.total > 0 ? `${Math.round((p.completed / p.total) * 100)}%` : "—"}
+                          {p.completed > 0 ? `${p.avgDays}d` : "-"}
+                        </TableCell>
+                        <TableCell>
+                          {p.total > 0 ? `${Math.round((p.completed / p.total) * 100)}%` : "-"}
                         </TableCell>
                       </TableRow>
                     ))
@@ -412,15 +504,17 @@ function AnalyticsTab() {
             </CardContent>
           </Card>
 
-          {/* Bottleneck stages */}
+          {/* Bottleneck stages - stuck tasks */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Stage Bottlenecks</CardTitle>
-              <CardDescription>Stages with the most active (non-completed) tasks.</CardDescription>
+              <CardTitle className="text-base">Stage Bottlenecks (Stuck Tasks)</CardTitle>
+              <CardDescription>
+                Stages with the most stuck tasks (no update for more than {escalationDays} days).
+              </CardDescription>
             </CardHeader>
             <CardContent>
               {bottleneckStages.length === 0 ? (
-                <div className="text-sm text-muted-foreground">No bottlenecks detected.</div>
+                <div className="text-sm text-muted-foreground">No stuck tasks detected.</div>
               ) : (
                 <div className="space-y-2">
                   {bottleneckStages.map(([stage, count]) => {
@@ -431,11 +525,61 @@ function AnalyticsTab() {
                           <div className={`h-3 w-3 rounded-full ${info?.color ?? "bg-slate-500"}`} />
                           <span className="text-sm">{info?.label ?? stage}</span>
                         </div>
-                        <Badge variant="outline">{count} tasks</Badge>
+                        <Badge variant="outline" className="text-red-600 border-red-200">
+                          {count} stuck
+                        </Badge>
                       </div>
                     );
                   })}
                 </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Escalated Tasks Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base text-red-600">Escalated Tasks</CardTitle>
+              <CardDescription>
+                Tasks that are manually escalated or auto-detected as stuck (no update for more than {escalationDays} days).
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              {escalatedTasks.length === 0 ? (
+                <div className="p-6 text-sm text-muted-foreground text-center">
+                  No escalated tasks in this period.
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Client</TableHead>
+                      <TableHead>Assignee</TableHead>
+                      <TableHead>Days Stuck</TableHead>
+                      <TableHead>Stage</TableHead>
+                      <TableHead>Reason</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {escalatedTasks.map((t) => (
+                      <TableRow key={t.id} className="bg-red-50 dark:bg-red-950/20">
+                        <TableCell className="font-medium">
+                          {t.bookings?.client_name ?? "-"}
+                        </TableCell>
+                        <TableCell>{t.assignee_name ?? "-"}</TableCell>
+                        <TableCell>
+                          <span className="text-red-600 font-medium">{t.daysStuck}d</span>
+                        </TableCell>
+                        <TableCell>
+                          <StageBadge stage={t.stage} />
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {t.escalation_reason ?? "Auto-detected (no updates)"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               )}
             </CardContent>
           </Card>
@@ -478,6 +622,28 @@ function MyStatsTab() {
     return { total, completed, active, escalated };
   }, [tasks]);
 
+  // Avg days to complete for my tasks
+  const avgDays = useMemo(() => {
+    const completedTasks = tasks.filter((t) => t.stage === "completed");
+    if (completedTasks.length === 0) return null;
+    const totalDays = completedTasks.reduce((sum, t) => {
+      return sum + differenceInDays(new Date(t.updated_at), new Date(t.created_at));
+    }, 0);
+    return Math.round(totalDays / completedTasks.length);
+  }, [tasks]);
+
+  // Stage distribution for active (non-completed) tasks
+  const stageDistribution = useMemo(() => {
+    const stageCount = new Map<DocStage, number>();
+    for (const t of tasks) {
+      if (t.stage !== "completed") {
+        stageCount.set(t.stage, (stageCount.get(t.stage) ?? 0) + 1);
+      }
+    }
+    return Array.from(stageCount.entries())
+      .sort((a, b) => b[1] - a[1]);
+  }, [tasks]);
+
   return (
     <div className="space-y-4 mt-4">
       <div className="flex items-center justify-between">
@@ -502,7 +668,7 @@ function MyStatsTab() {
         <div className="p-10 text-center text-muted-foreground">Loading stats...</div>
       ) : (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
@@ -543,6 +709,19 @@ function MyStatsTab() {
                 <div className="text-2xl font-bold text-red-600">{stats.escalated}</div>
               </CardContent>
             </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                  <Clock className="h-4 w-4" /> Avg Time
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {avgDays !== null ? `${avgDays}d` : "-"}
+                </div>
+                <p className="text-xs text-muted-foreground">to complete</p>
+              </CardContent>
+            </Card>
           </div>
 
           <Card>
@@ -551,11 +730,41 @@ function MyStatsTab() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">
-                {stats.total > 0 ? `${Math.round((stats.completed / stats.total) * 100)}%` : "—"}
+                {stats.total > 0 ? `${Math.round((stats.completed / stats.total) * 100)}%` : "-"}
               </div>
               <p className="text-sm text-muted-foreground mt-1">
                 {stats.completed} of {stats.total} tasks completed this period.
               </p>
+            </CardContent>
+          </Card>
+
+          {/* Stage Distribution */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Stage Distribution</CardTitle>
+              <CardDescription>
+                How your active tasks are distributed across stages.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {stageDistribution.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No active tasks.</div>
+              ) : (
+                <div className="space-y-2">
+                  {stageDistribution.map(([stage, count]) => {
+                    const info = STAGE_MAP.get(stage);
+                    return (
+                      <div key={stage} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className={`h-3 w-3 rounded-full ${info?.color ?? "bg-slate-500"}`} />
+                          <span className="text-sm">{info?.label ?? stage}</span>
+                        </div>
+                        <Badge variant="outline">{count} tasks</Badge>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
         </>
