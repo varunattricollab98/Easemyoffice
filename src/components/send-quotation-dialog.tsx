@@ -555,19 +555,40 @@ export function SendQuotationDialog({
   const filteredPlans = useMemo(() => {
     let plans = allPlans;
 
-    // Filter by service type if available
+    // Filter by service type — checks both the service_type column AND the
+    // plan code prefix (GST_, BR_, MA_, VO_, IEC_, TM_). The prefix is the
+    // reliable indicator since service_type column may be empty.
     plans = plans.filter((p) => {
-      if (!p.service_type) return true; // show plans without service_type tagged
-      const st = p.service_type.toLowerCase().trim();
-      if (st === "" || st === "all") return true;
-      switch (serviceType) {
-        case "gst": return st.includes("gst");
-        case "business_reg": return st.includes("business") || st.includes("mca") || st.includes("reg");
-        case "virtual_office": return st.includes("virtual") || st.includes("vo");
-        case "iec": return st.includes("iec") || st.includes("import") || st.includes("export");
-        case "trademark": return st.includes("trademark") || st.includes("tm") || st.includes("ip");
-        default: return true;
+      const st = (p.service_type || "").toLowerCase().trim();
+      const code = (p.code || "").toLowerCase().trim();
+
+      // Helper: does this plan match the selected service?
+      function matches(): boolean {
+        switch (serviceType) {
+          case "gst":
+            return code.startsWith("gst_") || code.startsWith("gst ") ||
+              st.includes("gst");
+          case "business_reg":
+            return code.startsWith("br_") || code.startsWith("br ") ||
+              st.includes("business") || st.includes("mca") || st.includes("br");
+          case "virtual_office":
+            return code.startsWith("ma_") || code.startsWith("vo_") || code.startsWith("ma ") || code.startsWith("vo ") ||
+              st.includes("virtual") || st.includes("vo") || st.includes("mailing") || st.includes("ma");
+          case "iec":
+            return code.startsWith("iec_") || code.startsWith("iec ") ||
+              st.includes("iec") || st.includes("import") || st.includes("export");
+          case "trademark":
+            return code.startsWith("tm_") || code.startsWith("tm ") || code.startsWith("trademark") ||
+              st.includes("trademark") || st.includes("tm") || st.includes("ip");
+          default:
+            return true;
+        }
       }
+
+      // If service_type is explicitly "all", show in every service
+      if (st === "all") return true;
+
+      return matches();
     });
 
     // Filter by state
