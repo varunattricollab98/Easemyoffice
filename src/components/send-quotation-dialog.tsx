@@ -517,7 +517,7 @@ function buildQuotationHtml(opts: {
         <div style="font-size:12px;color:#64748B;margin-bottom:8px">Pay securely via</div>
         <img src="https://razorpay.com/assets/razorpay-glyph.svg" alt="Razorpay" style="height:28px;margin-bottom:8px">
         <div style="font-size:11px;color:#64748B;margin-bottom:12px">UPI / Cards / Net Banking / Wallets</div>
-        <div style="display:inline-block;background:#16A34A;color:#fff;font-size:12px;font-weight:800;padding:10px 20px;border-radius:8px">&#128274; Pay Securely Online</div>
+        <a href="https://pages.razorpay.com/easemyoffice" style="display:inline-block;background:#16A34A;color:#fff;font-size:12px;font-weight:800;padding:10px 20px;border-radius:8px;text-decoration:none">&#128274; Pay Securely Online</a>
         <div style="font-size:10px;color:#64748B;margin-top:8px">Secured by Razorpay &bull; 256-bit SSL</div>
       </div>
     </td>
@@ -565,7 +565,7 @@ function buildQuotationHtml(opts: {
           <div style="font-size:10px;color:#1E4DB7;font-weight:700;margin-top:6px;text-transform:uppercase">Pre-Sales</div>
           <div style="font-size:12px;font-weight:800;color:#0F172A;margin-top:4px">Sales Team</div>
           <div style="font-size:11px;color:#64748B;margin-top:4px;line-height:1.4">Quotation queries &amp; onboarding assistance</div>
-          <div style="font-size:10px;color:#1E4DB7;margin-top:6px">sales@easemyoffice.in</div>
+          <div style="font-size:10px;color:#1E4DB7;margin-top:6px">contact@easemyoffice.in</div>
         </div>
       </td>
       <td class="stack" style="width:50%;padding:6px;vertical-align:top">
@@ -574,7 +574,7 @@ function buildQuotationHtml(opts: {
           <div style="font-size:10px;color:#16A34A;font-weight:700;margin-top:6px;text-transform:uppercase">Onboarding</div>
           <div style="font-size:12px;font-weight:800;color:#0F172A;margin-top:4px">Documentation Team</div>
           <div style="font-size:11px;color:#64748B;margin-top:4px;line-height:1.4">Agreement &amp; document preparation</div>
-          <div style="font-size:10px;color:#16A34A;margin-top:6px">docs@easemyoffice.in</div>
+          <div style="font-size:10px;color:#16A34A;margin-top:6px">team@easemyoffice.in</div>
         </div>
       </td>
     </tr>
@@ -585,7 +585,7 @@ function buildQuotationHtml(opts: {
           <div style="font-size:10px;color:#B8860B;font-weight:700;margin-top:6px;text-transform:uppercase">Post-Sales</div>
           <div style="font-size:12px;font-weight:800;color:#0F172A;margin-top:4px">Success Team</div>
           <div style="font-size:11px;color:#64748B;margin-top:4px;line-height:1.4">Renewals &amp; ongoing support</div>
-          <div style="font-size:10px;color:#B8860B;margin-top:6px">support@easemyoffice.in</div>
+          <div style="font-size:10px;color:#B8860B;margin-top:6px">renewals@easemyoffice.in</div>
         </div>
       </td>
       <td class="stack" style="width:50%;padding:6px;vertical-align:top">
@@ -594,7 +594,7 @@ function buildQuotationHtml(opts: {
           <div style="font-size:10px;color:#DC2626;font-weight:700;margin-top:6px;text-transform:uppercase">Escalation</div>
           <div style="font-size:12px;font-weight:800;color:#0F172A;margin-top:4px">Management</div>
           <div style="font-size:11px;color:#64748B;margin-top:4px;line-height:1.4">Priority resolution within 24hrs</div>
-          <div style="font-size:10px;color:#DC2626;margin-top:6px">management@easemyoffice.in<br>+91 88827 35038</div>
+          <div style="font-size:10px;color:#DC2626;margin-top:6px">compliances@easemyoffice.in<br>+91 88827 35038</div>
         </div>
       </td>
     </tr>
