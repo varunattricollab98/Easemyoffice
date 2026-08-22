@@ -690,6 +690,8 @@ export function SendQuotationDialog({
   const [selectedState, setSelectedState] = useState<string>("");
   const [selectedCity, setSelectedCity] = useState<string>("");
   const [sending, setSending] = useState(false);
+  // Price overrides: salesperson can edit base price per plan index
+  const [priceOverrides, setPriceOverrides] = useState<Record<number, number>>({});
   const [previewing, setPreviewing] = useState(false);
 
   // Fetch plans from sheet
@@ -815,16 +817,23 @@ export function SendQuotationDialog({
 
   const emailHtml = useMemo(() => {
     if (filteredPlans.length === 0) return "";
+    // Apply price overrides before building email
+    const plansWithOverrides = filteredPlans.map((p, i) => {
+      if (priceOverrides[i] !== undefined) {
+        return { ...p, selling_price: priceOverrides[i] };
+      }
+      return p;
+    });
     return buildQuotationHtml({
       clientName,
       serviceType,
       location: locationLabel,
-      plans: filteredPlans,
+      plans: plansWithOverrides,
       quoteId,
       validityDate,
       signatureHtml,
     });
-  }, [clientName, serviceType, locationLabel, filteredPlans, quoteId, validityDate, signatureHtml]);
+  }, [clientName, serviceType, locationLabel, filteredPlans, priceOverrides, quoteId, validityDate, signatureHtml]);
 
   // Send handler
   const handleSend = async () => {
@@ -931,6 +940,7 @@ export function SendQuotationDialog({
                   onValueChange={(v) => {
                     setSelectedState(v);
                     setSelectedCity(""); // reset city on state change
+                    setPriceOverrides({}); // reset price edits
                   }}
                 >
                   <SelectTrigger>
@@ -985,14 +995,25 @@ export function SendQuotationDialog({
                       </thead>
                       <tbody>
                         {filteredPlans.slice(0, 10).map((p, i) => {
-                          const base = Number(p.selling_price) || 0;
+                          const base = priceOverrides[i] ?? (Number(p.selling_price) || 0);
                           const gst = Number(p.gst_pct) || 18;
                           const total = Math.round(base * (1 + gst / 100));
                           return (
                             <tr key={i} className="border-t">
                               <td className="px-3 py-2 font-medium">{p.area || p.sp_name || p.code}</td>
                               <td className="px-3 py-2">{p.city || ""}</td>
-                              <td className="px-3 py-2 text-right">{formatINR(base)}</td>
+                              <td className="px-3 py-2 text-right">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={base}
+                                  onChange={(e) => {
+                                    const v = parseInt(e.target.value, 10);
+                                    setPriceOverrides((prev) => ({ ...prev, [i]: isNaN(v) ? 0 : v }));
+                                  }}
+                                  className="w-20 text-right text-sm border rounded px-1.5 py-0.5 focus:ring-1 focus:ring-primary/30 focus:outline-none"
+                                />
+                              </td>
                               <td className="px-3 py-2 text-center text-muted-foreground">{gst}%</td>
                               <td className="px-3 py-2 text-right font-bold text-green-700">{formatINR(total)}</td>
                             </tr>
