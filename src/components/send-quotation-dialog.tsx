@@ -191,17 +191,17 @@ function buildQuotationHtml(opts: {
       <div style="font-size:11px;font-weight:800;color:#64748B;letter-spacing:1.5px;text-transform:uppercase">Trusted by India's Fastest Growing Brands</div>
     </div>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="text-align:center;padding:8px 0">
-      <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/81/Verizon_2015_logo_-vector.svg/200px-Verizon_2015_logo_-vector.svg.png" alt="Verizon" style="height:18px;margin:6px 8px;vertical-align:middle;opacity:0.8">
+      <img src="https://www.easemyoffice.in/logos/verizon.png" alt="Verizon" style="height:18px;margin:6px 8px;vertical-align:middle;opacity:0.8">
       <img src="https://framerusercontent.com/images/cCz6jGYFOcNHyjJHzPlLfIJfPM.png" alt="HomeLane" style="height:20px;margin:6px 8px;vertical-align:middle;opacity:0.8">
-      <img src="https://omnicuris.com/wp-content/uploads/2023/01/omnicuris-logo.png" alt="Omnicuris" style="height:18px;margin:6px 8px;vertical-align:middle;opacity:0.8">
-      <img src="https://www.batterysmart.in/wp-content/uploads/2023/06/battery-smart-logo.png" alt="BatterySmart" style="height:20px;margin:6px 8px;vertical-align:middle;opacity:0.8">
-      <img src="https://uptodd.com/images/newWebsite/uptodd-logo.webp" alt="uptodd" style="height:18px;margin:6px 8px;vertical-align:middle;opacity:0.8">
+      <img src="https://www.easemyoffice.in/logos/omnicuris.png" alt="Omnicuris" style="height:18px;margin:6px 8px;vertical-align:middle;opacity:0.8">
+      <img src="https://www.easemyoffice.in/logos/drreddys.png" alt="Dr. Reddys" style="height:20px;margin:6px 8px;vertical-align:middle;opacity:0.8">
+      <img src="https://www.easemyoffice.in/logos/fitelo.svg" alt="uptodd" style="height:18px;margin:6px 8px;vertical-align:middle;opacity:0.8">
     </td></tr><tr><td style="text-align:center;padding:4px 0">
-      <img src="https://media.licdn.com/dms/image/v2/C4D0BAQHptVSJbP0x5g/company-logo_200_200/company-logo_200_200/0/1674474508192/roarx_global_logo?e=2147483647&v=beta&t=placeholder" alt="RoarX" style="height:18px;margin:6px 8px;vertical-align:middle;opacity:0.8">
-      <img src="https://www.kineticgreen.com/images/logo.png" alt="KineticGreen" style="height:20px;margin:6px 8px;vertical-align:middle;opacity:0.8">
-      <img src="https://www.simpl.co/images/simpl-logo.svg" alt="Simpl" style="height:18px;margin:6px 8px;vertical-align:middle;opacity:0.8">
-      <img src="https://www.fitelo.co/images/fitelo-logo.png" alt="Fitelo" style="height:18px;margin:6px 8px;vertical-align:middle;opacity:0.8">
-      <img src="https://www.kalkifashion.com/media/logo/stores/1/kalki-logo.png" alt="Kalki" style="height:20px;margin:6px 8px;vertical-align:middle;opacity:0.8">
+      <img src="https://www.easemyoffice.in/logos/kineticgreen.png" alt="EarthtronEV" style="height:18px;margin:6px 8px;vertical-align:middle;opacity:0.8">
+      <img src="https://www.easemyoffice.in/logos/earthtronev.webp" alt="KineticGreen" style="height:20px;margin:6px 8px;vertical-align:middle;opacity:0.8">
+      <img src="https://www.easemyoffice.in/logos/indiamart.png" alt="IndiaMART" style="height:18px;margin:6px 8px;vertical-align:middle;opacity:0.8">
+      <img src="https://www.easemyoffice.in/logos/udaan.png" alt="Udaan" style="height:18px;margin:6px 8px;vertical-align:middle;opacity:0.8">
+      <img src="https://www.easemyoffice.in/logos/thirdwavecoffee.png" alt="Kalki" style="height:20px;margin:6px 8px;vertical-align:middle;opacity:0.8">
     </td></tr></table>
     <div style="text-align:center;margin-top:12px;font-size:12px;color:#64748B;font-weight:600">5000+ Businesses &bull; 20+ States &bull; 97% Approval Rate</div>
   </div>
