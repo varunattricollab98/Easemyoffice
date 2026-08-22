@@ -55,7 +55,7 @@ export const Route = createFileRoute("/_authenticated/inbox")({
     qc.prefetchQuery({
       queryKey: ["lead-inbox", 0],
       queryFn: () => fetchInbox(25, 0),
-      staleTime: 2 * 60 * 1000,
+      staleTime: 30 * 1000,
     });
   },
   component: LeadInboxPage,
@@ -338,12 +338,12 @@ function LeadInboxPage() {
 
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["lead-inbox", page],
-    staleTime: 2 * 60 * 1000,
+    staleTime: 30 * 1000, // 30s — leads arrive in real-time, stale data = missed opportunities
     gcTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: false,
+    refetchInterval: 60 * 1000, // Auto-poll every 60s so new leads appear without manual refresh
+    refetchOnWindowFocus: true, // Fetch immediately when tab regains focus
     placeholderData: (prev) => prev,
     queryFn: () => fetchInbox(PAGE_SIZE, page * PAGE_SIZE),
-    // Show stale data immediately while refetching in the background
     refetchOnMount: "always",
   });
 
