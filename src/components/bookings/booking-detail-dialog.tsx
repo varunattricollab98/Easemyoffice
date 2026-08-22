@@ -21,7 +21,7 @@ const num = (v: any) => { const n = parseFloat(String(v)); return Number.isFinit
 const fmtINR = (n: number) => `₹${(n ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 
 export function BookingDetailDialog({ booking, open, onOpenChange }: { booking: any | null; open: boolean; onOpenChange: (v: boolean) => void }) {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const qc = useQueryClient();
   const bookingId = (booking?.id ?? "") as string;
 
@@ -163,7 +163,13 @@ export function BookingDetailDialog({ booking, open, onOpenChange }: { booking: 
   const T = (k: string, label: string, props: any = {}) => (
     <div>
       <Label className="text-xs">{label}</Label>
-      <Input value={f[k] ?? ""} onChange={(e) => setF({ ...f, [k]: e.target.value })} {...props} />
+      <Input
+        value={f[k] ?? ""}
+        onChange={(e) => setF({ ...f, [k]: e.target.value })}
+        readOnly={!isAdmin}
+        className={!isAdmin ? "bg-muted/40 cursor-default" : ""}
+        {...props}
+      />
     </div>
   );
 
@@ -192,7 +198,7 @@ export function BookingDetailDialog({ booking, open, onOpenChange }: { booking: 
               {T("booking_date", "Booking Date", { type: "date" })}
               <div>
                 <Label className="text-xs">Booking Source</Label>
-                <Select value={f.booking_source} onValueChange={(v) => setF({ ...f, booking_source: v })}>
+                <Select value={f.booking_source} onValueChange={(v) => setF({ ...f, booking_source: v })} disabled={!isAdmin}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{SOURCES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                 </Select>
@@ -205,7 +211,7 @@ export function BookingDetailDialog({ booking, open, onOpenChange }: { booking: 
               {T("state", "State")}
               <div>
                 <Label className="text-xs">SP Status</Label>
-                <Select value={f.sp_status} onValueChange={(v) => setF({ ...f, sp_status: v })}>
+                <Select value={f.sp_status} onValueChange={(v) => setF({ ...f, sp_status: v })} disabled={!isAdmin}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{["Active", "Pending", "Inactive"].map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                 </Select>
@@ -228,14 +234,14 @@ export function BookingDetailDialog({ booking, open, onOpenChange }: { booking: 
               {T("invoice_number", "Invoice Number")}
               <div>
                 <Label className="text-xs">SP Payment Status</Label>
-                <Select value={f.sp_payment_status} onValueChange={(v) => setF({ ...f, sp_payment_status: v })}>
+                <Select value={f.sp_payment_status} onValueChange={(v) => setF({ ...f, sp_payment_status: v })} disabled={!isAdmin}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{PAY_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div>
                 <Label className="text-xs">VO Status</Label>
-                <Select value={f.vo_status} onValueChange={(v) => setF({ ...f, vo_status: v })}>
+                <Select value={f.vo_status} onValueChange={(v) => setF({ ...f, vo_status: v })} disabled={!isAdmin}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{VO_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                 </Select>
@@ -250,13 +256,20 @@ export function BookingDetailDialog({ booking, open, onOpenChange }: { booking: 
             </div>
             <div>
               <Label className="text-xs">Remarks</Label>
-              <Textarea rows={2} value={f.remarks ?? ""} onChange={(e) => setF({ ...f, remarks: e.target.value })} />
+              <Textarea rows={2} value={f.remarks ?? ""} onChange={(e) => setF({ ...f, remarks: e.target.value })} readOnly={!isAdmin} className={!isAdmin ? "bg-muted/40 cursor-default" : ""} />
             </div>
-            <div className="flex justify-end">
-              <Button disabled={saveDetails.isPending} onClick={() => saveDetails.mutate()}>
-                {saveDetails.isPending ? "Saving…" : "Save changes"}
-              </Button>
-            </div>
+            {isAdmin && (
+              <div className="flex justify-end">
+                <Button disabled={saveDetails.isPending} onClick={() => saveDetails.mutate()}>
+                  {saveDetails.isPending ? "Saving…" : "Save changes"}
+                </Button>
+              </div>
+            )}
+            {!isAdmin && (
+              <div className="text-xs text-muted-foreground bg-muted/40 rounded-md p-3 text-center">
+                🔒 View only — contact admin to make changes.
+              </div>
+            )}
           </TabsContent>
 
           {/* PAYMENTS */}
