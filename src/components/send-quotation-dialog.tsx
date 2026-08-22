@@ -143,9 +143,12 @@ function buildQuotationHtml(opts: {
       </tr>`;
   }).join("");
 
-  // Extract user name from signature for CTA button
+  // Extract user name and phone from signature for CTA buttons
   const sigNameMatch = signatureHtml.match(/font-weight:\s*800[^>]*>([^<]+)/);
   const managerName = sigNameMatch ? sigNameMatch[1] : "Your Manager";
+  const firstName = managerName.split(" ")[0] || "Your Manager";
+  const digitsMatch = signatureHtml.match(/tel:\+(\d+)/);
+  const digits = digitsMatch ? digitsMatch[1] : "918882735038";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -223,7 +226,7 @@ function buildQuotationHtml(opts: {
 
 <!-- GREETING -->
 <tr><td style="background:#fff;padding:24px 28px 20px" class="pad-lg">
-  <div style="font-size:20px;font-weight:800;color:#0B1B36">Hello ${clientName || "there"},</div>
+  <div style="font-size:20px;font-weight:800;color:#0B1B36">Hello ${clientName || "there"} &#128075;</div>
   <div style="font-size:14px;color:#5A6B85;margin-top:10px;line-height:1.6">
     Thank you for your interest in our <b style="color:#0B1B36">Virtual Office for ${serviceLabel}</b> services. We are delighted to present you with our exclusive proposal tailored for <b style="color:#1E4DB7">${location}</b>.
   </div>
@@ -277,8 +280,8 @@ function buildQuotationHtml(opts: {
 <tr><td style="background:#fff;padding:32px 28px" class="pad-lg">
   <div style="text-align:center;margin-bottom:20px">
     <div style="font-size:11px;font-weight:800;color:#D97706;letter-spacing:2px;text-transform:uppercase">&#128176; EXCLUSIVE RATES</div>
-    <div style="font-size:22px;font-weight:900;color:#0B1B36;margin-top:6px">Virtual Office for ${serviceLabel}</div>
-    <div style="font-size:13px;color:#5A6B85;margin-top:4px">${location} &bull; 1 Year Plans</div>
+    <div style="font-size:22px;font-weight:900;color:#0B1B36;margin-top:6px">Premium Location Pricing (${serviceLabel}) ${location}</div>
+    <div style="font-size:13px;color:#5A6B85;margin-top:4px">1 Year Plans &bull; Rates valid until ${validityDate}</div>
   </div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E5E9F0;border-radius:12px;overflow:hidden">
     <tr style="background:#0A1F4D">
@@ -608,13 +611,13 @@ ${signatureHtml}
   <!-- Gold CTA Button -->
   <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto"><tr>
     <td style="background:linear-gradient(135deg,#F59E0B,#D97706);border-radius:10px;padding:14px 28px;text-align:center">
-      <span style="font-size:14px;font-weight:800;color:#fff;letter-spacing:0.5px">&#128640; Reserve My Address</span>
+      <a href="tel:+${digits}" style="text-decoration:none"><span style="font-size:14px;font-weight:800;color:#fff;letter-spacing:0.5px">&#128640; Reserve My Address</span></a>
     </td>
   </tr></table>
   <!-- Dark Talk Button -->
   <table role="presentation" cellpadding="0" cellspacing="0" style="margin:12px auto 0"><tr>
     <td style="background:#0A1F4D;border:1px solid rgba(255,255,255,0.2);border-radius:10px;padding:12px 24px;text-align:center">
-      <span style="font-size:12px;font-weight:700;color:#fff">&#128222; Talk to ${managerName}</span>
+      <a href="tel:+${digits}" style="text-decoration:none"><span style="font-size:12px;font-weight:700;color:#fff">&#128222; Talk to ${firstName}</span></a>
     </td>
   </tr></table>
   <!-- Stats Row -->
@@ -649,7 +652,7 @@ ${signatureHtml}
     </td>
     <td style="vertical-align:top;width:50%;text-align:right">
       <div style="font-size:11px;color:rgba(255,255,255,0.7);line-height:1.8">
-        &#128222; +91 88827 35038<br>
+        &#128222; <a href="tel:+${digits}" style="color:rgba(255,255,255,0.7);text-decoration:none">+91 88827 35038</a><br>
         &#128231; contact@easemyoffice.in<br>
         &#127760; www.easemyoffice.in
       </div>
