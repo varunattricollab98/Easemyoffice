@@ -19,7 +19,7 @@ POST https://easemyoffice.emo-crm.workers.dev/api/public/hooks/lead-intake
 | --- | --- | --- |
 | `name`, `full_name`, `client_name` | `client_name` | **Yes** |
 | `phone`, `mobile`, `contact`, `contact_no` | `mobile` | **Yes** |
-| `email`, `email_id` | `email` (must contain `@`, else stored as null) | No |
+| `email`, `email_id` | `email` (must be a valid `user@domain.tld` address, else stored as null) | No |
 | `company`, `business`, `company_name` | `company_name` | No |
 | `city`, `location` | `city` | No |
 | `message`, `query`, `requirement`, `notes` | `notes` | No |
@@ -85,10 +85,18 @@ curl -X POST https://easemyoffice.emo-crm.workers.dev/api/public/hooks/lead-inta
 
 ## Anti-abuse
 
-- **Honeypot:** Add a hidden field named `website_hp` (or `_gotcha`) to the form. If it is non-empty on submit, the request returns `200 { ok: true, skipped: true }` and **no lead is created** (bots are silently dropped).
-- **Optional shared secret (`LEAD_INTAKE_TOKEN`):** If you set this Cloudflare Worker secret, every request must present a matching token via the `x-intake-token` header **or** a `token` body field, otherwise the endpoint returns `401`. If the secret is **not** set, the token check is skipped so the endpoint works out of the box.
+> ⚠️ **Strongly recommended: set `LEAD_INTAKE_TOKEN`.** This endpoint is public and
+> writes to the `leads` table via the service-role client (RLS bypassed). Until you set
+> `LEAD_INTAKE_TOKEN`, it is an **open write path** — anyone who discovers the URL can
+> create leads. The honeypot below stops naive bots but **not** a targeted script, and
+> there is currently **no rate limiting**. Treat the token as a required production step,
+> not an optional extra. See "Configuring the token" below.
 
-### Configuring the optional token
+- **Honeypot:** Add a hidden field named `website_hp` (or `_gotcha`) to the form. If it is non-empty on submit, the request returns `200 { ok: true, skipped: true }` and **no lead is created** (bots are silently dropped). This blocks naive bots only.
+- **Shared secret (`LEAD_INTAKE_TOKEN`) — strongly recommended:** If you set this Cloudflare Worker secret, every request must present a matching token via the `x-intake-token` header **or** a `token` body field, otherwise the endpoint returns `401`. If the secret is **not** set, the token check is skipped and the endpoint is fail-open (world-writable) so it works out of the box — this convenience default should be treated as temporary. Set the token before advertising the form publicly.
+- **Rate limiting / captcha (follow-up):** Not yet implemented. Consider fronting the Worker with Cloudflare rate-limiting rules or a Turnstile/captcha challenge if the form is high-traffic or targeted. This is a planned follow-up item, not part of the current release.
+
+### Configuring the token (do this before going live)
 
 1. Set the Worker secret:
    ```bash

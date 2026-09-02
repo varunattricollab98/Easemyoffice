@@ -34,6 +34,17 @@ function normalizePhone(raw: string): string | null {
 
 const str = (v: unknown): string => (typeof v === "string" ? v : v == null ? "" : String(v));
 
+// Conservative email validation: single @, no whitespace or PostgREST/filter
+// metacharacters (comma, parens, quotes), a dot in the domain. This both keeps
+// stored emails clean and guarantees the value is safe to use in an equality
+// lookup without any filter-syntax escaping.
+const EMAIL_RE = /^[^\s,()"'`\\@]+@[^\s,()"'`\\@]+\.[^\s,()"'`\\@]+$/;
+function normalizeEmail(raw: string): string | null {
+  const trimmed = raw.trim().toLowerCase();
+  if (!trimmed || trimmed.length > 254) return null;
+  return EMAIL_RE.test(trimmed) ? trimmed : null;
+}
+
 // Pull the first non-empty value across a list of accepted aliases.
 function pick(body: Record<string, unknown>, keys: string[]): string {
   for (const k of keys) {
@@ -111,7 +122,7 @@ export const Route = createFileRoute("/api/public/hooks/lead-intake")({
 
         // Optional fields.
         const emailRaw = pick(body, ["email", "email_id", "e_mail"]);
-        const email = emailRaw && emailRaw.includes("@") ? emailRaw.toLowerCase() : null;
+        const email = emailRaw ? normalizeEmail(emailRaw) : null;
         const companyName = pick(body, ["company", "business", "company_name", "business_name"]) || null;
         const city = pick(body, ["city", "location"]) || null;
         const message = pick(body, ["message", "query", "requirement", "notes", "comments"]) || null;
@@ -124,15 +135,32 @@ export const Route = createFileRoute("/api/public/hooks/lead-intake")({
         const sourceRaw = pick(body, ["source"]).toLowerCase();
         const source = SOURCES.find((s) => s.id === sourceRaw)?.id ?? "website";
 
-        // Dedup: same mobile OR same (lower) email.
+        // Dedup: same mobile OR same (lower) email. Run two separate `.eq()`
+        // lookups and merge in code rather than string-building a PostgREST
+        // `.or()` filter, which keeps caller-supplied values out of filter
+        // syntax entirely. Best-effort / race-tolerant: there is no DB unique
+        // constraint, so two near-simultaneous submits can still both insert;
+        // that is an accepted trade-off (a unique index is a follow-up item).
         try {
-          let dedupQuery = supabaseAdmin.from("leads").select("id, lead_code, notes, assigned_to, stage");
-          if (email) {
-            dedupQuery = dedupQuery.or(`mobile.eq.${mobile},email.eq.${email}`);
-          } else {
-            dedupQuery = dedupQuery.eq("mobile", mobile);
+          const selectCols = "id, lead_code, notes, assigned_to, stage";
+          const { data: byMobile } = await supabaseAdmin
+            .from("leads")
+            .select(selectCols)
+            .eq("mobile", mobile)
+            .limit(1)
+            .maybeSingle();
+
+          let existing = byMobile;
+          if (!existing?.id && email) {
+            const { data: byEmail } = await supabaseAdmin
+              .from("leads")
+              .select(selectCols)
+              .eq("email", email)
+              .limit(1)
+              .maybeSingle();
+            existing = byEmail;
           }
-          const { data: existing } = await dedupQuery.limit(1).maybeSingle();
+
           if (existing?.id) {
             // Best-effort: append the new message to the existing lead's notes.
             if (message) {

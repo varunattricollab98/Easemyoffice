@@ -164,8 +164,10 @@ export const Route = createFileRoute("/api/public/hooks/balance-reminders")({
         } catch (err) {
           // Catch init/DB/network errors (e.g. supabaseAdmin misconfigured) so an
           // anonymous probe gets a structured JSON status instead of an unhandled 500.
-          const message = err instanceof Error ? err.message : String(err);
-          return new Response(JSON.stringify({ ok: false, error: message }), {
+          // Log the real error server-side, but return a generic message so we do
+          // not leak internal error strings to unauthenticated callers.
+          console.error("[balance-reminders] handler error:", err);
+          return new Response(JSON.stringify({ ok: false, error: "internal error" }), {
             status: 503, headers: { "Content-Type": "application/json" },
           });
         }
