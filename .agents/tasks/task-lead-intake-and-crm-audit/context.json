@@ -1,0 +1,29 @@
+{
+  "project_type": "TanStack Start + React 19 SSR CRM deployed to Cloudflare Workers; backend is Supabase (Postgres + Auth + RLS + Edge Functions + pg_cron)",
+  "language": "TypeScript / TSX",
+  "build_system": "bun + Vite (@cloudflare/vite-plugin). Build entry is src/server.ts (Worker source). Git push to main auto-deploys via Cloudflare Workers Builds.",
+  "test_framework": "Playwright e2e (e2e/*.spec.ts, playwright.config.ts). No unit-test framework configured. Verification is typecheck + build, not a unit runner.",
+  "build_command": "bun run build  (must emit dist/server/index.js and exit 0)",
+  "test_command": "npx tsc --noEmit  (typecheck; 0 new errors is the bar). bun run lint has ~4000 PRE-EXISTING prettier errors - do NOT try to fix baseline lint; just add no NEW type/build errors.",
+  "verification_instructions": "1) npx tsc --noEmit passes with no NEW errors. 2) bun run build exits 0 and emits dist/server/index.js. 3) For new public API routes, confirm the file compiles into the Worker bundle. Live-DB and edge-function-deploy checks require the user's Supabase dashboard and are OUT of scope for this sandbox - document them for the user.",
+  "snapshot_or_generated_files": "None checked in. Build output dist/ is gitignored.",
+  "setup_instructions": "cd /projects/sandbox/emo-fresh && bun install (bun.lock present). Node/bun preinstalled per sandbox. No .env needed for typecheck/build (VITE_* are only inlined if present; build tolerates absence).",
+  "environment_constraints": "OPEN_INTERNET. Can curl live site + live Supabase edge functions. CANNOT introspect the live Supabase DB (no service key/dashboard) - so whether an RLS fix is APPLIED on prod is UNVERIFIABLE here and must be flagged for the user. New Supabase edge functions are NOT auto-deployed by the Cloudflare build; they need a separate deploy (dashboard paste or the CI in PR #16 which needs a SUPABASE_ACCESS_TOKEN secret the user hasn't confirmed). New SQL (migrations/setup) must be run by the user in the Supabase SQL editor. This subagent must NOT push or open PRs - commit on a branch and report.",
+  "contribution_requirements": "Work on a NEW feature branch off main (b6dc097). Commit in logical chunks with professional English commit messages. Do not push / open PR. Never name a file *.client.ts (breaks TanStack build). Never prefix a secret with VITE_ (ships to browser). cloudflare:workers must only be lazily imported (already handled in src/server.ts). Server code reads secrets via process.env, bridged from Worker env in src/server.ts bridgeEnvToProcess() - and SERVER_ENV_KEYS in src/server.ts is the allow-list of keys copied onto process.env at runtime; any NEW env var a server route needs MUST be added there or it will be undefined in production.",
+  "key_patterns": "PUBLIC unauthenticated server endpoints live under src/routes/api/public/hooks/ using createFileRoute(...).server.handlers and import supabaseAdmin from '@/integrations/supabase/client.server' (service role, bypasses RLS). Existing example: src/routes/api/public/hooks/balance-reminders.ts. Browser code uses supabase from '@/integrations/supabase/client' (anon key + RLS). Lead schema (public.leads): client_name TEXT NOT NULL, mobile TEXT NOT NULL, alt_mobile, email, company_name, city, state, service_required service_type DEFAULT 'virtual_office', budget, source lead_source DEFAULT 'website', assigned_to (nullable), interest DEFAULT 'warm', score INT DEFAULT 0, intent_flags jsonb, stage lead_stage DEFAULT 'new_lead', notes, next_follow_up_at, created_by. lead_source enum includes 'website'. activity_type enum includes 'created'. Reps CLAIM unassigned leads (assigned_to IS NULL) via Inbox page - requires setup/FIX_LEADS_CLAIM_RLS.sql to be applied (adds `OR assigned_to IS NULL` to leads_update USING). Web3Forms/contact-form parsing already exists in src/lib/gmail.ts (parseWeb3FormLead).",
+  "relevant_files": [
+    "CRM_DOCUMENTATION.md",
+    "src/server.ts (env bridge + SERVER_ENV_KEYS allow-list)",
+    "src/routes/api/public/hooks/balance-reminders.ts (public endpoint pattern to copy)",
+    "src/integrations/supabase/client.server.ts (supabaseAdmin service-role client)",
+    "src/integrations/supabase/client.ts (browser anon client)",
+    "src/lib/gmail.ts (parseWeb3FormLead, normalizeOwnerTag, isThrowawayAddress)",
+    "src/lib/crm.ts (STAGES, SOURCES, SERVICES, calcScore)",
+    "src/routes/_authenticated/inbox.tsx (claim/markMine mutations, resolveLeadFields)",
+    "setup/COMBINED_DATABASE_SETUP.sql (leads schema + RLS policies + enums)",
+    "setup/FIX_LEADS_CLAIM_RLS.sql (the claim-unassigned RLS fix - applied? unknown on prod)",
+    "setup/ADD_DUPLICATE_LEAD_CHECK.sql (find_duplicate_lead RPC)",
+    "e2e/kpi-tiles.spec.ts (Playwright pattern), playwright.config.ts"
+  ],
+  "directory_structure": "src/routes/_authenticated/* = app pages; src/routes/api/public/hooks/* = unauthenticated server endpoints; src/lib/* = shared logic; src/integrations/supabase/* = clients + generated types; supabase/functions/* = edge functions (deployed separately); supabase/migrations/* = 11 tracked migrations; setup/*.sql = manual one-off SQL the user runs in Supabase; e2e/* = Playwright."
+}

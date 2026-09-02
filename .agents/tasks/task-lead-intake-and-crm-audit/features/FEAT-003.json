@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-003",
+  "type": "fix",
+  "description": "Harden the two verified issues from the audit that are safely fixable in-repo, and package the required user actions so the CRM is production-solid. (1) The claim-lead RLS fix (setup/FIX_LEADS_CLAIM_RLS.sql) is a loose one-off setup script whose application on prod is unverified and easily lost; promote it to a TRACKED, idempotent supabase migration so it is version-controlled and re-runnable. (2) The public balance-reminders endpoint currently returns 500 and is UNAUTHENTICATED - add the same optional shared-secret guard used for lead-intake so it cannot be triggered anonymously once a secret is configured, and return a clear 200 no-op (not 500) when integrations are unconfigured. (3) Write a single USER_ACTIONS.md that consolidates every step only the user can do (run SQL, deploy the 2 missing edge functions, set Cloudflare/Supabase secrets). This feature depends on FEAT-001 and FEAT-002 (same branch, token pattern reused).",
+  "status": "pending",
+  "steps": [
+    "Create a new tracked migration file under supabase/migrations/ named with the project's timestamp convention (e.g. 20260515000001_fix_leads_claim_rls.sql - use a timestamp strictly greater than the latest existing 20260514000001). Its body must be the idempotent policy replacement from setup/FIX_LEADS_CLAIM_RLS.sql (DROP POLICY IF EXISTS leads_update; CREATE POLICY leads_update ... with the `OR assigned_to IS NULL` in USING). This makes the claim-unassigned-lead fix a first-class migration. Keep setup/FIX_LEADS_CLAIM_RLS.sql as-is for manual use.",
+    "Read src/routes/api/public/hooks/balance-reminders.ts fully. Add an optional shared-secret guard at the TOP of the POST handler mirroring FEAT-002: if process.env.BALANCE_REMINDERS_TOKEN (or reuse LEAD_INTAKE_TOKEN? NO - use a distinct BALANCE_REMINDERS_TOKEN) is set, require matching 'x-intake-token' header or 'token' body field, else 401. If unset, allow (preserve current behavior). Add 'BALANCE_REMINDERS_TOKEN' to SERVER_ENV_KEYS in src/server.ts.",
+    "In balance-reminders.ts, make the handler resilient so it returns 200 with a clear JSON status instead of a 500 when Twilio/Resend are not configured (the sendWhatsApp/sendEmail helpers already return {ok:false,error:'..._not_configured'} - ensure a top-level try/catch wraps the whole handler and any thrown supabaseAdmin/init error is caught and returned as { ok:false, error } with status 200 OR 503, NOT an unhandled 500). The goal: an anonymous probe should not produce an unhandled 500. Do the minimal change; do not rewrite the reminder logic.",
+    "Create .agents/tasks/task-lead-intake-and-crm-audit/USER_ACTIONS.md (and also copy to setup/USER_ACTIONS.md so it lives with the repo) consolidating: (A) SQL to run in Supabase SQL editor - list the migration/setup files including the new claim-RLS migration and note FIX_LEADS_CLAIM_RLS.sql is safe to re-run; (B) Deploy the two MISSING edge functions notify-stale-followups and send-scheduled-reports (supabase/functions/<name>/index.ts) via the Supabase dashboard or the CI in PR #16 (which needs the SUPABASE_ACCESS_TOKEN repo secret); include the pg_cron scheduling note for them if applicable (check setup/ADD_STALE_FOLLOWUP_CRON.sql and setup/ADD_DAILY_SALES_REPORT_CRON.sql for the cron SQL and reference them); (C) Optional Cloudflare Worker secrets: LEAD_INTAKE_TOKEN (protects the new contact-form endpoint) and BALANCE_REMINDERS_TOKEN (protects the balance-reminders endpoint) - explain these are runtime Worker secrets, NOT VITE_, and are already in SERVER_ENV_KEYS; (D) How to verify the claim flow end-to-end after applying the RLS migration. Put a Hinglish summary at the top.",
+    "Run `npx tsc --noEmit` (no new errors) and `bun run build` (exit 0, dist/server/index.js emitted).",
+    "Commit on branch feat/lead-intake-and-crm-gaps: stage the new migration, modified balance-reminders.ts, modified src/server.ts, and the USER_ACTIONS.md files, then `git commit -m 'fix(security,rls): guard public balance-reminders endpoint + track claim-lead RLS as migration + document user actions'`. Do NOT push."
+  ],
+  "acceptance_criteria": [
+    "A new tracked migration exists in supabase/migrations/ containing the idempotent leads_update policy with `OR assigned_to IS NULL`, timestamp greater than 20260514000001.",
+    "balance-reminders.ts: an anonymous POST no longer yields an unhandled 500 (returns a structured JSON status; and if BALANCE_REMINDERS_TOKEN is set, an unauthenticated POST returns 401).",
+    "src/server.ts SERVER_ENV_KEYS includes BALANCE_REMINDERS_TOKEN (and LEAD_INTAKE_TOKEN from FEAT-002).",
+    "USER_ACTIONS.md exists (in .agents task dir and setup/) listing SQL to run, the 2 edge functions to deploy, optional secrets, and end-to-end claim verification, with a Hinglish summary.",
+    "`npx tsc --noEmit` no new errors; `bun run build` exits 0 with dist/server/index.js present.",
+    "A commit for this feature exists on feat/lead-intake-and-crm-gaps."
+  ],
+  "verification": [
+    "Run `npx tsc --noEmit` - no new errors.",
+    "Run `bun run build` - exits 0, dist/server/index.js present.",
+    "Confirm the new migration file exists and contains 'assigned_to IS NULL' inside a CREATE POLICY \"leads_update\".",
+    "Read balance-reminders.ts to confirm the top-level try/catch + optional token guard; confirm SERVER_ENV_KEYS additions in src/server.ts."
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

@@ -1,0 +1,39 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Implement the highest-value missing capability: a PUBLIC 'Contact us' web-form lead intake endpoint. Today leads only arrive via the Gmail shared inbox. This adds a website form POST that creates an UNASSIGNED lead (assigned_to = NULL, stage new_lead, source website) which reps then CLAIM via the existing Inbox/Pipeline flow - directly serving the user's described lead->claim->follow-up flow. Must be an unauthenticated server route using supabaseAdmin (service role), because the leads_insert RLS forbids anonymous inserts. Mirror the existing pattern in src/routes/api/public/hooks/balance-reminders.ts. This feature is self-contained and depends only on FEAT-001 (green baseline + branch).",
+  "status": "pending",
+  "steps": [
+    "Create a new public server route at src/routes/api/public/hooks/lead-intake.ts using createFileRoute('/api/public/hooks/lead-intake') with server.handlers. Follow the structure of src/routes/api/public/hooks/balance-reminders.ts (import supabaseAdmin from '@/integrations/supabase/client.server').",
+    "Implement a POST handler that: (a) parses the request body as JSON (also accept application/x-www-form-urlencoded and multipart/form-data via request.formData() as a fallback, so a raw HTML <form> POST works). Accept these field names (with common aliases): name/full_name (-> client_name, REQUIRED), phone/mobile/contact (-> mobile, REQUIRED - leads.mobile is NOT NULL), email, company/business (-> company_name), city/location (-> city), message/query/requirement (-> notes), service (optional, map to a service_type enum id if it matches one in src/lib/crm.ts SERVICES else omit to use DB default), source (default 'website'; only pass a value if it is a valid lead_source enum id from src/lib/crm.ts SOURCES, else fall back to 'website').",
+    "Validate: require client_name and mobile (non-empty after trim). If missing, return 400 JSON { ok:false, error:'name and phone are required' }. Normalize phone: keep leading + and digits (reuse the same approach as normalizePhone/parseWeb3FormLead phone handling). Basic email sanity (must contain '@') else set email to null rather than rejecting.",
+    "Add a lightweight anti-abuse guard: (a) a honeypot field - if the body contains a non-empty field named 'website_hp' or '_gotcha', return 200 { ok:true, skipped:true } WITHOUT inserting (silently drop bots). (b) OPTIONAL shared-secret: if process.env.LEAD_INTAKE_TOKEN is set, require a matching token via header 'x-intake-token' OR body field 'token'; if set and mismatched, return 401. If the env var is unset, skip the token check (so it works before the user configures a secret). Do NOT hard-require the token.",
+    "Before insert, dedup: query supabaseAdmin leads for an existing row matching the same mobile (trimmed) OR same lower(email) when email present. If found, do NOT create a duplicate; instead update that lead's notes to append the new message with a timestamp and (only if the lead is currently unassigned AND stage in an early state) leave it unassigned; return 200 { ok:true, deduped:true, lead_id }. This mirrors the intent of find_duplicate_lead and the inbox dedup logic. Keep it simple and race-tolerant (best-effort).",
+    "Insert the new lead via supabaseAdmin.from('leads').insert({ client_name, mobile, email, company_name, city, source, notes, assigned_to: null, stage: 'new_lead' }). Let DB defaults fill interest/score/service_required. Use .select('id, lead_code').single() to get the created id.",
+    "After insert, best-effort log an activity row: supabaseAdmin.from('lead_activities').insert({ lead_id, actor_id: null, type: 'created', title: 'Lead captured from website contact form', body: message||null, payload: { source: 'contact_form', ...rawParsedFields } }). Wrap in try/catch so an activity failure never fails the intake. (activity_type enum includes 'created'.)",
+    "Return 200 JSON { ok:true, lead_id, lead_code } on success. On DB error return 500 with { ok:false, error }. Set CORS headers on the response (Access-Control-Allow-Origin: '*', Allow-Methods POST, OPTIONS, Allow-Headers 'content-type, x-intake-token') so the marketing website (different origin) can POST. Add an OPTIONS handler returning 204 with the same CORS headers for preflight.",
+    "If a LEAD_INTAKE_TOKEN env var is used, add 'LEAD_INTAKE_TOKEN' to the SERVER_ENV_KEYS array in src/server.ts so it is bridged from the Worker env onto process.env at runtime in production (otherwise process.env.LEAD_INTAKE_TOKEN is always undefined on Cloudflare). Keep the code working when it is unset.",
+    "Do NOT introduce any *.client.ts filename. Do NOT add VITE_ prefix to the token. Do NOT import cloudflare:workers.",
+    "Add a Playwright-independent, code-level self-check is not required, but ADD documentation: create setup/CONTACT_FORM_INTAKE.md describing (a) the endpoint URL https://easemyoffice.emo-crm.workers.dev/api/public/hooks/lead-intake , (b) a sample HTML <form> and a sample fetch()/curl POST with JSON, (c) the honeypot field name, (d) the optional LEAD_INTAKE_TOKEN Cloudflare Worker secret and that it must ALSO be added to SERVER_ENV_KEYS (already done in code), (e) that no SQL is required because it uses the service-role client and existing leads table, (f) that created leads are UNASSIGNED and appear for reps to claim in Pipeline/Leads (source=Website). Include a short Hinglish note at the top for the user.",
+    "Run `npx tsc --noEmit` (no new errors) and `bun run build` (exit 0, dist/server/index.js emitted). Fix any type errors in the new file (e.g. supabase-js typed-insert may need `as never` casts like the existing inbox code uses for enum columns).",
+    "Commit on branch feat/lead-intake-and-crm-gaps: `git add src/routes/api/public/hooks/lead-intake.ts src/server.ts setup/CONTACT_FORM_INTAKE.md && git commit -m 'feat(intake): public contact-form lead intake endpoint creating unassigned leads'`. Do NOT push."
+  ],
+  "acceptance_criteria": [
+    "src/routes/api/public/hooks/lead-intake.ts exists, exports a Route with POST and OPTIONS handlers, and uses supabaseAdmin (not the anon client).",
+    "POST with { name, phone } (JSON) inserts a leads row with assigned_to NULL, stage 'new_lead', source 'website'; missing name/phone yields 400; honeypot field yields a silent 200 no-insert.",
+    "Duplicate by mobile/email does not create a second lead (deduped:true path).",
+    "If LEAD_INTAKE_TOKEN is set it is enforced and is present in SERVER_ENV_KEYS in src/server.ts; if unset the endpoint still works.",
+    "OPTIONS preflight returns 204 with CORS headers; POST responses include Access-Control-Allow-Origin.",
+    "setup/CONTACT_FORM_INTAKE.md documents the endpoint, sample form/curl, honeypot, optional token, and the claim flow, with a Hinglish note.",
+    "`npx tsc --noEmit` has no NEW errors and `bun run build` exits 0 with dist/server/index.js present.",
+    "A commit for this feature exists on feat/lead-intake-and-crm-gaps."
+  ],
+  "verification": [
+    "Run `npx tsc --noEmit` - no new errors vs FEAT-001 baseline.",
+    "Run `bun run build` - exits 0 and dist/server/index.js exists.",
+    "Grep the built server bundle or source to confirm the route path '/api/public/hooks/lead-intake' is present, and confirm src/server.ts SERVER_ENV_KEYS includes LEAD_INTAKE_TOKEN.",
+    "Read lead-intake.ts and confirm: honeypot short-circuit, name+phone required, supabaseAdmin insert with assigned_to null + stage new_lead, dedup query, activity log in try/catch, CORS + OPTIONS."
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

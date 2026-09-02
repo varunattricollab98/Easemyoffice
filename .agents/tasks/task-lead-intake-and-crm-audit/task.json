@@ -1,0 +1,7 @@
+{
+  "task_id": "task-lead-intake-and-crm-audit",
+  "task_description": "Verify the EaseMyOffice CRM end-to-end (especially the leads -> claim -> follow-up flow), produce a verification + gap-analysis audit, and implement the highest-value missing piece: a public 'Contact us' web-form lead intake endpoint that creates unassigned leads for reps to claim. Also harden verified issues (track the claim RLS fix as a migration, guard the unauthenticated balance-reminders endpoint) and document all user-only actions. Work on branch feat/lead-intake-and-crm-gaps off main (b6dc097); do not push or open a PR.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}
