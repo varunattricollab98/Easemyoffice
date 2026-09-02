@@ -198,7 +198,10 @@ export const Route = createFileRoute("/api/public/hooks/lead-intake")({
           .single();
 
         if (error || !created) {
-          return json({ ok: false, error: error?.message ?? "insert_failed" }, 500);
+          // Log the real error server-side, but return a generic message so we do
+          // not leak internal error strings to unauthenticated callers.
+          console.error("[lead-intake] insert error:", error);
+          return json({ ok: false, error: "internal error" }, 500);
         }
 
         // Best-effort activity log; never fail the intake if this errors.
