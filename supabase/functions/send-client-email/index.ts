@@ -6,6 +6,14 @@
 //   RESEND_API_KEY   -> your Resend API key
 //   CRM_FROM_EMAIL   -> e.g. "EaseMyOffice <crm@easemyoffice.in>" (must be a
 //                        verified domain in Resend to email real clients)
+//   (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are injected automatically and
+//    are used to record each send in the public.email_log table)
+//
+// NOTE: the shared-inbox BCC (formerly CRM_BCC_EMAIL) is no longer applied by
+// default. Sends are now recorded in the email_log table instead of being
+// copied to a mailbox. A caller may still opt in per-send by passing `bcc`.
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,14 +26,14 @@ const FROM_EMAIL =
   Deno.env.get("CRM_FROM_EMAIL") ??
   Deno.env.get("REPORTS_FROM_EMAIL") ??
   "EaseMyOffice CRM <onboarding@resend.dev>";
-// Optional: BCC a copy of every send here (e.g. your shared inbox) so sent
-// mail is visible in Gmail and replies thread there.
-const BCC_EMAIL = Deno.env.get("CRM_BCC_EMAIL") ?? "";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
 // Invisible marker embedded in every CRM-sent email (hidden-preheader style,
-// which Gmail indexes for its preview snippet). Set a Gmail filter
-// (Has the words: EMO-CRM-SENT) to reliably label these as "CRM-Sent" — call
-// notifications and inbound leads never contain it, so they won't be mislabelled.
+// which Gmail indexes for its preview snippet). Kept even though the default
+// shared-inbox BCC is gone: it is invisible/harmless, and a caller who opts
+// back into BCC (by passing `bcc`) can still Gmail-filter on it
+// (Has the words: EMO-CRM-SENT).
 const CRM_MARKER = `<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">EMO-CRM-SENT</div>`;
 
 function escHtml(s: unknown) {
@@ -60,7 +68,7 @@ Deno.serve(async (req) => {
 
   try {
     if (req.method !== "POST") throw new Error("Use POST");
-    const { to, subject, html, text, replyTo, cc, bcc, attachments, from } = await req.json().catch(() => ({}));
+    const { to, subject, html, text, replyTo, cc, bcc, attachments, from, lead_id, booking_id, created_by } = await req.json().catch(() => ({}));
 
     const toList = toEmailList(to);
     if (!toList.length) throw new Error("A valid recipient email ('to') is required.");
@@ -74,14 +82,16 @@ Deno.serve(async (req) => {
     const payload: Record<string, unknown> = { from: fromEmail, to: toList, subject };
     if (html) payload.html = html + CRM_MARKER;
     if (text) payload.text = text;
-    // Ensure the hidden marker rides along even for text-only sends, so the
-    // BCC'd copy in the shared inbox is still reliably labelled "CRM-Sent".
+    // Ensure the hidden marker rides along even for text-only sends, so an
+    // optional caller-supplied BCC copy is still reliably labelled "CRM-Sent".
     if (!html && text) {
       payload.html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;white-space:pre-wrap;color:#0f172a">${escHtml(text)}</div>` + CRM_MARKER;
     }
     if (isEmail(replyTo)) payload.reply_to = replyTo;
     if (isEmail(cc)) payload.cc = [cc];
-    const bccList = [...toEmailList(bcc), ...toEmailList(BCC_EMAIL)];
+    // BCC is now strictly opt-in: only what the caller explicitly passes. No
+    // shared-inbox copy is added by default anymore.
+    const bccList = toEmailList(bcc);
     if (bccList.length) payload.bcc = Array.from(new Set(bccList));
     if (Array.isArray(attachments) && attachments.length) {
       payload.attachments = attachments
@@ -106,6 +116,26 @@ Deno.serve(async (req) => {
 
     let id: string | null = null;
     try { id = JSON.parse(bodyText)?.id ?? null; } catch { /* ignore */ }
+
+    // Record this send in email_log so the CRM has an authoritative sent-mail
+    // record (replacing the old shared-inbox BCC). One row per invocation =
+    // one "send", so to_email holds the comma-joined recipient list. Wrapped in
+    // try/catch: a logging failure must NEVER break the actual email send.
+    try {
+      if (SUPABASE_URL && SERVICE_ROLE) {
+        const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
+        await supabase.from("email_log").insert({
+          to_email: toList.join(","),
+          subject,
+          resend_message_id: id,
+          lead_id: lead_id ?? null,
+          booking_id: booking_id ?? null,
+          source: "send-client-email",
+          created_by: created_by ?? null,
+          status: "sent",
+        });
+      }
+    } catch (_logErr) { /* logging is best-effort; never fail the send */ }
 
     return new Response(JSON.stringify({ ok: true, id }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
