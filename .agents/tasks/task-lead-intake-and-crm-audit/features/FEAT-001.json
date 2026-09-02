@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-001",
+  "type": "chore",
+  "description": "Establish a green baseline and produce the VERIFICATION + GAP-ANALYSIS audit report the user asked for ('sab check karo'). Confirm the repo builds and typechecks BEFORE any change, then write a findings document grounded in code + live probes. This feature does NOT change app behavior; it de-risks the following features and delivers the audit deliverable.",
+  "status": "completed",
+  "steps": [
+    "cd /projects/sandbox/emo-fresh and run `bun install` to install deps from bun.lock.",
+    "Run `npx tsc --noEmit` and record the result. If there are pre-existing errors, capture them verbatim as the baseline so new errors can be distinguished later.",
+    "Run `bun run build` and confirm it exits 0 and emits dist/server/index.js (ls the dist/ tree to confirm). Record output tail.",
+    "Re-probe live status to include in the report: `curl -s -o /dev/null -w '%{http_code}' https://easemyoffice.emo-crm.workers.dev/` (expect 200/307), and POST-probe the two edge functions reported missing: notify-stale-followups and send-scheduled-reports at https://cfzwdlibvxksrxcrsvpp.supabase.co/functions/v1/<name> (expect 404 = missing). Also probe the existing public route: `curl -s -w '%{http_code}' -X POST https://easemyoffice.emo-crm.workers.dev/api/public/hooks/balance-reminders` and note it currently returns 500 (unauthenticated + integrations not configured) - a real issue to flag.",
+    "Read src/routes/_authenticated/inbox.tsx claim/markMine mutations and setup/FIX_LEADS_CLAIM_RLS.sql. In the report, explain the claim flow and that the '.select()' guard in the mutation will THROW 'Couldn't claim... ask an admin' if the FIX_LEADS_CLAIM_RLS.sql policy is NOT applied on prod (because the UPDATE matches 0 rows under the original leads_update policy which lacks `OR assigned_to IS NULL`). Mark 'is this RLS applied on live DB?' as UNVERIFIABLE-from-sandbox and requiring a user dashboard check.",
+    "Write the report to .agents/tasks/task-lead-intake-and-crm-audit/AUDIT_REPORT.md with three sections: (A) VERIFICATION - what works (with file/line + curl evidence), what's broken/misconfigured (balance-reminders 500 unauthenticated endpoint; 2 missing edge functions), what's built-but-not-deployed, what's built-but-maybe-not-wired (claim RLS). Clearly label each item as 'verified in code', 'verified via live probe', or 'needs user live-DB/dashboard check'. (B) GAP ANALYSIS for a 0-to-hero sales CRM - a prioritized table: HIGH/MED/LOW, feature, present?/partial/missing, evidence. Cover at minimum: public web-form lead intake (MISSING - only Gmail inbox path exists today), lead scoring/routing, activity timeline completeness, duplicate handling (present: find_duplicate_lead), SLA/stale-lead escalation (partial: notify-stale-followups exists in repo but NOT deployed), email/notification automation (present), reporting/dashboards (present), RBAC correctness, audit trail (lead_activities present), data import/export (present: CSV import + export), mobile responsiveness, global search, bulk ops (present). (C) PRIORITIZED BACKLOG - the recommended next actions with the top item being the public contact-form intake implemented in FEAT-002, plus the user-action items (SQL to run, edge functions to deploy, secrets).",
+    "Write the report body in professional English, but include a short 2-3 line Hinglish (Roman script) summary at the very top under a heading '## Summary (Hinglish)' for the user, e.g. 'Poora system check kiya...'. Keep all technical terms/paths/table names in English.",
+    "Commit the audit report and the .agents task files on a new branch. First create the branch: `git checkout -b feat/lead-intake-and-crm-gaps` from main. Then `git add .agents/tasks/task-lead-intake-and-crm-audit && git commit -m 'docs: add CRM verification + gap-analysis audit report'`. Do NOT push."
+  ],
+  "acceptance_criteria": [
+    "`bun install` completes and `npx tsc --noEmit` result is recorded (baseline captured).",
+    "`bun run build` exits 0 and dist/server/index.js exists.",
+    "Branch feat/lead-intake-and-crm-gaps exists off main and contains a commit adding AUDIT_REPORT.md.",
+    "AUDIT_REPORT.md contains all three sections (Verification, Gap Analysis, Prioritized Backlog), a Hinglish summary line, and labels each finding by evidence type (code / live probe / needs-user-check).",
+    "The report explicitly names: balance-reminders returning 500 as an unauthenticated endpoint concern, notify-stale-followups + send-scheduled-reports as 404/undeployed, and the claim RLS as needing a live-DB check."
+  ],
+  "verification": [
+    "Run `npx tsc --noEmit` - no errors beyond the recorded baseline.",
+    "Run `bun run build` - exits 0, dist/server/index.js present.",
+    "Confirm AUDIT_REPORT.md exists at .agents/tasks/task-lead-intake-and-crm-audit/AUDIT_REPORT.md and git log shows the commit on feat/lead-intake-and-crm-gaps."
+  ],
+  "blocked_reason": null,
+  "findings": "Green baseline: bun install OK (541 pkgs), `npx tsc --noEmit` = 0 errors (clean), `bun run build` exit 0 emitting dist/server/index.js. Live probes confirmed: site 307, notify-stale-followups 404, send-scheduled-reports 404, balance-reminders 500. Claim flow verified in inbox.tsx lines 460-524 (.select('id') guard throws 'Couldn't claim' on 0-row RLS denial); FIX_LEADS_CLAIM_RLS.sql adds `OR assigned_to IS NULL` but whether it's applied on live DB is UNVERIFIABLE (flagged for user). AUDIT_REPORT.md written with all 3 sections (Verification, Gap Analysis, Prioritized Backlog) + Hinglish summary + evidence labels. Top gap = MISSING public web-form lead intake (only Gmail path exists) -> FEAT-002. Committed on branch feat/lead-intake-and-crm-gaps. Lint has ~4000 pre-existing prettier errors (known baseline, not touched)."
+}

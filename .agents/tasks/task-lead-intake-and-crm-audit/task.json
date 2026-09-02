@@ -1,0 +1,14 @@
+{
+  "task_id": "task-lead-intake-and-crm-audit",
+  "task_description": "Verify the EaseMyOffice CRM end-to-end (especially the leads -> claim -> follow-up flow), produce a verification + gap-analysis audit, and implement the highest-value missing piece: a public 'Contact us' web-form lead intake endpoint that creates unassigned leads for reps to claim. Also harden verified issues (track the claim RLS fix as a migration, guard the unauthenticated balance-reminders endpoint) and document all user-only actions. Work on branch feat/lead-intake-and-crm-gaps off main (b6dc097); do not push or open a PR.",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "n/a",
+    "test_quality": "n/a",
+    "docker_build": "skipped",
+    "summary": "npx tsc --noEmit exits 0 (0 errors, baseline preserved). bun run build exits 0 and emits dist/server/index.js; the new /api/public/hooks/lead-intake route is present in the built router bundle. No Dockerfile in repo (docker skipped). Project has no unit-test framework (Playwright e2e only); the plan added no tests and the project's verification bar is typecheck+build, so tests/test_quality are n/a. Branch feat/lead-intake-and-crm-gaps has 4 commits; working tree clean. New tracked migration 20260515000001_fix_leads_claim_rls.sql contains the assigned_to IS NULL claim fix; LEAD_INTAKE_TOKEN and BALANCE_REMINDERS_TOKEN are in SERVER_ENV_KEYS; balance-reminders now has a top-level try/catch + optional token guard."
+  }
+}
