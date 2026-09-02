@@ -725,18 +725,25 @@ function LeadInboxPage() {
               const mine = isMine(e);
               const hasLead = address ? leadByEmail.has(address.trim().toLowerCase()) : false;
               return (
-                <div key={e.threadId} className="relative flex items-start gap-4 p-4 rounded-xl border border-transparent hover:border-border/50 hover:shadow-md hover:scale-[1.01] transition-all duration-200 ease-out bg-background/50 hover:bg-accent/20">
+                <div
+                  key={e.threadId}
+                  className={`relative flex items-start gap-4 p-4 rounded-xl border hover:shadow-md hover:scale-[1.01] transition-all duration-200 ease-out ${
+                    e.unread
+                      ? "border-blue-200 dark:border-blue-900 border-l-4 border-l-blue-500 dark:border-l-blue-400 bg-blue-50/60 dark:bg-blue-950/30 hover:bg-blue-50 dark:hover:bg-blue-950/50 shadow-sm"
+                      : "border-transparent hover:border-border/50 bg-background/50 hover:bg-accent/20 opacity-90"
+                  }`}
+                >
                   <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setReading(e)} onMouseEnter={() => prefetchThread(e.threadId)} title="Click to read">
                     <div className="flex items-center gap-2 flex-wrap">
                       {e.unread && <span className="h-2.5 w-2.5 rounded-full bg-blue-500 shadow-sm shadow-blue-500/50 shrink-0" title="Unread" />}
-                      <span className="font-semibold text-[15px] truncate">{name || address || "Unknown sender"}</span>
+                      <span className={`text-[15px] truncate ${e.unread ? "font-bold text-foreground" : "font-semibold text-foreground/80"}`}>{name || address || "Unknown sender"}</span>
                       {owner ? (
                         <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 rounded-full px-2.5 py-0.5 text-[11px] font-medium">🏷 {owner}</Badge>
                       ) : (
                         <Badge className="bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-amber-200 dark:border-amber-800 rounded-full px-2.5 py-0.5 text-[11px] font-medium">Unclaimed</Badge>
                       )}
                     </div>
-                    <div className="text-sm font-medium mt-1 truncate text-foreground/90">{e.subject || "(no subject)"}</div>
+                    <div className={`text-sm mt-1 truncate ${e.unread ? "font-semibold text-foreground" : "font-medium text-foreground/70"}`}>{e.subject || "(no subject)"}</div>
                     {e.snippet && <div className="text-xs text-muted-foreground mt-0.5 truncate leading-relaxed">{e.snippet}</div>}
                     <div className="text-[11px] text-muted-foreground/70 mt-1.5">{address}</div>
                   </div>
