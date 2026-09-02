@@ -27,6 +27,7 @@ type Attachment = { name: string; path: string; size?: number };
 type Reminder = {
   id: string;
   client_name: string | null;
+  lead_id: string | null;
   to_email: string;
   subject: string;
   message: string;
@@ -388,7 +389,7 @@ function RemindersPage() {
       if (!form.subject.trim()) throw new Error("Subject is required.");
       if (!htmlToText(form.message).trim()) throw new Error("Message is required.");
       const atts = await signedAttachments(attachments);
-      const { data, error } = await supabase.functions.invoke("send-client-email", { body: { to: form.to_email.trim(), subject: form.subject.trim(), html: form.message, attachments: atts, from: reminderFromEmail || undefined } });
+      const { data, error } = await supabase.functions.invoke("send-client-email", { body: { to: form.to_email.trim(), subject: form.subject.trim(), html: form.message, attachments: atts, from: reminderFromEmail || undefined, created_by: user.id } });
       if (error) throw new Error(error.message);
       if (!data?.ok) throw new Error(data?.error || "Could not send email");
       const now = new Date().toISOString();
@@ -450,7 +451,7 @@ function RemindersPage() {
         ? r.message
         : `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;white-space:pre-wrap;color:#0f172a">${r.message.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</div>`;
       const atts = await signedAttachments(r.attachments || []);
-      const { data, error } = await supabase.functions.invoke("send-client-email", { body: { to: r.to_email, subject: r.subject, html, attachments: atts, from: r.from_email || undefined } });
+      const { data, error } = await supabase.functions.invoke("send-client-email", { body: { to: r.to_email, subject: r.subject, html, attachments: atts, from: r.from_email || undefined, lead_id: r.lead_id ?? undefined, created_by: r.created_by ?? user?.id } });
       if (error) throw new Error(error.message);
       if (!data?.ok) throw new Error(data?.error || "Could not send email");
       const patch = r.repeat_interval_days > 0

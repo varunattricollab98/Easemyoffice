@@ -111,6 +111,28 @@ function LeadDetailPage() {
     },
   });
 
+  // Emails actually sent to this lead, recorded by the send-client-email /
+  // process-reminders edge functions in public.email_log. email_log is not in
+  // the generated Supabase types, so the query is cast to keep tsc happy.
+  const { data: emailLog } = useQuery({
+    queryKey: ["email-log", id],
+    refetchInterval: 30000,
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("email_log")
+        .select("id, subject, sent_at, status")
+        .eq("lead_id", id)
+        .order("sent_at", { ascending: false })
+        .limit(50);
+      return (data ?? []) as Array<{
+        id: string;
+        subject: string | null;
+        sent_at: string;
+        status: string;
+      }>;
+    },
+  });
+
   // Derived reminder states for display
   const activeReminder = useMemo(() => (leadReminders ?? []).find((r) => r.status === "scheduled"), [leadReminders]);
   const pausedReminder = useMemo(() => (leadReminders ?? []).find((r) => r.status === "paused"), [leadReminders]);
@@ -339,6 +361,7 @@ function LeadDetailPage() {
         </TabsList>
 
         <TabsContent value="timeline" className="space-y-3">
+          <EmailLogSummary emails={emailLog ?? []} />
           <NoteComposer onSubmit={(text) => logActivity("note", "Note added", text)} />
           <Card><CardContent className="p-4 space-y-3">
             {(activities ?? []).length === 0 && <div className="text-sm text-muted-foreground">No activity yet.</div>}
@@ -482,6 +505,7 @@ function LeadDetailPage() {
           clientEmail={lead.email}
           defaultState={lead.state || ""}
           defaultCity={lead.city || ""}
+          leadId={lead.id}
           onSent={(subject) => logActivity("email", `Sent quotation to ${lead.email}`, subject)}
         />
       )}
@@ -637,6 +661,41 @@ function textToHtml(text: string) {
   return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1e293b;line-height:1.6;white-space:normal">${esc.replace(/\n/g, "<br>")}</div>`;
 }
 
+type EmailLogEntry = { id: string; subject: string | null; sent_at: string; status: string };
+
+// Read-only summary of emails actually delivered to this lead (public.email_log).
+// Mirrors the Badge + Mail-icon styling of EmailStatusRow for visual consistency.
+function EmailLogSummary({ emails }: { emails: EmailLogEntry[] }) {
+  const sent = emails.filter((e) => e.status === "sent");
+  if (sent.length === 0) return null;
+  const last = sent[0]; // query is ordered sent_at DESC
+  const recent = sent.slice(0, 5);
+  return (
+    <Card>
+      <CardContent className="p-4 space-y-2">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <Badge variant="secondary" className="gap-1 text-xs font-normal">
+            <Mail className="h-3 w-3 text-blue-500" />
+            {sent.length} email{sent.length === 1 ? "" : "s"} sent
+          </Badge>
+          <span className="text-muted-foreground">
+            &middot; last sent {formatDistanceToNow(new Date(last.sent_at), { addSuffix: true })}
+          </span>
+        </div>
+        <ul className="space-y-1 pl-1">
+          {recent.map((e) => (
+            <li key={e.id} className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Mail className="h-3 w-3 shrink-0" />
+              <span className="truncate" title={e.subject ?? undefined}>{e.subject || "(no subject)"}</span>
+              <span className="shrink-0">&middot; {format(new Date(e.sent_at), "dd MMM")}</span>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
 function EmailComposeDialog({
   lead, open, onOpenChange, onSent,
 }: {
@@ -701,6 +760,9 @@ function EmailComposeDialog({
           html: textToHtml(body),
           text: body,
           replyTo: user?.email,
+          // Link the send in email_log (the edge function writes the row).
+          lead_id: lead.id,
+          created_by: user?.id,
         },
       });
       if (error) throw new Error(error.message);

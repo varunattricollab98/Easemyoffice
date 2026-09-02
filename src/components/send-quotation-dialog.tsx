@@ -8,7 +8,7 @@
  * - Premium HTML email template matching the master EaseMyOffice design
  * - Preview before send
  * - Signature auto-append from the logged-in user's profile
- * - From: EaseMyOffice, BCC: contact@easemyoffice.in
+ * - From: EaseMyOffice (sends are recorded in email_log; no shared-inbox BCC)
  */
 
 import { useState, useMemo, useEffect } from "react";
@@ -44,6 +44,8 @@ interface SendQuotationDialogProps {
   /** Optional: pre-fill state/city from the lead record */
   defaultState?: string;
   defaultCity?: string;
+  /** Optional: lead id so the send is linked in email_log */
+  leadId?: string;
   /** Called after successful send */
   onSent?: (subject: string) => void;
 }
@@ -700,6 +702,7 @@ export function SendQuotationDialog({
   clientEmail,
   defaultState,
   defaultCity,
+  leadId,
   onSent,
 }: SendQuotationDialogProps) {
   const { profile, user } = useAuth();
@@ -866,8 +869,10 @@ export function SendQuotationDialog({
           subject,
           html: emailHtml,
           from: "EaseMyOffice <contact@easemyoffice.in>",
-          bcc: "contact@easemyoffice.in",
           replyTo: user?.email,
+          // Link the send in email_log (the edge function writes the row).
+          lead_id: leadId,
+          created_by: user?.id,
         },
       });
       if (error) throw new Error(error.message);
@@ -1055,7 +1060,6 @@ export function SendQuotationDialog({
               <div><b>To:</b> {clientEmail}</div>
               <div><b>Subject:</b> {subject}</div>
               <div><b>From:</b> EaseMyOffice &lt;contact@easemyoffice.in&gt;</div>
-              <div><b>BCC:</b> contact@easemyoffice.in</div>
               <div><b>Quote ID:</b> {quoteId}</div>
               <div><b>Valid until:</b> {validityDate}</div>
               <div><b>Signature:</b> {profile?.full_name || "Team EaseMyOffice"}</div>
