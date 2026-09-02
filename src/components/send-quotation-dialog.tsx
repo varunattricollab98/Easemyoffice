@@ -8,7 +8,8 @@
  * - Premium HTML email template matching the master EaseMyOffice design
  * - Preview before send
  * - Signature auto-append from the logged-in user's profile
- * - From: EaseMyOffice (sends are recorded in email_log; no shared-inbox BCC)
+ * - From: EaseMyOffice; BCC'd to the shared inbox (contact@easemyoffice.in) so the
+ *   quotation appears in Gmail Sent, and also recorded in email_log
  */
 
 import { useState, useMemo, useEffect } from "react";
@@ -870,6 +871,8 @@ export function SendQuotationDialog({
           html: emailHtml,
           from: "EaseMyOffice <contact@easemyoffice.in>",
           replyTo: user?.email,
+          // Keep the shared-inbox BCC so the quotation appears in the Gmail Sent folder.
+          bcc: "contact@easemyoffice.in",
           // Link the send in email_log (the edge function writes the row).
           lead_id: leadId,
           created_by: user?.id,
@@ -1060,6 +1063,7 @@ export function SendQuotationDialog({
               <div><b>To:</b> {clientEmail}</div>
               <div><b>Subject:</b> {subject}</div>
               <div><b>From:</b> EaseMyOffice &lt;contact@easemyoffice.in&gt;</div>
+              <div><b>BCC:</b> contact@easemyoffice.in</div>
               <div><b>Quote ID:</b> {quoteId}</div>
               <div><b>Valid until:</b> {validityDate}</div>
               <div><b>Signature:</b> {profile?.full_name || "Team EaseMyOffice"}</div>

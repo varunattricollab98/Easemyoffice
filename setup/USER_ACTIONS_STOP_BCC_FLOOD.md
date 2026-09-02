@@ -4,12 +4,14 @@ Ye document un steps ko cover karta hai jo aapko **manually** karne padenge taak
 
 ## Background: kya change hua hai
 
-Pehle har client email ki ek copy shared inbox `contact@easemyoffice.in` par BCC ho jaati thi. Jab ek saath 1000 followups jaate the, main inbox mein chaos ban jaata tha. Ab:
+Pehle har client email ki ek copy shared inbox `contact@easemyoffice.in` par BCC ho jaati thi. Jab ek saath 1000 followups jaate the, main inbox mein chaos ban jaata tha. Ab **BCC sirf followups ke liye hataya gaya hai** — payment acknowledgment aur quotation emails jaan-boojh kar shared-inbox BCC **rakhte hain** taaki wo Gmail Sent mein dikhein.
 
-- **send-client-email** aur **process-reminders** edge functions ab forced shared-inbox BCC nahi lagate. `process-reminders` hi wo cron path tha jo 1000-followups flood banata tha.
-- In dono functions mein har successful send ab `public.email_log` table mein ek row ke roop mein record hota hai (service-role client se, RLS bypass karke).
-- Frontend dialogs ab `bcc: "contact@easemyoffice.in"` hardcode nahi karte; wo `lead_id` / `booking_id` / `created_by` pass karte hain taaki log link ho jaye.
-- Lead detail page ab email_log se **"N emails sent · last sent X ago"** dikhata hai, so aapko records ke liye inbox ki zaroorat nahi.
+- **process-reminders** (followup cron path jo 1000-followups flood banata tha) ab forced shared-inbox BCC nahi lagata. Yahi wo path hai jise band karna tha.
+- **send-client-email** ab BCC **sirf tab** lagata hai jab caller explicitly `bcc` param pass kare (opt-in per-send). Koi forced/default shared-inbox copy nahi.
+- **Payment acknowledgment** (booking dialog) aur **quotation** (send-quotation dialog) emails jaan-boojh kar `bcc: "contact@easemyoffice.in"` pass karte hain — ye Gmail Sent mein reflect hone chahiye, isliye inka BCC rakha gaya hai.
+- Har successful send ab `public.email_log` table mein bhi ek row ke roop mein record hota hai (service-role client se, RLS bypass karke). Ye Gmail Sent copy ke saath-saath extra record hai.
+- Frontend dialogs `lead_id` / `booking_id` / `created_by` pass karte hain taaki log link ho jaye.
+- Lead detail page ab email_log se **"N emails sent · last sent X ago"** dikhata hai.
 
 > **Important:** Cloudflare git-build sirf **frontend** deploy karta hai. Edge functions aur SQL migrations **automatically deploy/apply NAHI hote**. Isliye neeche ke steps zaroori hain, warna fix live nahi hoga.
 
@@ -28,21 +30,22 @@ supabase functions deploy send-client-email --project-ref cfzwdlibvxksrxcrsvpp
 supabase functions deploy process-reminders --project-ref cfzwdlibvxksrxcrsvpp
 ```
 
-Dono functions redeploy hone ke baad hi naya (no-force-BCC + email_log logging) code live hoga.
+Dono functions redeploy hone ke baad hi naya (opt-in-BCC + email_log logging) code live hoga. Iske baad followups shared inbox par flood nahi karenge, jabki payment-ack aur quotation emails apni Gmail Sent copy ke saath jaate rahenge.
 
 > **Note:** PR #16 mein ek CI auto-deploy workflow hai jo in functions ko automatically deploy kar sakta hai, lekin usko ek `SUPABASE_ACCESS_TOKEN` repo secret chahiye jo abhi aapne confirm nahi kiya hai. Jab tak wo secret set nahi hota, auto-deploy kaam nahi karega, is case mein upar wale manual `supabase functions deploy` commands hi chalao.
 
 ---
 
-## (b) Unset the `CRM_BCC_EMAIL` secret in Supabase
+## (b) `CRM_BCC_EMAIL` secret — kuch karne ki zaroorat nahi
 
-Ye belt-and-suspenders step hai. BCC ab **opt-in per-send only** hai (sirf tab jab caller explicitly `bcc` param pass kare). Lekin safety ke liye shared-inbox wala secret hata do taaki koi residual reference bhi shared inbox par copy na bheje.
+**Pehle jo bola gaya tha ki `CRM_BCC_EMAIL` unset karo — wo ab galat hai, unset mat karo.**
 
-Supabase Dashboard mein jao:
+BCC ab **sirf tab** lagta hai jab caller (frontend send flow) explicitly `bcc` param pass kare. `send-client-email` function ab `CRM_BCC_EMAIL` secret ko forced default BCC ke roop mein use **nahi** karta. Iska matlab:
 
-**Supabase → Edge Functions → Secrets** → `CRM_BCC_EMAIL` ko **unset / delete** kar do.
+- `CRM_BCC_EMAIL` unset karne se payment-ack / quotation ki Gmail Sent copy **band nahi hogi** (wo copy caller ke explicit `bcc` param se aati hai, secret se nahi). Isliye unset karna misleading hai aur flood bhi isse nahi rukta.
+- Flood already band ho jaata hai kyunki `process-reminders` (followups) ab koi `bcc` pass hi nahi karta.
 
-Iske baad koi bhi automatic shared-inbox copy possible nahi rahegi.
+So is secret ko waise hi chhod do — koi action needed nahi.
 
 ---
 
@@ -64,9 +67,10 @@ Steps:
 
 Sab kuch sahi live hua ya nahi, ye confirm karne ke liye:
 
-1. CRM se ek **test client email** bhejo (kisi lead ke detail page se, ya kisi bhi normal send flow se).
-2. Confirm karo ki uski **koi copy `contact@easemyoffice.in` par NAHI aayi** (shared inbox check karo, kuch nahi aana chahiye).
-3. Confirm karo ki `public.email_log` mein ek **nayi row** aayi hai. SQL Editor mein check kar sakte ho:
+1. **Followup test:** kisi lead par ek followup trigger karo (ya cron chalne do).
+2. Confirm karo ki us followup ki **koi copy `contact@easemyoffice.in` par NAHI aayi** (shared inbox check karo — followups ab flood nahi karne chahiye).
+3. **Payment-ack / quotation test:** ek booking par payment acknowledgment bhejo, aur kisi lead par quotation bhejo. Confirm karo ki **inki copy `contact@easemyoffice.in` ke Gmail Sent mein AAYI hai** (ye jaan-boojh kar rakha gaya hai).
+4. Confirm karo ki `public.email_log` mein ek **nayi row** aayi hai. SQL Editor mein check kar sakte ho:
 
    ```sql
    SELECT id, to_email, subject, status, sent_at, source
@@ -75,9 +79,9 @@ Sab kuch sahi live hua ya nahi, ye confirm karne ke liye:
    LIMIT 5;
    ```
 
-4. Us lead ke **detail page** par jao aur confirm karo ki **"N emails sent"** count badh gaya hai aur "last sent X ago" naya time dikha raha hai.
+5. Us lead ke **detail page** par jao aur confirm karo ki **"N emails sent"** count badh gaya hai aur "last sent X ago" naya time dikha raha hai.
 
-Agar teeno cheezein sahi hain (no shared-inbox copy, nayi email_log row, incremented count), to fix live hai.
+Agar sab cheezein sahi hain (followup ki koi shared-inbox copy nahi, payment-ack/quotation ki Gmail Sent copy aa gayi, nayi email_log row, incremented count), to fix live hai.
 
 ---
 
