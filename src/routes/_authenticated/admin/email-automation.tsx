@@ -1,13 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { RichTextEditor, htmlToText } from "@/components/ui/rich-text-editor";
 import { toast } from "sonner";
-import { Settings2, Mail, Save } from "lucide-react";
+import { Settings2, Mail, Save, Plus, Pencil, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 
 export const Route = createFileRoute("/_authenticated/admin/email-automation")({
@@ -15,7 +17,7 @@ export const Route = createFileRoute("/_authenticated/admin/email-automation")({
   component: EmailAutomationPage,
 });
 
-type Snippet = { id: string; name: string; subject: string; body_html: string };
+type Snippet = { id: string; name: string; subject: string; body_html: string; created_by: string | null };
 type StageConfig = {
   stage: string;
   label: string;
@@ -46,15 +48,21 @@ function defaultConfig(): AutoConfig {
 }
 
 function EmailAutomationPage() {
+  const { user, isAdmin } = useAuth();
   const qc = useQueryClient();
   const [config, setConfig] = useState<AutoConfig>(defaultConfig());
   const [loaded, setLoaded] = useState(false);
+
+  // Inline snippet manager — create/edit email templates without leaving this page.
+  const [snipOpen, setSnipOpen] = useState(false);
+  const [snipForm, setSnipForm] = useState<{ id?: string; name: string; subject: string; body_html: string }>({ name: "", subject: "", body_html: "" });
+  const [snipEditorKey, setSnipEditorKey] = useState(0);
 
   // Load snippets for the dropdown.
   const { data: snippets = [] } = useQuery({
     queryKey: ["email-snippets"],
     queryFn: async () => {
-      const { data } = await supabase.from("email_snippets").select("id, name, subject, body_html").order("name");
+      const { data } = await supabase.from("email_snippets").select("id, name, subject, body_html, created_by").order("name");
       return (data ?? []) as Snippet[];
     },
   });
@@ -82,6 +90,42 @@ function EmailAutomationPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // ── Inline snippet CRUD (shares the ["email-snippets"] query key with the
+  // Reminders page, so saving here instantly refreshes the stage dropdowns). ──
+  function resetSnipForm() {
+    setSnipForm({ name: "", subject: "", body_html: "" });
+    setSnipEditorKey((k) => k + 1);
+  }
+
+  const saveSnippet = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error("Not signed in");
+      if (!snipForm.name.trim()) throw new Error("Snippet name is required.");
+      if (snipForm.id) {
+        const { error } = await supabase.from("email_snippets").update({ name: snipForm.name.trim(), subject: snipForm.subject, body_html: snipForm.body_html }).eq("id", snipForm.id);
+        if (error) throw new Error(error.message);
+      } else {
+        const { error } = await supabase.from("email_snippets").insert({ name: snipForm.name.trim(), subject: snipForm.subject, body_html: snipForm.body_html, created_by: user.id });
+        if (error) throw new Error(error.message);
+      }
+    },
+    onSuccess: () => {
+      toast.success(snipForm.id ? "Snippet updated" : "Snippet saved");
+      resetSnipForm();
+      qc.invalidateQueries({ queryKey: ["email-snippets"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteSnippet = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("email_snippets").delete().eq("id", id);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => { toast.success("Snippet deleted"); resetSnipForm(); qc.invalidateQueries({ queryKey: ["email-snippets"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const updateStage = (stage: string, patch: Partial<AutoConfig[string]>) =>
     setConfig((c) => ({ ...c, [stage]: { ...c[stage], ...patch } }));
 
@@ -92,16 +136,74 @@ function EmailAutomationPage() {
           <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2"><Settings2 className="h-6 w-6 text-primary" /> Email Automation</h1>
           <p className="text-sm text-muted-foreground">Configure which emails are auto-triggered when a lead's pipeline stage changes.</p>
         </div>
-        <Button disabled={save.isPending} onClick={() => save.mutate()}>
-          <Save className="h-4 w-4 mr-1" /> {save.isPending ? "Saving…" : "Save settings"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => { resetSnipForm(); setSnipOpen(true); }}>
+            <Plus className="h-4 w-4 mr-1" /> New template
+          </Button>
+          <Button disabled={save.isPending} onClick={() => save.mutate()}>
+            <Save className="h-4 w-4 mr-1" /> {save.isPending ? "Saving…" : "Save settings"}
+          </Button>
+        </div>
       </div>
 
       {snippets.length === 0 && (
         <Card className="p-4 border-amber-300 bg-amber-50 dark:bg-amber-950/20">
           <div className="text-sm">
-            <b>No snippets created yet.</b> Go to <b>Reminders → Snippets</b> to create email templates first, then come back here to assign them to each stage.
-            Without a snippet, the system uses built-in default templates.
+            <b>No snippets created yet.</b> Click <b>New template</b> above to create an email template right here, then assign it to each stage below.
+            You can also manage snippets from <b>Reminders → Snippets</b>. Without a snippet, the system uses built-in default templates.
+          </div>
+        </Card>
+      )}
+
+      {snipOpen && (
+        <Card className="p-4 space-y-4 border-primary/40">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Mail className="h-4 w-4 text-primary" />
+              <span className="font-semibold">{snipForm.id ? "Edit email template" : "New email template"}</span>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => { resetSnipForm(); setSnipOpen(false); }}>Close</Button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Template name *</Label>
+              <Input className="mt-1" placeholder="e.g. Follow-up reminder" value={snipForm.name} onChange={(e) => setSnipForm((s) => ({ ...s, name: e.target.value }))} />
+            </div>
+            <div>
+              <Label className="text-xs">Default subject</Label>
+              <Input className="mt-1" placeholder="Optional" value={snipForm.subject} onChange={(e) => setSnipForm((s) => ({ ...s, subject: e.target.value }))} />
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs">Body (formatting, colours &amp; pasted templates supported)</Label>
+            <div className="mt-1">
+              <RichTextEditor key={`snip-${snipEditorKey}`} html={snipForm.body_html} onChange={(v) => setSnipForm((s) => ({ ...s, body_html: v }))} minHeight={180} maxHeight={320} placeholder="Write the template content…" />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            {snipForm.id && <Button variant="outline" size="sm" onClick={resetSnipForm}>Clear / new</Button>}
+            <Button size="sm" disabled={saveSnippet.isPending} onClick={() => saveSnippet.mutate()}>{snipForm.id ? "Update template" : "Save template"}</Button>
+          </div>
+
+          <div className="border-t pt-3 space-y-2">
+            <div className="text-sm font-medium">Saved templates ({snippets.length})</div>
+            {snippets.length === 0 && <p className="text-sm text-muted-foreground">No templates yet. Fill the form above and save one — it becomes selectable for each stage below.</p>}
+            {snippets.map((s) => {
+              const canEdit = isAdmin || s.created_by === user?.id;
+              return (
+                <div key={s.id} className="flex items-center justify-between rounded border px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm truncate">{s.name}</div>
+                    <div className="text-xs text-muted-foreground truncate">{s.subject || htmlToText(s.body_html).slice(0, 80)}</div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {canEdit && <button type="button" title="Edit" className="text-muted-foreground hover:text-foreground" onClick={() => { setSnipForm({ id: s.id, name: s.name, subject: s.subject, body_html: s.body_html }); setSnipEditorKey((k) => k + 1); }}><Pencil className="h-4 w-4" /></button>}
+                    {canEdit && <button type="button" title="Delete" className="text-rose-600 hover:text-rose-700" onClick={() => deleteSnippet.mutate(s.id)}><Trash2 className="h-4 w-4" /></button>}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </Card>
       )}
