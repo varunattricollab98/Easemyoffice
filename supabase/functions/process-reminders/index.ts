@@ -14,7 +14,12 @@
 //   CRM_FROM_EMAIL   -> "EaseMyOffice <crm@easemyoffice.in>" (verified domain) —
 //                        falls back to onboarding@resend.dev for testing
 //   CRON_SECRET      -> a secret word; the cron job must send the same word
-//   (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are injected automatically)
+//   (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are injected automatically and
+//    are used to record each send in the public.email_log table)
+//
+// NOTE: the shared-inbox BCC (formerly CRM_BCC_EMAIL) has been removed. Reminder
+// sends previously BCC'd contact@easemyoffice.in, which flooded the inbox when
+// many followups fired. Sends are now recorded in email_log instead.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -32,7 +37,6 @@ const FROM_EMAIL =
 const CRON_SECRET = Deno.env.get("CRON_SECRET") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const BCC_EMAIL = Deno.env.get("CRM_BCC_EMAIL") ?? "";
 
 // ─── Rate Limit Configuration ────────────────────────────────────────────────
 // Max emails to send per single invocation (cron runs every 2 min, so this
@@ -44,8 +48,8 @@ const MAX_PER_HOUR = 50;
 
 // Invisible marker embedded in every CRM-sent email (hidden-preheader style,
 // which Gmail indexes for its preview snippet). Set a Gmail filter
-// (Has the words: EMO-CRM-SENT) to reliably label these as "CRM-Sent" — call
-// notifications and inbound leads never contain it, so they won't be mislabelled.
+// (Has the words: EMO-CRM-SENT) to reliably label these as "CRM-Sent". Kept
+// even though the shared-inbox BCC is gone: it is invisible and harmless.
 const CRM_MARKER = `<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">EMO-CRM-SENT</div>`;
 
 // Split a single/comma-separated recipient string into a clean list.
@@ -88,7 +92,6 @@ async function sendEmail(toList: string[], subject: string, message: string, isH
   const from = safeFrom(fromOverride) ?? FROM_EMAIL;
   const payload: Record<string, unknown> = { from, to: toList, subject, html };
   if (!isHtml) payload.text = message;
-  if (BCC_EMAIL) payload.bcc = [BCC_EMAIL];
   if (attachments && attachments.length) payload.attachments = attachments;
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -97,6 +100,8 @@ async function sendEmail(toList: string[], subject: string, message: string, isH
   });
   const body = await res.text();
   if (!res.ok) throw new Error(`Resend ${res.status}: ${body}`);
+  // Return Resend's message id so callers can record it in email_log.
+  try { return JSON.parse(body)?.id ?? null; } catch { return null; }
 }
 
 Deno.serve(async (req) => {
@@ -148,7 +153,7 @@ Deno.serve(async (req) => {
 
     const { data: due, error } = await supabase
       .from("reminders")
-      .select("id, to_email, subject, message, send_at, repeat_interval_days, repeat_until, occurrences_sent, is_html, attachments, from_email")
+      .select("id, to_email, subject, message, send_at, repeat_interval_days, repeat_until, occurrences_sent, is_html, attachments, from_email, lead_id")
       .eq("status", "scheduled")
       .lte("send_at", nowIso)
       .order("send_at", { ascending: true })
@@ -170,7 +175,19 @@ Deno.serve(async (req) => {
           const { data: signed } = await supabase.storage.from("reminder-attachments").createSignedUrl(a.path, 3600);
           if (signed?.signedUrl) attList.push({ filename: a.name, path: signed.signedUrl });
         }
-        await sendEmail(recipients(r.to_email), r.subject, r.message, !!r.is_html, attList, r.from_email);
+        const resendId = await sendEmail(recipients(r.to_email), r.subject, r.message, !!r.is_html, attList, r.from_email);
+        // Record the send in email_log (replaces the old shared-inbox BCC).
+        // Best-effort: a logging failure must never block the reminder pipeline.
+        try {
+          await supabase.from("email_log").insert({
+            to_email: r.to_email,
+            subject: r.subject,
+            resend_message_id: resendId,
+            lead_id: r.lead_id ?? null,
+            source: "process-reminders",
+            status: "sent",
+          });
+        } catch (_logErr) { /* ignore */ }
         const occ = (r.occurrences_sent ?? 0) + 1;
         const interval = Number(r.repeat_interval_days ?? 0);
 
@@ -194,6 +211,17 @@ Deno.serve(async (req) => {
         sent++;
       } catch (e) {
         await supabase.from("reminders").update({ status: "failed", error: (e as Error).message }).eq("id", r.id);
+        // Record the failed attempt too (best-effort).
+        try {
+          await supabase.from("email_log").insert({
+            to_email: r.to_email,
+            subject: r.subject,
+            lead_id: r.lead_id ?? null,
+            source: "process-reminders",
+            status: "failed",
+            error: (e as Error).message,
+          });
+        } catch (_logErr) { /* ignore */ }
         failed++;
       }
     }

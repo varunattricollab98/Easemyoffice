@@ -299,7 +299,7 @@ function LeadInboxPage() {
   const sendQuotation = useMutation({
     mutationFn: async (vars: { to: string; subject: string; text: string }) => {
       const { data, error } = await supabase.functions.invoke("send-client-email", {
-        body: { to: vars.to, subject: vars.subject, text: vars.text },
+        body: { to: vars.to, subject: vars.subject, text: vars.text, created_by: user?.id },
       });
       if (error) throw new Error(error.message);
       if (data && data.ok === false) throw new Error(data.error || "Send failed");
@@ -317,12 +317,12 @@ function LeadInboxPage() {
   });
 
   // Send a reply to the customer via Resend (send-client-email). The function
-  // sends from the CRM address and BCCs the shared inbox, so a copy threads in
-  // Gmail and is labelled CRM-Sent.
+  // sends from the CRM address and records the send in email_log; it no longer
+  // BCCs the shared inbox (that flooded the mailbox on bulk follow-ups).
   const reply = useMutation({
     mutationFn: async (vars: { to: string; subject: string; text: string }) => {
       const { data, error } = await supabase.functions.invoke("send-client-email", {
-        body: { to: vars.to, subject: vars.subject, text: vars.text },
+        body: { to: vars.to, subject: vars.subject, text: vars.text, created_by: user?.id },
       });
       if (error) throw new Error(error.message);
       if (data && data.ok === false) throw new Error(data.error || "Send failed");
