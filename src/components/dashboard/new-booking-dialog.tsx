@@ -784,6 +784,8 @@ export function NewBookingDialog() {
           html,
           text,
           from: "EaseMyOffice <contact@easemyoffice.in>",
+          // Keep the shared-inbox BCC so the payment acknowledgment appears in the Gmail Sent folder.
+          bcc: "contact@easemyoffice.in",
           // Link the send in email_log (the edge function writes the row).
           // docAssignBookingId holds the booking's DB UUID once the row is saved.
           booking_id: docAssignBookingId,
