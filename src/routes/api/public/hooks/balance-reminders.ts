@@ -55,12 +55,56 @@ async function sendEmail(to: string, subject: string, html: string): Promise<{ o
   return { ok: true };
 }
 
+const str = (v: unknown): string => (typeof v === "string" ? v : v == null ? "" : String(v));
+
+// Best-effort body read; used only to look for a `token` field. Never throws.
+async function readTokenFromBody(request: Request): Promise<string> {
+  try {
+    const contentType = (request.headers.get("content-type") || "").toLowerCase();
+    if (contentType.includes("application/json")) {
+      const parsed = await request.clone().json();
+      if (parsed && typeof parsed === "object") return str((parsed as Record<string, unknown>).token).trim();
+      return "";
+    }
+    if (
+      contentType.includes("application/x-www-form-urlencoded") ||
+      contentType.includes("multipart/form-data")
+    ) {
+      const form = await request.clone().formData();
+      return str(form.get("token")).trim();
+    }
+    const text = await request.clone().text();
+    if (!text) return "";
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed && typeof parsed === "object") return str((parsed as Record<string, unknown>).token).trim();
+    } catch {
+      return str(new URLSearchParams(text).get("token")).trim();
+    }
+    return "";
+  } catch {
+    return "";
+  }
+}
+
 export const Route = createFileRoute("/api/public/hooks/balance-reminders")({
   server: {
     handlers: {
-      POST: async () => {
-        const today = new Date().toISOString().slice(0, 10);
-        const { data: bookings, error } = await supabaseAdmin
+      POST: async ({ request }) => {
+        try {
+          // Optional shared-secret guard: only enforced when configured.
+          const expectedToken = process.env.BALANCE_REMINDERS_TOKEN;
+          if (expectedToken) {
+            const provided = request.headers.get("x-intake-token") || (await readTokenFromBody(request));
+            if (provided !== expectedToken) {
+              return new Response(JSON.stringify({ ok: false, error: "unauthorized" }), {
+                status: 401, headers: { "Content-Type": "application/json" },
+              });
+            }
+          }
+
+          const today = new Date().toISOString().slice(0, 10);
+          const { data: bookings, error } = await supabaseAdmin
           .from("bookings")
           .select("id, booking_code, external_booking_id, client_name, business_name, contact_no, email_id, plan_name, balance_amount, balance_due_date, sales_agent_id, sales_agent_name")
           .is("balance_paid_at", null)
@@ -114,9 +158,17 @@ export const Route = createFileRoute("/api/public/hooks/balance-reminders")({
           results.push({ booking_id: b.id, code, balance, channels });
         }
 
-        return new Response(JSON.stringify({ ok: true, processed: results.length, results }), {
-          status: 200, headers: { "Content-Type": "application/json" },
-        });
+          return new Response(JSON.stringify({ ok: true, processed: results.length, results }), {
+            status: 200, headers: { "Content-Type": "application/json" },
+          });
+        } catch (err) {
+          // Catch init/DB/network errors (e.g. supabaseAdmin misconfigured) so an
+          // anonymous probe gets a structured JSON status instead of an unhandled 500.
+          const message = err instanceof Error ? err.message : String(err);
+          return new Response(JSON.stringify({ ok: false, error: message }), {
+            status: 503, headers: { "Content-Type": "application/json" },
+          });
+        }
       },
     },
   },

@@ -82,6 +82,7 @@ const SERVER_ENV_KEYS = [
   "GOOGLE_SHEETS_API_KEY",
   "LOVABLE_API_KEY",
   "LEAD_INTAKE_TOKEN",
+  "BALANCE_REMINDERS_TOKEN",
 ];
 
 // `cloudflare:workers` is a virtual module that only exists inside the Workers
