@@ -46,6 +46,7 @@ import { Route as AuthenticatedAdminSalesPerformanceRouteImport } from './routes
 import { Route as AuthenticatedAdminKpiReportRouteImport } from './routes/_authenticated/admin/kpi-report'
 import { Route as AuthenticatedAdminEmailAutomationRouteImport } from './routes/_authenticated/admin/email-automation'
 import { Route as AuthenticatedAdminAnalyticsRouteImport } from './routes/_authenticated/admin/analytics'
+import { Route as ApiPublicHooksLeadIntakeRouteImport } from './routes/api/public/hooks/lead-intake'
 import { Route as ApiPublicHooksBalanceRemindersRouteImport } from './routes/api/public/hooks/balance-reminders'
 
 const SignupRoute = SignupRouteImport.update({
@@ -243,6 +244,12 @@ const AuthenticatedAdminAnalyticsRoute =
     path: '/admin/analytics',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const ApiPublicHooksLeadIntakeRoute =
+  ApiPublicHooksLeadIntakeRouteImport.update({
+    id: '/api/public/hooks/lead-intake',
+    path: '/api/public/hooks/lead-intake',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksBalanceRemindersRoute =
   ApiPublicHooksBalanceRemindersRouteImport.update({
     id: '/api/public/hooks/balance-reminders',
@@ -288,6 +295,7 @@ export interface FileRoutesByFullPath {
   '/leads/': typeof AuthenticatedLeadsIndexRoute
   '/renewals/': typeof AuthenticatedRenewalsIndexRoute
   '/api/public/hooks/balance-reminders': typeof ApiPublicHooksBalanceRemindersRoute
+  '/api/public/hooks/lead-intake': typeof ApiPublicHooksLeadIntakeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -327,6 +335,7 @@ export interface FileRoutesByTo {
   '/leads': typeof AuthenticatedLeadsIndexRoute
   '/renewals': typeof AuthenticatedRenewalsIndexRoute
   '/api/public/hooks/balance-reminders': typeof ApiPublicHooksBalanceRemindersRoute
+  '/api/public/hooks/lead-intake': typeof ApiPublicHooksLeadIntakeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -368,6 +377,7 @@ export interface FileRoutesById {
   '/_authenticated/leads/': typeof AuthenticatedLeadsIndexRoute
   '/_authenticated/renewals/': typeof AuthenticatedRenewalsIndexRoute
   '/api/public/hooks/balance-reminders': typeof ApiPublicHooksBalanceRemindersRoute
+  '/api/public/hooks/lead-intake': typeof ApiPublicHooksLeadIntakeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -409,6 +419,7 @@ export interface FileRouteTypes {
     | '/leads/'
     | '/renewals/'
     | '/api/public/hooks/balance-reminders'
+    | '/api/public/hooks/lead-intake'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -448,6 +459,7 @@ export interface FileRouteTypes {
     | '/leads'
     | '/renewals'
     | '/api/public/hooks/balance-reminders'
+    | '/api/public/hooks/lead-intake'
   id:
     | '__root__'
     | '/'
@@ -488,6 +500,7 @@ export interface FileRouteTypes {
     | '/_authenticated/leads/'
     | '/_authenticated/renewals/'
     | '/api/public/hooks/balance-reminders'
+    | '/api/public/hooks/lead-intake'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -498,6 +511,7 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRoute
   ApiPublicHooksBalanceRemindersRoute: typeof ApiPublicHooksBalanceRemindersRoute
+  ApiPublicHooksLeadIntakeRoute: typeof ApiPublicHooksLeadIntakeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -761,6 +775,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAnalyticsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/api/public/hooks/lead-intake': {
+      id: '/api/public/hooks/lead-intake'
+      path: '/api/public/hooks/lead-intake'
+      fullPath: '/api/public/hooks/lead-intake'
+      preLoaderRoute: typeof ApiPublicHooksLeadIntakeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/balance-reminders': {
       id: '/api/public/hooks/balance-reminders'
       path: '/api/public/hooks/balance-reminders'
@@ -853,6 +874,7 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRoute,
   ApiPublicHooksBalanceRemindersRoute: ApiPublicHooksBalanceRemindersRoute,
+  ApiPublicHooksLeadIntakeRoute: ApiPublicHooksLeadIntakeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

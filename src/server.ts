@@ -81,6 +81,7 @@ const SERVER_ENV_KEYS = [
   "TWILIO_WHATSAPP_FROM",
   "GOOGLE_SHEETS_API_KEY",
   "LOVABLE_API_KEY",
+  "LEAD_INTAKE_TOKEN",
 ];
 
 // `cloudflare:workers` is a virtual module that only exists inside the Workers
