@@ -26,7 +26,10 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Loader2, Eye, ArrowLeft, FileText } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Send, Loader2, Eye, ArrowLeft, FileText, X, ChevronsUpDown } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getSheetPlans, type PlanRow } from "@/lib/bookings-sheet";
@@ -70,6 +73,16 @@ function getValidityDate(): string {
   const d = new Date();
   d.setDate(d.getDate() + 7);
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+}
+
+/**
+ * Stable identity for a plan row. Used to key price overrides and removed rows
+ * so they stay aligned with the correct plan even after other rows are removed
+ * or when multiple states are combined. The trailing index disambiguates plans
+ * that share the same code/city/area/state (duplicate sheet rows).
+ */
+function planKey(p: PlanRow, idx: number): string {
+  return `${p.code || ""}|${p.state || ""}|${p.city || ""}|${p.area || ""}|${idx}`;
 }
 
 // ── Email HTML Builder ──
@@ -710,12 +723,23 @@ export function SendQuotationDialog({
 
   // State
   const [serviceType, setServiceType] = useState<ServiceType>("gst");
-  const [selectedState, setSelectedState] = useState<string>("");
+  // Multi-state selection: a quotation can cover one OR several states at once.
+  // The single-state + city flow is preserved when exactly one state is selected.
+  const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [selectedCity, setSelectedCity] = useState<string>("");
+  const [statePopoverOpen, setStatePopoverOpen] = useState(false);
   const [sending, setSending] = useState(false);
-  // Price overrides: salesperson can edit base price per plan index
-  const [priceOverrides, setPriceOverrides] = useState<Record<number, number>>({});
+  // Price overrides: salesperson can edit base price per plan, keyed by a STABLE
+  // plan identity (planKey) so edits stay aligned after rows are removed.
+  const [priceOverrides, setPriceOverrides] = useState<Record<string, number>>({});
+  // Rows the rep dropped from THIS quotation only (frontend-only, no backend delete).
+  const [removedRowKeys, setRemovedRowKeys] = useState<Set<string>>(new Set());
   const [previewing, setPreviewing] = useState(false);
+
+  // Single-state convenience: when exactly one state is chosen we keep the
+  // classic single-state + optional-city behavior.
+  const isSingleState = selectedStates.length === 1;
+  const selectedState = isSingleState ? selectedStates[0] : "";
 
   // Fetch plans from sheet
   const { data: plansData, isLoading: plansLoading } = useQuery({
@@ -732,9 +756,13 @@ export function SendQuotationDialog({
   // Pre-fill state/city when dialog opens
   useEffect(() => {
     if (open) {
-      setSelectedState(defaultState?.trim() || "");
+      const preState = defaultState?.trim();
+      setSelectedStates(preState ? [preState] : []);
       setSelectedCity(defaultCity?.trim() || "");
       setServiceType("gst");
+      setPriceOverrides({});
+      setRemovedRowKeys(new Set());
+      setStatePopoverOpen(false);
       setPreviewing(false);
     }
   }, [open, defaultState, defaultCity]);
@@ -799,23 +827,49 @@ export function SendQuotationDialog({
       return matches();
     });
 
-    // Filter by state
-    if (selectedState) {
-      plans = plans.filter((p) => p.state?.trim().toLowerCase() === selectedState.toLowerCase());
+    // Filter by state(s). When multiple states are selected, match against ALL
+    // of them (case-insensitive). When one state is selected this is equivalent
+    // to the old single-state behavior.
+    if (selectedStates.length > 0) {
+      const wanted = new Set(selectedStates.map((s) => s.toLowerCase()));
+      plans = plans.filter((p) => wanted.has((p.state || "").trim().toLowerCase()));
     }
 
-    // Filter by city (if selected)
-    if (selectedCity) {
+    // Filter by city (only meaningful for a single state; the city sub-select is
+    // hidden when multiple states are selected, so selectedCity is cleared then).
+    if (isSingleState && selectedCity) {
       plans = plans.filter((p) => p.city?.trim().toLowerCase() === selectedCity.toLowerCase());
     }
 
     return plans;
-  }, [allPlans, serviceType, selectedState, selectedCity]);
+  }, [allPlans, serviceType, selectedStates, isSingleState, selectedCity]);
 
-  // Location label for email
-  const locationLabel = selectedCity
-    ? `${selectedCity}, ${selectedState}`
-    : selectedState || "India";
+  // Pair each filtered plan with a STABLE key (based on identity + its position
+  // in the filtered list). Both the editor table and the email use these keys so
+  // price overrides and removals stay aligned to the correct plan.
+  const keyedFilteredPlans = useMemo(
+    () => filteredPlans.map((p, i) => ({ key: planKey(p, i), plan: p })),
+    [filteredPlans],
+  );
+
+  // Rows actually shown / sent = filtered plans minus the ones the rep removed.
+  const displayPlans = useMemo(
+    () => keyedFilteredPlans.filter(({ key }) => !removedRowKeys.has(key)),
+    [keyedFilteredPlans, removedRowKeys],
+  );
+
+  // Location label for email + subject.
+  // - Single state + city: "City, State"
+  // - Single state: "State"
+  // - Multiple states: join names with commas (up to 3), else "N States"
+  const locationLabel = (() => {
+    if (selectedStates.length === 0) return "India";
+    if (isSingleState) {
+      return selectedCity ? `${selectedCity}, ${selectedState}` : selectedState;
+    }
+    if (selectedStates.length <= 3) return selectedStates.join(", ");
+    return `${selectedStates.length} States`;
+  })();
 
   // Subject line
   const serviceLabelForSubject = (() => {
@@ -839,13 +893,14 @@ export function SendQuotationDialog({
   );
 
   const emailHtml = useMemo(() => {
-    if (filteredPlans.length === 0) return "";
-    // Apply price overrides before building email
-    const plansWithOverrides = filteredPlans.map((p, i) => {
-      if (priceOverrides[i] !== undefined) {
-        return { ...p, selling_price: priceOverrides[i] };
+    if (displayPlans.length === 0) return "";
+    // Apply price overrides (keyed by stable planKey) to the post-removal,
+    // multi-state set so the email matches the editor table exactly.
+    const plansWithOverrides = displayPlans.map(({ key, plan }) => {
+      if (priceOverrides[key] !== undefined) {
+        return { ...plan, selling_price: priceOverrides[key] };
       }
-      return p;
+      return plan;
     });
     return buildQuotationHtml({
       clientName,
@@ -856,12 +911,12 @@ export function SendQuotationDialog({
       validityDate,
       signatureHtml,
     });
-  }, [clientName, serviceType, locationLabel, filteredPlans, priceOverrides, quoteId, validityDate, signatureHtml]);
+  }, [clientName, serviceType, locationLabel, displayPlans, priceOverrides, quoteId, validityDate, signatureHtml]);
 
   // Send handler
   const handleSend = async () => {
     if (!clientEmail) return toast.error("No email address for this client");
-    if (filteredPlans.length === 0) return toast.error("No plans found for selected location. Please select a state.");
+    if (displayPlans.length === 0) return toast.error("No plans found for selected location. Please select a state.");
     setSending(true);
     try {
       const { data, error } = await supabase.functions.invoke("send-client-email", {
@@ -889,6 +944,35 @@ export function SendQuotationDialog({
       setSending(false);
     }
   };
+
+  // Toggle a state in/out of the multi-select. Any change to the state set
+  // resets city + price overrides + removed rows (mirrors the old reset-on-state-change).
+  const toggleState = (state: string) => {
+    setSelectedStates((prev) => {
+      const next = prev.includes(state) ? prev.filter((s) => s !== state) : [...prev, state];
+      return next;
+    });
+    setSelectedCity("");
+    setPriceOverrides({});
+    setRemovedRowKeys(new Set());
+  };
+
+  const removeRow = (key: string) => {
+    setRemovedRowKeys((prev) => {
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
+  };
+
+  const restoreAllRows = () => setRemovedRowKeys(new Set());
+
+  const stateTriggerLabel =
+    selectedStates.length === 0
+      ? "Select state(s)"
+      : selectedStates.length === 1
+        ? selectedStates[0]
+        : `${selectedStates.length} states selected`;
 
   // Preview mode
   if (previewing) {
@@ -954,36 +1038,65 @@ export function SendQuotationDialog({
               </Select>
             </div>
 
-            {/* State */}
+            {/* State (multi-select) */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">State</Label>
+              <Label className="text-xs font-semibold">
+                State <span className="text-muted-foreground">(select one or more)</span>
+              </Label>
               {plansLoading ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
                   <Loader2 className="h-4 w-4 animate-spin" /> Loading plans...
                 </div>
               ) : (
-                <Select
-                  value={selectedState}
-                  onValueChange={(v) => {
-                    setSelectedState(v);
-                    setSelectedCity(""); // reset city on state change
-                    setPriceOverrides({}); // reset price edits
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select state" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {states.map((s) => (
-                      <SelectItem key={s} value={s}>{s}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={statePopoverOpen} onOpenChange={setStatePopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={statePopoverOpen}
+                      className="w-full justify-between font-normal"
+                    >
+                      <span className={selectedStates.length === 0 ? "text-muted-foreground" : ""}>
+                        {stateTriggerLabel}
+                      </span>
+                      <ChevronsUpDown className="h-4 w-4 opacity-50 shrink-0" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search state..." />
+                      <CommandList>
+                        <CommandEmpty>No state found.</CommandEmpty>
+                        <CommandGroup>
+                          {states.map((s) => {
+                            const checked = selectedStates.includes(s);
+                            return (
+                              <CommandItem
+                                key={s}
+                                value={s}
+                                onSelect={() => toggleState(s)}
+                                className="gap-2"
+                              >
+                                <Checkbox checked={checked} className="pointer-events-none" />
+                                <span>{s}</span>
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              )}
+              {selectedStates.length > 1 && (
+                <p className="text-[11px] text-muted-foreground">
+                  Multiple states selected: plans from all of them are combined; city filtering is disabled.
+                </p>
               )}
             </div>
 
-            {/* City (optional) */}
-            {selectedState && cities.length > 0 && (
+            {/* City (optional) - only for a single selected state */}
+            {isSingleState && cities.length > 0 && (
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">City <span className="text-muted-foreground">(optional - leave blank for all cities)</span></Label>
                 <Select value={selectedCity || "__all__"} onValueChange={(v) => setSelectedCity(v === "__all__" ? "" : v)}>
@@ -1001,12 +1114,28 @@ export function SendQuotationDialog({
             )}
 
             {/* Pricing Preview */}
-            {selectedState && (
+            {selectedStates.length > 0 && (
               <div className="space-y-2">
-                <Label className="text-xs font-semibold">Pricing ({filteredPlans.length} plan{filteredPlans.length !== 1 ? "s" : ""} found)</Label>
-                {filteredPlans.length === 0 ? (
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="text-xs font-semibold">
+                    Pricing ({displayPlans.length} plan{displayPlans.length !== 1 ? "s" : ""}
+                    {removedRowKeys.size > 0 ? ` · ${removedRowKeys.size} removed` : ""})
+                  </Label>
+                  {removedRowKeys.size > 0 && (
+                    <button
+                      type="button"
+                      onClick={restoreAllRows}
+                      className="text-[11px] font-medium text-primary hover:underline"
+                    >
+                      Restore all rows
+                    </button>
+                  )}
+                </div>
+                {displayPlans.length === 0 ? (
                   <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
-                    No plans found for this selection. Try a different state or city.
+                    {removedRowKeys.size > 0
+                      ? "All rows removed. Restore rows or change your selection."
+                      : "No plans found for this selection. Try a different state or city."}
                   </div>
                 ) : (
                   <div className="border rounded-lg overflow-hidden">
@@ -1018,15 +1147,16 @@ export function SendQuotationDialog({
                           <th className="text-right px-3 py-2 font-semibold">Base</th>
                           <th className="text-center px-3 py-2 font-semibold">GST</th>
                           <th className="text-right px-3 py-2 font-semibold">Total</th>
+                          <th className="w-8 px-2 py-2"></th>
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredPlans.slice(0, 10).map((p, i) => {
-                          const base = priceOverrides[i] ?? (Number(p.selling_price) || 0);
+                        {displayPlans.slice(0, 10).map(({ key, plan: p }) => {
+                          const base = priceOverrides[key] ?? (Number(p.selling_price) || 0);
                           const gst = Number(p.gst_pct) || 18;
                           const total = Math.round(base * (1 + gst / 100));
                           return (
-                            <tr key={i} className="border-t">
+                            <tr key={key} className="border-t">
                               <td className="px-3 py-2 font-medium">{p.area || p.sp_name || p.code}</td>
                               <td className="px-3 py-2">{p.city || ""}</td>
                               <td className="px-3 py-2 text-right">
@@ -1036,21 +1166,32 @@ export function SendQuotationDialog({
                                   value={base}
                                   onChange={(e) => {
                                     const v = parseInt(e.target.value, 10);
-                                    setPriceOverrides((prev) => ({ ...prev, [i]: isNaN(v) ? 0 : v }));
+                                    setPriceOverrides((prev) => ({ ...prev, [key]: isNaN(v) ? 0 : v }));
                                   }}
                                   className="w-20 text-right text-sm border rounded px-1.5 py-0.5 focus:ring-1 focus:ring-primary/30 focus:outline-none"
                                 />
                               </td>
                               <td className="px-3 py-2 text-center text-muted-foreground">{gst}%</td>
                               <td className="px-3 py-2 text-right font-bold text-green-700">{formatINR(total)}</td>
+                              <td className="px-2 py-2 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => removeRow(key)}
+                                  title="Remove this row from this quotation"
+                                  aria-label="Remove row"
+                                  className="inline-flex items-center justify-center h-6 w-6 rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus:outline-none focus:ring-1 focus:ring-destructive/30"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </td>
                             </tr>
                           );
                         })}
                       </tbody>
                     </table>
-                    {filteredPlans.length > 10 && (
+                    {displayPlans.length > 10 && (
                       <div className="text-xs text-muted-foreground text-center py-2 bg-muted/30">
-                        + {filteredPlans.length - 10} more plans will be included in the email
+                        + {displayPlans.length - 10} more plans will be included in the email
                       </div>
                     )}
                   </div>
@@ -1079,13 +1220,13 @@ export function SendQuotationDialog({
             <Button
               variant="outline"
               onClick={() => setPreviewing(true)}
-              disabled={filteredPlans.length === 0 || !selectedState}
+              disabled={displayPlans.length === 0 || selectedStates.length === 0}
             >
               <Eye className="h-4 w-4 mr-1" /> Preview
             </Button>
             <Button
               onClick={handleSend}
-              disabled={sending || filteredPlans.length === 0 || !selectedState}
+              disabled={sending || displayPlans.length === 0 || selectedStates.length === 0}
             >
               {sending ? (
                 <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Sending...</>
