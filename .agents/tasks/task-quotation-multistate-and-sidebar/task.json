@@ -1,0 +1,7 @@
+{
+  "task_id": "task-quotation-multistate-and-sidebar",
+  "task_description": "Four EaseMyOffice CRM frontend tasks on one feature branch (feat/quotation-multistate-and-sidebar): (1) multi-state selection in the Send Quotation dialog, (2) per-row removal (X control) of city/location rows from a quotation before sending, frontend-only no backend delete, (3) fix brand-logos layout and quotation HTML so every quotation renders professionally across email clients, (4) make the left sidebar sticky. All UI/frontend; no DB migrations. Verified by inspection only (INTEGRATIONS_ONLY: bun install/build/lint/typecheck cannot run; CI must validate).",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}
