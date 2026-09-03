@@ -15,7 +15,7 @@ import { formatDistanceToNow } from "date-fns";
 import { Mail, ExternalLink, UserPlus, Search, RefreshCcw, ChevronLeft, ChevronRight, CheckCircle2, Hand, Reply, Send, FileText, Maximize2, Minimize2, MapPin, IndianRupee, Calculator } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { fetchInbox, fetchThread, claimEmailInGmail, parseFrom, claimedOwner, normalizeOwnerTag, parseWeb3FormLead, isThrowawayAddress, htmlToText, type InboxEmail, type ThreadMessage } from "@/lib/gmail";
+import { fetchInbox, fetchThread, claimEmailInGmail, parseFrom, claimedOwner, matchOwnerTagToName, parseWeb3FormLead, isThrowawayAddress, htmlToText, type InboxEmail, type ThreadMessage } from "@/lib/gmail";
 import { SendQuotationDialog } from "@/components/send-quotation-dialog";
 
 function esc(s: unknown) {
@@ -66,20 +66,24 @@ type Filter = "all" | "unclaimed" | "mine";
 type TeamMember = { id: string; full_name: string | null; email: string | null };
 
 // Map a Gmail owner tag ("Hardik's", "Kishan") to a team member by name.
-// Tries exact full-name, then first-name, then a "starts with" match.
+// Tries exact full-name, then first-name, then a "starts with" match. The
+// matching rule itself lives in matchOwnerTagToName (src/lib/gmail.ts) so the
+// client and the server-side sync share one canonical implementation; here we
+// just map the team to names and resolve the matched index back to a member.
 function matchOwnerToUser(ownerTag: string | null, team: TeamMember[]): TeamMember | null {
-  const norm = normalizeOwnerTag(ownerTag).toLowerCase();
-  if (!norm) return null;
-  const byFull = team.find((p) => (p.full_name || "").trim().toLowerCase() === norm);
-  if (byFull) return byFull;
-  const byFirst = team.find((p) => (p.full_name || "").trim().toLowerCase().split(/\s+/)[0] === norm);
-  if (byFirst) return byFirst;
-  const byStarts = team.find((p) => (p.full_name || "").trim().toLowerCase().startsWith(norm + " "));
-  return byStarts ?? null;
+  const idx = matchOwnerTagToName(ownerTag, team.map((p) => p.full_name));
+  return idx === -1 ? null : team[idx];
 }
 
 function LeadInboxPage() {
-  const { user, profile, isAdmin } = useAuth();
+  const { user, profile, isAdmin, hasRole } = useAuth();
+  // Can the CURRENT user actually INSERT into leads? The leads_insert RLS policy
+  // is: is_admin OR has_role('sales') OR has_role('bd'). A user whose only roles
+  // are documentation/accounts/renewals is NOT in that policy, so a client
+  // insert would hit an RLS denial toast. We gate the best-effort auto-sync on
+  // this (issue #6) — the authoritative server cron (service role) still covers
+  // those users' tagged emails regardless.
+  const canInsertLeads = isAdmin || hasRole("sales") || hasRole("bd");
   const qc = useQueryClient();
   const myName = profile?.full_name ?? "";
   const [filter, setFilter] = useState<Filter>(isAdmin ? "all" : "unclaimed");
@@ -558,10 +562,29 @@ function LeadInboxPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Auto-sync (admins only): when the inbox loads, any email tagged with a
-  // known salesperson's name that isn't a lead yet is created in *their* leads.
-  // Deduped by email address + guarded per-session so it runs at most once each.
+  // ── Client auto-sync: a BEST-EFFORT accelerator, NOT the guarantee ──────────
+  // The authoritative sync is the server-side `gmail-tag-sync` cron edge
+  // function (see supabase/functions/gmail-tag-sync/index.ts), fired by pg_cron
+  // every ~10 min. It enumerates the FULL mailbox with the service-role client,
+  // matches each "<Name> lead" owner tag to a profile, dedups on the SAME
+  // [realEmail, senderAddr] key used here, and inserts leads for every owner —
+  // so coverage does NOT depend on anyone having the inbox open. This client
+  // effect just pulls the freshest, on-screen tagged emails to the front of the
+  // queue so they show up instantly instead of waiting for the next cron tick.
+  //
+  // Duplicate & RLS safety:
+  //  - Dedup is decided ONLY by existingLeadFor([realEmail, senderAddr]) inside
+  //    syncTagged (identical to the server), so the two runs never double-insert.
+  //  - Insert scope avoids RLS denials for non-admins: admins may create leads
+  //    for ANY matched owner; a non-admin only auto-creates leads for emails
+  //    tagged to THEMSELVES (leads_insert RLS lets a sales/bd user insert, and
+  //    self-scoping means we never race the server for other people's tags).
+  //    Everything else is left to the authoritative server sync.
   const syncedRef = useRef<Set<string>>(new Set());
+  // Guard so the "couldn't match" hint is computed/shown at most once per set of
+  // unmatched tags, not on every 60s poll.
+  const unmatchedNotedRef = useRef<string>("");
+  const [unmatchedCount, setUnmatchedCount] = useState(0);
   const syncTagged = useMutation({
     mutationFn: async (list: { email: InboxEmail; owner: TeamMember }[]) => {
       if (!user || list.length === 0) return { created: 0 };
@@ -572,9 +595,16 @@ function LeadInboxPage() {
           return { fields, dedupKeys, owner };
         }),
       );
+      // Unified dedup: [realEmail, senderAddr] via existingLeadFor is the single
+      // source of truth for "is this already a lead?" — matching the server sync.
+      // created_by is set to the matched OWNER (r.owner.id), NOT the logged-in
+      // user, so attribution is identical whichever path wins: the server cron
+      // also sets created_by = the matched profile id (issue #5). This is the
+      // auto-sync accelerator only; manual claim/markMine/assign keep their own
+      // created_by = user.id semantics (an explicit human action).
       const rows = resolved
         .filter((r) => !existingLeadFor(r.dedupKeys))
-        .map((r) => ({ ...r.fields, assigned_to: r.owner.id, created_by: user.id }));
+        .map((r) => ({ ...r.fields, assigned_to: r.owner.id, created_by: r.owner.id }));
       if (rows.length === 0) return { created: 0 };
       const { error } = await supabase.from("leads").insert(rows);
       if (error) throw new Error(error.message);
@@ -591,20 +621,51 @@ function LeadInboxPage() {
   });
 
   useEffect(() => {
-    if (!isAdmin || !connected || emails.length === 0 || team.length === 0) return;
+    if (!connected || emails.length === 0 || team.length === 0) return;
     const pending: { email: InboxEmail; owner: TeamMember }[] = [];
+    const unmatchedTags: string[] = [];
     for (const e of emails) {
       if (syncedRef.current.has(e.threadId)) continue;
-      const owner = matchOwnerToUser(claimedOwner(e.labels), team);
-      if (!owner) continue;
-      const { address } = parseFrom(e.from);
-      if (address && leadByEmail.has(address.trim().toLowerCase())) { syncedRef.current.add(e.threadId); continue; }
-      syncedRef.current.add(e.threadId);
-      pending.push({ email: e, owner });
+      const ownerTag = claimedOwner(e.labels);
+      // Surface (but never create a lead for) tags that match no team member —
+      // the server function logs these to email_log; here we just count them so
+      // the user can fix the label spelling. Not added to syncedRef so a later
+      // profile rename / correction can still be re-evaluated.
+      if (ownerTag) {
+        const owner = matchOwnerToUser(ownerTag, team);
+        if (!owner) { unmatchedTags.push(ownerTag); continue; }
+        // Only auto-create when the leads_insert RLS policy will actually
+        // accept it — i.e. the current user holds an insert-capable role
+        // (admin/sales/bd). A user with only documentation/accounts/renewals
+        // roles would otherwise get an RLS denial toast; those tags are left to
+        // the authoritative server sync (issue #6).
+        if (!canInsertLeads) continue;
+        // Race-avoidance (unchanged): non-admins only auto-create for their OWN
+        // tag so we never race the server for other people's tags. Admins may
+        // accelerate any owner.
+        if (!isAdmin && owner.id !== user?.id) continue;
+        // Do NOT pre-skip on the relay sender address alone — the unified
+        // existingLeadFor([realEmail, senderAddr]) check inside syncTagged is the
+        // single source of truth. Only mark this thread handled AFTER we hand it
+        // off, so a genuinely-new tagged email is never dropped by a stale skip.
+        syncedRef.current.add(e.threadId);
+        pending.push({ email: e, owner });
+      }
+    }
+    // Aggregated, non-spammy hint: only update/re-toast when the set of unmatched
+    // tags actually changes (guarded via unmatchedNotedRef), never every poll.
+    const signature = Array.from(new Set(unmatchedTags)).sort().join("|");
+    setUnmatchedCount(new Set(unmatchedTags).size);
+    if (signature && signature !== unmatchedNotedRef.current) {
+      unmatchedNotedRef.current = signature;
+      const n = new Set(unmatchedTags).size;
+      toast.warning(`${n} tagged email${n > 1 ? "s" : ""} couldn't be matched to a team member — check the label spelling.`);
+    } else if (!signature) {
+      unmatchedNotedRef.current = "";
     }
     if (pending.length > 0 && !syncTagged.isPending) syncTagged.mutate(pending);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin, connected, emails, team, leadByEmail]);
+  }, [isAdmin, canInsertLeads, connected, emails, team, leadByEmail, user]);
 
   // Is this email tagged to the current user?
   const isMine = (e: InboxEmail) => {
@@ -687,6 +748,14 @@ function LeadInboxPage() {
             <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input className="pl-9 h-9 transition-all duration-200 ease-out focus:ring-2 ring-primary/20" placeholder="Search sender, subject…" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
+          {unmatchedCount > 0 && (
+            // Persistent, aggregated hint for tagged emails whose owner label
+            // matches no team member. These are never turned into leads by the
+            // client; the server sync logs them for follow-up.
+            <div className="w-full text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-1.5">
+              ⚠ {unmatchedCount} tagged email{unmatchedCount > 1 ? "s" : ""} couldn't be matched to a team member — check the label spelling (e.g. it must read “&lt;Name&gt; lead”).
+            </div>
+          )}
         </CardContent>
       </Card>
 

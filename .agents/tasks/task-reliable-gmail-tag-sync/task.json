@@ -1,0 +1,18 @@
+{
+  "task_id": "task-reliable-gmail-tag-sync",
+  "task_description": "Make EVERY Gmail email tagged with a '<Name> lead' label reliably appear in the CRM as a lead attributed to and landing in that salesperson's Leads section, automatically — not just a few, and not dependent on an admin opening the inbox tab. Approach: add a server-side scheduled sync (Supabase edge function gmail-tag-sync + pg_cron) that covers the FULL mailbox by enumerating all label-tagged threads via a new Gmail Apps Script search action and the gmail-bridge proxy; unify the dedup key logic (real customer email + relay sender, lowercased) shared with the client; surface unmatched owner tags instead of dropping them; and reconcile the existing client-side auto-sync so it no longer creates duplicates or silently skips. Preserve existing manual claim/assign behavior and existing dedup.",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null,
+  "review": {
+    "v1": "NEEDS_CHANGES — 6 issues (2 blocking: 500-thread coverage caps). See 2026-09-03-071500-review.md.",
+    "v2": "APPROVED — all 6 issues resolved; one non-blocking note (Apps Script cache rehydration edge case, self-healing). See 2026-09-03-073000-review.md."
+  },
+  "verification": {
+    "build": "skipped",
+    "tests": "skipped",
+    "test_quality": "n/a",
+    "docker_build": "skipped",
+    "summary": "Network is INTEGRATIONS_ONLY (bun install fails, npm 403), so build/lint/typecheck could NOT be run in-sandbox and there is no test framework in this repo. Verified by code inspection: brace/paren balance correct in all new/edited TS files; the Deno _shared/gmail-parse.ts FORM_FIELD_ALIASES, parseWeb3FormLead, matchOwnerTagToName and isThrowawayAddress are byte-identical (md5) to src/lib/gmail.ts, so client and server dedup/parsing cannot drift; gmail-tag-sync mirrors the process-reminders cron pattern (CRON_SECRET auth, service-role client, fail-soft 200); email_log insert satisfies to_email NOT NULL ('') and the cron SQL widens the status CHECK to allow 'unmatched'; the unmatched inline amber note renders inside CardContent and manual claim/markMine/assign are unchanged. CI MUST run `bun run build` / typecheck to fully validate. OUT-OF-SANDBOX owner steps: paste+redeploy the Apps Script, `supabase functions deploy gmail-tag-sync`, and run setup/ADD_GMAIL_TAG_SYNC_CRON.sql with placeholders filled."
+  }
+}
