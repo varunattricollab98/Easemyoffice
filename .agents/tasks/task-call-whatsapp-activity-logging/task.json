@@ -1,0 +1,7 @@
+{
+  "task_id": "task-call-whatsapp-activity-logging",
+  "task_description": "Option A: add rich MANUAL call & WhatsApp activity logging to the lead detail page. Clicking Call/WhatsApp opens the dialer/WhatsApp and then prompts a small dialog to capture outcome (required), optional duration (call only), and optional notes, stored as a lead_activities row in the existing payload JSONB (no migration, no external API). Timeline updated to display call/whatsapp outcomes; other activity types unchanged.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001"],
+  "blocked_reason": null
+}

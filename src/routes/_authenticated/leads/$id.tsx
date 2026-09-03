@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog,
@@ -49,6 +50,10 @@ export const Route = createFileRoute("/_authenticated/leads/$id")({
   component: LeadDetailPage,
 });
 
+// Outcome options for manual call/WhatsApp interaction logging (Option A).
+const CALL_OUTCOMES = ["Connected", "No answer", "Busy", "Switched off", "Wrong number", "Call back later"] as const;
+const WHATSAPP_OUTCOMES = ["Sent", "Delivered", "Read", "Replied", "No response"] as const;
+
 function LeadDetailPage() {
   const { id } = Route.useParams();
   const { user, isAdmin } = useAuth();
@@ -61,6 +66,11 @@ function LeadDetailPage() {
   const [reasonText, setReasonText] = useState("");
   const [followupConfigOpen, setFollowupConfigOpen] = useState(false);
   const [followupPrevStage, setFollowupPrevStage] = useState<string>("");
+  // Manual call/WhatsApp interaction logging (Option A: no external telephony/WhatsApp API).
+  const [logInteraction, setLogInteraction] = useState<{ channel: "call" | "whatsapp" } | null>(null);
+  const [logOutcome, setLogOutcome] = useState("");
+  const [logDuration, setLogDuration] = useState("");
+  const [logNotes, setLogNotes] = useState("");
 
   const { data: lead, isLoading } = useQuery({
     queryKey: ["lead", id],
@@ -171,9 +181,9 @@ function LeadDetailPage() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  const logActivity = async (type: string, title: string, body?: string) => {
+  const logActivity = async (type: string, title: string, body?: string, payload?: Record<string, any>) => {
     if (!user) return;
-    await supabase.from("lead_activities").insert({ lead_id: id, actor_id: user.id, type: type as any, title, body });
+    await supabase.from("lead_activities").insert({ lead_id: id, actor_id: user.id, type: type as any, title, body, payload: payload ?? {} });
     qc.invalidateQueries({ queryKey: ["activities", id] });
   };
 
@@ -195,8 +205,11 @@ function LeadDetailPage() {
       <div className="flex items-center justify-between">
         <Button asChild variant="ghost" size="sm"><Link to="/leads"><ArrowLeft className="h-4 w-4 mr-1" /> Leads</Link></Button>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => { window.location.href = `tel:${lead.mobile}`; logActivity("call", `Called ${lead.client_name}`, `Phone: ${lead.mobile}`); }}><Phone className="h-4 w-4 mr-1" /> Call</Button>
-          <Button variant="outline" size="sm" onClick={() => { window.location.href = `https://wa.me/${lead.mobile.replace(/\D/g,"")}`; logActivity("whatsapp", `WhatsApp to ${lead.client_name}`, `Phone: ${lead.mobile}`); }}><MessageCircle className="h-4 w-4 mr-1" /> WhatsApp</Button>
+          {/* Fire the dialer/WhatsApp link, then open the manual log dialog immediately.
+              ASSUMPTION: on mobile the browser tab stays open behind the phone/WhatsApp app,
+              so the rep fills in the outcome when they return to the CRM. */}
+          <Button variant="outline" size="sm" onClick={() => { window.location.href = `tel:${lead.mobile}`; setLogInteraction({ channel: "call" }); }}><Phone className="h-4 w-4 mr-1" /> Call</Button>
+          <Button variant="outline" size="sm" onClick={() => { window.location.href = `https://wa.me/${lead.mobile.replace(/\D/g,"")}`; setLogInteraction({ channel: "whatsapp" }); }}><MessageCircle className="h-4 w-4 mr-1" /> WhatsApp</Button>
           {lead.email && <Button variant="outline" size="sm" onClick={() => setEmailOpen(true)}><Mail className="h-4 w-4 mr-1" /> Email</Button>}
           {lead.email && <Button variant="outline" size="sm" onClick={() => setQuotationDialogOpen(true)}><FileText className="h-4 w-4 mr-1" /> Send Quotation</Button>}
           {lead.email && <Button variant="outline" size="sm" onClick={() => setReminderOpen(true)}><AlarmClock className="h-4 w-4 mr-1" /> Schedule Reminder</Button>}
@@ -365,16 +378,28 @@ function LeadDetailPage() {
           <NoteComposer onSubmit={(text) => logActivity("note", "Note added", text)} />
           <Card><CardContent className="p-4 space-y-3">
             {(activities ?? []).length === 0 && <div className="text-sm text-muted-foreground">No activity yet.</div>}
-            {activities?.map((a: any) => (
-              <div key={a.id} className="flex gap-3">
-                <div className="size-2 rounded-full bg-primary mt-2" />
-                <div className="flex-1">
-                  <div className="text-sm font-medium">{a.title}</div>
-                  {a.body && <div className="text-sm text-muted-foreground whitespace-pre-wrap">{a.body}</div>}
-                  <div className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(a.created_at), { addSuffix: true })} · {a.type}</div>
+            {activities?.map((a: any) => {
+              const isInteraction = (a.type === "call" || a.type === "whatsapp") && a.payload && a.payload.outcome;
+              return (
+                <div key={a.id} className="flex gap-3">
+                  <div className="size-2 rounded-full bg-primary mt-2" />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">{a.title}</div>
+                    {isInteraction ? (
+                      <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                        {a.type === "call" ? <Phone className="h-3.5 w-3.5" /> : <MessageCircle className="h-3.5 w-3.5" />}
+                        <span>
+                          {a.payload.outcome}
+                          {a.type === "call" && a.payload.durationMin != null && ` · ${a.payload.durationMin} min`}
+                        </span>
+                      </div>
+                    ) : null}
+                    {a.body && <div className="text-sm text-muted-foreground whitespace-pre-wrap">{a.body}</div>}
+                    <div className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(a.created_at), { addSuffix: true })} · {a.type}</div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </CardContent></Card>
         </TabsContent>
 
@@ -553,6 +578,90 @@ function LeadDetailPage() {
                 });
                 logActivity("stage_change", `Marked ${stage === "lost" ? "Lost" : "Not interested"}`, reasonText.trim());
                 setReasonStage(null);
+              }}
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!logInteraction}
+        onOpenChange={(o) => {
+          if (!o) {
+            setLogInteraction(null);
+            setLogOutcome("");
+            setLogDuration("");
+            setLogNotes("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{logInteraction?.channel === "whatsapp" ? "Log WhatsApp" : "Log call"}</DialogTitle>
+            <DialogDescription>
+              Record what happened with {lead.client_name}. Outcome is required.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Outcome</Label>
+              <RadioGroup value={logOutcome} onValueChange={setLogOutcome}>
+                {(logInteraction?.channel === "whatsapp" ? WHATSAPP_OUTCOMES : CALL_OUTCOMES).map((o) => (
+                  <label key={o} className="flex items-center gap-3 rounded-md border p-2.5 hover:bg-accent/40 cursor-pointer">
+                    <RadioGroupItem value={o} id={`outcome-${o}`} />
+                    <span className="text-sm">{o}</span>
+                  </label>
+                ))}
+              </RadioGroup>
+            </div>
+            {logInteraction?.channel === "call" && (
+              <div className="space-y-1.5">
+                <Label htmlFor="call-duration">Duration (min)</Label>
+                <Input
+                  id="call-duration"
+                  inputMode="numeric"
+                  value={logDuration}
+                  onChange={(e) => setLogDuration(e.target.value)}
+                  placeholder="e.g. 3"
+                />
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label htmlFor="interaction-notes">Notes</Label>
+              <Textarea
+                id="interaction-notes"
+                rows={3}
+                value={logNotes}
+                onChange={(e) => setLogNotes(e.target.value)}
+                placeholder="What was discussed…"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setLogInteraction(null)}>Cancel</Button>
+            <Button
+              disabled={!logOutcome}
+              onClick={() => {
+                const channel = logInteraction!.channel;
+                const outcome = logOutcome;
+                const durationText = logDuration.trim();
+                const parsed = Number.parseFloat(durationText);
+                const durationMin = channel === "call" && durationText && Number.isFinite(parsed) ? parsed : undefined;
+                const notes = logNotes.trim();
+                const title = `${channel === "whatsapp" ? "WhatsApp" : "Call"} - ${outcome}`;
+                const payload: Record<string, any> = {
+                  channel,
+                  outcome,
+                  ...(durationText ? { durationText } : {}),
+                  ...(durationMin != null ? { durationMin } : {}),
+                };
+                logActivity(channel, title, notes || undefined, payload);
+                setLogInteraction(null);
+                setLogOutcome("");
+                setLogDuration("");
+                setLogNotes("");
               }}
             >
               Save
