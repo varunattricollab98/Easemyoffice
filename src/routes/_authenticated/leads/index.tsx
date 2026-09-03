@@ -63,6 +63,9 @@ function LeadsListPage() {
   const [bulkReason, setBulkReason] = useState("");
   const [showDupes, setShowDupes] = useState(false);
   const [customDate, setCustomDate] = useState("");
+  // Custom date-range mode: inclusive from/to as YYYY-MM-DD strings (component state, mirrors customDate).
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
   // Track user-overridden "originals" per duplicate group
   const [originalOverrides, setOriginalOverrides] = useState<Record<string, string>>({});
   const [overrideVersion, setOverrideVersion] = useState(0);
@@ -126,6 +129,14 @@ function LeadsListPage() {
       } else if (dateRange === "custom" && customDate) {
         from = new Date(`${customDate}T00:00:00`);
         to = new Date(`${customDate}T23:59:59.999`);
+      } else if (dateRange === "custom_range") {
+        // Inclusive range from customFrom (start of day) to customTo (end of day).
+        // Swap if the user picked the dates reversed so from <= to always holds.
+        let lo = customFrom;
+        let hi = customTo;
+        if (lo && hi && lo > hi) [lo, hi] = [hi, lo];
+        if (lo) from = new Date(`${lo}T00:00:00.000`);
+        if (hi) to = new Date(`${hi}T23:59:59.999`);
       }
       if (from) query = query.gte("created_at", from.toISOString());
       if (to) query = query.lte("created_at", to.toISOString());
@@ -134,7 +145,7 @@ function LeadsListPage() {
   };
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["leads", q, stage, interest, service, owner, dateRange, customDate, sortDir, page, size],
+    queryKey: ["leads", q, stage, interest, service, owner, dateRange, customDate, customFrom, customTo, sortDir, page, size],
     placeholderData: keepPreviousData,
     queryFn: async () => {
       const from = (page - 1) * size;
@@ -436,6 +447,7 @@ function LeadsListPage() {
               <SelectItem value="last_month">Last month</SelectItem>
               <SelectItem value="last_30d">Last 30 days</SelectItem>
               <SelectItem value="custom">Specific date</SelectItem>
+              <SelectItem value="custom_range">Date range</SelectItem>
             </SelectContent>
           </Select>
           {dateRange === "custom" && (
@@ -451,6 +463,35 @@ function LeadsListPage() {
                   mode="single"
                   selected={customDate ? new Date(customDate + "T00:00:00") : undefined}
                   onSelect={(date) => { if (date) setCustomDate(format(date, "yyyy-MM-dd")); }}
+                />
+              </PopoverContent>
+            </Popover>
+          )}
+          {dateRange === "custom_range" && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-[220px] justify-start text-left font-normal text-sm transition-all duration-200 ease-out">
+                  <CalendarIcon className="h-4 w-4 mr-2 text-muted-foreground" />
+                  {customFrom && customTo
+                    ? `${format(new Date(customFrom + "T00:00:00"), "MMM d")} – ${format(new Date(customTo + "T00:00:00"), "MMM d, yyyy")}`
+                    : customFrom
+                      ? `${format(new Date(customFrom + "T00:00:00"), "MMM d, yyyy")} – …`
+                      : "Pick a range"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="range"
+                  numberOfMonths={2}
+                  selected={{
+                    from: customFrom ? new Date(customFrom + "T00:00:00") : undefined,
+                    to: customTo ? new Date(customTo + "T00:00:00") : undefined,
+                  }}
+                  onSelect={(range) => {
+                    setCustomFrom(range?.from ? format(range.from, "yyyy-MM-dd") : "");
+                    setCustomTo(range?.to ? format(range.to, "yyyy-MM-dd") : "");
+                    if (page !== 1) navigate({ to: "/leads", search: { ...search, page: undefined } });
+                  }}
                 />
               </PopoverContent>
             </Popover>
