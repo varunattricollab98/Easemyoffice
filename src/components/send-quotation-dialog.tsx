@@ -597,7 +597,7 @@ ${addonsSection}
       <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:18px 16px;text-align:center">
         <div style="font-size:13px;font-weight:800;color:#0F172A;margin-bottom:12px">&#128187; Online Payment</div>
         <div style="font-size:12px;color:#64748B;margin-bottom:8px">Pay securely via</div>
-        <img src="https://razorpay.com/assets/razorpay-glyph.svg" alt="Razorpay" style="height:28px;margin-bottom:8px">
+        <div style="font-size:18px;font-weight:900;color:#3395FF;letter-spacing:-0.3px;margin-bottom:8px">Razorpay</div>
         <div style="font-size:11px;color:#64748B;margin-bottom:12px">UPI / Cards / Net Banking / Wallets</div>
         <a href="https://pages.razorpay.com/easemyoffice" style="display:inline-block;background:#16A34A;color:#fff;font-size:12px;font-weight:800;padding:10px 20px;border-radius:8px;text-decoration:none">&#128274; Pay Securely Online</a>
         <div style="font-size:10px;color:#64748B;margin-top:8px">Secured by Razorpay &bull; 256-bit SSL</div>
@@ -740,9 +740,9 @@ ${signatureHtml}
       <div style="font-size:20px;font-weight:900;color:#fff">Ease<span style="color:#4FC3F7">My</span>Office</div>
       <div style="font-size:11px;color:rgba(255,255,255,0.6);margin-top:4px">India's #1 Virtual Office Provider</div>
       <!-- Social icons -->
-      <div style="margin-top:12px;line-height:0">
+      <div style="margin-top:12px;line-height:1.4">
         <span style="display:inline-block">
-          <a href="https://wa.me/918882735038" style="display:inline-block;text-decoration:none;margin-right:10px"><img src="https://cdn.simpleicons.org/whatsapp/FFFFFF" alt="WhatsApp" width="20" height="20" style="display:inline-block;width:20px;height:20px;max-width:20px;vertical-align:middle"></a><a href="https://www.linkedin.com/company/easemyoffice/" style="display:inline-block;text-decoration:none;margin-right:10px"><img src="https://cdn.simpleicons.org/linkedin/FFFFFF" alt="LinkedIn" width="20" height="20" style="display:inline-block;width:20px;height:20px;max-width:20px;vertical-align:middle"></a><a href="https://www.instagram.com/easemyoffice/" style="display:inline-block;text-decoration:none;margin-right:10px"><img src="https://cdn.simpleicons.org/instagram/FFFFFF" alt="Instagram" width="20" height="20" style="display:inline-block;width:20px;height:20px;max-width:20px;vertical-align:middle"></a><a href="https://www.easemyoffice.in" style="display:inline-block;text-decoration:none"><img src="https://cdn.simpleicons.org/googlechrome/FFFFFF" alt="Website" width="20" height="20" style="display:inline-block;width:20px;height:20px;max-width:20px;vertical-align:middle"></a>
+          <a href="https://wa.me/918882735038" style="display:inline-block;text-decoration:none;color:#fff;font-size:11px;font-weight:700;margin-right:6px;vertical-align:middle">&#128241; WhatsApp</a><span style="color:rgba(255,255,255,0.4);font-size:11px;margin-right:6px">&bull;</span><a href="https://www.linkedin.com/company/easemyoffice/" style="display:inline-block;text-decoration:none;color:#fff;font-size:11px;font-weight:700;margin-right:6px;vertical-align:middle">&#128188; LinkedIn</a><span style="color:rgba(255,255,255,0.4);font-size:11px;margin-right:6px">&bull;</span><a href="https://www.instagram.com/easemyoffice/" style="display:inline-block;text-decoration:none;color:#fff;font-size:11px;font-weight:700;margin-right:6px;vertical-align:middle">&#128247; Instagram</a><span style="color:rgba(255,255,255,0.4);font-size:11px;margin-right:6px">&bull;</span><a href="https://www.easemyoffice.in" style="display:inline-block;text-decoration:none;color:#fff;font-size:11px;font-weight:700;vertical-align:middle">&#127760; Website</a>
         </span>
       </div>
     </td>
