@@ -1,9 +1,13 @@
 {
   "task_id": "task-reliable-gmail-tag-sync",
   "task_description": "Make EVERY Gmail email tagged with a '<Name> lead' label reliably appear in the CRM as a lead attributed to and landing in that salesperson's Leads section, automatically — not just a few, and not dependent on an admin opening the inbox tab. Approach: add a server-side scheduled sync (Supabase edge function gmail-tag-sync + pg_cron) that covers the FULL mailbox by enumerating all label-tagged threads via a new Gmail Apps Script search action and the gmail-bridge proxy; unify the dedup key logic (real customer email + relay sender, lowercased) shared with the client; surface unmatched owner tags instead of dropping them; and reconcile the existing client-side auto-sync so it no longer creates duplicates or silently skips. Preserve existing manual claim/assign behavior and existing dedup.",
-  "status": "in_progress",
+  "status": "completed",
   "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
   "blocked_reason": null,
+  "review": {
+    "v1": "NEEDS_CHANGES — 6 issues (2 blocking: 500-thread coverage caps). See 2026-09-03-071500-review.md.",
+    "v2": "APPROVED — all 6 issues resolved; one non-blocking note (Apps Script cache rehydration edge case, self-healing). See 2026-09-03-073000-review.md."
+  },
   "verification": {
     "build": "skipped",
     "tests": "skipped",
