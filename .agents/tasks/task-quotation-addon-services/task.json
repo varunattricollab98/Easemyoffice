@@ -1,0 +1,15 @@
+{
+  "task_id": "task-quotation-addon-services",
+  "task_description": "Add a rep-entered 'Add-on Services' capability to the Send Quotation dialog: a two-column (Service Name + Amount) repeatable input with an 'Add more service' button and per-row removal, rendered as a new labeled table section inside the quotation email HTML (visible in Preview and sent email). Add-ons are flat amounts with a subtotal (no GST applied). Additive only; must not regress existing multi-state/price-override/per-row-removal/single-state+city/preview/send behavior. No DB change. Single branch off latest origin/main; INTEGRATIONS_ONLY so CI (tsc + build) validates.",
+  "status": "completed",
+  "feature_order": ["FEAT-001"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "skipped",
+    "tests": "skipped",
+    "test_quality": "skipped",
+    "docker_build": "skipped",
+    "summary": "INTEGRATIONS_ONLY sandbox: bun install/tsc/build cannot run locally; CI (npx tsc --noEmit + bun run build) validates on PR. Verified by code inspection: diff touches only src/components/send-quotation-dialog.tsx (+104/-3) on branch feat/quotation-addon-services off latest origin/main. Confirmed: addons opts param typed { name: string; amount: number }[]; new email section wrapped in <tr><td> and interpolated exactly once between pricing table and multi-year section; on-open effect resets addonServices; emailHtml useMemo parses+filters blank rows and includes addonServices in deps; UI add/edit/remove/add-more handlers present; no new imports; existing multi-state/override/removal/preview/send logic untouched. No project test suite exists for this component.",
+    "semantic_review": "v1 APPROVED (2026-09-03-112707-review.md). Two non-blocking notes: (1) add-on name interpolated raw into email HTML with no escaping - matches pre-existing file convention (clientName/plan fields also unescaped), not a new regression; (2) invalid/zero amounts silently filtered with no rep-facing feedback. Neither blocks shipping."
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "project_type": "React 19 CRM SPA (TanStack Start/Router) with Supabase backend + Cloudflare Workers edge functions",
+  "language": "TypeScript (TSX)",
+  "build_system": "bun (package manager). CI runs on every PR via .github/workflows/ci.yml: `npx tsc --noEmit` + `bun run build`.",
+  "test_framework": "No unit-test framework wired for this component; verification is type-check + build in CI. No test runner available in sandbox.",
+  "build_command": "bun run build (CANNOT run in sandbox - INTEGRATIONS_ONLY blocks bun install with npm 403)",
+  "test_command": "npx tsc --noEmit (CANNOT run in sandbox for same reason; CI validates)",
+  "verification_instructions": "In-sandbox: careful code inspection for TS correctness, prop/type consistency, and JSX validity. Real validation happens in CI (tsc --noEmit + bun run build) on the PR the orchestrator opens.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "N/A in sandbox - dependencies cannot be installed (INTEGRATIONS_ONLY). Do not attempt bun install.",
+  "environment_constraints": "INTEGRATIONS_ONLY network mode: bun install FAILS (npm 403). Build, lint, typecheck, and dev server cannot run locally. Code MUST typecheck and build cleanly because CI (npx tsc --noEmit + bun run build) runs on every PR.",
+  "contribution_requirements": "Work on ONE feature branch off latest origin/main (which includes PR #65 multi-state/per-row-removal + PR #66/#67). Do NOT commit to main. Do NOT push or open PRs (orchestrator does that). Never use em dashes in content.",
+  "key_patterns": "Single-file component src/components/send-quotation-dialog.tsx (~1249 lines). buildQuotationHtml(opts) is a big inline-styled table-based HTML email builder (lines ~90-707). Pricing rows built via a `pricingRows` string (~lines 116-129) and interpolated into a navy-header (#0A1F4D) table; rupee formatting via formatINR(n). The pricing-table <tr><td> block closes just before the `<!-- MULTI-YEAR DISCOUNT -->` comment - that is the insertion point for the new add-ons email section. Component state (useState) is reset in a useEffect keyed on `open`. emailHtml is a useMemo that maps displayPlans -> plansWithOverrides and calls buildQuotationHtml; add addonServices to its deps. The dialog form uses Label + shadcn components; the pricing editor uses a raw <input type='number'> (NOT the Input component) and an X icon (lucide-react, already imported) for per-row removal. There is an EXISTING static marketing ADD-ONS showcase section in the email (Meeting Rooms/Day Passes/CA Service FREE etc.) - that is NOT the new feature; do not touch or confuse it. PlanRow type lives in src/lib/bookings-sheet.ts.",
+  "relevant_files": [
+    "src/components/send-quotation-dialog.tsx",
+    "src/lib/bookings-sheet.ts"
+  ],
+  "directory_structure": "src/components/ = feature dialogs + src/components/ui/ = shadcn-style primitives (button, label, input, dialog, select, etc). src/lib/ = helpers (bookings-sheet.ts has PlanRow, email-signature.ts, auth). src/integrations/supabase/ = supabase client. Edge function send-client-email invoked via supabase.functions.invoke."
+}

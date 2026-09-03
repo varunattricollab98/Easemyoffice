@@ -148,9 +148,18 @@ function buildQuotationHtml(opts: {
   // the amount charged. A bold subtotal row sums all add-on amounts.
   const addonsSection = (() => {
     if (addons.length === 0) return "";
+    // Escape the rep-typed service name so a literal < > & " ' can't break the
+    // email markup (this is the most free-form user input in the template).
+    const escHtml = (s: string) =>
+      String(s ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
     const addonRows = addons.map((a, idx) => {
       return `<tr style="background:${idx % 2 === 0 ? "#fff" : "#F8FAFC"}">
-        <td style="padding:14px 16px;border-bottom:1px solid #E2E8F0;font-size:14px;color:#1E293B;font-weight:600">${a.name}</td>
+        <td style="padding:14px 16px;border-bottom:1px solid #E2E8F0;font-size:14px;color:#1E293B;font-weight:600">${escHtml(a.name)}</td>
         <td style="padding:14px 16px;border-bottom:1px solid #E2E8F0;font-size:14px;color:#1E293B;font-weight:600;text-align:right">${formatINR(a.amount)}</td>
       </tr>`;
     }).join("");
