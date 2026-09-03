@@ -95,8 +95,9 @@ function buildQuotationHtml(opts: {
   quoteId: string;
   validityDate: string;
   signatureHtml: string;
+  addons?: { name: string; amount: number }[];
 }): string {
-  const { clientName, serviceType, location, plans, quoteId, validityDate, signatureHtml } = opts;
+  const { clientName, serviceType, location, plans, quoteId, validityDate, signatureHtml, addons = [] } = opts;
 
   const serviceLabel = (() => {
     switch (serviceType) {
@@ -141,6 +142,40 @@ function buildQuotationHtml(opts: {
         <td style="padding:14px 16px;border-bottom:1px solid #E2E8F0;font-size:14px;color:#16A34A;font-weight:800;text-align:right">${formatINR(total)}</td>
       </tr>`;
   }).join("");
+
+  // Build the rep-entered add-on services section. Rendered only when there is at
+  // least one add-on. Amounts are FLAT (no GST column); the amount the rep types is
+  // the amount charged. A bold subtotal row sums all add-on amounts.
+  const addonsSection = (() => {
+    if (addons.length === 0) return "";
+    const addonRows = addons.map((a, idx) => {
+      return `<tr style="background:${idx % 2 === 0 ? "#fff" : "#F8FAFC"}">
+        <td style="padding:14px 16px;border-bottom:1px solid #E2E8F0;font-size:14px;color:#1E293B;font-weight:600">${a.name}</td>
+        <td style="padding:14px 16px;border-bottom:1px solid #E2E8F0;font-size:14px;color:#1E293B;font-weight:600;text-align:right">${formatINR(a.amount)}</td>
+      </tr>`;
+    }).join("");
+    const addonsTotal = addons.reduce((sum, a) => sum + a.amount, 0);
+    return `
+<!-- ADD-ON SERVICES (rep-entered) -->
+<tr><td style="background:#fff;padding:32px 28px" class="pad-lg">
+  <div style="text-align:center;margin-bottom:20px">
+    <div style="font-size:11px;font-weight:800;color:#1E4DB7;letter-spacing:2px;text-transform:uppercase">&#10024; ADD-ON SERVICES</div>
+    <div style="font-size:22px;font-weight:900;color:#0F172A;margin-top:6px">Additional Services You Selected</div>
+  </div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E2E8F0;border-radius:12px;overflow:hidden">
+    <tr style="background:#0A1F4D">
+      <th style="padding:12px 16px;font-size:11px;font-weight:800;color:#FFE39A;text-align:left;letter-spacing:0.5px">SERVICE</th>
+      <th style="padding:12px 16px;font-size:11px;font-weight:800;color:#FFE39A;text-align:right;letter-spacing:0.5px">AMOUNT</th>
+    </tr>
+    ${addonRows}
+    <tr style="background:#F1F5F9">
+      <td style="padding:14px 16px;border-top:2px solid #0A1F4D;font-size:14px;color:#0F172A;font-weight:800">Add-on Subtotal</td>
+      <td style="padding:14px 16px;border-top:2px solid #0A1F4D;font-size:14px;color:#0F172A;font-weight:800;text-align:right">${formatINR(addonsTotal)}</td>
+    </tr>
+  </table>
+</td></tr>
+`;
+  })();
 
   // Extract user name and phone from signature for CTA buttons
   const sigNameMatch = signatureHtml.match(/font-weight:\s*800[^>]*>([^<]+)/);
@@ -329,7 +364,7 @@ function buildQuotationHtml(opts: {
     <span style="font-size:11px;color:#92400E;font-weight:600">&#9888;&#65039; Limited inventory &mdash; addresses are allocated on a first-come, first-served basis.</span>
   </div>
 </td></tr>
-
+${addonsSection}
 <!-- MULTI-YEAR DISCOUNT - Amber/Gold gradient bg -->
 <tr><td style="background:linear-gradient(180deg,#FFFAEC 0%,#FFF0C2 100%);padding:28px 28px" class="pad-lg">
   <div style="text-align:center;margin-bottom:18px">
@@ -734,6 +769,10 @@ export function SendQuotationDialog({
   const [priceOverrides, setPriceOverrides] = useState<Record<string, number>>({});
   // Rows the rep dropped from THIS quotation only (frontend-only, no backend delete).
   const [removedRowKeys, setRemovedRowKeys] = useState<Set<string>>(new Set());
+  // Add-on services the rep bundles with this quote (e.g. CA Services, Signage Board).
+  // amount is kept as a string for a controlled input; parsed to a number only when
+  // building the email HTML. Blank/garbage rows are filtered out at that point.
+  const [addonServices, setAddonServices] = useState<{ name: string; amount: string }[]>([]);
   const [previewing, setPreviewing] = useState(false);
 
   // Single-state convenience: when exactly one state is chosen we keep the
@@ -762,6 +801,7 @@ export function SendQuotationDialog({
       setServiceType("gst");
       setPriceOverrides({});
       setRemovedRowKeys(new Set());
+      setAddonServices([]);
       setStatePopoverOpen(false);
       setPreviewing(false);
     }
@@ -902,6 +942,12 @@ export function SendQuotationDialog({
       }
       return plan;
     });
+    // Parse rep-entered add-ons: trim the name, coerce the amount to a number, and
+    // keep only rows with a non-empty name AND a finite amount greater than zero so
+    // blank/garbage rows never render in the email.
+    const parsedAddons = addonServices
+      .map((row) => ({ name: row.name.trim(), amount: Number(row.amount) }))
+      .filter((row) => row.name !== "" && Number.isFinite(row.amount) && row.amount > 0);
     return buildQuotationHtml({
       clientName,
       serviceType,
@@ -910,8 +956,9 @@ export function SendQuotationDialog({
       quoteId,
       validityDate,
       signatureHtml,
+      addons: parsedAddons,
     });
-  }, [clientName, serviceType, locationLabel, displayPlans, priceOverrides, quoteId, validityDate, signatureHtml]);
+  }, [clientName, serviceType, locationLabel, displayPlans, priceOverrides, quoteId, validityDate, signatureHtml, addonServices]);
 
   // Send handler
   const handleSend = async () => {
@@ -966,6 +1013,15 @@ export function SendQuotationDialog({
   };
 
   const restoreAllRows = () => setRemovedRowKeys(new Set());
+
+  // Add-on service handlers (immutable updates, mirroring the setPriceOverrides style).
+  const addAddonRow = () => setAddonServices((prev) => [...prev, { name: "", amount: "" }]);
+  const updateAddonName = (index: number, value: string) =>
+    setAddonServices((prev) => prev.map((row, i) => (i === index ? { ...row, name: value } : row)));
+  const updateAddonAmount = (index: number, value: string) =>
+    setAddonServices((prev) => prev.map((row, i) => (i === index ? { ...row, amount: value } : row)));
+  const removeAddonRow = (index: number) =>
+    setAddonServices((prev) => prev.filter((_, i) => i !== index));
 
   const stateTriggerLabel =
     selectedStates.length === 0
@@ -1204,6 +1260,51 @@ export function SendQuotationDialog({
                 )}
               </div>
             )}
+
+            {/* Add-on Services (optional, rep-entered) */}
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold">
+                Add-on Services <span className="text-muted-foreground">(optional extra services)</span>
+              </Label>
+              {addonServices.length > 0 && (
+                <div className="space-y-2">
+                  {addonServices.map((row, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={row.name}
+                        onChange={(e) => updateAddonName(i, e.target.value)}
+                        placeholder="Service name (e.g. CA Services)"
+                        className="flex-1 text-sm border rounded px-1.5 py-0.5 focus:ring-1 focus:ring-primary/30 focus:outline-none"
+                      />
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm text-muted-foreground">&#8377;</span>
+                        <input
+                          type="number"
+                          min={0}
+                          value={row.amount}
+                          onChange={(e) => updateAddonAmount(i, e.target.value)}
+                          placeholder="Amount"
+                          className="w-24 text-right text-sm border rounded px-1.5 py-0.5 focus:ring-1 focus:ring-primary/30 focus:outline-none"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeAddonRow(i)}
+                        title="Remove this add-on service"
+                        aria-label="Remove add-on service"
+                        className="inline-flex items-center justify-center h-6 w-6 rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus:outline-none focus:ring-1 focus:ring-destructive/30"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <Button type="button" variant="outline" size="sm" onClick={addAddonRow}>
+                Add more service
+              </Button>
+            </div>
 
             {/* Email summary */}
             <div className="bg-muted/40 rounded-lg p-3 text-xs space-y-1">
