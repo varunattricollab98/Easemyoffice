@@ -1,0 +1,22 @@
+{
+  "project_type": "React 19 CRM SPA (EaseMyOffice) with TanStack Router, Supabase backend, Cloudflare Workers deploy",
+  "language": "TypeScript / TSX",
+  "build_system": "bun (vite build). Cloudflare Workers via wrangler. Auto-deploy on merge to main via Cloudflare GitHub integration.",
+  "test_framework": "None (no unit test suite). Validation is CI typecheck + build only.",
+  "build_command": "bun run build (NOT runnable in this sandbox: INTEGRATIONS_ONLY blocks bun install with npm 403)",
+  "test_command": "npx tsc --noEmit (NOT runnable in this sandbox for same reason)",
+  "verification_instructions": "CI (.github/workflows/ci.yml) runs `bun install --frozen-lockfile`, `npx tsc --noEmit`, then `bun run build` on every PR/push to main. Local verification limited to code inspection because the sandbox cannot install deps.",
+  "snapshot_or_generated_files": "src/integrations/supabase/types.ts is generated from the DB schema. Do NOT hand-edit for this task; lead_activities already has payload:Json and activity_type enum already includes 'call' and 'whatsapp'. No migration/type regen needed.",
+  "setup_instructions": "Normally `bun install` then `bun run dev`. Cannot run here (INTEGRATIONS_ONLY).",
+  "environment_constraints": "INTEGRATIONS_ONLY network: bun install FAILS (npm 403). No local build/lint/typecheck/dev server possible. Verify by code inspection only; CI validates on PR. No DB access from sandbox.",
+  "contribution_requirements": "Work on a feature branch off latest origin/main (branch: feat/call-whatsapp-activity-logging already created). Never commit to main. Cannot push/PR (orchestrator publishes). Commit work with conventional-commit messages matching repo history (feat(leads): ...).",
+  "key_patterns": "logActivity(type,title,body?) at ~line 174 in src/routes/_authenticated/leads/$id.tsx inserts into lead_activities and invalidates ['activities', id]; it currently does NOT pass payload. Dialogs use shadcn Dialog (already imported). Select already imported. RadioGroup/RadioGroupItem available in src/components/ui/radio-group.tsx (NOT yet imported). Textarea, Label, Button imported. lucide icons Phone, MessageCircle already imported. Timeline renders activities in a Card with activities?.map((a)=>...) showing a.title, a.body, formatDistanceToNow + a.type. Other logActivity call sites (note/email/stage_change/followup/reminder) must keep working after signature change (payload optional).",
+  "relevant_files": [
+    "src/routes/_authenticated/leads/$id.tsx",
+    "src/components/ui/radio-group.tsx",
+    "src/components/ui/dialog.tsx",
+    "src/components/ui/select.tsx",
+    "src/integrations/supabase/types.ts"
+  ],
+  "directory_structure": "src/routes/_authenticated/leads/$id.tsx = lead detail page (Call/WhatsApp buttons ~line 198-199, logActivity ~line 174, timeline tab activity list). src/components/ui = shadcn components. src/integrations/supabase = client + generated types."
+}
