@@ -1,7 +1,14 @@
 {
   "task_id": "task-call-whatsapp-activity-logging",
   "task_description": "Option A: add rich MANUAL call & WhatsApp activity logging to the lead detail page. Clicking Call/WhatsApp opens the dialer/WhatsApp and then prompts a small dialog to capture outcome (required), optional duration (call only), and optional notes, stored as a lead_activities row in the existing payload JSONB (no migration, no external API). Timeline updated to display call/whatsapp outcomes; other activity types unchanged.",
-  "status": "in_progress",
+  "status": "completed",
   "feature_order": ["FEAT-001"],
-  "blocked_reason": null
+  "blocked_reason": null,
+  "verification": {
+    "build": "skipped",
+    "tests": "skipped",
+    "test_quality": "skipped",
+    "docker_build": "skipped",
+    "summary": "INTEGRATIONS_ONLY sandbox: bun install/tsc/build not runnable (npm 403) and repo has no unit test suite. Verified by code inspection: logActivity signature extended with optional payload and insert passes payload ?? {}; all 8 pre-existing logActivity call sites unchanged (payload optional); Call/WhatsApp buttons open dialer/wa.me then the new log dialog; per-channel outcome sets correct; duration only for calls; timeline renders call/whatsapp outcome (+duration) with icons, other types unchanged. Confirmed no DB migration, no generated-types edit, no external telephony/WhatsApp SDK import, and no em dash in added lines. CI (npx tsc --noEmit + bun run build) validates on PR."
+  }
 }
