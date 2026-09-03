@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Card } from "@/components/ui/card";
@@ -33,6 +33,14 @@ import type { Tables } from "@/integrations/supabase/types";
 // Use the generated row type rather than `any`, so the sort accessors below are
 // checked against the real column names and types.
 type BookingRow = Tables<"bookings">;
+
+// Lazy-load the self-contained New Booking dialog (renders its own trigger).
+// Mirrors the dashboard pattern so the bookings route bundle stays lean.
+const NewBookingDialog = lazy(() =>
+  import("@/components/dashboard/new-booking-dialog").then((m) => ({
+    default: m.NewBookingDialog,
+  })),
+);
 
 export const Route = createFileRoute("/_authenticated/bookings")({
   component: BookingsPage,
@@ -312,6 +320,9 @@ function BookingsPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <Suspense fallback={null}>
+            <NewBookingDialog />
+          </Suspense>
           {isAdmin && (
             <Button
               variant="outline"
