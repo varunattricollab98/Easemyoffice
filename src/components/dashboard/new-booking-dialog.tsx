@@ -1167,9 +1167,13 @@ export function NewBookingDialog() {
     const succeeded: { index: number; bookingId: string }[] = [];
     const failed: { index: number; client_name: string; error: string }[] = [];
     let sheetAllOk = true;
-    // Set when a booking's DB row is saved but its Google Sheet append fails
-    // (soft failure). See the hard-stop rationale below.
+    // Set when a booking's DB row was inserted but its Google Sheet append
+    // failed (soft failure). The row is ROLLED BACK and re-queued; see the
+    // hard-stop rationale below.
     let sheetSyncStopIndex = -1;
+    // A note surfaced in the toast if rolling back the failed booking's DB row
+    // itself errored (the orphan row may linger).
+    let rollbackNote = "";
 
     for (let i = 0; i < toPersist.length; i++) {
       const form = toPersist[i];
@@ -1177,25 +1181,43 @@ export function NewBookingDialog() {
         // Sequential await: syncBookingToSheet inside persistBooking finishes
         // (marking the id used) before the next iteration fetches an id.
         const res = await persistBooking(form);
-        succeeded.push({ index: i, bookingId: res.bookingId });
-        // Silent balance reminders per booking. We deliberately DO NOT open the
-        // per-booking ack-email / doc-assign modals in the batch path — N
-        // stacked dialogs would be terrible UX. Reminders are safe silent
-        // inserts, so we keep them. (See STEP 5 rationale.)
-        scheduleBalanceReminders(form, res.bookingId, res.bookingUuid);
         if (!res.sheet.ok) {
           // HARD STOP on a soft sheet-append failure. syncBookingToSheet returns
           // { ok:false } WITHOUT throwing on a failed/timed-out append, so this
-          // id was NEVER marked "used" in the sheet. If we continued, the next
-          // iteration's getNextBookingIdFromSheet() would hand back the SAME id,
-          // producing two DB rows sharing one external_booking_id. This booking's
-          // DB row IS saved (correct — reported as saved), but we must not advance
-          // to the next id. Stop here and leave the not-yet-attempted entries in
-          // the queue so the user can retry once the sheet is reachable again.
+          // booking's id was NEVER marked "used" in the sheet. getNextBookingId
+          // derives the next id by SCANNING THE SHEET (get-sheet-config edge fn /
+          // apps-script getNextBookingId), not the DB, so if we left this DB row
+          // in place the id would still read as unused and the NEXT booking
+          // created (a "Save all" retry to drain the queue, or a later single
+          // save) would be handed the SAME id, producing two DB rows sharing one
+          // external_booking_id (there is no unique constraint on that column).
+          // The hard-stop alone only moves the collision to the next save, so we
+          // ROLL BACK: delete the just-inserted DB row (making the id genuinely
+          // unused), do NOT count this booking as saved, and re-queue its form so
+          // the user retries it cleanly once the sheet is reachable. We roll back
+          // BEFORE scheduling reminders (below), so a rolled-back booking never
+          // leaves orphan reminder rows pointing at a deleted booking uuid. The
+          // DB and the sheet end up in agreement (this booking is neither in the
+          // DB nor consuming an id) and a retry issues a clean, distinct id.
+          if (res.bookingUuid) {
+            const { error: delErr } = await supabase.from("bookings").delete().eq("id", res.bookingUuid);
+            if (delErr) {
+              // Row may linger; surface it but still stop the batch.
+              rollbackNote = ` (warning: could not roll back the saved row for ${form.client_name || "the failed booking"}: ${delErr.message})`;
+            }
+          }
           sheetAllOk = false;
           sheetSyncStopIndex = i;
           break;
         }
+        // Sheet append succeeded: this booking is fully saved (DB + sheet).
+        succeeded.push({ index: i, bookingId: res.bookingId });
+        // Silent balance reminders per booking, scheduled ONLY for a fully-saved
+        // booking (never for the rolled-back stop entry). We deliberately DO NOT
+        // open the per-booking ack-email / doc-assign modals in the batch path —
+        // N stacked dialogs would be terrible UX. Reminders are safe silent
+        // inserts, so we keep them. (See STEP 5 rationale.)
+        scheduleBalanceReminders(form, res.bookingId, res.bookingUuid);
       } catch (e) {
         failed.push({
           index: i,
@@ -1216,25 +1238,40 @@ export function NewBookingDialog() {
     const currentIndex = includeCurrent ? toPersist.length - 1 : -1;
 
     if (sheetSyncStopIndex >= 0) {
-      // A booking saved to the DB but its sheet append failed, so we stopped the
-      // batch to avoid minting duplicate ids (see hard-stop note in the loop).
-      // The bookings up to and including the stop are saved; the rest were not
-      // attempted and stay queued for retry. Keep the draft (nothing is lost).
-      // Re-queue the not-yet-attempted entries EXCEPT the current form, which
-      // (when it is among them) stays in the live form to avoid double-persist.
+      // A booking's sheet append failed, so we ROLLED BACK its DB row (its id is
+      // now genuinely unused) and stopped the batch to avoid minting duplicate
+      // ids on the next save (see hard-stop note in the loop). Only the bookings
+      // BEFORE the stop are saved; the stop entry itself is NOT saved and must be
+      // re-queued, along with the not-yet-attempted entries and any bookings that
+      // hard-errored earlier in this batch. Keep the draft (nothing is lost).
+      // Rebuild the queue so every entry lives in exactly one place:
+      //   - fully-saved entries (DB + sheet ok): dropped from the queue.
+      //   - hard-errored entries (threw, in `failed`): re-queued once.
+      //   - the rolled-back stop entry: re-queued once.
+      //   - not-yet-attempted entries (after the stop): re-queued once, EXCEPT
+      //     the current live form when it is among them (it stays live to avoid
+      //     double-persist), consistent with the existing logic.
       const currentNotAttempted = includeCurrent && currentIndex > sheetSyncStopIndex;
       const remaining = currentNotAttempted ? notAttempted.slice(0, -1) : notAttempted;
-      // Also retain any bookings that hard-errored earlier in this batch (before
-      // the sheet-sync stop) so nothing entered is lost.
       const failedForms = failed.map((ff) => toPersist[ff.index]);
-      setQueue([...failedForms, ...remaining]);
-      // If the current form WAS saved (its index is within the attempted range),
-      // reset it; otherwise leave it live so the user can retry it.
-      if (includeCurrent && currentIndex <= sheetSyncStopIndex) resetForm();
+      const stopForm = toPersist[sheetSyncStopIndex];
+      setQueue([...failedForms, stopForm, ...remaining]);
+      // If the current form was the stop entry (rolled back + re-queued above) or
+      // an earlier hard failure, it is now captured in the queue, so reset the
+      // live form to avoid double-persist. Only leave it live when it was after
+      // the stop (not attempted), i.e. currentNotAttempted.
+      if (includeCurrent && !currentNotAttempted) resetForm();
+      const retryCount = failed.length + 1 + remaining.length;
+      const failNames = failed.length > 0 ? ` (${failed.map((ff) => ff.client_name).join(", ")})` : "";
       toast.error(
-        `Saved ${succeeded.length} booking${succeeded.length === 1 ? "" : "s"}, but the Google Sheet sync failed on the last one. ` +
-          `Stopped to avoid duplicate Booking IDs — ${notAttempted.length} remaining booking${notAttempted.length === 1 ? "" : "s"} not saved. ` +
-          `Please check the sheet connection and retry.`,
+        `Saved ${succeeded.length} booking${succeeded.length === 1 ? "" : "s"}, but the Google Sheet sync failed on the next one. ` +
+          `Rolled it back to avoid duplicate Booking IDs. ${retryCount} booking${retryCount === 1 ? "" : "s"} kept in the queue for retry` +
+          (failed.length > 0
+            ? ` (including ${failed.length} that failed earlier${failNames})`
+            : "") +
+          `.` +
+          rollbackNote +
+          ` Please check the sheet connection and retry.`,
       );
     } else if (failed.length === 0) {
       // Everything saved: clear queue + form + draft and close the dialog.
