@@ -206,20 +206,20 @@ function buildQuotationHtml(opts: {
     <div style="text-align:center;margin-bottom:14px">
       <div style="font-size:11px;font-weight:800;color:#64748B;letter-spacing:1.5px;text-transform:uppercase">Trusted by India's Fastest Growing Brands</div>
     </div>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="text-align:center;padding:8px 0">
-      <img src="https://www.easemyoffice.in/logos/verizon.png" alt="Verizon" style="height:18px;margin:6px 8px;vertical-align:middle;opacity:0.8">
-      <img src="https://framerusercontent.com/images/cCz6jGYFOcNHyjJHzPlLfIJfPM.png" alt="HomeLane" style="height:20px;margin:6px 8px;vertical-align:middle;opacity:0.8">
-      <img src="https://www.easemyoffice.in/logos/omnicuris.png" alt="Omnicuris" style="height:18px;margin:6px 8px;vertical-align:middle;opacity:0.8">
-      <img src="https://www.easemyoffice.in/logos/fitelo.svg" alt="uptodd" style="height:18px;margin:6px 8px;vertical-align:middle;opacity:0.8">
-    </td></tr><tr><td style="text-align:center;padding:4px 0">
-      <img src="https://www.easemyoffice.in/logos/kineticgreen.png" alt="EarthtronEV" style="height:18px;margin:6px 8px;vertical-align:middle;opacity:0.8">
-      <img src="https://www.easemyoffice.in/logos/earthtronev.webp" alt="KineticGreen" style="height:20px;margin:6px 8px;vertical-align:middle;opacity:0.8">
-      <img src="https://www.easemyoffice.in/logos/udaan.png" alt="Udaan" style="height:18px;margin:6px 8px;vertical-align:middle;opacity:0.8">
-      <img src="https://www.easemyoffice.in/logos/thirdwavecoffee.png" alt="Third Wave Coffee" style="height:20px;margin:6px 8px;vertical-align:middle;opacity:0.8">
-      <img src="https://www.rosierfoods.com/cdn/shop/files/black-logo-01_1.png?v=1750171672&width=300" alt="Rosier Foods" style="height:20px;margin:6px 8px;vertical-align:middle;opacity:0.8">
-      <img src="https://www.easemyoffice.in/logos/homelane.svg" alt="HomeLane" style="height:18px;margin:6px 8px;vertical-align:middle;opacity:0.8">
-      <img src="https://oijtkvkyefqfwuycibcv.supabase.co/storage/v1/object/public/website-assets/Sleepy%20Cat%20.png" alt="Sleepy Cat" style="height:20px;margin:6px 8px;vertical-align:middle;opacity:0.8">
-    </td></tr></table>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="table-layout:fixed">
+      <tr>
+        <td width="25%" style="text-align:center;padding:10px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/verizon.png" alt="Verizon" style="height:22px;width:auto;max-width:100%;vertical-align:middle;opacity:0.8"></td>
+        <td width="25%" style="text-align:center;padding:10px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/homelane.svg" alt="HomeLane" style="height:22px;width:auto;max-width:100%;vertical-align:middle;opacity:0.8"></td>
+        <td width="25%" style="text-align:center;padding:10px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/omnicuris.png" alt="Omnicuris" style="height:22px;width:auto;max-width:100%;vertical-align:middle;opacity:0.8"></td>
+        <td width="25%" style="text-align:center;padding:10px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/fitelo.svg" alt="Fitelo" style="height:22px;width:auto;max-width:100%;vertical-align:middle;opacity:0.8"></td>
+      </tr>
+      <tr>
+        <td width="25%" style="text-align:center;padding:10px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/kineticgreen.png" alt="Kinetic Green" style="height:22px;width:auto;max-width:100%;vertical-align:middle;opacity:0.8"></td>
+        <td width="25%" style="text-align:center;padding:10px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/earthtronev.webp" alt="EarthtronEV" style="height:22px;width:auto;max-width:100%;vertical-align:middle;opacity:0.8"></td>
+        <td width="25%" style="text-align:center;padding:10px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/udaan.png" alt="Udaan" style="height:22px;width:auto;max-width:100%;vertical-align:middle;opacity:0.8"></td>
+        <td width="25%" style="text-align:center;padding:10px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/thirdwavecoffee.png" alt="Third Wave Coffee" style="height:22px;width:auto;max-width:100%;vertical-align:middle;opacity:0.8"></td>
+      </tr>
+    </table>
     <div style="text-align:center;margin-top:12px;font-size:12px;color:#64748B;font-weight:600">5000+ Businesses &bull; 20+ States &bull; 97% Approval Rate</div>
   </div>
 </td></tr>
