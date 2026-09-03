@@ -1,0 +1,22 @@
+{
+  "project_type": "React 19 SPA using TanStack Start/Router, Supabase (Postgres + edge functions), Cloudflare Workers deploy. CRM (EaseMyOffice).",
+  "language": "TypeScript / TSX",
+  "build_system": "bun (package manager). Vite build producing a Cloudflare Worker bundle.",
+  "test_framework": "None. No unit test framework in repo. Validation is CI-based: .github/workflows/ci.yml runs `npx tsc --noEmit` then `bun run build`.",
+  "build_command": "bun run build (cannot run in sandbox - see environment_constraints)",
+  "test_command": "npx tsc --noEmit (cannot run in sandbox - see environment_constraints)",
+  "verification_instructions": "In-sandbox: careful manual code inspection + type-consistency review against existing patterns. Real validation happens in CI (tsc --noEmit + bun run build) on the PR the orchestrator opens. Code MUST typecheck and build cleanly.",
+  "snapshot_or_generated_files": "null (bun.lockb is committed; no generated source in scope).",
+  "setup_instructions": "Normally `bun install` then `bun run dev`. NOT possible in sandbox (npm 403 under INTEGRATIONS_ONLY).",
+  "environment_constraints": "Sandbox is INTEGRATIONS_ONLY: `bun install` FAILS (npm 403). Cannot run build, lint, typecheck, or dev server. All verification is by code inspection + CI. Do NOT attempt bun install / build; it will fail. No DB migration expected (bookings table already has all columns).",
+  "contribution_requirements": "Work on ONE new feature branch (feat/bulk-booking-with-draft). Do NOT commit to main. Do NOT push or open PRs (orchestrator publishes). Leave work committed on the branch. Code must pass CI: tsc --noEmit + bun run build.",
+  "key_patterns": "Single component NewBookingDialog in src/components/dashboard/new-booking-dialog.tsx (~1660 lines). Form state is one object `f` via useState with ~34 fields; setF({...f, key:val}) updates. Derived values (vo, voGst, addOn, addOnGst, total, discount, tdsAmt, afterTds, profit, amountReceived, balanceAmount, month) computed each render from `f`. T(key,label,props,err) helper renders a labeled Input bound to f[key]. Save mutation `submit` does: (1) resolve booking id from sheet if fallback, (2) supabase.from('bookings').insert({...}).select('id').single(), (3) syncBookingToSheet(values) best-effort, (4) onSuccess: toast, invalidate ['bookings'] & ['booking-next-id'], set doc-assign UUID, optionally show ack-email dialog + doc-assign dialog, schedule partial-payment reminders. Booking IDs come from getNextBookingIdFromSheet() which returns the first ID in the sheet's 'BookingIDs' tab NOT yet present in the Bookings tab column C. An ID only becomes 'used' after syncBookingToSheet appends the row. genBookingId() makes an EMO-BK-YYYYMMDD-XXXX local FALLBACK id (not sequential). UI Select/Input/Label/Textarea from @/components/ui, Tailwind v4, lucide-react icons, sonner toast.",
+  "relevant_files": [
+    "src/components/dashboard/new-booking-dialog.tsx (THE file to modify)",
+    "src/lib/bookings-sheet.ts (getNextBookingIdFromSheet, syncBookingToSheet, getSheetPlans - study, do not change unless necessary)",
+    "supabase/functions/get-sheet-config/index.ts (read-only reference: how nextBookingId is resolved)",
+    "setup/apps-script-code.gs (read-only reference: getNextBookingId returns first BookingIDs-tab id not in Bookings tab col C; id becomes used only when a row is appended)",
+    ".github/workflows/ci.yml (the validation that must pass)"
+  ],
+  "directory_structure": "src/components/dashboard/ = dashboard dialogs incl. new-booking-dialog.tsx. src/components/ui/ = shadcn-style primitives (dialog, alert-dialog, button, input, label, textarea, select). src/lib/ = helpers (bookings-sheet.ts, auth.ts, email-signature.ts). supabase/functions/ = edge functions. setup/ = Apps Script sources."
+}

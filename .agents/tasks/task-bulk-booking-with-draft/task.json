@@ -1,0 +1,15 @@
+{
+  "task_id": "task-bulk-booking-with-draft",
+  "task_description": "Add bulk/multiple-booking queueing and localStorage draft crash-safety to the New Booking dialog (src/components/dashboard/new-booking-dialog.tsx) in the EaseMyOffice CRM. Sales users queue multiple bookings (each with its own full field set) before one 'Save all' that persists each with a distinct sequential sheet-issued booking id; in-progress form + queue survive refresh via a namespaced per-user localStorage draft that persists until explicitly discarded or a successful save. Single-booking flow unchanged. No DB migration. Work on branch feat/bulk-booking-with-draft; do not commit to main; CI (tsc --noEmit + bun run build) validates since the sandbox is INTEGRATIONS_ONLY.",
+  "status": "completed",
+  "feature_order": ["FEAT-001"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "skipped",
+    "tests": "skipped",
+    "test_quality": "n/a",
+    "docker_build": "skipped",
+    "review_verdict": "APPROVED (v3, after 3 review passes)",
+    "summary": "Sandbox is INTEGRATIONS_ONLY (npm 403) so bun install / bun run build / npx tsc --noEmit / dev server cannot run in-sandbox. No unit test framework exists in the repo (validation is CI-only). Verified by careful code inspection of the single changed file (src/components/dashboard/new-booking-dialog.tsx): BookingForm type is consistent; deriveBooking(form) is the single source of derivation math used by the live render (useMemo), the single-save path (persistBooking(f)) and the batch path; persistBooking awaits syncBookingToSheet before returning and the batch loop is a strictly sequential for-loop (not Promise.all), guaranteeing distinct sequential sheet-issued booking ids per booking; no leftover top-level derived consts; all JSX-referenced auto-fields are destructured/defined; localStorage draft read is try/catch + shape-guarded + per-user-keyed; all single-save terminal branches and the full-batch-success branch clear the draft, partial-failure keeps it. Final tsc + build validation is delegated to CI (.github/workflows/ci.yml) on the PR the orchestrator opens."
+  }
+}
