@@ -636,7 +636,8 @@ export function NewBookingDialog() {
   const afterTds = +(total - tdsAmt).toFixed(2);
   const spPay = num(f.sp_payable);
   const addOnPay = num(f.addon_payable);
-  const profit = +(total - spPay - addOnPay).toFixed(2);
+  // Profit is computed on the pre-GST base amounts (VO + Add-on), not the GST-inclusive total.
+  const profit = +((vo + addOn) - spPay - addOnPay).toFixed(2);
   const month = useMemo(() => salesMonth(f.date), [f.date]);
 
   // Field validation (email format + phone must be at least 10 digits, so a
@@ -1292,20 +1293,6 @@ export function NewBookingDialog() {
               <Label className="text-xs">Total Amount ₹ (auto)</Label>
               <Input value={total} readOnly className="bg-muted/40 font-medium" />
             </div>
-            {T("quoted_amount", "Quoted Price ₹ (before discount)", {
-              type: "number",
-              min: 0,
-              step: "0.01",
-            })}
-            <div>
-              <Label className="text-xs">Discount Given ₹ (auto)</Label>
-              <Input
-                value={discount}
-                readOnly
-                className={`bg-muted/40 font-medium ${discount > 0 ? "text-amber-600" : ""}`}
-              />
-            </div>
-
             {T("tds_pct", "TDS %", { type: "number", min: 0, max: 100, step: "0.01" })}
 
             <div>

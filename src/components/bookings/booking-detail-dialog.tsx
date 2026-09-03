@@ -55,7 +55,8 @@ export function BookingDetailDialog({ booking, open, onOpenChange }: { booking: 
   const tdsPct = num(f.tds_pct), tdsAmt = +((total * tdsPct) / 100).toFixed(2);
   const afterTds = +(total - tdsAmt).toFixed(2);
   const spPay = num(f.sp_payable), addOnPay = num(f.addon_payable);
-  const profit = +(total - spPay - addOnPay).toFixed(2);
+  // Profit is computed on the pre-GST base amounts (VO + Add-on), not the GST-inclusive total.
+  const profit = +((vo + addOn) - spPay - addOnPay).toFixed(2);
   // Discount = originally quoted price minus the final deal value (never negative).
   const quoted = num(f.quoted_amount);
   const discount = quoted > 0 ? Math.max(0, +(quoted - total).toFixed(2)) : 0;
@@ -222,8 +223,6 @@ export function BookingDetailDialog({ booking, open, onOpenChange }: { booking: 
               {T("addon_amount", "Add on Amount (₹)", { type: "number" })}
               <div><Label className="text-xs">Add on GST 18% (auto)</Label><Input value={addOnGst} readOnly className="bg-muted/40" /></div>
               <div><Label className="text-xs">Total (auto)</Label><Input value={total} readOnly className="bg-muted/40 font-medium" /></div>
-              {T("quoted_amount", "Quoted Price ₹ (before discount)", { type: "number" })}
-              <div><Label className="text-xs">Discount Given ₹ (auto)</Label><Input value={discount} readOnly className={`bg-muted/40 font-medium ${discount > 0 ? "text-amber-600" : ""}`} /></div>
               {T("tds_pct", "TDS %", { type: "number" })}
               <div><Label className="text-xs">Amount After TDS (auto)</Label><Input value={afterTds} readOnly className="bg-muted/40" /></div>
               {T("sp_payable", "SP Payable ₹", { type: "number" })}
