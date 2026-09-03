@@ -144,8 +144,10 @@ function buildQuotationHtml(opts: {
   }).join("");
 
   // Build the rep-entered add-on services section. Rendered only when there is at
-  // least one add-on. Amounts are FLAT (no GST column); the amount the rep types is
-  // the amount charged. A bold subtotal row sums all add-on amounts.
+  // least one add-on. Amounts are GST-INCLUSIVE, mirroring the main pricing table's
+  // Base/GST/Total pattern: the amount the rep types is the BASE (pre-GST) amount,
+  // 18% GST is applied on top, and the row Total is round(base * 1.18). A bold
+  // summary row shows the base subtotal, GST (18%) and the grand total.
   const addonsSection = (() => {
     if (addons.length === 0) return "";
     // Escape the rep-typed service name so a literal < > & " ' can't break the
@@ -157,15 +159,26 @@ function buildQuotationHtml(opts: {
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
+    const addonGstPct = 18;
+    // Per-row rounding mirrors the main pricing table: round(base * (1 + gst/100)).
     const addonRows = addons.map((a, idx) => {
+      const base = a.amount;
+      const total = Math.round(base * (1 + addonGstPct / 100));
       return `<tr style="background:${idx % 2 === 0 ? "#fff" : "#F8FAFC"}">
         <td style="padding:14px 16px;border-bottom:1px solid #E2E8F0;font-size:14px;color:#1E293B;font-weight:600">${escHtml(a.name)}</td>
-        <td style="padding:14px 16px;border-bottom:1px solid #E2E8F0;font-size:14px;color:#1E293B;font-weight:600;text-align:right">${formatINR(a.amount)}</td>
+        <td style="padding:14px 16px;border-bottom:1px solid #E2E8F0;font-size:14px;color:#1E293B;text-align:right">${formatINR(base)}</td>
+        <td style="padding:14px 16px;border-bottom:1px solid #E2E8F0;font-size:14px;color:#64748B;text-align:center">${addonGstPct}%</td>
+        <td style="padding:14px 16px;border-bottom:1px solid #E2E8F0;font-size:14px;color:#16A34A;font-weight:800;text-align:right">${formatINR(total)}</td>
       </tr>`;
     }).join("");
-    const addonsTotal = addons.reduce((sum, a) => sum + a.amount, 0);
+    // Base subtotal = sum of bases. Grand total = sum of the per-row rounded totals
+    // (so the printed rows add up exactly). GST is derived as grand - base to avoid
+    // a penny mismatch against the rounded rows.
+    const addonBaseSubtotal = addons.reduce((sum, a) => sum + a.amount, 0);
+    const addonGrandTotal = addons.reduce((sum, a) => sum + Math.round(a.amount * (1 + addonGstPct / 100)), 0);
+    const addonGstTotal = addonGrandTotal - addonBaseSubtotal;
     return `
-<!-- ADD-ON SERVICES (rep-entered) -->
+<!-- ADD-ON SERVICES (rep-entered, GST-inclusive) -->
 <tr><td style="background:#fff;padding:32px 28px" class="pad-lg">
   <div style="text-align:center;margin-bottom:20px">
     <div style="font-size:11px;font-weight:800;color:#1E4DB7;letter-spacing:2px;text-transform:uppercase">&#10024; ADD-ON SERVICES</div>
@@ -174,12 +187,20 @@ function buildQuotationHtml(opts: {
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E2E8F0;border-radius:12px;overflow:hidden">
     <tr style="background:#0A1F4D">
       <th style="padding:12px 16px;font-size:11px;font-weight:800;color:#FFE39A;text-align:left;letter-spacing:0.5px">SERVICE</th>
-      <th style="padding:12px 16px;font-size:11px;font-weight:800;color:#FFE39A;text-align:right;letter-spacing:0.5px">AMOUNT</th>
+      <th style="padding:12px 16px;font-size:11px;font-weight:800;color:#FFE39A;text-align:right;letter-spacing:0.5px">BASE</th>
+      <th style="padding:12px 16px;font-size:11px;font-weight:800;color:#FFE39A;text-align:center;letter-spacing:0.5px">GST</th>
+      <th style="padding:12px 16px;font-size:11px;font-weight:800;color:#FFE39A;text-align:right;letter-spacing:0.5px">TOTAL</th>
     </tr>
     ${addonRows}
     <tr style="background:#F1F5F9">
-      <td style="padding:14px 16px;border-top:2px solid #0A1F4D;font-size:14px;color:#0F172A;font-weight:800">Add-on Subtotal</td>
-      <td style="padding:14px 16px;border-top:2px solid #0A1F4D;font-size:14px;color:#0F172A;font-weight:800;text-align:right">${formatINR(addonsTotal)}</td>
+      <td style="padding:14px 16px;border-top:2px solid #0A1F4D;font-size:14px;color:#0F172A;font-weight:800">Add-on Base</td>
+      <td style="padding:14px 16px;border-top:2px solid #0A1F4D;font-size:14px;color:#1E293B;font-weight:600;text-align:right">${formatINR(addonBaseSubtotal)}</td>
+      <td style="padding:14px 16px;border-top:2px solid #0A1F4D;font-size:14px;color:#64748B;font-weight:600;text-align:center">GST (${addonGstPct}%)</td>
+      <td style="padding:14px 16px;border-top:2px solid #0A1F4D;font-size:14px;color:#1E293B;font-weight:600;text-align:right">${formatINR(addonGstTotal)}</td>
+    </tr>
+    <tr style="background:#F1F5F9">
+      <td colspan="3" style="padding:14px 16px;border-top:1px solid #CBD5E1;font-size:14px;color:#0F172A;font-weight:800">Add-on Total (incl. GST)</td>
+      <td style="padding:14px 16px;border-top:1px solid #CBD5E1;font-size:14px;color:#16A34A;font-weight:800;text-align:right">${formatINR(addonGrandTotal)}</td>
     </tr>
   </table>
 </td></tr>
@@ -1275,6 +1296,9 @@ export function SendQuotationDialog({
               <Label className="text-xs font-semibold">
                 Add-on Services <span className="text-muted-foreground">(optional extra services)</span>
               </Label>
+              {addonServices.length > 0 && (
+                <p className="text-[11px] text-muted-foreground">Amount is before GST. 18% GST is added in the email.</p>
+              )}
               {addonServices.length > 0 && (
                 <div className="space-y-2">
                   {addonServices.map((row, i) => (
