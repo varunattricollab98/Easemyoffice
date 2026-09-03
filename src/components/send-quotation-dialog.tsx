@@ -1024,7 +1024,13 @@ export function SendQuotationDialog({
             {/* Service Type */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">Service Type</Label>
-              <Select value={serviceType} onValueChange={(v) => setServiceType(v as ServiceType)}>
+              <Select value={serviceType} onValueChange={(v) => {
+                setServiceType(v as ServiceType);
+                // Reset per-plan edits/removals on service-type change (mirrors toggleState)
+                // so stale overrides/removals can't reactivate when flipping service type and back.
+                setPriceOverrides({});
+                setRemovedRowKeys(new Set());
+              }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select service type" />
                 </SelectTrigger>
