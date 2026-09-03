@@ -599,9 +599,15 @@ export function NewBookingDialog() {
     }
   };
 
-  // RESTORE: read the draft for the current user once. Runs when the key becomes
-  // known (user id resolves) and only restores once per key.
+  // RESTORE: read the draft for the current user once, WHEN THE DIALOG OPENS.
+  // Gating on `open` matters because the Dialog is always mounted (only its
+  // visibility toggles), so keying on draftKey alone would restore + toast on
+  // initial page load before the user ever opens the New Booking form. Restore
+  // still runs at most once per draftKey; crash-safety is preserved because the
+  // draft is restored into the form/queue as soon as the user opens the dialog,
+  // before they can interact with it.
   useEffect(() => {
+    if (!open) return;
     if (restoredKeyRef.current === draftKey) return;
     restoredKeyRef.current = draftKey;
     let parsed: unknown;
@@ -634,7 +640,7 @@ export function NewBookingDialog() {
     setQueue(restoredQueue);
     toast("Restored your saved booking draft");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draftKey]);
+  }, [draftKey, open]);
 
   // SAVE (debounced ~400ms): persist the current form + queue whenever they
   // change and there is something worth saving. Guarded against storage errors.
@@ -1161,6 +1167,9 @@ export function NewBookingDialog() {
     const succeeded: { index: number; bookingId: string }[] = [];
     const failed: { index: number; client_name: string; error: string }[] = [];
     let sheetAllOk = true;
+    // Set when a booking's DB row is saved but its Google Sheet append fails
+    // (soft failure). See the hard-stop rationale below.
+    let sheetSyncStopIndex = -1;
 
     for (let i = 0; i < toPersist.length; i++) {
       const form = toPersist[i];
@@ -1169,12 +1178,24 @@ export function NewBookingDialog() {
         // (marking the id used) before the next iteration fetches an id.
         const res = await persistBooking(form);
         succeeded.push({ index: i, bookingId: res.bookingId });
-        if (!res.sheet.ok) sheetAllOk = false;
         // Silent balance reminders per booking. We deliberately DO NOT open the
         // per-booking ack-email / doc-assign modals in the batch path — N
         // stacked dialogs would be terrible UX. Reminders are safe silent
         // inserts, so we keep them. (See STEP 5 rationale.)
         scheduleBalanceReminders(form, res.bookingId, res.bookingUuid);
+        if (!res.sheet.ok) {
+          // HARD STOP on a soft sheet-append failure. syncBookingToSheet returns
+          // { ok:false } WITHOUT throwing on a failed/timed-out append, so this
+          // id was NEVER marked "used" in the sheet. If we continued, the next
+          // iteration's getNextBookingIdFromSheet() would hand back the SAME id,
+          // producing two DB rows sharing one external_booking_id. This booking's
+          // DB row IS saved (correct — reported as saved), but we must not advance
+          // to the next id. Stop here and leave the not-yet-attempted entries in
+          // the queue so the user can retry once the sheet is reachable again.
+          sheetAllOk = false;
+          sheetSyncStopIndex = i;
+          break;
+        }
       } catch (e) {
         failed.push({
           index: i,
@@ -1184,11 +1205,38 @@ export function NewBookingDialog() {
       }
     }
 
+    // Entries after a hard stop were never attempted; keep them queued for retry.
+    const notAttempted: BookingForm[] =
+      sheetSyncStopIndex >= 0 ? toPersist.slice(sheetSyncStopIndex + 1) : [];
+
     // Invalidate once after the loop.
     qc.invalidateQueries({ queryKey: ["bookings"] });
     qc.invalidateQueries({ queryKey: ["booking-next-id"] });
 
-    if (failed.length === 0) {
+    const currentIndex = includeCurrent ? toPersist.length - 1 : -1;
+
+    if (sheetSyncStopIndex >= 0) {
+      // A booking saved to the DB but its sheet append failed, so we stopped the
+      // batch to avoid minting duplicate ids (see hard-stop note in the loop).
+      // The bookings up to and including the stop are saved; the rest were not
+      // attempted and stay queued for retry. Keep the draft (nothing is lost).
+      // Re-queue the not-yet-attempted entries EXCEPT the current form, which
+      // (when it is among them) stays in the live form to avoid double-persist.
+      const currentNotAttempted = includeCurrent && currentIndex > sheetSyncStopIndex;
+      const remaining = currentNotAttempted ? notAttempted.slice(0, -1) : notAttempted;
+      // Also retain any bookings that hard-errored earlier in this batch (before
+      // the sheet-sync stop) so nothing entered is lost.
+      const failedForms = failed.map((ff) => toPersist[ff.index]);
+      setQueue([...failedForms, ...remaining]);
+      // If the current form WAS saved (its index is within the attempted range),
+      // reset it; otherwise leave it live so the user can retry it.
+      if (includeCurrent && currentIndex <= sheetSyncStopIndex) resetForm();
+      toast.error(
+        `Saved ${succeeded.length} booking${succeeded.length === 1 ? "" : "s"}, but the Google Sheet sync failed on the last one. ` +
+          `Stopped to avoid duplicate Booking IDs — ${notAttempted.length} remaining booking${notAttempted.length === 1 ? "" : "s"} not saved. ` +
+          `Please check the sheet connection and retry.`,
+      );
+    } else if (failed.length === 0) {
       // Everything saved: clear queue + form + draft and close the dialog.
       toast.success(
         `Saved ${succeeded.length} booking${succeeded.length === 1 ? "" : "s"}` +
@@ -1204,10 +1252,13 @@ export function NewBookingDialog() {
       // (if it was included) maps to the last index.
       const failedForms = failed.map((ff) => toPersist[ff.index]);
       setQueue(failedForms);
-      // Clear the current form only if it was included AND it succeeded.
-      const currentIndex = includeCurrent ? toPersist.length - 1 : -1;
-      const currentSucceeded = includeCurrent && !failed.some((ff) => ff.index === currentIndex);
-      if (currentSucceeded) resetForm();
+      // Reset the live form whenever it was included in this batch, regardless
+      // of whether it succeeded. Its content is never lost: if it succeeded it
+      // is already persisted; if it failed it has been re-queued above via
+      // `failedForms`. Leaving it in the live form too would double-persist it
+      // on the next "Save all" (it would appear both in the queue AND as the
+      // current form), producing two DB rows / two ids for one booking.
+      if (includeCurrent) resetForm();
       const names = failed.map((ff) => ff.client_name).join(", ");
       toast.error(
         `Saved ${succeeded.length}, failed ${failed.length} (${names}). Failed bookings kept for retry.`,
