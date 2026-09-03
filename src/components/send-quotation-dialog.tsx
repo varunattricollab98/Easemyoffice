@@ -271,18 +271,18 @@ function buildQuotationHtml(opts: {
     <div style="text-align:center;margin-bottom:14px">
       <div style="font-size:11px;font-weight:800;color:#64748B;letter-spacing:1.5px;text-transform:uppercase">Trusted by India's Fastest Growing Brands</div>
     </div>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="table-layout:fixed">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;table-layout:fixed">
       <tr>
-        <td width="25%" style="text-align:center;padding:10px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/verizon.png" alt="Verizon" style="height:22px;width:auto;max-width:100%;vertical-align:middle;opacity:0.8"></td>
-        <td width="25%" style="text-align:center;padding:10px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/homelane.svg" alt="HomeLane" style="height:22px;width:auto;max-width:100%;vertical-align:middle;opacity:0.8"></td>
-        <td width="25%" style="text-align:center;padding:10px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/omnicuris.png" alt="Omnicuris" style="height:22px;width:auto;max-width:100%;vertical-align:middle;opacity:0.8"></td>
-        <td width="25%" style="text-align:center;padding:10px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/fitelo.svg" alt="Fitelo" style="height:22px;width:auto;max-width:100%;vertical-align:middle;opacity:0.8"></td>
+        <td width="25%" align="center" style="width:25%;text-align:center;padding:10px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/verizon.png" alt="Verizon" height="22" style="display:inline-block;height:22px;max-height:22px;max-width:90%;width:auto;vertical-align:middle;opacity:0.8"></td>
+        <td width="25%" align="center" style="width:25%;text-align:center;padding:10px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/homelane.svg" alt="HomeLane" height="22" style="display:inline-block;height:22px;max-height:22px;max-width:90%;width:auto;vertical-align:middle;opacity:0.8"></td>
+        <td width="25%" align="center" style="width:25%;text-align:center;padding:10px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/omnicuris.png" alt="Omnicuris" height="22" style="display:inline-block;height:22px;max-height:22px;max-width:90%;width:auto;vertical-align:middle;opacity:0.8"></td>
+        <td width="25%" align="center" style="width:25%;text-align:center;padding:10px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/fitelo.svg" alt="Fitelo" height="22" style="display:inline-block;height:22px;max-height:22px;max-width:90%;width:auto;vertical-align:middle;opacity:0.8"></td>
       </tr>
       <tr>
-        <td width="25%" style="text-align:center;padding:10px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/kineticgreen.png" alt="Kinetic Green" style="height:22px;width:auto;max-width:100%;vertical-align:middle;opacity:0.8"></td>
-        <td width="25%" style="text-align:center;padding:10px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/earthtronev.webp" alt="EarthtronEV" style="height:22px;width:auto;max-width:100%;vertical-align:middle;opacity:0.8"></td>
-        <td width="25%" style="text-align:center;padding:10px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/udaan.png" alt="Udaan" style="height:22px;width:auto;max-width:100%;vertical-align:middle;opacity:0.8"></td>
-        <td width="25%" style="text-align:center;padding:10px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/thirdwavecoffee.png" alt="Third Wave Coffee" style="height:22px;width:auto;max-width:100%;vertical-align:middle;opacity:0.8"></td>
+        <td width="25%" align="center" style="width:25%;text-align:center;padding:10px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/kineticgreen.png" alt="Kinetic Green" height="22" style="display:inline-block;height:22px;max-height:22px;max-width:90%;width:auto;vertical-align:middle;opacity:0.8"></td>
+        <td width="25%" align="center" style="width:25%;text-align:center;padding:10px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/earthtronev.webp" alt="EarthtronEV" height="22" style="display:inline-block;height:22px;max-height:22px;max-width:90%;width:auto;vertical-align:middle;opacity:0.8"></td>
+        <td width="25%" align="center" style="width:25%;text-align:center;padding:10px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/udaan.png" alt="Udaan" height="22" style="display:inline-block;height:22px;max-height:22px;max-width:90%;width:auto;vertical-align:middle;opacity:0.8"></td>
+        <td width="25%" align="center" style="width:25%;text-align:center;padding:10px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/thirdwavecoffee.png" alt="Third Wave Coffee" height="22" style="display:inline-block;height:22px;max-height:22px;max-width:90%;width:auto;vertical-align:middle;opacity:0.8"></td>
       </tr>
     </table>
     <div style="text-align:center;margin-top:12px;font-size:12px;color:#64748B;font-weight:600">5000+ Businesses &bull; 20+ States &bull; 97% Approval Rate</div>
@@ -740,11 +740,10 @@ ${signatureHtml}
       <div style="font-size:20px;font-weight:900;color:#fff">Ease<span style="color:#4FC3F7">My</span>Office</div>
       <div style="font-size:11px;color:rgba(255,255,255,0.6);margin-top:4px">India's #1 Virtual Office Provider</div>
       <!-- Social icons -->
-      <div style="margin-top:12px">
-        <a href="https://wa.me/918882735038" style="text-decoration:none;margin-right:8px"><img src="https://cdn-icons-png.flaticon.com/24/733/733585.png" alt="WhatsApp" style="width:20px;height:20px;vertical-align:middle"></a>
-        <a href="https://www.linkedin.com/company/easemyoffice/" style="text-decoration:none;margin-right:8px"><img src="https://cdn-icons-png.flaticon.com/24/733/733561.png" alt="LinkedIn" style="width:20px;height:20px;vertical-align:middle"></a>
-        <a href="https://www.instagram.com/easemyoffice/" style="text-decoration:none;margin-right:8px"><img src="https://cdn-icons-png.flaticon.com/24/733/733558.png" alt="Instagram" style="width:20px;height:20px;vertical-align:middle"></a>
-        <a href="https://www.easemyoffice.in" style="text-decoration:none"><img src="https://cdn-icons-png.flaticon.com/24/732/732200.png" alt="Website" style="width:20px;height:20px;vertical-align:middle"></a>
+      <div style="margin-top:12px;line-height:0">
+        <span style="display:inline-block">
+          <a href="https://wa.me/918882735038" style="display:inline-block;text-decoration:none;margin-right:10px"><img src="https://cdn.simpleicons.org/whatsapp/FFFFFF" alt="WhatsApp" width="20" height="20" style="display:inline-block;width:20px;height:20px;max-width:20px;vertical-align:middle"></a><a href="https://www.linkedin.com/company/easemyoffice/" style="display:inline-block;text-decoration:none;margin-right:10px"><img src="https://cdn.simpleicons.org/linkedin/FFFFFF" alt="LinkedIn" width="20" height="20" style="display:inline-block;width:20px;height:20px;max-width:20px;vertical-align:middle"></a><a href="https://www.instagram.com/easemyoffice/" style="display:inline-block;text-decoration:none;margin-right:10px"><img src="https://cdn.simpleicons.org/instagram/FFFFFF" alt="Instagram" width="20" height="20" style="display:inline-block;width:20px;height:20px;max-width:20px;vertical-align:middle"></a><a href="https://www.easemyoffice.in" style="display:inline-block;text-decoration:none"><img src="https://cdn.simpleicons.org/googlechrome/FFFFFF" alt="Website" width="20" height="20" style="display:inline-block;width:20px;height:20px;max-width:20px;vertical-align:middle"></a>
+        </span>
       </div>
     </td>
     <td style="vertical-align:top;width:50%;text-align:right">
