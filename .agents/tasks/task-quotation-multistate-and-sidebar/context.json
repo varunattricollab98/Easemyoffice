@@ -1,0 +1,22 @@
+{
+  "project_type": "React 19 SPA CRM (EaseMyOffice) using TanStack Start/Router, Supabase, Cloudflare Workers",
+  "language": "TypeScript / TSX",
+  "build_system": "bun (package manager). Vite-based TanStack Start build.",
+  "test_framework": "None discovered for these UI files; verification is by code inspection + CI.",
+  "build_command": "bun run build (CANNOT run in sandbox - bun install fails with npm 403 under INTEGRATIONS_ONLY)",
+  "test_command": "bun run lint / bun run typecheck (CANNOT run in sandbox)",
+  "verification_instructions": "In-sandbox verification is limited to careful code inspection and consistency with existing patterns. bun install FAILS (npm 403). Build/lint/typecheck/dev server cannot run. CI must validate typecheck/lint/build after push.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "Repo already cloned at /projects/sandbox/Easemyoffice. Feature branch feat/quotation-multistate-and-sidebar already created off latest origin/main. No install possible in sandbox.",
+  "environment_constraints": "INTEGRATIONS_ONLY network mode. bun install fails (npm 403). No build/lint/typecheck/dev server. Verify via inspection only. Do NOT push or open PRs - orchestrator publishes.",
+  "contribution_requirements": "Match existing code style. Use existing UI primitives in src/components/ui (Checkbox, Popover, Command, Select all exist). Email template uses inline styles only (email-safe, tables). Commit all four tasks on the single feature branch.",
+  "key_patterns": "Email HTML built by buildQuotationHtml() with fully inline styles and role=presentation tables (Gmail/Outlook safe). Pricing table rows built via plans.map in buildQuotationHtml (pricingRows) AND rendered in the React editor form (filteredPlans.slice(0,10).map). Plans come from getSheetPlans() -> PlanRow[]. State/city are single-select via shadcn Select. priceOverrides keyed by plan index. locationLabel derived from selectedCity/selectedState. Sidebar is an <aside className='hidden lg:flex w-64 shrink-0 flex-col ...'> with an inner <nav className='flex-1 overflow-y-auto p-3 ...'>. Layout wrapper _authenticated.tsx uses 'min-h-screen flex bg-background' with <main className='flex-1 min-w-0 pb-20 lg:pb-0'>.",
+  "relevant_files": [
+    "src/components/send-quotation-dialog.tsx (Tasks 1, 2, 3 - the whole dialog: buildQuotationHtml, SendQuotationDialog component, filtering, pricing table, send flow)",
+    "src/components/app-shell.tsx (Task 4 - AppSidebar aside, and MobileTabBar which must not break)",
+    "src/routes/_authenticated.tsx (Task 4 - layout wrapper / scroll context)",
+    "src/lib/bookings-sheet.ts (PlanRow type + getSheetPlans, read for fields: state, city, area, sp_name, code, selling_price, gst_pct, service_type)",
+    "src/components/ui/checkbox.tsx, popover.tsx, command.tsx, select.tsx (existing primitives for multi-select)"
+  ],
+  "directory_structure": "src/components (feature components + ui/ shadcn primitives), src/routes (TanStack file routes incl _authenticated.tsx layout), src/lib (helpers incl bookings-sheet.ts, email-signature.ts, auth.ts), src/integrations/supabase (client). Email is sent via supabase.functions.invoke('send-client-email')."
+}

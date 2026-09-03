@@ -74,7 +74,7 @@ export function AppSidebar() {
   });
 
   return (
-    <aside className="hidden lg:flex w-64 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">
+    <aside className="hidden lg:flex sticky top-0 h-screen w-64 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">
       <div className="px-5 py-5 border-b flex items-center gap-2">
         <div className="size-9 rounded-lg bg-gradient-to-br from-primary to-primary/70 grid place-items-center text-primary-foreground">
           <Building2 className="h-5 w-5" />

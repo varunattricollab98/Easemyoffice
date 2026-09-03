@@ -1,0 +1,27 @@
+{
+  "id": "FEAT-003",
+  "type": "fix",
+  "description": "Make the left sidebar sticky (user task 4). The <aside> in src/components/app-shell.tsx (AppSidebar) currently scrolls away with the page. Make it stay fixed while the main content scrolls. In the current layout (src/routes/_authenticated.tsx: outer div 'min-h-screen flex bg-background'; aside 'hidden lg:flex w-64 shrink-0 flex-col'), the standard fix is to make the aside 'sticky top-0 h-screen' so it pins to the top and spans the viewport height, with its inner <nav> (which already has 'flex-1 overflow-y-auto') scrolling independently. Header and footer user-block must stay visible; only the nav list scrolls if it overflows. Must not break MobileTabBar or the responsive 'hidden lg:flex' behavior.",
+  "status": "completed",
+  "steps": [
+    "Read src/components/app-shell.tsx (AppSidebar and MobileTabBar) and src/routes/_authenticated.tsx to confirm the flex/scroll context.",
+    "In AppSidebar, update the <aside> className: add 'sticky top-0 h-screen' (keep the existing 'hidden lg:flex w-64 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground'). Because the parent is 'min-h-screen flex', a sticky child with top-0 and a bounded height pins correctly while <main> scrolls. Ensure h-screen (or max-h-screen) so the aside height is bounded and the inner nav's overflow-y-auto actually engages.",
+    "Verify the inner structure keeps header (px-5 py-5 border-b block) and footer (border-t p-3 user block) visible with only <nav className='flex-1 overflow-y-auto ...'> scrolling. The existing flex-col + flex-1 nav already supports this once the aside height is bounded; adjust only if needed.",
+    "Do NOT change MobileTabBar (it is 'lg:hidden fixed bottom-0 ...') and do NOT change the 'hidden lg:flex' responsive gating - the sticky behavior applies only at lg+ where the sidebar is shown.",
+    "Sanity-check _authenticated.tsx: the outer 'min-h-screen flex' and <main className='flex-1 min-w-0 pb-20 lg:pb-0'> should not need changes for sticky to work, but confirm there is no 'overflow-hidden' on an ancestor that would defeat position:sticky. If an ancestor prevents sticky, prefer the minimal fix within app-shell.tsx (e.g. h-screen on aside) rather than restructuring the layout."
+  ],
+  "acceptance_criteria": [
+    "At lg+ breakpoints, the sidebar stays fixed/visible while the main content scrolls.",
+    "The sidebar header and footer user-block remain visible; only the nav list scrolls when it overflows.",
+    "MobileTabBar and the 'hidden lg:flex' responsive behavior are unchanged.",
+    "No layout regression: main content still occupies the remaining width (flex-1 min-w-0)."
+  ],
+  "verification": [
+    "Code inspection: confirm the aside has 'sticky top-0 h-screen' (plus existing classes) and the inner nav retains 'flex-1 overflow-y-auto'.",
+    "Confirm no ancestor in _authenticated.tsx introduces overflow that would break position:sticky.",
+    "Confirm MobileTabBar markup is untouched.",
+    "NOTE: cannot run dev server in sandbox (INTEGRATIONS_ONLY). CI/human must confirm visually."
+  ],
+  "blocked_reason": null,
+  "findings": "Applied the standard sticky-sidebar fix in src/components/app-shell.tsx AppSidebar(): added 'sticky top-0 h-screen' to the <aside> className while preserving all existing classes ('hidden lg:flex w-64 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground'). The parent in src/routes/_authenticated.tsx is 'min-h-screen flex bg-background' with no ancestor overflow-hidden/overflow-auto that would defeat position:sticky, so no layout restructuring was needed. Because the aside height is now bounded to h-screen, the inner <nav className='flex-1 overflow-y-auto p-3 space-y-0.5'> scrolls independently while the header (px-5 py-5 border-b) and footer user-block (border-t p-3) stay visible. The 'hidden lg:flex' responsive gating is unchanged, so sticky only applies at lg+ where the sidebar is shown. MobileTabBar (lg:hidden fixed bottom-0) was not touched. <main className='flex-1 min-w-0 pb-20 lg:pb-0'> is unchanged and still occupies remaining width. VERIFICATION LIMITATION: sandbox is INTEGRATIONS_ONLY, so bun install fails (npm 403) and bun build/lint/typecheck/dev server cannot run. Change verified by careful code inspection only; CI or a human should confirm the sticky behavior visually at lg+ breakpoints."
+}

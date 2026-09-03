@@ -1,0 +1,14 @@
+{
+  "task_id": "task-quotation-multistate-and-sidebar",
+  "task_description": "Four EaseMyOffice CRM frontend tasks on one feature branch (feat/quotation-multistate-and-sidebar): (1) multi-state selection in the Send Quotation dialog, (2) per-row removal (X control) of city/location rows from a quotation before sending, frontend-only no backend delete, (3) fix brand-logos layout and quotation HTML so every quotation renders professionally across email clients, (4) make the left sidebar sticky. All UI/frontend; no DB migrations. Verified by inspection only (INTEGRATIONS_ONLY: bun install/build/lint/typecheck cannot run; CI must validate).",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "skipped",
+    "tests": "skipped",
+    "test_quality": "skipped",
+    "docker_build": "skipped",
+    "summary": "Sandbox is INTEGRATIONS_ONLY: bun install fails (npm 403), so build/lint/typecheck/dev server and any test run are not possible in-sandbox; CI must validate. Verified all three features by careful code inspection of the diff against main. FEAT-001: multi-state state model (selectedStates[]), stable planKey keying for priceOverrides + removals, displayPlans threaded consistently into the editor table, preview, and emailHtml; disabled guards updated; no backend delete added (grep confirmed). FEAT-002: brand-logos block reworked into an email-safe fixed-layout table, all 8 logos at height:22px, single HomeLane, corrected alt text, risky hotlinked URLs (framerusercontent/rosierfoods/Sleepy Cat) removed (grep confirmed). FEAT-003: aside gains 'sticky top-0 h-screen', MobileTabBar and responsive gating untouched. This repo has no unit/e2e tests for these UI files, so test_quality is not applicable."
+  }
+}
