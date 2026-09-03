@@ -1,0 +1,28 @@
+{
+  "id": "FEAT-001",
+  "type": "chore",
+  "description": "Establish a working baseline and shared parsing module. Because the sandbox is INTEGRATIONS_ONLY (bun install fails, no build/lint/test possible), this feature confirms the baseline by inspection and extracts the owner-tag + lead-field parsing helpers that BOTH the client (inbox.tsx) and the new server-side sync function will reuse, so the two paths cannot drift apart. No behavior change to the running app in this feature.",
+  "status": "completed",
+  "steps": [
+    "Confirm the current branch is a NEW feature branch off main (e.g. `feat/reliable-gmail-tag-sync`). If still on main, create and switch to it with `git checkout -b feat/reliable-gmail-tag-sync`. Do NOT commit to main.",
+    "Record in findings that `bun install`, `bun run build`, lint, and typecheck CANNOT be run in-sandbox (INTEGRATIONS_ONLY, npm registry 403) and that CI must validate. Do not attempt to install dependencies.",
+    "Read src/lib/gmail.ts and src/routes/_authenticated/inbox.tsx to confirm the exact signatures of parseFrom, claimedOwner, normalizeOwnerTag, parseWeb3FormLead, isThrowawayAddress, htmlToText, matchOwnerToUser, and resolveLeadFields.",
+    "In src/lib/gmail.ts, add a pure, dependency-free helper `matchOwnerTagToName(ownerTag, names)` that mirrors the exact-fullname -> first-name -> startsWith matching currently inlined as matchOwnerToUser in inbox.tsx, but operates on plain name strings so it can be reused by both the client and (conceptually) documented for the server. Export it. Do NOT change existing exports or their behavior.",
+    "Refactor inbox.tsx `matchOwnerToUser` to delegate to the new helper (map team -> names, then find the profile) so client behavior is IDENTICAL but the matching rule lives in one place. Verify by reading the diff that the three-tier match order is preserved exactly.",
+    "Add a shared JSDoc note in src/lib/gmail.ts documenting the canonical dedup key rule: leads created from email are deduped by [realCustomerEmail, relaySenderAddress] both lowercased/trimmed, so the server function (written in Deno, cannot import this browser module) must replicate the SAME rule. This is documentation to prevent drift."
+  ],
+  "acceptance_criteria": [
+    "A new feature branch exists and is checked out; main is untouched.",
+    "src/lib/gmail.ts exports matchOwnerTagToName and its logic matches the previous inbox.tsx matchOwnerToUser three-tier order (exact full name, first token, startsWith prefix) exactly.",
+    "inbox.tsx matchOwnerToUser delegates to the shared helper and produces identical results for all inputs (no owner ever matched differently than before).",
+    "No dependency install or build was attempted; the INTEGRATIONS_ONLY limitation is recorded in findings.",
+    "No change to runtime behavior of the app beyond the internal refactor."
+  ],
+  "verification": [
+    "Read the git diff of src/lib/gmail.ts and src/routes/_authenticated/inbox.tsx and confirm matchOwnerToUser now calls matchOwnerTagToName and the match order is unchanged.",
+    "Trace 3 sample owner tags ('Hardik\\'s', 'Kishan', 'Hardik Kumar') mentally through both old and new code paths and confirm identical results.",
+    "Confirm `git branch --show-current` is the new feature branch, not main."
+  ],
+  "blocked_reason": null,
+  "findings": "Implemented the FEAT-001 refactor with zero runtime behavior change. Changes: (1) src/lib/gmail.ts now exports a new pure helper matchOwnerTagToName(ownerTag, names): number that encodes the canonical three-tier owner-tag match — exact full name (lowercased) -> first whitespace token -> startsWith '<tag> ' prefix — passing the tag through the existing normalizeOwnerTag first, and returning the index of the first matching name or -1. (2) src/routes/_authenticated/inbox.tsx matchOwnerToUser now delegates: it maps team -> names via team.map(p => p.full_name), calls matchOwnerTagToName, and resolves the index back to the TeamMember (team[idx]) or null. Because names preserve team order and the helper uses findIndex, this returns the identical member that the old team.find(...) chain returned for every input. Removed the now-unused normalizeOwnerTag import from inbox.tsx (it is still exported from gmail.ts and used internally by the new helper). (3) Added a JSDoc block in gmail.ts documenting the canonical dedup key rule [realCustomerEmail, relaySenderAddress] (both lowercased/trimmed, either-key hit = no insert) so the future Deno server sync (which cannot import this browser module) replicates the same rule and cannot drift. Traced 'Hardik\\'s' (->first-name match), 'Kishan' (->exact-or-first match), 'Hardik Kumar' (->exact full-name match): all identical old vs new. Existing exports and their behavior are unchanged. VERIFICATION LIMITATION: sandbox network is INTEGRATIONS_ONLY (npm registry 403), so `bun install`, `bun run build`, lint, and typecheck CANNOT be run here; no dependency install was attempted. Verification was by code inspection and diff review only. CI must run bun run build / typecheck to fully validate. On branch feat/reliable-gmail-tag-sync; main untouched; changes left in the working tree (not committed) per orchestrator instruction."
+}

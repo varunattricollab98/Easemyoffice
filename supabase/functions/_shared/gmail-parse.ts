@@ -1,63 +1,21 @@
-import { supabase } from "@/integrations/supabase/client";
-
-export interface InboxEmail {
-  threadId: string;
-  from: string;
-  subject: string;
-  snippet: string;
-  date: string;
-  unread: boolean;
-  labels: string[];
-  url: string;
-}
-
-// Fetch a page of lead emails from the shared Gmail inbox (via the gmail-bridge
-// edge function). `start` is the offset (for pagination). Fails soft if not connected.
-export async function fetchInbox(max = 40, start = 0): Promise<{ ok: boolean; emails: InboxEmail[]; hasMore: boolean; error?: string }> {
-  try {
-    const { data, error } = await supabase.functions.invoke("gmail-bridge", { body: { action: "inbox", max, start } });
-    if (error) return { ok: false, emails: [], hasMore: false, error: `Function call failed: ${error.message || "invoke error"}` };
-    if (!data?.ok) return { ok: false, emails: [], hasMore: false, error: data?.error || "unknown error" };
-    const emails = Array.isArray(data.emails) ? data.emails : [];
-    return { ok: true, emails, hasMore: data.hasMore ?? emails.length >= max };
-  } catch (e: any) {
-    return { ok: false, emails: [], hasMore: false, error: e?.message || "unknown error" };
-  }
-}
-
-export interface ThreadMessage {
-  from: string;
-  to: string;
-  date: string;
-  subject: string;
-  body: string;
-  html?: string;
-  attachments?: { name: string; size: number }[];
-}
-
-// Load the full text of one email thread (all messages) for reading in the CRM.
-export async function fetchThread(threadId: string): Promise<{ ok: boolean; subject?: string; url?: string; messages: ThreadMessage[]; error?: string }> {
-  try {
-    const { data, error } = await supabase.functions.invoke("gmail-bridge", { body: { action: "thread", threadId } });
-    if (error) return { ok: false, messages: [], error: error.message };
-    if (!data?.ok) return { ok: false, messages: [], error: data?.error || "could not load" };
-    return { ok: true, subject: data.subject, url: data.url, messages: Array.isArray(data.messages) ? data.messages : [] };
-  } catch (e: any) {
-    return { ok: false, messages: [], error: e?.message || "could not load" };
-  }
-}
-
-// Label a Gmail thread as "<Name> lead" and mark it read.
-export async function claimEmailInGmail(threadId: string, label: string): Promise<{ ok: boolean; error?: string }> {
-  try {
-    const { data, error } = await supabase.functions.invoke("gmail-bridge", { body: { action: "claim", threadId, label } });
-    if (error) return { ok: false, error: error.message };
-    if (!data?.ok) return { ok: false, error: data?.error || "claim failed" };
-    return { ok: true };
-  } catch (e: any) {
-    return { ok: false, error: e?.message || "claim failed" };
-  }
-}
+// ─────────────────────────────────────────────────────────────────────────
+// Deno-compatible copy of the pure Gmail parsing helpers.
+//
+// SOURCE OF TRUTH: src/lib/gmail.ts (the browser module). Supabase edge
+// functions run under Deno and CANNOT import that browser module (it imports
+// the Supabase browser client). So the pure, dependency-free functions the
+// server-side sync needs are re-implemented here, BEHAVIOUR-IDENTICAL to
+// src/lib/gmail.ts. Keep the two in sync: any change to a function here must be
+// mirrored in src/lib/gmail.ts and vice-versa.
+//
+// Functions copied: parseFrom, claimedOwner, normalizeOwnerTag,
+// matchOwnerTagToName, isThrowawayAddress, htmlToText, parseWeb3FormLead.
+//
+// The canonical dedup rule (documented in src/lib/gmail.ts) is: a lead created
+// from an email is deduped by [realCustomerEmail, relaySenderAddress], both
+// lowercased/trimmed; if EITHER already maps to a lead, no new lead is created.
+// gmail-tag-sync/index.ts uses these helpers to reproduce that rule exactly.
+// ─────────────────────────────────────────────────────────────────────────
 
 // Split "Name <email@x.com>" into its parts.
 export function parseFrom(from: string): { name: string; address: string } {
@@ -81,23 +39,12 @@ export function normalizeOwnerTag(owner: string | null | undefined): string {
   return (owner || "").replace(/[’'`]s\b/gi, "").replace(/\s+/g, " ").trim();
 }
 
-// Canonical owner-tag -> team-member matching rule, operating on plain name
-// strings so it can be reused anywhere (the client's inbox page today, and any
-// future server-side sync that mirrors this logic).
-//
-// Given a Gmail owner tag ("Hardik's", "Kishan", "Hardik Kumar") and a list of
-// candidate full names, return the index of the first matching name using the
-// SAME three tiers, in order, that inbox.tsx has always used:
+// Canonical owner-tag -> team-member matching rule (three tiers, in order):
 //   1. exact full-name match (lowercased),
 //   2. first-name (first whitespace-delimited token) match,
 //   3. "starts with <tag> " prefix match.
-// Returns -1 if none match or the tag normalises to empty. The tag is passed
-// through normalizeOwnerTag first so possessive forms ("Hardik's") are handled.
-//
-// NOTE: this must stay behaviourally identical to matchOwnerToUser in
-// src/routes/_authenticated/inbox.tsx, which now delegates here. The server
-// sync (written in Deno, which cannot import this browser module) must
-// replicate this exact three-tier order to avoid drift.
+// Returns the index of the first matching name, or -1 if none/empty. Identical
+// to matchOwnerTagToName in src/lib/gmail.ts.
 export function matchOwnerTagToName(ownerTag: string | null | undefined, names: (string | null | undefined)[]): number {
   const norm = normalizeOwnerTag(ownerTag).toLowerCase();
   if (!norm) return -1;
@@ -109,18 +56,6 @@ export function matchOwnerTagToName(ownerTag: string | null | undefined, names: 
   const byStarts = normalized.findIndex((n) => n.startsWith(norm + " "));
   return byStarts;
 }
-
-// CANONICAL DEDUP KEY RULE (shared contract, documented here to prevent drift):
-// A lead created from an email is deduped by the pair
-//   [realCustomerEmail, relaySenderAddress]
-// where each value is lowercased and trimmed before comparison. Before inserting
-// a lead, existing leads must be looked up by BOTH of these keys; if either key
-// already maps to a lead, no new lead is created. `realCustomerEmail` is the
-// actual customer address parsed from the form body (see parseWeb3FormLead),
-// while `relaySenderAddress` is the envelope sender (which may be a Web3Forms /
-// relay address per isThrowawayAddress). The future server-side sync function is
-// written in Deno and CANNOT import this browser module, so it MUST replicate
-// this exact rule rather than reimplement a divergent one.
 
 // Addresses that are never a real customer contact (form relays, no-reply, our
 // own shared mailbox). Used so we don't save these as a lead's email.

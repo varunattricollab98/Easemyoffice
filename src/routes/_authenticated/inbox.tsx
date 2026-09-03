@@ -76,7 +76,14 @@ function matchOwnerToUser(ownerTag: string | null, team: TeamMember[]): TeamMemb
 }
 
 function LeadInboxPage() {
-  const { user, profile, isAdmin } = useAuth();
+  const { user, profile, isAdmin, hasRole } = useAuth();
+  // Can the CURRENT user actually INSERT into leads? The leads_insert RLS policy
+  // is: is_admin OR has_role('sales') OR has_role('bd'). A user whose only roles
+  // are documentation/accounts/renewals is NOT in that policy, so a client
+  // insert would hit an RLS denial toast. We gate the best-effort auto-sync on
+  // this (issue #6) — the authoritative server cron (service role) still covers
+  // those users' tagged emails regardless.
+  const canInsertLeads = isAdmin || hasRole("sales") || hasRole("bd");
   const qc = useQueryClient();
   const myName = profile?.full_name ?? "";
   const [filter, setFilter] = useState<Filter>(isAdmin ? "all" : "unclaimed");
@@ -590,9 +597,14 @@ function LeadInboxPage() {
       );
       // Unified dedup: [realEmail, senderAddr] via existingLeadFor is the single
       // source of truth for "is this already a lead?" — matching the server sync.
+      // created_by is set to the matched OWNER (r.owner.id), NOT the logged-in
+      // user, so attribution is identical whichever path wins: the server cron
+      // also sets created_by = the matched profile id (issue #5). This is the
+      // auto-sync accelerator only; manual claim/markMine/assign keep their own
+      // created_by = user.id semantics (an explicit human action).
       const rows = resolved
         .filter((r) => !existingLeadFor(r.dedupKeys))
-        .map((r) => ({ ...r.fields, assigned_to: r.owner.id, created_by: user.id }));
+        .map((r) => ({ ...r.fields, assigned_to: r.owner.id, created_by: r.owner.id }));
       if (rows.length === 0) return { created: 0 };
       const { error } = await supabase.from("leads").insert(rows);
       if (error) throw new Error(error.message);
@@ -622,9 +634,15 @@ function LeadInboxPage() {
       if (ownerTag) {
         const owner = matchOwnerToUser(ownerTag, team);
         if (!owner) { unmatchedTags.push(ownerTag); continue; }
-        // Only auto-create when RLS allows it without a per-row denial: admins
-        // for any owner, non-admins only for their OWN tag. Others defer to the
-        // authoritative server sync.
+        // Only auto-create when the leads_insert RLS policy will actually
+        // accept it — i.e. the current user holds an insert-capable role
+        // (admin/sales/bd). A user with only documentation/accounts/renewals
+        // roles would otherwise get an RLS denial toast; those tags are left to
+        // the authoritative server sync (issue #6).
+        if (!canInsertLeads) continue;
+        // Race-avoidance (unchanged): non-admins only auto-create for their OWN
+        // tag so we never race the server for other people's tags. Admins may
+        // accelerate any owner.
         if (!isAdmin && owner.id !== user?.id) continue;
         // Do NOT pre-skip on the relay sender address alone — the unified
         // existingLeadFor([realEmail, senderAddr]) check inside syncTagged is the
@@ -647,7 +665,7 @@ function LeadInboxPage() {
     }
     if (pending.length > 0 && !syncTagged.isPending) syncTagged.mutate(pending);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin, connected, emails, team, leadByEmail, user]);
+  }, [isAdmin, canInsertLeads, connected, emails, team, leadByEmail, user]);
 
   // Is this email tagged to the current user?
   const isMine = (e: InboxEmail) => {

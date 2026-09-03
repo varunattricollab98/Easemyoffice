@@ -6,3 +6,9 @@ project_id = "cfzwdlibvxksrxcrsvpp"
 
 [functions.send-scheduled-reports]
 verify_jwt = false
+
+# Server-side scheduled Gmail tag sync (see setup/ADD_GMAIL_TAG_SYNC_CRON.sql).
+# Invoked by pg_cron with the anon key + CRON_SECRET in the body, not a user
+# JWT, so JWT verification must be off (same as the other cron functions).
+[functions.gmail-tag-sync]
+verify_jwt = false

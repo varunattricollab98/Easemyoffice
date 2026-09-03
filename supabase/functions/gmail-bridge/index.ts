@@ -1,5 +1,11 @@
 // Bridges the CRM to the shared Gmail (contact@easemyoffice.in) Apps Script.
 //   { action: "inbox" }                       -> recent lead emails
+//   { action: "tagged", max?, start? }        -> ALL "<Name> lead"-labelled threads
+//                                                across the whole mailbox (paginated;
+//                                                each email may include a truncated
+//                                                first-message `body`). Used by the
+//                                                gmail-tag-sync cron function.
+//   { action: "thread", threadId }            -> full text of one thread
 //   { action: "claim", threadId, label }      -> label the thread + mark read
 //
 // Secrets (Supabase -> Edge Functions -> Secrets):
@@ -33,6 +39,19 @@ Deno.serve(async (req) => {
       const max = Math.min(Number(body.max) || 40, 100);
       const start = Math.max(Number(body.start) || 0, 0);
       const url = `${WEBHOOK_URL}?action=inbox&max=${max}&start=${start}&token=${encodeURIComponent(TOKEN)}`;
+      const res = await fetch(url, { method: "GET", redirect: "follow" });
+      const text = await res.text();
+      let parsed: any = {};
+      try { parsed = JSON.parse(text); } catch { throw new Error(`Bad response from Gmail: ${text.slice(0, 150)}`); }
+      if (parsed.ok === false) throw new Error(parsed.error || "Gmail rejected the request");
+      const emails = parsed.emails ?? [];
+      return json({ ok: true, emails, hasMore: parsed.hasMore ?? emails.length >= max, start });
+    }
+
+    if (action === "tagged") {
+      const max = Math.min(Number(body.max) || 25, 100);
+      const start = Math.max(Number(body.start) || 0, 0);
+      const url = `${WEBHOOK_URL}?action=tagged&max=${max}&start=${start}&token=${encodeURIComponent(TOKEN)}`;
       const res = await fetch(url, { method: "GET", redirect: "follow" });
       const text = await res.text();
       let parsed: any = {};
