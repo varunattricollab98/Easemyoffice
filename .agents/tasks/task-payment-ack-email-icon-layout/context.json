@@ -1,0 +1,20 @@
+{
+  "project_type": "React 19 SPA + TanStack + Supabase + Cloudflare Workers CRM (EaseMyOffice)",
+  "language": "TypeScript / TSX",
+  "build_system": "bun + vite (vite build emits dist/server/index.js + dist/server/wrangler.json)",
+  "test_framework": "none dedicated; CI runs `npx tsc --noEmit` + `bun run build`",
+  "build_command": "bun run build (CANNOT run in sandbox: bun install fails with npm 403 under INTEGRATIONS_ONLY)",
+  "test_command": "npx tsc --noEmit (CANNOT run in sandbox for same reason)",
+  "verification_instructions": "Sandbox is INTEGRATIONS_ONLY: `bun install` fails (npm 403), so no local build/typecheck and the email cannot be rendered to visually verify. Verify by careful code inspection. Repo CI (.github/workflows/ci.yml: tsc --noEmit + vite build) validates on PR. A human should eyeball the rendered email in Gmail/Outlook/mobile.",
+  "snapshot_or_generated_files": "none",
+  "setup_instructions": "N/A - dependency install blocked in sandbox",
+  "environment_constraints": "INTEGRATIONS_ONLY: no external network. bun install fails (npm 403). No build/lint/typecheck locally, cannot render email. Only code inspection possible.",
+  "contribution_requirements": "Work on branch fix/payment-ack-email-icon-layout (already created off latest origin/main). Commit only; do NOT push or open PR (orchestrator publishes). Do NOT commit to main.",
+  "key_patterns": "Email template is an inline-styled HTML string built as a template literal returned by buildPaymentAckEmailHtml() in src/components/dashboard/new-booking-dialog.tsx (~lines 226-518). Table-based layout, inline styles, plus one <style> block (~lines 234-252) with a @media (max-width:640px) query. Icons are HTML-entity emoji (e.g. &#128274; &#127881; &#128075; &#9733; &#128176;), NOT <img>. The only real <img> are the LOGO (display:block;margin:0 auto - intentional, keep) and footer social icons (cdn.simpleicons.org). The 'Your Dedicated Manager' block lives in src/lib/email-signature.ts (buildEmailSignature).",
+  "relevant_files": [
+    "src/components/dashboard/new-booking-dialog.tsx",
+    "src/lib/email-signature.ts",
+    ".github/workflows/ci.yml"
+  ],
+  "directory_structure": "src/components/dashboard/ holds booking dialogs incl. new-booking-dialog.tsx (booking form + payment ack email builder). src/lib/email-signature.ts holds the shared 'Dedicated Manager' signature block reused by ack/quotation/reminder emails."
+}
