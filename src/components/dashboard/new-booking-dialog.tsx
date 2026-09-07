@@ -243,7 +243,7 @@ function buildPaymentAckEmailHtml(details: {
     .pad-lg { padding:28px 22px !important; }
     .h1 { font-size:28px !important; line-height:1.2 !important; }
     .h2 { font-size:21px !important; }
-    .stack, .grid-2 td, .grid-3 td, .grid-4 td { display:block !important; width:100% !important; box-sizing:border-box !important; padding:6px 0 !important; }
+    .stack, .grid-2 td, .grid-3 td, .grid-4 td { display:block !important; width:100% !important; box-sizing:border-box !important; padding:6px 0 !important; text-align:center !important; }
     .summary-table th, .summary-table td { font-size:12px !important; padding:10px 10px !important; }
     .stat-num { font-size:22px !important; }
     .pill { display:block !important; margin:6px 0 !important; }
@@ -282,11 +282,11 @@ function buildPaymentAckEmailHtml(details: {
 
   <tr><td style="background:#ffffff; padding:36px 32px; text-align:center;" class="pad-lg">
     <div style="font-size:11px; font-weight:800; color:#1E4DB7; letter-spacing:2px; text-transform:uppercase; margin-bottom:10px;">A Heartfelt Thank You</div>
-    <div style="font-size:28px; font-weight:800; color:#0B1B36; letter-spacing:-0.5px;" class="h2">Hello ${client_name} &#128075;</div>
+    <div style="font-size:28px; font-weight:800; color:#0B1B36; letter-spacing:-0.5px; text-align:center;" class="h2">Hello ${client_name} &#128075;</div>
     <div style="font-size:14px; color:#475569; margin-top:16px; line-height:1.75; max-width:520px; margin-left:auto; margin-right:auto;">
       Thank you for your trust and your prompt payment. We're truly delighted to welcome you on board. Your premium virtual office is officially in motion &mdash; and our team is already working behind the scenes to get you activated quickly and compliantly.
     </div>
-    <div style="margin-top:24px; background:#16A34A; background:linear-gradient(135deg,#15803D,#16A34A); color:#fff; font-weight:700; font-size:14px; padding:14px 18px; border-radius:10px; box-shadow:0 6px 18px rgba(22,163,74,0.22);">
+    <div style="margin-top:24px; background:#16A34A; background:linear-gradient(135deg,#15803D,#16A34A); color:#fff; font-weight:700; font-size:14px; padding:14px 18px; border-radius:10px; box-shadow:0 6px 18px rgba(22,163,74,0.22); text-align:center;">
       &#127881; You're now part of the family of 5,000+ growing brands
     </div>
   </td></tr>
@@ -463,7 +463,7 @@ ${signatureHtml}
         <div style="font-size:10px; color:#9BB0D6; letter-spacing:1px; text-transform:uppercase; margin-top:4px;">Activation</div>
       </td>
     </tr></table>
-    <div style="font-size:11px; color:#7088B5; margin-top:24px; letter-spacing:0.5px;">&#128274; Payment secured &middot; &#128188; Compliance-first &middot; &#11088; 4.9/5 rated</div>
+    <div style="font-size:11px; color:#7088B5; margin-top:24px; letter-spacing:0.5px; text-align:center;">&#128274; Payment secured &middot; &#128188; Compliance-first &middot; &#11088; 4.9/5 rated</div>
   </td></tr>
 
   <tr><td style="background:#05122E; background:linear-gradient(180deg,#05122E 0%, #0A1535 100%); padding:38px 30px; border-radius:0 0 18px 18px;" class="pad-lg">
