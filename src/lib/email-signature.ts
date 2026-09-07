@@ -30,7 +30,7 @@ export function buildEmailSignature(opts: {
   <!-- RELATIONSHIP MANAGER -->
   <tr><td style="background:#F6F8FC; padding:34px 28px; border-top:1px solid #E5E9F0;" class="pad-lg">
     <div style="background:#fff; border:1px solid #E5E9F0; border-radius:16px; padding:28px 24px; text-align:center; box-shadow:0 4px 16px rgba(11,27,54,0.06);">
-      <div style="font-size:11px; font-weight:800; color:#1E4DB7; letter-spacing:2px; text-transform:uppercase; margin-bottom:14px;">&#128104;&#8205;&#128188; Your Dedicated Manager</div>
+      <div style="font-size:11px; font-weight:800; color:#1E4DB7; letter-spacing:2px; text-transform:uppercase; margin-bottom:14px; text-align:center;">&#128104;&#8205;&#128188; Your Dedicated Manager</div>
 
       <div style="width:88px; height:88px; line-height:88px; text-align:center; border-radius:50%; background:linear-gradient(135deg,#1E4DB7,#3D6EE0); color:#fff; font-weight:800; font-size:32px; letter-spacing:1px; margin:0 auto 14px; box-shadow:0 8px 20px rgba(30,77,183,0.35); border:4px solid #fff;">${initials}</div>
 
@@ -47,15 +47,15 @@ export function buildEmailSignature(opts: {
 
       <table role="presentation" width="100%" class="grid-2" style="margin:20px auto 0; max-width:480px;"><tr>
         <td class="stack" valign="top" style="width:50%; padding:5px;">
-          <a href="tel:+${digits}" style="display:block; text-decoration:none; background:#fff; border:1px solid #E5E9F0; border-radius:12px; padding:14px 12px; box-shadow:0 2px 6px rgba(11,27,54,0.04);">
-            <div style="font-size:18px; line-height:1;">&#128222;</div>
+          <a href="tel:+${digits}" style="display:block; text-decoration:none; background:#fff; border:1px solid #E5E9F0; border-radius:12px; padding:14px 12px; box-shadow:0 2px 6px rgba(11,27,54,0.04); text-align:center;">
+            <div style="font-size:18px; line-height:1; text-align:center;">&#128222;</div>
             <div style="font-size:10px; color:#5A6B85; font-weight:700; letter-spacing:1px; margin-top:6px;">CALL DIRECT</div>
             <div style="font-size:14px; color:#0B1B36; font-weight:800; margin-top:4px;">${display}</div>
           </a>
         </td>
         <td class="stack" valign="top" style="width:50%; padding:5px;">
-          <a href="mailto:contact@easemyoffice.in" style="display:block; text-decoration:none; background:#fff; border:1px solid #E5E9F0; border-radius:12px; padding:14px 12px; box-shadow:0 2px 6px rgba(11,27,54,0.04);">
-            <div style="font-size:18px; line-height:1;">&#9993;</div>
+          <a href="mailto:contact@easemyoffice.in" style="display:block; text-decoration:none; background:#fff; border:1px solid #E5E9F0; border-radius:12px; padding:14px 12px; box-shadow:0 2px 6px rgba(11,27,54,0.04); text-align:center;">
+            <div style="font-size:18px; line-height:1; text-align:center;">&#9993;</div>
             <div style="font-size:10px; color:#5A6B85; font-weight:700; letter-spacing:1px; margin-top:6px;">EMAIL ME</div>
             <div style="font-size:13px; color:#1E4DB7; font-weight:800; margin-top:4px; word-break:break-all;">contact@easemyoffice.in</div>
           </a>
