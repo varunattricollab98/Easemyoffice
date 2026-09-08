@@ -25,7 +25,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1104,7 +1103,7 @@ export function SendQuotationDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 min-h-0">
+        <div className="flex-1 min-h-0 overflow-y-auto">
           <div className="px-6 py-4 space-y-5">
             {/* Service Type */}
             <div className="space-y-1.5">
@@ -1349,7 +1348,7 @@ export function SendQuotationDialog({
               <div><b>Signature:</b> {profile?.full_name || "Team EaseMyOffice"}</div>
             </div>
           </div>
-        </ScrollArea>
+        </div>
 
         <DialogFooter className="shrink-0 border-t px-6 py-4 sm:justify-between">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={sending}>
