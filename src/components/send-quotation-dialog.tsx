@@ -1103,7 +1103,7 @@ export function SendQuotationDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-scroll scrollbar-modern">
           <div className="px-6 py-4 space-y-5">
             {/* Service Type */}
             <div className="space-y-1.5">
