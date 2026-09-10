@@ -603,6 +603,16 @@ ${addonsSection}
       </div>
     </td>
   </tr></table>
+  <!-- UPI QR CODE -->
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px"><tr>
+    <td align="center" style="text-align:center;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:20px 16px">
+      <div style="font-size:13px;font-weight:800;color:#0F172A;margin-bottom:4px">&#128241; Scan &amp; Pay via UPI</div>
+      <div style="font-size:11px;color:#64748B;margin-bottom:14px">Google Pay &bull; PhonePe &bull; Paytm &bull; any UPI app</div>
+      <img src="https://easemyoffice.emo-crm.workers.dev/payment-qr.png" alt="UPI Payment QR Code" width="180" style="display:inline-block;width:180px;max-width:70%;height:auto;border:6px solid #fff;border-radius:10px;box-shadow:0 4px 14px rgba(10,31,77,0.12)">
+      <div style="font-size:12px;color:#0F172A;font-weight:700;margin-top:14px">UPI ID: <span style="color:#1E4DB7">narul69434.ibz@icici</span></div>
+      <div style="font-size:11px;color:#64748B;margin-top:4px">Narula Technologies LLP &bull; ICICI Bank</div>
+    </td>
+  </tr></table>
 </td></tr>
 
 <!-- KYC TABLE - 7 rows with Partner/Director text and red marks -->
