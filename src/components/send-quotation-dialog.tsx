@@ -273,13 +273,13 @@ function buildQuotationHtml(opts: {
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;table-layout:fixed">
       <tr>
         <td width="25%" align="center" style="width:25%;text-align:center;padding:14px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/verizon.png" alt="Verizon" height="34" style="display:inline-block;height:34px;max-height:34px;max-width:100%;width:auto;vertical-align:middle;opacity:0.85"></td>
-        <td width="25%" align="center" style="width:25%;text-align:center;padding:14px 8px;vertical-align:middle"><img src="https://easemyoffice.emo-crm.workers.dev/Homelane.png" alt="HomeLane" height="34" style="display:inline-block;height:34px;max-height:34px;max-width:100%;width:auto;vertical-align:middle;opacity:0.85"></td>
+        <td width="25%" align="center" style="width:25%;text-align:center;padding:14px 8px;vertical-align:middle"><span style="font-family:Arial,Helvetica,sans-serif;font-size:17px;font-weight:800;color:#E8552D;letter-spacing:-0.3px;white-space:nowrap">HomeLane</span></td>
         <td width="25%" align="center" style="width:25%;text-align:center;padding:14px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/omnicuris.png" alt="Omnicuris" height="34" style="display:inline-block;height:34px;max-height:34px;max-width:100%;width:auto;vertical-align:middle;opacity:0.85"></td>
-        <td width="25%" align="center" style="width:25%;text-align:center;padding:14px 8px;vertical-align:middle"><img src="https://easemyoffice.emo-crm.workers.dev/Fitelo.png" alt="Fitelo" height="34" style="display:inline-block;height:34px;max-height:34px;max-width:100%;width:auto;vertical-align:middle;opacity:0.85"></td>
+        <td width="25%" align="center" style="width:25%;text-align:center;padding:14px 8px;vertical-align:middle"><span style="font-family:Arial,Helvetica,sans-serif;font-size:17px;font-weight:800;color:#F04E37;letter-spacing:-0.3px;white-space:nowrap">Fitelo</span></td>
       </tr>
       <tr>
         <td width="25%" align="center" style="width:25%;text-align:center;padding:14px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/kineticgreen.png" alt="Kinetic Green" height="34" style="display:inline-block;height:34px;max-height:34px;max-width:100%;width:auto;vertical-align:middle;opacity:0.85"></td>
-        <td width="25%" align="center" style="width:25%;text-align:center;padding:14px 8px;vertical-align:middle"><img src="https://easemyoffice.emo-crm.workers.dev/earthtron.png" alt="EarthtronEV" height="34" style="display:inline-block;height:34px;max-height:34px;max-width:100%;width:auto;vertical-align:middle;opacity:0.85"></td>
+        <td width="25%" align="center" style="width:25%;text-align:center;padding:14px 8px;vertical-align:middle"><span style="font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:800;color:#3AA935;letter-spacing:-0.3px;white-space:nowrap">Earthtron<span style="color:#1E4DB7">EV</span></span></td>
         <td width="25%" align="center" style="width:25%;text-align:center;padding:14px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/udaan.png" alt="Udaan" height="34" style="display:inline-block;height:34px;max-height:34px;max-width:100%;width:auto;vertical-align:middle;opacity:0.85"></td>
         <td width="25%" align="center" style="width:25%;text-align:center;padding:14px 8px;vertical-align:middle"><img src="https://www.easemyoffice.in/logos/thirdwavecoffee.png" alt="Third Wave Coffee" height="34" style="display:inline-block;height:34px;max-height:34px;max-width:100%;width:auto;vertical-align:middle;opacity:0.85"></td>
       </tr>
@@ -475,7 +475,7 @@ ${addonsSection}
           <div style="font-size:24px">&#128176;</div>
           <div style="font-size:12px;font-weight:800;color:#0F172A;margin-top:8px">CA Service</div>
           <div style="font-size:11px;color:#64748B;margin-top:4px">Chartered Accountant on call</div>
-          <div style="margin-top:10px"><span style="display:inline-block;background:#16A34A;color:#fff;font-size:10px;font-weight:700;padding:5px 12px;border-radius:6px">FREE</span></div>
+          <div style="margin-top:10px"><span style="display:inline-block;background:#1E4DB7;color:#fff;font-size:10px;font-weight:700;padding:5px 12px;border-radius:6px"><span style="text-decoration:line-through;opacity:0.7">&#8377;3,500</span> &nbsp;&#8377;2,000</span></div>
         </div>
       </td>
       <td class="stack" style="width:50%;padding:6px;vertical-align:top">
@@ -523,14 +523,14 @@ ${addonsSection}
       <div style="background:linear-gradient(135deg,#15803D,#16A34A);border-radius:12px;padding:20px 12px;text-align:center">
         <div style="font-size:28px">&#9989;</div>
         <div style="font-size:12px;font-weight:800;color:#fff;margin-top:8px">GST Approval<br>Guarantee</div>
-        <div style="font-size:10px;color:#D1FAE5;font-weight:700;margin-top:6px">CA Service: &#8377;2,360 &rarr; FREE</div>
+        <div style="font-size:10px;color:#D1FAE5;font-weight:700;margin-top:6px">CA Service: <span style="text-decoration:line-through;opacity:0.75">&#8377;3,500</span> &rarr; &#8377;2,000</div>
       </div>
     </td>
     <td class="stack" style="width:33%;padding:4px;vertical-align:top">
       <div style="background:linear-gradient(135deg,#15803D,#16A34A);border-radius:12px;padding:20px 12px;text-align:center">
         <div style="font-size:28px">&#128231;</div>
-        <div style="font-size:12px;font-weight:800;color:#fff;margin-top:8px">Lifetime<br>Mail Handling</div>
-        <div style="font-size:10px;color:#D1FAE5;font-weight:700;margin-top:6px">Worth &#8377;1,200/yr &rarr; FREE</div>
+        <div style="font-size:12px;font-weight:800;color:#fff;margin-top:8px">Mail<br>Handling</div>
+        <div style="font-size:10px;color:#D1FAE5;font-weight:700;margin-top:6px">&#8377;3,000 worth included in plan</div>
       </div>
     </td>
     <td class="stack" style="width:33%;padding:4px;vertical-align:top">
@@ -588,7 +588,7 @@ ${addonsSection}
           <b style="color:#0F172A">A/C No:</b> 629805023504<br>
           <b style="color:#0F172A">IFSC:</b> ICIC0006298<br>
           <b style="color:#0F172A">Bank:</b> ICICI Bank<br>
-          <b style="color:#0F172A">UPI:</b> narulatechnologies@icici
+          <b style="color:#0F172A">UPI:</b> narul69434.ibz@icici
         </div>
       </div>
     </td>
