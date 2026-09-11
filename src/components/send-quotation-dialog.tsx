@@ -134,6 +134,7 @@ function buildQuotationHtml(opts: {
     const gst = Number(p.gst_pct) || 18;
     const total = Math.round(base * (1 + gst / 100));
     return `<tr style="background:${idx % 2 === 0 ? "#fff" : "#F8FAFC"}">
+        <td style="padding:14px 12px;border-bottom:1px solid #E2E8F0;font-size:14px;color:#64748B;text-align:center;font-weight:600">${idx + 1}</td>
         <td style="padding:14px 16px;border-bottom:1px solid #E2E8F0;font-size:14px;color:#1E293B;font-weight:600">${p.area || p.sp_name || p.code}</td>
         <td style="padding:14px 16px;border-bottom:1px solid #E2E8F0;font-size:14px;color:#1E293B;text-align:center">${p.city || ""}</td>
         <td style="padding:14px 16px;border-bottom:1px solid #E2E8F0;font-size:14px;color:#1E293B;text-align:right">${formatINR(base)}</td>
@@ -377,6 +378,7 @@ function buildQuotationHtml(opts: {
   </div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E2E8F0;border-radius:12px;overflow:hidden">
     <tr style="background:#0A1F4D">
+      <th style="padding:12px 12px;font-size:11px;font-weight:800;color:#FFE39A;text-align:center;letter-spacing:0.5px">#</th>
       <th style="padding:12px 16px;font-size:11px;font-weight:800;color:#FFE39A;text-align:left;letter-spacing:0.5px">LOCATION</th>
       <th style="padding:12px 16px;font-size:11px;font-weight:800;color:#FFE39A;text-align:center;letter-spacing:0.5px">CITY</th>
       <th style="padding:12px 16px;font-size:11px;font-weight:800;color:#FFE39A;text-align:right;letter-spacing:0.5px">BASE PRICE</th>
@@ -1242,6 +1244,7 @@ export function SendQuotationDialog({
                     <table className="w-full text-xs">
                       <thead>
                         <tr className="bg-muted/60">
+                          <th className="text-center px-2 py-2 font-semibold w-8">#</th>
                           <th className="text-left px-3 py-2 font-semibold">Location</th>
                           <th className="text-left px-3 py-2 font-semibold">City</th>
                           <th className="text-right px-3 py-2 font-semibold">Base</th>
@@ -1251,12 +1254,13 @@ export function SendQuotationDialog({
                         </tr>
                       </thead>
                       <tbody>
-                        {displayPlans.map(({ key, plan: p }) => {
+                        {displayPlans.map(({ key, plan: p }, idx) => {
                           const base = priceOverrides[key] ?? (Number(p.selling_price) || 0);
                           const gst = Number(p.gst_pct) || 18;
                           const total = Math.round(base * (1 + gst / 100));
                           return (
                             <tr key={key} className="border-t">
+                              <td className="px-2 py-2 text-center text-muted-foreground">{idx + 1}</td>
                               <td className="px-3 py-2 font-medium">{p.area || p.sp_name || p.code}</td>
                               <td className="px-3 py-2">{p.city || ""}</td>
                               <td className="px-3 py-2 text-right">
