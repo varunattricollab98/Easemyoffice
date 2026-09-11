@@ -1170,14 +1170,20 @@ export function SendQuotationDialog({
                       <CommandList>
                         <CommandEmpty>No state found.</CommandEmpty>
                         <CommandGroup>
-                          {states.map((s) => {
+                          {[...states].sort((a, b) => {
+                            // Selected states float to the top; within each group keep alphabetical.
+                            const aSel = selectedStates.includes(a);
+                            const bSel = selectedStates.includes(b);
+                            if (aSel !== bSel) return aSel ? -1 : 1;
+                            return a.localeCompare(b);
+                          }).map((s) => {
                             const checked = selectedStates.includes(s);
                             return (
                               <CommandItem
                                 key={s}
                                 value={s}
                                 onSelect={() => toggleState(s)}
-                                className="gap-2"
+                                className={`gap-2 ${checked ? "bg-primary/5 font-medium" : ""}`}
                               >
                                 <Checkbox checked={checked} className="pointer-events-none" />
                                 <span>{s}</span>
