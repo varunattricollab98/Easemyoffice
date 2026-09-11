@@ -1251,7 +1251,7 @@ export function SendQuotationDialog({
                         </tr>
                       </thead>
                       <tbody>
-                        {displayPlans.slice(0, 10).map(({ key, plan: p }) => {
+                        {displayPlans.map(({ key, plan: p }) => {
                           const base = priceOverrides[key] ?? (Number(p.selling_price) || 0);
                           const gst = Number(p.gst_pct) || 18;
                           const total = Math.round(base * (1 + gst / 100));
@@ -1289,9 +1289,9 @@ export function SendQuotationDialog({
                         })}
                       </tbody>
                     </table>
-                    {displayPlans.length > 10 && (
+                    {displayPlans.length > 0 && (
                       <div className="text-xs text-muted-foreground text-center py-2 bg-muted/30">
-                        + {displayPlans.length - 10} more plans will be included in the email
+                        {displayPlans.length} plan{displayPlans.length > 1 ? "s" : ""} included in the email
                       </div>
                     )}
                   </div>
