@@ -209,7 +209,7 @@ function LeadDetailPage() {
               ASSUMPTION: on mobile the browser tab stays open behind the phone/WhatsApp app,
               so the rep fills in the outcome when they return to the CRM. */}
           <Button variant="outline" size="sm" onClick={() => { window.location.href = `tel:${lead.mobile}`; setLogInteraction({ channel: "call" }); }}><Phone className="h-4 w-4 mr-1" /> Call</Button>
-          <Button variant="outline" size="sm" onClick={() => { window.location.href = `https://wa.me/${lead.mobile.replace(/\D/g,"")}`; setLogInteraction({ channel: "whatsapp" }); }}><MessageCircle className="h-4 w-4 mr-1" /> WhatsApp</Button>
+          <Button variant="outline" size="sm" onClick={() => { window.open(`https://wa.me/${lead.mobile.replace(/\D/g,"")}`, "_blank", "noopener,noreferrer"); setLogInteraction({ channel: "whatsapp" }); }}><MessageCircle className="h-4 w-4 mr-1" /> WhatsApp</Button>
           {lead.email && <Button variant="outline" size="sm" onClick={() => setEmailOpen(true)}><Mail className="h-4 w-4 mr-1" /> Email</Button>}
           {lead.email && <Button variant="outline" size="sm" onClick={() => setQuotationDialogOpen(true)}><FileText className="h-4 w-4 mr-1" /> Send Quotation</Button>}
           {lead.email && <Button variant="outline" size="sm" onClick={() => setReminderOpen(true)}><AlarmClock className="h-4 w-4 mr-1" /> Schedule Reminder</Button>}
