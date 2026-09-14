@@ -12,6 +12,8 @@
 //   GMAIL_WEBHOOK_URL  -> the Gmail Apps Script Web App /exec URL
 //   GMAIL_TOKEN        -> shared secret; must match TOKEN in the Apps Script
 
+import { gmailFetchJson } from "../_shared/gmail-fetch.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -39,10 +41,9 @@ Deno.serve(async (req) => {
       const max = Math.min(Number(body.max) || 40, 100);
       const start = Math.max(Number(body.start) || 0, 0);
       const url = `${WEBHOOK_URL}?action=inbox&max=${max}&start=${start}&token=${encodeURIComponent(TOKEN)}`;
-      const res = await fetch(url, { method: "GET", redirect: "follow" });
-      const text = await res.text();
-      let parsed: any = {};
-      try { parsed = JSON.parse(text); } catch { throw new Error(`Bad response from Gmail: ${text.slice(0, 150)}`); }
+      const result = await gmailFetchJson(url);
+      if (!result.ok) throw new Error(result.error);
+      const parsed = result.data;
       if (parsed.ok === false) throw new Error(parsed.error || "Gmail rejected the request");
       const emails = parsed.emails ?? [];
       return json({ ok: true, emails, hasMore: parsed.hasMore ?? emails.length >= max, start });
@@ -52,10 +53,9 @@ Deno.serve(async (req) => {
       const max = Math.min(Number(body.max) || 25, 100);
       const start = Math.max(Number(body.start) || 0, 0);
       const url = `${WEBHOOK_URL}?action=tagged&max=${max}&start=${start}&token=${encodeURIComponent(TOKEN)}`;
-      const res = await fetch(url, { method: "GET", redirect: "follow" });
-      const text = await res.text();
-      let parsed: any = {};
-      try { parsed = JSON.parse(text); } catch { throw new Error(`Bad response from Gmail: ${text.slice(0, 150)}`); }
+      const result = await gmailFetchJson(url);
+      if (!result.ok) throw new Error(result.error);
+      const parsed = result.data;
       if (parsed.ok === false) throw new Error(parsed.error || "Gmail rejected the request");
       const emails = parsed.emails ?? [];
       return json({ ok: true, emails, hasMore: parsed.hasMore ?? emails.length >= max, start });
@@ -64,25 +64,21 @@ Deno.serve(async (req) => {
     if (action === "thread") {
       if (!body.threadId) throw new Error("threadId is required");
       const url = `${WEBHOOK_URL}?action=thread&threadId=${encodeURIComponent(body.threadId)}&token=${encodeURIComponent(TOKEN)}`;
-      const res = await fetch(url, { method: "GET", redirect: "follow" });
-      const text = await res.text();
-      let parsed: any = {};
-      try { parsed = JSON.parse(text); } catch { throw new Error(`Bad response from Gmail: ${text.slice(0, 150)}`); }
+      const result = await gmailFetchJson(url);
+      if (!result.ok) throw new Error(result.error);
+      const parsed = result.data;
       if (!parsed.ok) throw new Error(parsed.error || "Could not load email");
       return json({ ok: true, subject: parsed.subject, url: parsed.url, messages: parsed.messages ?? [] });
     }
 
     if (action === "claim") {
       if (!body.threadId) throw new Error("threadId is required");
-      const res = await fetch(WEBHOOK_URL, {
+      const result = await gmailFetchJson(WEBHOOK_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: TOKEN, action: "claim", threadId: body.threadId, label: body.label }),
-        redirect: "follow",
+        body: { token: TOKEN, action: "claim", threadId: body.threadId, label: body.label },
       });
-      const text = await res.text();
-      let parsed: any = {};
-      try { parsed = JSON.parse(text); } catch { throw new Error(`Bad response from Gmail: ${text.slice(0, 150)}`); }
+      if (!result.ok) throw new Error(result.error);
+      const parsed = result.data;
       if (!parsed.ok) throw new Error(parsed.error || "Could not label the email");
       return json({ ok: true });
     }

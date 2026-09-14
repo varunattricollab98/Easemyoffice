@@ -44,6 +44,7 @@ import {
   htmlToText,
   parseWeb3FormLead,
 } from "../_shared/gmail-parse.ts";
+import { gmailFetchJson } from "../_shared/gmail-fetch.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -82,14 +83,10 @@ async function fetchTaggedPage(
 ): Promise<{ ok: boolean; emails: any[]; hasMore: boolean; error?: string }> {
   const url =
     `${GMAIL_WEBHOOK_URL}?action=tagged&max=${max}&start=${start}&token=${encodeURIComponent(GMAIL_TOKEN)}`;
-  const res = await fetch(url, { method: "GET", redirect: "follow" });
-  const text = await res.text();
-  let parsed: any = {};
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    return { ok: false, emails: [], hasMore: false, error: `Bad response: ${text.slice(0, 150)}` };
-  }
+  // Retries transient Google HTML interstitials before giving up.
+  const result = await gmailFetchJson(url);
+  if (!result.ok) return { ok: false, emails: [], hasMore: false, error: result.error };
+  const parsed = result.data;
   if (parsed.ok === false) return { ok: false, emails: [], hasMore: false, error: parsed.error };
   return { ok: true, emails: parsed.emails ?? [], hasMore: !!parsed.hasMore };
 }
@@ -100,8 +97,9 @@ async function fetchThreadBody(threadId: string): Promise<string> {
   try {
     const url =
       `${GMAIL_WEBHOOK_URL}?action=thread&threadId=${encodeURIComponent(threadId)}&token=${encodeURIComponent(GMAIL_TOKEN)}`;
-    const res = await fetch(url, { method: "GET", redirect: "follow" });
-    const data = JSON.parse(await res.text());
+    const result = await gmailFetchJson(url);
+    if (!result.ok) return "";
+    const data = result.data;
     if (!data?.ok) return "";
     const msgs: any[] = data.messages ?? [];
     return msgs
