@@ -449,7 +449,7 @@ ${addonsSection}
           <div style="font-size:24px">&#128197;</div>
           <div style="font-size:12px;font-weight:800;color:#0F172A;margin-top:8px">Day Passes</div>
           <div style="font-size:11px;color:#64748B;margin-top:4px">Co-working access</div>
-          <div style="margin-top:10px"><span style="display:inline-block;background:#1E4DB7;color:#fff;font-size:10px;font-weight:700;padding:5px 12px;border-radius:6px">From &#8377;299/day</span></div>
+          <div style="margin-top:10px"><span style="display:inline-block;background:#1E4DB7;color:#fff;font-size:10px;font-weight:700;padding:5px 12px;border-radius:6px">From &#8377;559/day</span></div>
         </div>
       </td>
     </tr>
