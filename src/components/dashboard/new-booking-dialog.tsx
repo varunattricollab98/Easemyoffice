@@ -107,6 +107,8 @@ const initialForm = {
   contact_no: "",
   alt_contact_no: "",
   alt_contact_no_2: "",
+  gst_number: "",
+  gst_address: "",
   remarks: "",
   payment_type: "full" as "full" | "partial",
   amount_received: "",
@@ -878,6 +880,8 @@ export function NewBookingDialog() {
       contact_no: "",
       alt_contact_no: "",
       alt_contact_no_2: "",
+      gst_number: "",
+      gst_address: "",
       remarks: "",
       payment_type: "full",
       amount_received: "",
@@ -951,6 +955,8 @@ export function NewBookingDialog() {
         contact_no: form.contact_no,
         alt_contact_no: form.alt_contact_no,
         alt_contact_no_2: form.alt_contact_no_2,
+        gst_number: form.gst_number || null,
+        gst_address: form.gst_address || null,
         remarks: form.remarks,
         sales_month: d.month,
         amount_received: d.amountReceived,
@@ -1882,6 +1888,16 @@ export function NewBookingDialog() {
               { inputMode: "tel" },
               !alt2Ok ? "At least 10 digits" : undefined,
             )}
+            {T("gst_number", "GST Number", { placeholder: "e.g. 06AANFN9510H1Z3" })}
+            <div className="md:col-span-2">
+              <Label className="text-xs">GST Address (for invoice)</Label>
+              <Textarea
+                rows={2}
+                value={f.gst_address}
+                onChange={(e) => setF({ ...f, gst_address: e.target.value })}
+                placeholder="Client billing address as it should appear on the tax invoice"
+              />
+            </div>
             <div>
               <Label className="text-xs">Sales Month (auto)</Label>
               <Input value={month} readOnly className="bg-muted/40" />

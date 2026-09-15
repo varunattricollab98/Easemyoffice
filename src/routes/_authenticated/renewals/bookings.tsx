@@ -149,6 +149,7 @@ function NewRenewalBookingDialog({ open, onClose, userId, team }: { open: boolea
     payment_mode_ref: "", payment_id_utr: "", invoice_number: "",
     sp_payment_status: "Pending", vo_status: "Pending",
     business_name: "", client_name: "", email_id: "", contact_no: "",
+    gst_number: "", gst_address: "",
     plan_start_date: "", plan_expiry_date: "",
     remarks: "", assigned_to: userId ?? "",
     payment_type: "full" as "full" | "partial",
@@ -203,6 +204,7 @@ function NewRenewalBookingDialog({ open, onClose, userId, team }: { open: boolea
     payment_mode_ref: "", payment_id_utr: "", invoice_number: "",
     sp_payment_status: "Pending", vo_status: "Pending",
     business_name: "", client_name: "", email_id: "", contact_no: "",
+    gst_number: "", gst_address: "",
     plan_start_date: "", plan_expiry_date: "", remarks: "", assigned_to: userId ?? "",
     payment_type: "full", amount_received: "", balance_due_date: "",
   });
@@ -228,6 +230,7 @@ function NewRenewalBookingDialog({ open, onClose, userId, team }: { open: boolea
         sp_payment_status: f.sp_payment_status, vo_status: f.vo_status,
         business_name: f.business_name, client_name: f.client_name,
         email_id: f.email_id, contact_no: f.contact_no,
+        gst_number: f.gst_number || null, gst_address: f.gst_address || null,
         plan_start_date: f.plan_start_date || null,
         plan_expiry_date: f.plan_expiry_date || null,
         remarks: f.remarks,
@@ -350,6 +353,8 @@ function NewRenewalBookingDialog({ open, onClose, userId, team }: { open: boolea
           {T("client_name", "Client Name *")}
           {T("email_id", "Email", { type: "email" })}
           {T("contact_no", "Contact No. *", { inputMode: "tel" })}
+          {T("gst_number", "GST Number", { placeholder: "e.g. 06AANFN9510H1Z3" })}
+          <div className="md:col-span-2"><Label className="text-xs">GST Address (for invoice)</Label><Textarea rows={2} value={f.gst_address} onChange={(e) => setF({ ...f, gst_address: e.target.value })} placeholder="Client billing address as it should appear on the tax invoice" /></div>
           {T("plan_start_date", "Plan Start Date", { type: "date" })}
           {T("plan_expiry_date", "Plan Expiry Date", { type: "date" })}
           {isAdmin && (
