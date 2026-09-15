@@ -81,23 +81,48 @@ const STATE_CODES: Record<string, string> = {
   "lakshadweep": "LD",
 };
 
-// Derive the place-of-supply state code. Prefer the explicit booking state, then
-// the first two chars of the GSTIN (which encode the state), else null.
-function stateCode(stateName?: string | null, gstin?: string | null): string | null {
+// GSTIN's leading two digits encode the state.
+const GSTIN_STATE_BY_NUM: Record<string, string> = {
+  "37": "AP", "12": "AR", "18": "AS", "10": "BR", "22": "CG", "30": "GA",
+  "24": "GJ", "06": "HR", "02": "HP", "20": "JH", "29": "KA", "32": "KL",
+  "23": "MP", "27": "MH", "14": "MN", "17": "ML", "15": "MZ", "13": "NL",
+  "21": "OD", "03": "PB", "08": "RJ", "11": "SK", "33": "TN", "36": "TS",
+  "16": "TR", "09": "UP", "05": "UK", "19": "WB", "07": "DL", "01": "JK",
+  "38": "LA", "04": "CH", "34": "PY", "35": "AN", "26": "DD", "31": "LD",
+};
+// Reverse: code -> display name (for the billing address state text).
+const CODE_TO_STATE: Record<string, string> = Object.entries(STATE_CODES).reduce(
+  (acc, [name, code]) => {
+    if (!acc[code]) acc[code] = name.replace(/\b\w/g, (c) => c.toUpperCase());
+    return acc;
+  },
+  {} as Record<string, string>,
+);
+
+function stateNameToCode(stateName?: string | null): string | null {
   const key = String(stateName ?? "").trim().toLowerCase();
-  if (key && STATE_CODES[key]) return STATE_CODES[key];
+  return key && STATE_CODES[key] ? STATE_CODES[key] : null;
+}
+
+function gstinToCode(gstin?: string | null): string | null {
   const g = String(gstin ?? "").trim();
-  if (g.length >= 2) {
-    const prefix = g.slice(0, 2);
-    const byNum: Record<string, string> = {
-      "37": "AP", "12": "AR", "18": "AS", "10": "BR", "22": "CG", "30": "GA",
-      "24": "GJ", "06": "HR", "02": "HP", "20": "JH", "29": "KA", "32": "KL",
-      "23": "MP", "27": "MH", "14": "MN", "17": "ML", "15": "MZ", "13": "NL",
-      "21": "OD", "03": "PB", "08": "RJ", "11": "SK", "33": "TN", "36": "TS",
-      "16": "TR", "09": "UP", "05": "UK", "19": "WB", "07": "DL", "01": "JK",
-      "38": "LA", "04": "CH", "34": "PY", "35": "AN", "26": "DD", "31": "LD",
-    };
-    if (byNum[prefix]) return byNum[prefix];
+  return g.length >= 2 && GSTIN_STATE_BY_NUM[g.slice(0, 2)] ? GSTIN_STATE_BY_NUM[g.slice(0, 2)] : null;
+}
+
+// Place of supply = the CLIENT's own state. The client's GSTIN is the most
+// reliable source (its first two digits are the state); fall back to the typed
+// GST address text, then any explicit client-state hint. NOTE: this must NOT be
+// the virtual-office location (booking.state) — that is where the service sits,
+// not where the client is registered. (Handled by the caller passing only
+// client-derived values.)
+function placeOfSupplyCode(gstin?: string | null, gstAddress?: string | null): string | null {
+  // 1. From GSTIN (authoritative).
+  const byGstin = gstinToCode(gstin);
+  if (byGstin) return byGstin;
+  // 2. From a state name appearing in the free-text GST address.
+  const addr = String(gstAddress ?? "").toLowerCase();
+  for (const [name, code] of Object.entries(STATE_CODES)) {
+    if (addr.includes(name)) return code;
   }
   return null;
 }
@@ -228,12 +253,15 @@ async function findOrCreateCustomer(
       },
     ],
   };
+  // Billing address = ONLY the client's GST address + the client's own state
+  // (derived from posCode). We deliberately do NOT use booking city/state,
+  // which hold the virtual-office LOCATION (e.g. Bangalore), not the client's
+  // registered address.
   const address = String(b.gst_address ?? "").trim();
   if (address) {
     payload.billing_address = {
       address,
-      ...(String(b.city ?? "").trim() ? { city: String(b.city).trim() } : {}),
-      ...(String(b.state ?? "").trim() ? { state: String(b.state).trim() } : {}),
+      ...(posCode && CODE_TO_STATE[posCode] ? { state: CODE_TO_STATE[posCode] } : {}),
       country: "India",
     };
   }
@@ -241,6 +269,28 @@ async function findOrCreateCustomer(
   const id = created.contact?.contact_id;
   if (!id) throw new Error("Zoho did not return a contact id");
   return String(id);
+}
+
+// Expand the plan-code service prefix to a readable service name.
+//   GST -> GST Registration,  BR -> Business Registration,  MA -> Mailing Address
+function serviceFromPlan(planName?: string | null): string {
+  const prefix = String(planName ?? "").trim().split(/[_\-\s]/)[0].toUpperCase();
+  const map: Record<string, string> = {
+    GST: "GST Registration",
+    BR: "Business Registration",
+    MA: "Mailing Address",
+  };
+  return map[prefix] ?? "";
+}
+
+// The virtual-office LOCATION for the item name = the booking's state (where the
+// office sits, e.g. Karnataka). Falls back to city, then the plan code tail.
+function voLocation(b: any): string {
+  const st = String(b.state ?? "").trim();
+  if (st) return st;
+  const city = String(b.city ?? "").trim();
+  if (city) return city;
+  return "";
 }
 
 // Build the invoice line items from the booking's amounts. VO plan is always a
@@ -252,10 +302,15 @@ function buildLineItems(b: any, taxId: string | null): any[] {
 
   const voAmount = num(b.vo_amount);
   if (voAmount > 0) {
+    const loc = voLocation(b);
+    const service = serviceFromPlan(b.plan_name);
+    // "Virtual Office in <State> — <Service>" (both parts optional if unknown).
+    const name =
+      [`Virtual Office${loc ? ` in ${loc}` : ""}`, service].filter(Boolean).join(" \u2014 ").slice(0, 100) ||
+      "Virtual Office";
     items.push(
       withTax({
-        name: String(b.plan_name ?? "Virtual Office Plan").slice(0, 100) || "Virtual Office Plan",
-        description: [b.vo_plan, b.city, b.state].filter(Boolean).join(" · ").slice(0, 500),
+        name,
         rate: voAmount,
         quantity: 1,
       }),
@@ -265,6 +320,7 @@ function buildLineItems(b: any, taxId: string | null): any[] {
   if (addOn > 0) {
     items.push(
       withTax({
+        // Add-on services as-is from the booking.
         name: (String(b.addon_services ?? "").trim() || "Add-on Services").slice(0, 100),
         rate: addOn,
         quantity: 1,
@@ -378,7 +434,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    const posCode = stateCode(b.state, b.gst_number);
+    // Place of supply = the CLIENT's own state (from GSTIN / GST address), NOT
+    // the virtual-office location (booking.state).
+    const posCode = placeOfSupplyCode(b.gst_number, b.gst_address);
     // Inter-state when we know the client's state and it differs from the
     // seller's home state. If the state is unknown we default to intra-state
     // (Zoho will still reject with a clear message if that's wrong).
