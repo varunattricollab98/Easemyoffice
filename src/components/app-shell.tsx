@@ -22,6 +22,7 @@ const NAV: NavItem[] = [
   { to: "/inbox", label: "Lead Inbox", icon: Mail, roles: ["admin", "sales", "bd"] },
   { to: "/leads", label: "Leads", icon: Users, roles: ["admin", "sales", "bd"] },
   { to: "/pipeline", label: "Pipeline", icon: Kanban, roles: ["admin", "sales", "bd"] },
+  { to: "/renewals/inbox", label: "Renewal Inbox", icon: Mail, roles: ["admin", "renewals"] },
   { to: "/renewals/leads", label: "Renewal Leads", icon: Users, roles: ["admin", "renewals"] },
   { to: "/renewals/pipeline", label: "Renewal Pipeline", icon: Kanban, roles: ["admin", "renewals"] },
   { to: "/renewals/bookings", label: "Renewal Bookings", icon: BookOpen, roles: ["admin", "renewals"] },

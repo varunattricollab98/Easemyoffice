@@ -11,11 +11,17 @@ export interface InboxEmail {
   url: string;
 }
 
-// Fetch a page of lead emails from the shared Gmail inbox (via the gmail-bridge
-// edge function). `start` is the offset (for pagination). Fails soft if not connected.
-export async function fetchInbox(max = 40, start = 0): Promise<{ ok: boolean; emails: InboxEmail[]; hasMore: boolean; error?: string }> {
+// The edge function that bridges to a Gmail mailbox. Sales uses "gmail-bridge"
+// (contact@easemyoffice.in); the Renewals inbox passes "renewals-gmail-bridge"
+// (renewals@easemyoffice.in). Both functions share the same request/response
+// shape, so the same helpers below serve either mailbox.
+export type GmailBridgeFn = "gmail-bridge" | "renewals-gmail-bridge";
+
+// Fetch a page of lead emails from a Gmail inbox (via the given bridge edge
+// function). `start` is the offset (for pagination). Fails soft if not connected.
+export async function fetchInbox(max = 40, start = 0, fn: GmailBridgeFn = "gmail-bridge"): Promise<{ ok: boolean; emails: InboxEmail[]; hasMore: boolean; error?: string }> {
   try {
-    const { data, error } = await supabase.functions.invoke("gmail-bridge", { body: { action: "inbox", max, start } });
+    const { data, error } = await supabase.functions.invoke(fn, { body: { action: "inbox", max, start } });
     if (error) return { ok: false, emails: [], hasMore: false, error: `Function call failed: ${error.message || "invoke error"}` };
     if (!data?.ok) return { ok: false, emails: [], hasMore: false, error: data?.error || "unknown error" };
     const emails = Array.isArray(data.emails) ? data.emails : [];
@@ -36,9 +42,9 @@ export interface ThreadMessage {
 }
 
 // Load the full text of one email thread (all messages) for reading in the CRM.
-export async function fetchThread(threadId: string): Promise<{ ok: boolean; subject?: string; url?: string; messages: ThreadMessage[]; error?: string }> {
+export async function fetchThread(threadId: string, fn: GmailBridgeFn = "gmail-bridge"): Promise<{ ok: boolean; subject?: string; url?: string; messages: ThreadMessage[]; error?: string }> {
   try {
-    const { data, error } = await supabase.functions.invoke("gmail-bridge", { body: { action: "thread", threadId } });
+    const { data, error } = await supabase.functions.invoke(fn, { body: { action: "thread", threadId } });
     if (error) return { ok: false, messages: [], error: error.message };
     if (!data?.ok) return { ok: false, messages: [], error: data?.error || "could not load" };
     return { ok: true, subject: data.subject, url: data.url, messages: Array.isArray(data.messages) ? data.messages : [] };
@@ -48,9 +54,9 @@ export async function fetchThread(threadId: string): Promise<{ ok: boolean; subj
 }
 
 // Label a Gmail thread as "<Name> lead" and mark it read.
-export async function claimEmailInGmail(threadId: string, label: string): Promise<{ ok: boolean; error?: string }> {
+export async function claimEmailInGmail(threadId: string, label: string, fn: GmailBridgeFn = "gmail-bridge"): Promise<{ ok: boolean; error?: string }> {
   try {
-    const { data, error } = await supabase.functions.invoke("gmail-bridge", { body: { action: "claim", threadId, label } });
+    const { data, error } = await supabase.functions.invoke(fn, { body: { action: "claim", threadId, label } });
     if (error) return { ok: false, error: error.message };
     if (!data?.ok) return { ok: false, error: data?.error || "claim failed" };
     return { ok: true };
