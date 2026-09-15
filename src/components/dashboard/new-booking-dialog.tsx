@@ -273,30 +273,30 @@ function buildPaymentAckEmailHtml(details: {
 <table role="presentation" width="960" class="container" cellpadding="0" cellspacing="0" style="max-width:960px; width:100%;">
 
   <tr><td align="center" style="text-align:center; padding-bottom:14px;">
-    <span style="font-size:11px; color:#5A6B85; letter-spacing:2px; font-weight:700; text-transform:uppercase;">&#128274;&nbsp; Payment Acknowledgment &middot; Officially Confirmed</span>
+    <span style="font-size:11px; color:#5A6B85; letter-spacing:2px; font-weight:700; text-transform:uppercase;">Payment Acknowledgment &middot; Officially Confirmed</span>
   </td></tr>
 
   <tr><td style="background:#0A1535; background:linear-gradient(135deg,#0A1535 0%, #16306B 55%, #1E4DB7 100%); padding:46px 36px; border-radius:18px 18px 0 0; text-align:center;" class="pad-lg">
     <div style="display:inline-block; background:rgba(22,163,74,0.18); color:#A7F3C5; font-size:11px; font-weight:800; letter-spacing:2px; padding:7px 16px; border-radius:30px; border:1px solid rgba(167,243,197,0.45); margin-bottom:22px;">
-      &#9989;&nbsp; PAYMENT RECEIVED &amp; CONFIRMED
+      PAYMENT RECEIVED &amp; CONFIRMED
     </div>
     <div style="display:inline-block; background:#fff; padding:16px 30px; border-radius:12px;">${logoMark(30)}</div>
-    <div style="font-size:22px; color:#fff; margin-top:22px; font-weight:800; letter-spacing:-0.3px;">Welcome to the EaseMyOffice Family &#127881;</div>
+    <div style="font-size:22px; color:#fff; margin-top:22px; font-weight:800; letter-spacing:-0.3px;">Welcome to the EaseMyOffice Family</div>
     <div style="font-size:14px; color:#E2EAF8; margin-top:8px; font-weight:600; letter-spacing:0.3px;">You're now part of 5,000+ growing brands across India</div>
   </td></tr>
 
   <tr><td style="background:#FFE39A; padding:11px 24px; font-size:12px; color:#5A4500; font-weight:700; text-align:center; letter-spacing:0.4px;">
-    &#129534;&nbsp; Payment ID / UTR: ${utr} &nbsp;&middot;&nbsp; ${date} &nbsp;&middot;&nbsp; Status: ${isPartialPayment ? '<span style="color:#B45309;">PARTIAL PAYMENT &#9203;</span>' : '<span style="color:#15803D;">PAID &#10003;</span>'}
+    Payment ID / UTR: ${utr} &nbsp;&middot;&nbsp; ${date} &nbsp;&middot;&nbsp; Status: ${isPartialPayment ? '<span style="color:#B45309;">PARTIAL PAYMENT</span>' : '<span style="color:#15803D;">PAID &#10003;</span>'}
   </td></tr>
 
   <tr><td style="background:#ffffff; padding:36px 32px; text-align:center;" class="pad-lg">
     <div style="font-size:11px; font-weight:800; color:#1E4DB7; letter-spacing:2px; text-transform:uppercase; margin-bottom:10px;">A Heartfelt Thank You</div>
-    <div style="font-size:28px; font-weight:800; color:#0B1B36; letter-spacing:-0.5px; text-align:center;" class="h2">Hello ${client_name} &#128075;</div>
+    <div style="font-size:28px; font-weight:800; color:#0B1B36; letter-spacing:-0.5px; text-align:center;" class="h2">Hello ${client_name}</div>
     <div style="font-size:14px; color:#475569; margin-top:16px; line-height:1.75; max-width:520px; margin-left:auto; margin-right:auto;">
       Thank you for your trust and your prompt payment. We're truly delighted to welcome you on board. Your premium virtual office is officially in motion &mdash; and our team is already working behind the scenes to get you activated quickly and compliantly.
     </div>
     <div style="margin-top:24px; background:#16A34A; background:linear-gradient(135deg,#15803D,#16A34A); color:#fff; font-weight:700; font-size:14px; padding:14px 18px; border-radius:10px; box-shadow:0 6px 18px rgba(22,163,74,0.22); text-align:center;">
-      &#127881;&nbsp; You're now part of the family of 5,000+ growing brands
+      You're now part of the family of 5,000+ growing brands
     </div>
   </td></tr>
 
@@ -323,7 +323,7 @@ function buildPaymentAckEmailHtml(details: {
 
   <tr><td style="background:#ffffff; padding:34px 30px; border-top:1px solid #E5E9F0;" class="pad-lg">
     <div style="text-align:center; margin-bottom:22px;">
-      <div style="display:inline-block; background:rgba(22,163,74,0.12); color:#15803D; font-size:11px; font-weight:800; padding:6px 14px; border-radius:30px; letter-spacing:1.5px; margin-bottom:10px;">&#128179;&nbsp; PAYMENT SUMMARY</div>
+      <div style="display:inline-block; background:rgba(22,163,74,0.12); color:#15803D; font-size:11px; font-weight:800; padding:6px 14px; border-radius:30px; letter-spacing:1.5px; margin-bottom:10px;">PAYMENT SUMMARY</div>
       <div style="font-size:22px; font-weight:800; color:#0B1B36;" class="h2">Your Transaction Details</div>
       <div style="font-size:13px; color:#5A6B85; margin-top:6px;">Kindly retain this email as your official payment record.</div>
     </div>
@@ -349,11 +349,11 @@ function buildPaymentAckEmailHtml(details: {
         <td style="padding:13px 16px; border-bottom:1px solid #EEF2F8; font-weight:700; color:#0B1B36;">${payment_mode || "\u2014"}</td>
       </tr>
       <tr style="background:#F0FAF4;">
-        <td style="padding:16px; border-bottom:1px solid #EEF2F8; font-weight:700; color:#0B1B36; font-size:14px;">&#128176;&nbsp; Amount Paid</td>
+        <td style="padding:16px; border-bottom:1px solid #EEF2F8; font-weight:700; color:#0B1B36; font-size:14px;">Amount Paid</td>
         <td style="padding:16px; border-bottom:1px solid #EEF2F8; font-weight:800; color:#15803D; font-size:18px;">${amount}${isPartialPayment ? ' <span style="font-size:12px; font-weight:700; color:#B45309; background:#FEF3C7; padding:2px 8px; border-radius:20px; margin-left:8px;">Half Payment</span>' : ''}</td>
       </tr>${isPartialPayment && balance_amount ? `
       <tr style="background:#FFF7ED;">
-        <td style="padding:13px 16px; border-bottom:1px solid #EEF2F8; font-weight:700; color:#0B1B36; font-size:14px;">&#9888;&#65039;&nbsp; Balance Remaining</td>
+        <td style="padding:13px 16px; border-bottom:1px solid #EEF2F8; font-weight:700; color:#0B1B36; font-size:14px;">Balance Remaining</td>
         <td style="padding:13px 16px; border-bottom:1px solid #EEF2F8; font-weight:800; color:#B45309; font-size:16px;">${balance_amount}</td>
       </tr>
       <tr style="background:#fff;">
@@ -362,40 +362,40 @@ function buildPaymentAckEmailHtml(details: {
       </tr>` : ''}
       <tr style="background:#fff;">
         <td style="padding:13px 16px; font-weight:600; color:#5A6B85;">Status</td>
-        <td style="padding:13px 16px;">${isPartialPayment ? '<span style="display:inline-block; background:#D97706; color:#fff; font-size:12px; font-weight:800; padding:5px 12px; border-radius:30px; letter-spacing:0.5px;">&#9203; PARTIAL PAYMENT</span>' : '<span style="display:inline-block; background:#16A34A; color:#fff; font-size:12px; font-weight:800; padding:5px 12px; border-radius:30px; letter-spacing:0.5px;">&#10003; SUCCESSFUL</span>'}</td>
+        <td style="padding:13px 16px;">${isPartialPayment ? '<span style="display:inline-block; background:#D97706; color:#fff; font-size:12px; font-weight:800; padding:5px 12px; border-radius:30px; letter-spacing:0.5px;">PARTIAL PAYMENT</span>' : '<span style="display:inline-block; background:#16A34A; color:#fff; font-size:12px; font-weight:800; padding:5px 12px; border-radius:30px; letter-spacing:0.5px;">&#10003; SUCCESSFUL</span>'}</td>
       </tr>
     </table>
   </td></tr>
 
   <tr><td style="background:#ffffff; padding:34px 30px; border-top:1px solid #E5E9F0;" class="pad-lg">
     <div style="text-align:center; margin-bottom:22px;">
-      <div style="display:inline-block; background:#FFE39A; color:#5A4500; font-size:11px; font-weight:800; padding:6px 14px; border-radius:30px; letter-spacing:1.5px; margin-bottom:10px;">&#128203;&nbsp; SERVICE DETAILS</div>
+      <div style="display:inline-block; background:#FFE39A; color:#5A4500; font-size:11px; font-weight:800; padding:6px 14px; border-radius:30px; letter-spacing:1.5px; margin-bottom:10px;">SERVICE DETAILS</div>
       <div style="font-size:22px; font-weight:800; color:#0B1B36;" class="h2">What Your Payment Covers</div>
       <div style="font-size:13px; color:#5A6B85; margin-top:6px;">Your payment has been applied toward the following service references.</div>
     </div>
     <table role="presentation" width="100%" class="grid-2"><tr>
       <td class="stack" valign="top" style="width:50%; padding:6px;">
         <div style="background:#F6F8FC; border:1px solid #E5E9F0; border-left:4px solid #1E4DB7; padding:16px 18px; border-radius:10px;">
-          <div style="font-weight:800; color:#0B1B36; font-size:14px;"><span style="font-size:15px;">&#128230;</span>&nbsp; Plan</div>
+          <div style="font-weight:800; color:#0B1B36; font-size:14px;">Plan</div>
           <div style="font-size:13px; color:#5A6B85; margin-top:6px; line-height:1.5;">${plan_name}</div>
         </div>
       </td>
       <td class="stack" valign="top" style="width:50%; padding:6px;">
         <div style="background:#F6F8FC; border:1px solid #E5E9F0; border-left:4px solid #1E4DB7; padding:16px 18px; border-radius:10px;">
-          <div style="font-weight:800; color:#0B1B36; font-size:14px;"><span style="font-size:15px;">&#128197;</span>&nbsp; Tenure</div>
+          <div style="font-weight:800; color:#0B1B36; font-size:14px;">Tenure</div>
           <div style="font-size:13px; color:#5A6B85; margin-top:6px; line-height:1.5;">1 Year of full address use, documentation &amp; mail handling.</div>
         </div>
       </td>
     </tr><tr>
       <td class="stack" valign="top" style="width:50%; padding:6px;">
         <div style="background:#F6F8FC; border:1px solid #E5E9F0; border-left:4px solid #1E4DB7; padding:16px 18px; border-radius:10px;">
-          <div style="font-weight:800; color:#0B1B36; font-size:14px;"><span style="font-size:15px;">&#128205;</span>&nbsp; Location(s) Covered</div>
+          <div style="font-weight:800; color:#0B1B36; font-size:14px;">Location(s) Covered</div>
           <div style="font-size:13px; color:#5A6B85; margin-top:6px; line-height:1.5;">${state || "PAN India"}</div>
         </div>
       </td>
       <td class="stack" valign="top" style="width:50%; padding:6px;">
         <div style="background:#F6F8FC; border:1px solid #E5E9F0; border-left:4px solid #1E4DB7; padding:16px 18px; border-radius:10px;">
-          <div style="font-weight:800; color:#0B1B36; font-size:14px;"><span style="font-size:15px;">&#9889;</span>&nbsp; Activation Window</div>
+          <div style="font-weight:800; color:#0B1B36; font-size:14px;">Activation Window</div>
           <div style="font-size:13px; color:#5A6B85; margin-top:6px; line-height:1.5;">Your address will be live within 48 hours.</div>
         </div>
       </td>
@@ -404,7 +404,7 @@ function buildPaymentAckEmailHtml(details: {
 
   <tr><td style="background:#F6F8FC; padding:34px 30px; border-top:1px solid #E5E9F0;" class="pad-lg">
     <div style="text-align:center; margin-bottom:24px;">
-      <div style="display:inline-block; background:rgba(30,77,183,0.1); color:#1E4DB7; font-size:11px; font-weight:800; padding:6px 14px; border-radius:30px; letter-spacing:1.5px; margin-bottom:10px;">&#128640;&nbsp; NEXT STEPS</div>
+      <div style="display:inline-block; background:rgba(30,77,183,0.1); color:#1E4DB7; font-size:11px; font-weight:800; padding:6px 14px; border-radius:30px; letter-spacing:1.5px; margin-bottom:10px;">NEXT STEPS</div>
       <div style="font-size:22px; font-weight:800; color:#0B1B36;" class="h2">What Happens Next</div>
       <div style="font-size:13px; color:#5A6B85; margin-top:6px;">Three simple, guided steps &mdash; your dedicated manager handles everything.</div>
     </div>
@@ -412,21 +412,21 @@ function buildPaymentAckEmailHtml(details: {
       <td class="stack" valign="top" style="width:33.33%; padding:6px;">
         <div style="background:#fff; border:1px solid #E5E9F0; border-radius:12px; padding:20px 18px; text-align:center; box-shadow:0 2px 6px rgba(11,27,54,0.04);">
           <div style="width:42px; height:42px; line-height:42px; border-radius:50%; background:linear-gradient(135deg,#1E4DB7,#3D6EE0); color:#fff; font-weight:800; font-size:16px; margin:0 auto 12px;">1</div>
-          <div style="font-weight:800; color:#0B1B36; font-size:14px;"><span style="font-size:15px;">&#128196;</span>&nbsp; Document Verification</div>
+          <div style="font-weight:800; color:#0B1B36; font-size:14px;">Document Verification</div>
           <div style="font-size:12.5px; color:#5A6B85; margin-top:8px; line-height:1.6;">Our team will reach out to collect &amp; verify your KYC documents.</div>
         </div>
       </td>
       <td class="stack" valign="top" style="width:33.33%; padding:6px;">
         <div style="background:#fff; border:1px solid #E5E9F0; border-radius:12px; padding:20px 18px; text-align:center; box-shadow:0 2px 6px rgba(11,27,54,0.04);">
           <div style="width:42px; height:42px; line-height:42px; border-radius:50%; background:linear-gradient(135deg,#1E4DB7,#3D6EE0); color:#fff; font-weight:800; font-size:16px; margin:0 auto 12px;">2</div>
-          <div style="font-weight:800; color:#0B1B36; font-size:14px;"><span style="font-size:15px;">&#128221;</span>&nbsp; Agreement &amp; KYC</div>
+          <div style="font-weight:800; color:#0B1B36; font-size:14px;">Agreement &amp; KYC</div>
           <div style="font-size:12.5px; color:#5A6B85; margin-top:8px; line-height:1.6;">Signed rent agreement, NOC and utility bill prepared in your name.</div>
         </div>
       </td>
       <td class="stack" valign="top" style="width:33.33%; padding:6px;">
         <div style="background:#fff; border:1px solid #E5E9F0; border-radius:12px; padding:20px 18px; text-align:center; box-shadow:0 2px 6px rgba(11,27,54,0.04);">
           <div style="width:42px; height:42px; line-height:42px; border-radius:50%; background:linear-gradient(135deg,#15803D,#16A34A); color:#fff; font-weight:800; font-size:16px; margin:0 auto 12px;">3</div>
-          <div style="font-weight:800; color:#0B1B36; font-size:14px;"><span style="font-size:15px;">&#127970;</span>&nbsp; Address Activation</div>
+          <div style="font-weight:800; color:#0B1B36; font-size:14px;">Address Activation</div>
           <div style="font-size:12.5px; color:#5A6B85; margin-top:8px; line-height:1.6;">Complete GST kit delivered + signage installed. You're live!</div>
         </div>
       </td>
