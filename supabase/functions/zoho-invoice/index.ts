@@ -49,6 +49,12 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 // Rate applied to the taxable line items. Bookings already compute GST at 18%.
 const GST_RATE = 18;
 
+// The seller's home state (EaseMyOffice / Narula Technologies LLP GSTIN
+// 06AANFN9510H1Z3 => 06 => Haryana). Used to decide intra- vs inter-state GST:
+//   client state == home state  -> intra-state -> CGST+SGST (Zoho "GST18")
+//   client state != home state  -> inter-state -> IGST      (Zoho "IGST18")
+const HOME_STATE_CODE = (Deno.env.get("ZOHO_HOME_STATE_CODE") ?? "HR").toUpperCase();
+
 function json(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
     status,
@@ -142,18 +148,38 @@ async function zoho(
   return data;
 }
 
-// Find the org's active 18% GST tax id (needed on line items so Zoho computes
-// CGST/SGST/IGST). Returns null if none is configured (invoice still creates,
-// just without tax — surfaced to the user).
-async function findGstTaxId(token: string): Promise<string | null> {
+// Find the org's active 18% GST tax id matching the transaction type. For an
+// inter-state supply Zoho REQUIRES an IGST tax; for intra-state it needs the
+// CGST+SGST group. We pick by the tax's `tax_specification` (inter/intra) and
+// `tax_specific_type` (igst) so the right one is attached. Returns null if none
+// is configured (invoice still creates, just without tax — surfaced to user).
+async function findGstTaxId(token: string, interState: boolean): Promise<string | null> {
   try {
     const data = await zoho(token, "GET", `/books/v3/settings/taxes`);
-    const taxes: any[] = data.taxes ?? [];
-    // Prefer a group/GST tax at 18%; otherwise any tax that totals 18%.
-    const match =
-      taxes.find((t) => num(t.tax_percentage) === GST_RATE && /gst/i.test(String(t.tax_name ?? t.tax_type ?? ""))) ||
-      taxes.find((t) => num(t.tax_percentage) === GST_RATE);
-    return match?.tax_id ? String(match.tax_id) : null;
+    const taxes: any[] = (data.taxes ?? []).filter(
+      (t) => num(t.tax_percentage) === GST_RATE && !t.is_inactive,
+    );
+    if (interState) {
+      // Inter-state -> IGST at 18%.
+      const igst =
+        taxes.find((t) => String(t.tax_specific_type ?? "").toLowerCase() === "igst") ||
+        taxes.find((t) => String(t.tax_specification ?? "").toLowerCase() === "inter") ||
+        taxes.find((t) => /igst/i.test(String(t.tax_name ?? "")));
+      if (igst?.tax_id) return String(igst.tax_id);
+    } else {
+      // Intra-state -> CGST+SGST group.
+      const grp =
+        taxes.find(
+          (t) =>
+            String(t.tax_specification ?? "").toLowerCase() === "intra" &&
+            String(t.tax_type ?? "") === "tax_group",
+        ) ||
+        taxes.find((t) => String(t.tax_specification ?? "").toLowerCase() === "intra") ||
+        taxes.find((t) => /^gst/i.test(String(t.tax_name ?? "")) && !/igst/i.test(String(t.tax_name ?? "")));
+      if (grp?.tax_id) return String(grp.tax_id);
+    }
+    // Last resort: any 18% tax.
+    return taxes[0]?.tax_id ? String(taxes[0].tax_id) : null;
   } catch {
     return null;
   }
@@ -353,8 +379,12 @@ Deno.serve(async (req) => {
     }
 
     const posCode = stateCode(b.state, b.gst_number);
+    // Inter-state when we know the client's state and it differs from the
+    // seller's home state. If the state is unknown we default to intra-state
+    // (Zoho will still reject with a clear message if that's wrong).
+    const interState = !!posCode && posCode !== HOME_STATE_CODE;
     const customerId = await findOrCreateCustomer(token, b, posCode);
-    const taxId = await findGstTaxId(token);
+    const taxId = await findGstTaxId(token, interState);
     const lineItems = buildLineItems(b, taxId);
 
     const invoicePayload: Record<string, unknown> = {
