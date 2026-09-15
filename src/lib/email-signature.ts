@@ -38,8 +38,8 @@ export function buildEmailSignature(opts: {
       <div style="font-size:13px; color:#1E4DB7; font-weight:700; margin-top:4px; letter-spacing:0.5px;">Virtual Office Relationship Manager</div>
 
       <div style="margin-top:12px;">
-        <span style="display:inline-block; background:rgba(22,163,74,0.12); color:#15803D; font-size:10.5px; font-weight:800; padding:5px 11px; border-radius:30px; margin:2px 3px;">&#9679; ONLINE NOW</span>
-        <span style="display:inline-block; background:rgba(30,77,183,0.1); color:#1E4DB7; font-size:10.5px; font-weight:800; padding:5px 11px; border-radius:30px; margin:2px 3px;">&#9889; REPLIES IN &lt; 10 MIN</span>
+        <span style="display:inline-block; background:rgba(22,163,74,0.12); color:#15803D; font-size:10.5px; font-weight:800; padding:5px 11px; border-radius:30px; margin:2px 3px;">&#9679;&nbsp; ONLINE NOW</span>
+        <span style="display:inline-block; background:rgba(30,77,183,0.1); color:#1E4DB7; font-size:10.5px; font-weight:800; padding:5px 11px; border-radius:30px; margin:2px 3px;">&#9889;&nbsp; REPLIES IN &lt; 10 MIN</span>
         <span style="display:inline-block; background:rgba(184,134,11,0.12); color:#B8860B; font-size:10.5px; font-weight:800; padding:5px 11px; border-radius:30px; margin:2px 3px;">EN &middot; HINDI &middot; PUNJABI</span>
       </div>
 
