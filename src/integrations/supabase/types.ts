@@ -289,6 +289,14 @@ export type Database = {
           addon_services: string | null
           alt_contact_no: string | null
           alt_contact_no_2: string | null
+          gst_number: string | null
+          gst_address: string | null
+          zoho_customer_id: string | null
+          zoho_invoice_id: string | null
+          zoho_invoice_number: string | null
+          zoho_invoice_status: string | null
+          zoho_pdf_url: string | null
+          zoho_invoice_sent_at: string | null
           amount_after_tds: number
           amount_received: number
           area: string | null
@@ -349,6 +357,14 @@ export type Database = {
           addon_services?: string | null
           alt_contact_no?: string | null
           alt_contact_no_2?: string | null
+          gst_number?: string | null
+          gst_address?: string | null
+          zoho_customer_id?: string | null
+          zoho_invoice_id?: string | null
+          zoho_invoice_number?: string | null
+          zoho_invoice_status?: string | null
+          zoho_pdf_url?: string | null
+          zoho_invoice_sent_at?: string | null
           amount_after_tds?: number
           amount_received?: number
           area?: string | null
@@ -409,6 +425,14 @@ export type Database = {
           addon_services?: string | null
           alt_contact_no?: string | null
           alt_contact_no_2?: string | null
+          gst_number?: string | null
+          gst_address?: string | null
+          zoho_customer_id?: string | null
+          zoho_invoice_id?: string | null
+          zoho_invoice_number?: string | null
+          zoho_invoice_status?: string | null
+          zoho_pdf_url?: string | null
+          zoho_invoice_sent_at?: string | null
           amount_after_tds?: number
           amount_received?: number
           area?: string | null

@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, FileText, Download } from "lucide-react";
+import { Search, FileText, Download, FilePlus2, Send, Loader2, CheckCircle2 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -21,6 +21,10 @@ function formatINR(n: number) {
 
 function InvoicesPage() {
   const [search, setSearch] = useState("");
+  const qc = useQueryClient();
+  // Per-booking in-flight action ("create" | "send" | "pdf") so only the
+  // clicked row's button spins.
+  const [busy, setBusy] = useState<Record<string, string | undefined>>({});
 
   const { data: bookings = [] } = useQuery({
     queryKey: ["invoices-bookings"],
@@ -33,56 +37,77 @@ function InvoicesPage() {
   const filtered = useMemo(() => {
     const t = search.trim().toLowerCase();
     return bookings.filter((b: any) =>
-      !t || [b.client_name, b.business_name, b.invoice_number, b.booking_code].some((v: string) =>
+      !t || [b.client_name, b.business_name, b.invoice_number, b.zoho_invoice_number, b.booking_code, b.external_booking_id].some((v: string) =>
         (v ?? "").toLowerCase().includes(t),
       ),
     );
   }, [bookings, search]);
 
-  const generatePdf = async (b: any) => {
+  const setRowBusy = (id: string, v?: string) => setBusy((s) => ({ ...s, [id]: v }));
+
+  // Create the invoice in Zoho Books for this booking.
+  const createInvoice = async (b: any) => {
+    setRowBusy(b.id, "create");
     try {
-      const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
-        import("jspdf"),
-        import("jspdf-autotable"),
-      ]);
-      const doc = new jsPDF();
-      doc.setFontSize(20);
-      doc.text("EaseMyOffice", 14, 20);
-      doc.setFontSize(10);
-      doc.text("Tax Invoice", 14, 27);
-      doc.setFontSize(10);
-      doc.text(`Invoice #: ${b.invoice_number || b.booking_code}`, 140, 20);
-      doc.text(`Date: ${format(new Date(b.created_at), "dd MMM yyyy")}`, 140, 27);
-
-      doc.setFontSize(11);
-      doc.text("Bill To:", 14, 45);
-      doc.setFontSize(10);
-      doc.text(b.client_name || "", 14, 51);
-      if (b.business_name) doc.text(b.business_name, 14, 57);
-      if (b.email_id) doc.text(b.email_id, 14, 63);
-      doc.text(b.contact_no || "", 14, 69);
-
-      autoTable(doc, {
-        startY: 80,
-        head: [["Description", "Amount", "GST", "Total"]],
-        body: [
-          [`${b.plan_name} (${b.vo_plan || "-"})`, formatINR(Number(b.vo_amount || 0)), formatINR(Number(b.vo_gst || 0)), formatINR(Number(b.vo_amount || 0) + Number(b.vo_gst || 0))],
-          ...(Number(b.addon_amount) > 0 ? [[
-            `Add-ons: ${b.addon_services || ""}`, formatINR(Number(b.addon_amount || 0)), formatINR(Number(b.addon_gst || 0)),
-            formatINR(Number(b.addon_amount || 0) + Number(b.addon_gst || 0)),
-          ]] : []),
-        ],
-        foot: [
-          ["", "", "Subtotal", formatINR(Number(b.total_amount || 0))],
-          ["", "", "TDS", `- ${formatINR(Number(b.tds_amount || 0))}`],
-          ["", "", "Net payable", formatINR(Number(b.amount_after_tds || 0))],
-        ],
+      const { data, error } = await supabase.functions.invoke("zoho-invoice", {
+        body: { action: "create", booking_id: b.id },
       });
+      if (error) throw new Error(error.message || "Function call failed");
+      if (!data?.ok) throw new Error(data?.error || "Could not create invoice");
+      toast.success(
+        data.already
+          ? "Invoice already exists"
+          : `Invoice ${data.invoice_number || ""} created in Zoho`,
+      );
+      await qc.invalidateQueries({ queryKey: ["invoices-bookings"] });
+    } catch (e: any) {
+      toast.error(e.message || "Could not create invoice");
+    } finally {
+      setRowBusy(b.id, undefined);
+    }
+  };
 
-      doc.save(`Invoice-${b.invoice_number || b.booking_code}.pdf`);
-      toast.success("Invoice downloaded");
-    } catch (e) {
-      toast.error("Failed to generate invoice");
+  // Email the created invoice to the client via Zoho.
+  const sendInvoice = async (b: any) => {
+    setRowBusy(b.id, "send");
+    try {
+      const { data, error } = await supabase.functions.invoke("zoho-invoice", {
+        body: { action: "send", booking_id: b.id },
+      });
+      if (error) throw new Error(error.message || "Function call failed");
+      if (!data?.ok) throw new Error(data?.error || "Could not send invoice");
+      toast.success(`Invoice sent to ${data.to}`);
+      await qc.invalidateQueries({ queryKey: ["invoices-bookings"] });
+    } catch (e: any) {
+      toast.error(e.message || "Could not send invoice");
+    } finally {
+      setRowBusy(b.id, undefined);
+    }
+  };
+
+  // Download the official Zoho PDF (fetched server-side, returned base64).
+  const downloadPdf = async (b: any) => {
+    setRowBusy(b.id, "pdf");
+    try {
+      const { data, error } = await supabase.functions.invoke("zoho-invoice", {
+        body: { action: "pdf", booking_id: b.id },
+      });
+      if (error) throw new Error(error.message || "Function call failed");
+      if (!data?.ok) throw new Error(data?.error || "Could not fetch PDF");
+      const bytes = Uint8Array.from(atob(data.base64), (c) => c.charCodeAt(0));
+      const blob = new Blob([bytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = data.filename || "invoice.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      toast.error(e.message || "Could not fetch PDF");
+    } finally {
+      setRowBusy(b.id, undefined);
     }
   };
 
@@ -107,24 +132,45 @@ function InvoicesPage() {
         <CardContent className="p-0 divide-y">
           {filtered.length === 0 ? (
             <div className="p-10 text-center text-muted-foreground">No invoices yet. Create a booking to generate one.</div>
-          ) : filtered.map((b: any) => (
-            <div key={b.id} className="p-4 flex flex-wrap items-center gap-3 hover:bg-muted/30">
-              <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-sm">
-                  {b.invoice_number || b.booking_code}
-                  <span className="text-muted-foreground font-normal"> · {b.client_name}</span>
+          ) : filtered.map((b: any) => {
+            const hasInvoice = !!b.zoho_invoice_id;
+            const rowBusy = busy[b.id];
+            const sent = !!b.zoho_invoice_sent_at;
+            return (
+              <div key={b.id} className="p-4 flex flex-wrap items-center gap-3 hover:bg-muted/30">
+                <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-sm">
+                    {b.zoho_invoice_number || b.invoice_number || b.external_booking_id || b.booking_code}
+                    <span className="text-muted-foreground font-normal"> · {b.client_name}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {b.plan_name} · {format(new Date(b.created_at), "MMM d, yyyy")}
+                    {sent && <span className="text-emerald-600"> · Sent ✓</span>}
+                  </div>
                 </div>
-                <div className="text-xs text-muted-foreground">
-                  {b.plan_name} · {format(new Date(b.created_at), "MMM d, yyyy")}
-                </div>
+                <Badge variant="secondary">{formatINR(Number(b.total_amount || 0))}</Badge>
+
+                {!hasInvoice ? (
+                  <Button size="sm" onClick={() => createInvoice(b)} disabled={rowBusy === "create"}>
+                    {rowBusy === "create" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <FilePlus2 className="h-3 w-3 mr-1" />}
+                    Create Invoice
+                  </Button>
+                ) : (
+                  <>
+                    <Button size="sm" variant={sent ? "outline" : "default"} onClick={() => sendInvoice(b)} disabled={rowBusy === "send"}>
+                      {rowBusy === "send" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : sent ? <CheckCircle2 className="h-3 w-3 mr-1" /> : <Send className="h-3 w-3 mr-1" />}
+                      {sent ? "Resend" : "Send to Client"}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => downloadPdf(b)} disabled={rowBusy === "pdf"}>
+                      {rowBusy === "pdf" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Download className="h-3 w-3 mr-1" />}
+                      PDF
+                    </Button>
+                  </>
+                )}
               </div>
-              <Badge variant="secondary">{formatINR(Number(b.total_amount || 0))}</Badge>
-              <Button size="sm" variant="outline" onClick={() => generatePdf(b)}>
-                <Download className="h-3 w-3 mr-1" /> PDF
-              </Button>
-            </div>
-          ))}
+            );
+          })}
         </CardContent>
       </Card>
     </div>
