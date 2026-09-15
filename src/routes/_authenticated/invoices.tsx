@@ -19,6 +19,12 @@ function formatINR(n: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
 }
 
+// Bookings created BEFORE this date already had their invoices made manually in
+// Zoho, so the CRM must NOT offer to create a (duplicate) Zoho invoice for them.
+// Only bookings created on/after this cutoff show the "Create Invoice" button.
+// (A booking that already has a Zoho invoice always shows Send/PDF, regardless.)
+const ZOHO_INVOICE_CUTOFF = new Date("2026-09-14T00:00:00");
+
 function InvoicesPage() {
   const [search, setSearch] = useState("");
   const qc = useQueryClient();
@@ -136,6 +142,11 @@ function InvoicesPage() {
             const hasInvoice = !!b.zoho_invoice_id;
             const rowBusy = busy[b.id];
             const sent = !!b.zoho_invoice_sent_at;
+            // Old bookings (before the cutoff) were invoiced manually in Zoho —
+            // never offer to create a duplicate for them. Only show "Create
+            // Invoice" for a post-cutoff booking that has no invoice yet.
+            const createdAt = b.created_at ? new Date(b.created_at) : null;
+            const eligibleForCreate = !!createdAt && createdAt >= ZOHO_INVOICE_CUTOFF;
             return (
               <div key={b.id} className="p-4 flex flex-wrap items-center gap-3 hover:bg-muted/30">
                 <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
@@ -151,12 +162,7 @@ function InvoicesPage() {
                 </div>
                 <Badge variant="secondary">{formatINR(Number(b.total_amount || 0))}</Badge>
 
-                {!hasInvoice ? (
-                  <Button size="sm" onClick={() => createInvoice(b)} disabled={rowBusy === "create"}>
-                    {rowBusy === "create" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <FilePlus2 className="h-3 w-3 mr-1" />}
-                    Create Invoice
-                  </Button>
-                ) : (
+                {hasInvoice ? (
                   <>
                     <Button size="sm" variant={sent ? "outline" : "default"} onClick={() => sendInvoice(b)} disabled={rowBusy === "send"}>
                       {rowBusy === "send" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : sent ? <CheckCircle2 className="h-3 w-3 mr-1" /> : <Send className="h-3 w-3 mr-1" />}
@@ -167,6 +173,15 @@ function InvoicesPage() {
                       PDF
                     </Button>
                   </>
+                ) : eligibleForCreate ? (
+                  <Button size="sm" onClick={() => createInvoice(b)} disabled={rowBusy === "create"}>
+                    {rowBusy === "create" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <FilePlus2 className="h-3 w-3 mr-1" />}
+                    Create Invoice
+                  </Button>
+                ) : (
+                  // Pre-cutoff booking with no Zoho invoice: invoice was made
+                  // manually, so show a static label instead of a Create button.
+                  <span className="text-xs text-muted-foreground italic">Invoiced manually</span>
                 )}
               </div>
             );
