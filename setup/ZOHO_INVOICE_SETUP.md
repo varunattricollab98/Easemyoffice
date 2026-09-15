@@ -28,7 +28,7 @@ Supabase → **Edge Functions → Secrets** (or Project Settings → Edge Functi
 | `ZOHO_CLIENT_ID` | from the Zoho API Console self-client |
 | `ZOHO_CLIENT_SECRET` | from the same self-client |
 | `ZOHO_REFRESH_TOKEN` | generated once from the grant code (never expires) |
-| `ZOHO_ORG_ID` | `60039342640` |
+| `ZOHO_ORG_ID` | `60040190159` (EaseMyOffice-HR — the Haryana org) |
 | `ZOHO_API_DOMAIN` | `https://www.zohoapis.in` |
 | `ZOHO_ACCOUNTS_DOMAIN` | `https://accounts.zoho.in` |
 
