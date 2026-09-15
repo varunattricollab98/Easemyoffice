@@ -37,6 +37,7 @@ import { Route as AuthenticatedRenewalsIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedLeadsIndexRouteImport } from './routes/_authenticated/leads/index'
 import { Route as AuthenticatedRenewalsPipelineRouteImport } from './routes/_authenticated/renewals/pipeline'
 import { Route as AuthenticatedRenewalsLeadsRouteImport } from './routes/_authenticated/renewals/leads'
+import { Route as AuthenticatedRenewalsInboxRouteImport } from './routes/_authenticated/renewals/inbox'
 import { Route as AuthenticatedRenewalsBookingsRouteImport } from './routes/_authenticated/renewals/bookings'
 import { Route as AuthenticatedLeadsNewRouteImport } from './routes/_authenticated/leads/new'
 import { Route as AuthenticatedLeadsImportRouteImport } from './routes/_authenticated/leads/import'
@@ -193,6 +194,12 @@ const AuthenticatedRenewalsLeadsRoute =
     path: '/renewals/leads',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedRenewalsInboxRoute =
+  AuthenticatedRenewalsInboxRouteImport.update({
+    id: '/renewals/inbox',
+    path: '/renewals/inbox',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedRenewalsBookingsRoute =
   AuthenticatedRenewalsBookingsRouteImport.update({
     id: '/renewals/bookings',
@@ -290,6 +297,7 @@ export interface FileRoutesByFullPath {
   '/leads/import': typeof AuthenticatedLeadsImportRoute
   '/leads/new': typeof AuthenticatedLeadsNewRoute
   '/renewals/bookings': typeof AuthenticatedRenewalsBookingsRoute
+  '/renewals/inbox': typeof AuthenticatedRenewalsInboxRoute
   '/renewals/leads': typeof AuthenticatedRenewalsLeadsRoute
   '/renewals/pipeline': typeof AuthenticatedRenewalsPipelineRoute
   '/leads/': typeof AuthenticatedLeadsIndexRoute
@@ -330,6 +338,7 @@ export interface FileRoutesByTo {
   '/leads/import': typeof AuthenticatedLeadsImportRoute
   '/leads/new': typeof AuthenticatedLeadsNewRoute
   '/renewals/bookings': typeof AuthenticatedRenewalsBookingsRoute
+  '/renewals/inbox': typeof AuthenticatedRenewalsInboxRoute
   '/renewals/leads': typeof AuthenticatedRenewalsLeadsRoute
   '/renewals/pipeline': typeof AuthenticatedRenewalsPipelineRoute
   '/leads': typeof AuthenticatedLeadsIndexRoute
@@ -372,6 +381,7 @@ export interface FileRoutesById {
   '/_authenticated/leads/import': typeof AuthenticatedLeadsImportRoute
   '/_authenticated/leads/new': typeof AuthenticatedLeadsNewRoute
   '/_authenticated/renewals/bookings': typeof AuthenticatedRenewalsBookingsRoute
+  '/_authenticated/renewals/inbox': typeof AuthenticatedRenewalsInboxRoute
   '/_authenticated/renewals/leads': typeof AuthenticatedRenewalsLeadsRoute
   '/_authenticated/renewals/pipeline': typeof AuthenticatedRenewalsPipelineRoute
   '/_authenticated/leads/': typeof AuthenticatedLeadsIndexRoute
@@ -414,6 +424,7 @@ export interface FileRouteTypes {
     | '/leads/import'
     | '/leads/new'
     | '/renewals/bookings'
+    | '/renewals/inbox'
     | '/renewals/leads'
     | '/renewals/pipeline'
     | '/leads/'
@@ -454,6 +465,7 @@ export interface FileRouteTypes {
     | '/leads/import'
     | '/leads/new'
     | '/renewals/bookings'
+    | '/renewals/inbox'
     | '/renewals/leads'
     | '/renewals/pipeline'
     | '/leads'
@@ -495,6 +507,7 @@ export interface FileRouteTypes {
     | '/_authenticated/leads/import'
     | '/_authenticated/leads/new'
     | '/_authenticated/renewals/bookings'
+    | '/_authenticated/renewals/inbox'
     | '/_authenticated/renewals/leads'
     | '/_authenticated/renewals/pipeline'
     | '/_authenticated/leads/'
@@ -712,6 +725,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRenewalsLeadsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/renewals/inbox': {
+      id: '/_authenticated/renewals/inbox'
+      path: '/renewals/inbox'
+      fullPath: '/renewals/inbox'
+      preLoaderRoute: typeof AuthenticatedRenewalsInboxRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/renewals/bookings': {
       id: '/_authenticated/renewals/bookings'
       path: '/renewals/bookings'
@@ -820,6 +840,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedLeadsImportRoute: typeof AuthenticatedLeadsImportRoute
   AuthenticatedLeadsNewRoute: typeof AuthenticatedLeadsNewRoute
   AuthenticatedRenewalsBookingsRoute: typeof AuthenticatedRenewalsBookingsRoute
+  AuthenticatedRenewalsInboxRoute: typeof AuthenticatedRenewalsInboxRoute
   AuthenticatedRenewalsLeadsRoute: typeof AuthenticatedRenewalsLeadsRoute
   AuthenticatedRenewalsPipelineRoute: typeof AuthenticatedRenewalsPipelineRoute
   AuthenticatedLeadsIndexRoute: typeof AuthenticatedLeadsIndexRoute
@@ -856,6 +877,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedLeadsImportRoute: AuthenticatedLeadsImportRoute,
   AuthenticatedLeadsNewRoute: AuthenticatedLeadsNewRoute,
   AuthenticatedRenewalsBookingsRoute: AuthenticatedRenewalsBookingsRoute,
+  AuthenticatedRenewalsInboxRoute: AuthenticatedRenewalsInboxRoute,
   AuthenticatedRenewalsLeadsRoute: AuthenticatedRenewalsLeadsRoute,
   AuthenticatedRenewalsPipelineRoute: AuthenticatedRenewalsPipelineRoute,
   AuthenticatedLeadsIndexRoute: AuthenticatedLeadsIndexRoute,
