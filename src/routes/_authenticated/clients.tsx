@@ -130,7 +130,12 @@ function TierBadge({ tier }: { tier: ClientRow["tier"] }) {
 }
 
 function ClientsPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, hasRole } = useAuth();
+  // A renewals-only user (has the renewals role but none of admin/sales/bd)
+  // should see ONLY renewal clients here — not the sales team's fresh bookings.
+  // Renewal clients are those with a plan expiry date (same rule the other
+  // renewal pages use). Admin/sales/bd keep the full, unfiltered database.
+  const renewalsOnly = hasRole("renewals") && !isAdmin && !hasRole("sales") && !hasRole("bd");
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -149,12 +154,16 @@ function ClientsPage() {
   const cancelMerge = () => { setMergeMode(false); setPicked(new Set()); setPrimaryKey(""); };
 
   const { data: bookings = [], isLoading } = useQuery({
-    queryKey: ["clients-bookings"],
+    queryKey: ["clients-bookings", renewalsOnly ? "renewals" : "all"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("bookings")
-        .select("id, booking_code, external_booking_id, booking_date, client_name, business_name, email_id, contact_no, alt_contact_no, alt_contact_no_2, plan_name, sales_agent_name, total_amount, quoted_amount, discount_amount, amount_after_tds, amount_received, balance_amount, balance_paid_at")
+      let query = supabase.from("bookings")
+        .select("id, booking_code, external_booking_id, booking_date, client_name, business_name, email_id, contact_no, alt_contact_no, alt_contact_no_2, plan_name, sales_agent_name, total_amount, quoted_amount, discount_amount, amount_after_tds, amount_received, balance_amount, balance_paid_at, plan_expiry_date")
         .order("booking_date", { ascending: false })
         .limit(5000);
+      // Renewals-only users see just renewal clients (those with a plan expiry
+      // date), matching the rest of the Renewals section.
+      if (renewalsOnly) query = query.not("plan_expiry_date", "is", null);
+      const { data, error } = await query;
       if (error) throw new Error(error.message);
       return data ?? [];
     },
