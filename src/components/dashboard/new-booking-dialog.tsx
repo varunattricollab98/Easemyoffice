@@ -218,7 +218,14 @@ function buildPaymentAckEmailHtml(details: {
   const firstName = managerName.split(" ")[0];
   const digits = (details.phone || "").replace(/\D/g, "") || "918882735038";
   const utr = payment_id_utr || "\u2014";
-  const LOGO = "https://easemyoffice.in/wp-content/uploads/2024/09/EaseMyOffice-Logo-1.webp";
+  // HTML text logo instead of an <img>. The old .webp did not render in many
+  // email clients (Windows Outlook/Gmail), only WebKit (Mac Chrome). A styled
+  // text wordmark renders identically everywhere and never fails to load.
+  // `size` scales the two lines; used at 30px in the hero, 22px in the footer.
+  const logoMark = (size: number) =>
+    `<div style="font-family:Arial,Helvetica,sans-serif;font-weight:800;font-size:${size}px;line-height:1.1;letter-spacing:-0.5px;white-space:nowrap;">`
+    + `<span style="color:#0B1B36">Ease</span><span style="color:#1E4DB7">My</span><span style="color:#0B1B36">Office</span>`
+    + `</div>`;
   const signatureHtml = buildEmailSignature({
     name: managerName,
     phone: details.phone,
@@ -273,7 +280,7 @@ function buildPaymentAckEmailHtml(details: {
     <div style="display:inline-block; background:rgba(22,163,74,0.18); color:#A7F3C5; font-size:11px; font-weight:800; letter-spacing:2px; padding:7px 16px; border-radius:30px; border:1px solid rgba(167,243,197,0.45); margin-bottom:22px;">
       &#9989; PAYMENT RECEIVED &amp; CONFIRMED
     </div>
-    <img src="${LOGO}" alt="EaseMyOffice" width="320" style="display:block; margin:0 auto; max-width:320px; height:auto; background:#fff; padding:10px 18px; border-radius:12px;">
+    <div style="display:inline-block; background:#fff; padding:16px 30px; border-radius:12px;">${logoMark(30)}</div>
     <div style="font-size:22px; color:#fff; margin-top:22px; font-weight:800; letter-spacing:-0.3px;">Welcome to the EaseMyOffice Family &#127881;</div>
     <div style="font-size:14px; color:#E2EAF8; margin-top:8px; font-weight:600; letter-spacing:0.3px;">You're now part of 5,000+ growing brands across India</div>
   </td></tr>
@@ -435,7 +442,7 @@ ${signatureHtml}
 
   <tr><td style="background:#05122E; background:linear-gradient(135deg,#05122E 0%, #0A1F4D 50%, #1E3A8A 100%); padding:48px 32px; text-align:center;" class="pad-lg">
     <div style="display:inline-block; background:rgba(255,227,154,0.12); border:1px solid rgba(255,227,154,0.35); color:#FFE39A; font-size:10px; font-weight:800; letter-spacing:2.5px; padding:7px 16px; border-radius:30px; margin-bottom:20px;">
-      &#127882; WELCOME ABOARD
+      WELCOME ABOARD
     </div>
     <div style="font-size:30px; font-weight:800; color:#fff; letter-spacing:-0.6px; line-height:1.15;" class="h1">
       Your Premium Address.<br><span style="color:#FFE39A;">Activated in 48 Hours.</span>
@@ -445,10 +452,10 @@ ${signatureHtml}
     </div>
     <table role="presentation" align="center" style="margin:0 auto;"><tr>
       <td style="padding:5px;">
-        <a href="https://wa.me/${digits}" class="pill" style="display:inline-block; background:#FFE39A; background:linear-gradient(135deg,#FFE39A,#F5C842); color:#0A1F4D; padding:16px 32px; border-radius:30px; font-weight:800; font-size:14px; box-shadow:0 10px 28px rgba(245,200,66,0.35);">&#128172; Chat on WhatsApp</a>
+        <a href="https://wa.me/${digits}" class="pill" style="display:inline-block; background:#FFE39A; background:linear-gradient(135deg,#FFE39A,#F5C842); color:#0A1F4D; padding:16px 32px; border-radius:30px; font-weight:800; font-size:14px; box-shadow:0 10px 28px rgba(245,200,66,0.35);">Chat on WhatsApp</a>
       </td>
       <td style="padding:5px;">
-        <a href="tel:+${digits}" class="pill" style="display:inline-block; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.25); color:#fff; padding:16px 28px; border-radius:30px; font-weight:700; font-size:14px;">&#128222; Talk to ${firstName}</a>
+        <a href="tel:+${digits}" class="pill" style="display:inline-block; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.25); color:#fff; padding:16px 28px; border-radius:30px; font-weight:700; font-size:14px;">Talk to ${firstName}</a>
       </td>
     </tr></table>
     <table role="presentation" width="100%" style="margin-top:32px; max-width:520px; margin-left:auto; margin-right:auto;"><tr>
@@ -465,44 +472,34 @@ ${signatureHtml}
         <div style="font-size:10px; color:#9BB0D6; letter-spacing:1px; text-transform:uppercase; margin-top:4px;">Activation</div>
       </td>
     </tr></table>
-    <div style="font-size:11px; color:#7088B5; margin-top:24px; letter-spacing:0.5px; text-align:center;">&#128274; Payment secured &middot; &#128188; Compliance-first &middot; &#11088; 4.9/5 rated</div>
+    <div style="font-size:11px; color:#9BB0D6; margin-top:24px; letter-spacing:0.5px; text-align:center;">Payment secured &nbsp;&middot;&nbsp; Compliance-first &nbsp;&middot;&nbsp; 4.9/5 rated</div>
   </td></tr>
 
   <tr><td style="background:#05122E; background:linear-gradient(180deg,#05122E 0%, #0A1535 100%); padding:38px 30px; border-radius:0 0 18px 18px;" class="pad-lg">
     <table role="presentation" width="100%"><tr>
       <td class="stack" valign="top" style="width:55%; padding:6px;">
-        <img src="${LOGO}" alt="EaseMyOffice" width="280" style="display:block; width:100%; max-width:280px; height:auto; background:#fff; padding:14px 22px; border-radius:12px;">
+        <div style="display:inline-block; background:#fff; padding:14px 22px; border-radius:12px;">${logoMark(22)}</div>
         <div style="font-size:15px; color:#E2EAF8; margin-top:16px; line-height:1.6; font-weight:700;">Your Virtual Office Partner</div>
         <div style="font-size:13px; color:#B8C5DD; margin-top:6px; line-height:1.6;">India's premium virtual office platform &mdash; PAN India, GST-ready, activated in 48 hours.</div>
       </td>
       <td class="stack" valign="top" style="width:45%; padding:6px;" align="right">
         <div style="font-size:15px; color:#E2EAF8; line-height:2;">
-          <b style="color:#fff; font-size:16px;">&#128222;</b> <span style="color:#fff; font-weight:700; font-size:15px;">+91 88827 35038</span><br>
-          <b style="color:#fff; font-size:16px;">&#128231;</b> <a href="mailto:contact@easemyoffice.in" style="color:#F2D27A; font-weight:700; font-size:15px;">contact@easemyoffice.in</a><br>
-          <b style="color:#fff; font-size:16px;">&#127760;</b> <a href="https://easemyoffice.in" style="color:#F2D27A; font-weight:700; font-size:15px;">easemyoffice.in</a>
+          <span style="color:#9BB0D6; font-weight:700; font-size:12px;">Call</span>&nbsp; <span style="color:#fff; font-weight:700; font-size:15px;">+91 88827 35038</span><br>
+          <span style="color:#9BB0D6; font-weight:700; font-size:12px;">Email</span>&nbsp; <a href="mailto:contact@easemyoffice.in" style="color:#F2D27A; font-weight:700; font-size:15px;">contact@easemyoffice.in</a><br>
+          <span style="color:#9BB0D6; font-weight:700; font-size:12px;">Web</span>&nbsp; <a href="https://easemyoffice.in" style="color:#F2D27A; font-weight:700; font-size:15px;">easemyoffice.in</a>
         </div>
       </td>
     </tr></table>
-    <div style="margin:26px 0 22px; text-align:center;">
-      <a href="https://wa.me/918882735038" style="display:inline-block; margin:0 10px;">
-        <img src="https://cdn.simpleicons.org/whatsapp/25D366" alt="WhatsApp" width="20" height="20" style="display:block; padding:10px; background:#fff; border-radius:50%; box-shadow:0 4px 12px rgba(37,211,102,0.28);">
-      </a>
-      <a href="https://www.linkedin.com/company/easemyoffice" style="display:inline-block; margin:0 10px;">
-        <img src="https://cdn.simpleicons.org/linkedin/0A66C2" alt="LinkedIn" width="20" height="20" style="display:block; padding:10px; background:#fff; border-radius:50%; box-shadow:0 4px 12px rgba(10,102,194,0.28);">
-      </a>
-      <a href="https://www.instagram.com/easemyoffice" style="display:inline-block; margin:0 10px;">
-        <img src="https://cdn.simpleicons.org/instagram/E4405F" alt="Instagram" width="20" height="20" style="display:block; padding:10px; background:#fff; border-radius:50%; box-shadow:0 4px 12px rgba(228,64,95,0.28);">
-      </a>
-      <a href="https://easemyoffice.in" style="display:inline-block; margin:0 10px;">
-        <img src="https://cdn.simpleicons.org/googlechrome/4285F4" alt="Website" width="20" height="20" style="display:block; padding:10px; background:#fff; border-radius:50%; box-shadow:0 4px 12px rgba(66,133,244,0.28);">
-      </a>
-    </div>
+    <table role="presentation" align="center" style="margin:26px auto 22px;"><tr>
+      <td style="padding:0 5px;"><a href="https://wa.me/918882735038" style="display:inline-block; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:8px 16px; border-radius:20px; font-weight:700; font-size:12px; text-decoration:none;">WhatsApp</a></td>
+      <td style="padding:0 5px;"><a href="https://www.linkedin.com/company/easemyoffice" style="display:inline-block; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:8px 16px; border-radius:20px; font-weight:700; font-size:12px; text-decoration:none;">LinkedIn</a></td>
+      <td style="padding:0 5px;"><a href="https://www.instagram.com/easemyoffice" style="display:inline-block; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:8px 16px; border-radius:20px; font-weight:700; font-size:12px; text-decoration:none;">Instagram</a></td>
+      <td style="padding:0 5px;"><a href="https://easemyoffice.in" style="display:inline-block; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:8px 16px; border-radius:20px; font-weight:700; font-size:12px; text-decoration:none;">Website</a></td>
+    </tr></table>
     <div style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:16px 18px; font-size:12.5px; color:#FFFFFF; line-height:1.8;">
-      <div><span style="color:#F2D27A; font-weight:700;">Registered Office:</span> <span style="color:#FFFFFF;">Narula Technologies LLP, New Delhi, India</span></div>
+      <div><span style="color:#F2D27A; font-weight:700;">Registered Office:</span> <span style="color:#FFFFFF;">Narula Technologies LLP, 336, Udyog Vihar Phase 4, Sector 19, Gurgaon, Haryana 122016</span></div>
       <div style="margin-top:4px;">
-        <span style="color:#F2D27A; font-weight:700;">CIN:</span> <span style="color:#FFFFFF;">AAA-XXXX</span>
-        &nbsp;&middot;&nbsp;
-        <span style="color:#F2D27A; font-weight:700;">GSTIN:</span> <span style="color:#FFFFFF;">07AAXFNXXXXX1ZX</span>
+        <span style="color:#F2D27A; font-weight:700;">GSTIN:</span> <span style="color:#FFFFFF;">06AANFN9510H1Z3</span>
       </div>
     </div>
     <div style="border-top:1px solid rgba(255,255,255,0.08); margin:20px 0 14px; height:1px;"></div>
