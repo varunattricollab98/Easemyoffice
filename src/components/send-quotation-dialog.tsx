@@ -51,6 +51,15 @@ interface SendQuotationDialogProps {
   leadId?: string;
   /** Called after successful send */
   onSent?: (subject: string) => void;
+  /**
+   * Optional sender override. Defaults to the sales address
+   * "EaseMyOffice <contact@easemyoffice.in>". The renewals inbox passes
+   * "EaseMyOffice Renewals <renewals@easemyoffice.in>". The send-client-email
+   * edge function only accepts @easemyoffice.in addresses (safeFrom), so this
+   * can't be abused. `bccEmail` gets a copy in that mailbox's Sent folder.
+   */
+  fromEmail?: string;
+  bccEmail?: string;
 }
 
 // ── Helpers ──
@@ -793,6 +802,8 @@ export function SendQuotationDialog({
   defaultCity,
   leadId,
   onSent,
+  fromEmail = "EaseMyOffice <contact@easemyoffice.in>",
+  bccEmail = "contact@easemyoffice.in",
 }: SendQuotationDialogProps) {
   const { profile, user } = useAuth();
 
@@ -1011,10 +1022,10 @@ export function SendQuotationDialog({
           to: clientEmail,
           subject,
           html: emailHtml,
-          from: "EaseMyOffice <contact@easemyoffice.in>",
+          from: fromEmail,
           replyTo: user?.email,
-          // Keep the shared-inbox BCC so the quotation appears in the Gmail Sent folder.
-          bcc: "contact@easemyoffice.in",
+          // Keep a BCC so the quotation appears in the sender mailbox's Sent folder.
+          bcc: bccEmail,
           // Link the send in email_log (the edge function writes the row).
           lead_id: leadId,
           created_by: user?.id,
