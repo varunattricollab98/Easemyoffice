@@ -24,7 +24,7 @@
 //   ZOHO_CLIENT_ID
 //   ZOHO_CLIENT_SECRET
 //   ZOHO_REFRESH_TOKEN
-//   ZOHO_ORG_ID            -> Zoho Books organization id (e.g. 60039342640)
+//   ZOHO_ORG_ID            -> Zoho Books organization id (EaseMyOffice-HR = 60040190159)
 //   ZOHO_API_DOMAIN        -> e.g. https://www.zohoapis.in   (India)
 //   ZOHO_ACCOUNTS_DOMAIN   -> e.g. https://accounts.zoho.in  (India)
 //   (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are injected automatically)
@@ -457,17 +457,61 @@ Deno.serve(async (req) => {
     const created = await zoho(token, "POST", `/books/v3/invoices`, invoicePayload);
     const inv = created.invoice ?? {};
     if (!inv.invoice_id) throw new Error("Zoho did not return an invoice id");
+    const invoiceId = String(inv.invoice_id);
+
+    // ── Mark the invoice PAID when the booking's payment is already received ──
+    // A booking that reached the Invoices list has been paid, so the invoice
+    // should show "Paid", not a Draft/"Pay Now". Steps: (1) move the invoice out
+    // of Draft to Sent (a draft can't take a payment), then (2) record a payment
+    // for the amount received. Best-effort: if this fails the invoice still
+    // exists (just unpaid) and we report paid:false rather than erroring.
+    const invoiceTotal = num(inv.total) || num(b.total_amount);
+    const received = num(b.amount_received);
+    // Treat "fully paid" as received covering the total (bookings store the
+    // GST-inclusive total in total_amount / amount_received).
+    const fullyPaid = received > 0 && received + 0.5 >= invoiceTotal;
+    const payAmount = fullyPaid ? invoiceTotal : received;
+    let paid = false;
+    let paidError: string | null = null;
+    if (payAmount > 0) {
+      try {
+        // 1. Take it out of Draft (ignore if already sent/not-draft).
+        try {
+          await zoho(token, "POST", `/books/v3/invoices/${invoiceId}/status/sent`);
+        } catch { /* already non-draft */ }
+        // 2. Record the customer payment against this invoice.
+        const paymentPayload: Record<string, unknown> = {
+          customer_id: customerId,
+          payment_mode: String(b.payment_mode_ref ?? "").trim() || "Cash",
+          amount: payAmount,
+          date: (b.booking_date ? String(b.booking_date) : new Date().toISOString()).slice(0, 10),
+          reference_number: String(b.payment_id_utr ?? b.external_booking_id ?? "").slice(0, 100) || undefined,
+          invoices: [{ invoice_id: invoiceId, amount_applied: payAmount }],
+        };
+        await zoho(token, "POST", `/books/v3/customerpayments`, paymentPayload);
+        paid = true;
+      } catch (e) {
+        paidError = (e as Error).message;
+      }
+    }
+
+    // Re-read the invoice so the stored status reflects the payment.
+    let finalStatus = inv.status ?? "draft";
+    try {
+      const fresh = await zoho(token, "GET", `/books/v3/invoices/${invoiceId}`);
+      finalStatus = fresh.invoice?.status ?? finalStatus;
+    } catch { /* keep the create-time status */ }
 
     // PDF download link (Zoho signs it with the org id; the "PDF" button opens it).
-    const pdfUrl = `${API_DOMAIN}/books/v3/invoices/${inv.invoice_id}?accept=pdf&organization_id=${ORG_ID}`;
+    const pdfUrl = `${API_DOMAIN}/books/v3/invoices/${invoiceId}?accept=pdf&organization_id=${ORG_ID}`;
 
     const { error: upErr } = await supabase
       .from("bookings")
       .update({
         zoho_customer_id: customerId,
-        zoho_invoice_id: String(inv.invoice_id),
+        zoho_invoice_id: invoiceId,
         zoho_invoice_number: inv.invoice_number ?? null,
-        zoho_invoice_status: inv.status ?? "draft",
+        zoho_invoice_status: finalStatus,
         zoho_pdf_url: pdfUrl,
       })
       .eq("id", booking_id);
@@ -475,11 +519,13 @@ Deno.serve(async (req) => {
 
     return json({
       ok: true,
-      invoice_id: String(inv.invoice_id),
+      invoice_id: invoiceId,
       invoice_number: inv.invoice_number ?? null,
-      status: inv.status ?? "draft",
+      status: finalStatus,
       pdf_url: pdfUrl,
       taxed: !!taxId,
+      paid,
+      paid_error: paidError,
     });
   } catch (e) {
     return json({ ok: false, error: (e as Error).message });
