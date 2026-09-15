@@ -24,10 +24,21 @@ import {
   ArrowUp,
   ArrowDown,
   ChevronsUpDown,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { BookingDetailDialog } from "@/components/bookings/booking-detail-dialog";
 import { BulkUploadDialog } from "@/components/bookings/bulk-upload-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { Tables } from "@/integrations/supabase/types";
 
 // Use the generated row type rather than `any`, so the sort accessors below are
@@ -178,6 +189,8 @@ function BookingsPage() {
   const [selected, setSelected] = useState<BookingRow | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [sort, setSort] = useState<SortState>({ key: "date", dir: "desc" });
+  // Booking pending delete confirmation (admin only).
+  const [toDelete, setToDelete] = useState<BookingRow | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["bookings", isAdmin ? "all" : user?.id],
@@ -222,6 +235,21 @@ function BookingsPage() {
     },
     onSuccess: () => {
       toast.success("Marked as paid");
+      qc.invalidateQueries({ queryKey: ["bookings"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  // Delete a booking. RLS restricts DELETE to admins (bookings_delete policy),
+  // and child rows (booking_payments / booking_updates) cascade automatically.
+  const deleteM = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("bookings").delete().eq("id", id);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      toast.success("Booking deleted");
+      setToDelete(null);
       qc.invalidateQueries({ queryKey: ["bookings"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -496,6 +524,17 @@ function BookingsPage() {
                           Mark Paid
                         </Button>
                       )}
+                      {isAdmin && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10 transition-all duration-200 ease-out hover:shadow-sm"
+                          title="Delete booking"
+                          onClick={() => setToDelete(b)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -534,6 +573,42 @@ function BookingsPage() {
         }}
       />
       {isAdmin && <BulkUploadDialog open={bulkOpen} onOpenChange={setBulkOpen} />}
+
+      {isAdmin && (
+        <AlertDialog open={!!toDelete} onOpenChange={(v) => { if (!v && !deleteM.isPending) setToDelete(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this booking?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {toDelete && (
+                  <>
+                    This will permanently delete booking{" "}
+                    <span className="font-medium text-foreground">
+                      {toDelete.external_booking_id || toDelete.booking_code}
+                    </span>{" "}
+                    for <span className="font-medium text-foreground">{toDelete.client_name}</span>,
+                    along with its payment history. This cannot be undone.
+                    {" "}Any invoice already created in Zoho is not affected and must be voided there separately.
+                  </>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleteM.isPending}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                disabled={deleteM.isPending}
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (toDelete) deleteM.mutate(toDelete.id);
+                }}
+              >
+                {deleteM.isPending ? "Deleting…" : "Delete"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }
