@@ -70,10 +70,16 @@ export async function claimEmailInGmail(threadId: string, label: string, fn: Gma
 // stays in the original conversation and appears in the mailbox's Sent — the
 // customer sees it as a normal reply to their email. `htmlBody` is the full
 // reply HTML (the rep's typed text + their signature) built by the caller.
+export interface ReplyAttachmentPayload {
+  name: string;
+  mimeType: string;
+  dataBase64: string;
+}
+
 export async function sendThreadReply(
   threadId: string,
   htmlBody: string,
-  opts: { cc?: string; replyAll?: boolean; fn?: GmailBridgeFn } = {},
+  opts: { cc?: string; replyAll?: boolean; fn?: GmailBridgeFn; attachments?: ReplyAttachmentPayload[] } = {},
 ): Promise<{ ok: boolean; error?: string }> {
   const fn = opts.fn ?? "gmail-bridge";
   try {
@@ -84,6 +90,7 @@ export async function sendThreadReply(
         htmlBody,
         cc: opts.cc || "",
         replyAll: opts.replyAll ? true : false,
+        attachments: Array.isArray(opts.attachments) ? opts.attachments : [],
       },
     });
     if (error) return { ok: false, error: error.message };
