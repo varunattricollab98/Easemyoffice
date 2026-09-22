@@ -7,6 +7,8 @@
 //                                                gmail-tag-sync cron function.
 //   { action: "thread", threadId }            -> full text of one thread
 //   { action: "claim", threadId, label }      -> label the thread + mark read
+//   { action: "reply", threadId, htmlBody,    -> reply INSIDE the same Gmail
+//            cc?, replyAll? }                     thread (shows in Sent + threaded)
 //
 // Secrets (Supabase -> Edge Functions -> Secrets):
 //   GMAIL_WEBHOOK_URL  -> the Gmail Apps Script Web App /exec URL
@@ -80,6 +82,30 @@ Deno.serve(async (req) => {
       if (!result.ok) throw new Error(result.error);
       const parsed = result.data;
       if (!parsed.ok) throw new Error(parsed.error || "Could not label the email");
+      return json({ ok: true });
+    }
+
+    // Reply INSIDE the same Gmail thread. The Apps Script uses GmailThread.reply
+    // /replyAll so the sent message stays in the original conversation and shows
+    // up in the mailbox's Sent — i.e. a true Gmail-native reply, not a fresh
+    // email. `htmlBody` is the full reply HTML (body + signature) built client-side.
+    if (action === "reply") {
+      if (!body.threadId) throw new Error("threadId is required");
+      if (!body.htmlBody || !String(body.htmlBody).trim()) throw new Error("Reply body is required");
+      const result = await gmailFetchJson(WEBHOOK_URL, {
+        method: "POST",
+        body: {
+          token: TOKEN,
+          action: "reply",
+          threadId: body.threadId,
+          htmlBody: body.htmlBody,
+          cc: body.cc || "",
+          replyAll: body.replyAll ? true : false,
+        },
+      });
+      if (!result.ok) throw new Error(result.error);
+      const parsed = result.data;
+      if (!parsed.ok) throw new Error(parsed.error || "Could not send the reply");
       return json({ ok: true });
     }
 

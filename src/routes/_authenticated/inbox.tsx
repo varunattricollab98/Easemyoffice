@@ -15,7 +15,8 @@ import { formatDistanceToNow } from "date-fns";
 import { Mail, ExternalLink, UserPlus, Search, RefreshCcw, ChevronLeft, ChevronRight, CheckCircle2, Hand, Reply, Send, FileText, Maximize2, Minimize2, MapPin, IndianRupee, Calculator } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { fetchInbox, fetchThread, claimEmailInGmail, parseFrom, claimedOwner, matchOwnerTagToName, parseWeb3FormLead, isThrowawayAddress, htmlToText, type InboxEmail, type ThreadMessage } from "@/lib/gmail";
+import { fetchInbox, fetchThread, claimEmailInGmail, sendThreadReply, parseFrom, claimedOwner, matchOwnerTagToName, parseWeb3FormLead, isThrowawayAddress, htmlToText, type InboxEmail, type ThreadMessage } from "@/lib/gmail";
+import { buildEmailSignature } from "@/lib/email-signature";
 import { SendQuotationDialog } from "@/components/send-quotation-dialog";
 
 function esc(s: unknown) {
@@ -322,20 +323,36 @@ function LeadInboxPage() {
 
   // Send a reply to the customer via Resend (send-client-email). The function
   // sends from the CRM address and records the send in email_log; it no longer
-  // BCCs the shared inbox (that flooded the mailbox on bulk follow-ups).
+  // Send a reply INSIDE the same Gmail thread (native Gmail reply, via the
+  // gmail-bridge Apps Script). Because it uses GmailThread.reply, the message
+  // stays in the original conversation and shows up in the mailbox's Sent — so
+  // the email itself is updated with "this got replied to", exactly what the
+  // team wants. The reply HTML = the rep's typed text (escaped, newlines kept)
+  // followed by THEIR OWN signature (built from their profile name + phone), so
+  // whoever sends from their panel signs off as themselves.
   const reply = useMutation({
-    mutationFn: async (vars: { to: string; subject: string; text: string }) => {
-      const { data, error } = await supabase.functions.invoke("send-client-email", {
-        body: { to: vars.to, subject: vars.subject, text: vars.text, created_by: user?.id },
+    mutationFn: async (vars: { text: string; cc?: string }) => {
+      if (!reading?.threadId) throw new Error("No email thread to reply to");
+      const typed = esc(vars.text.trim()).replace(/\n/g, "<br>");
+      const signature = buildEmailSignature({
+        name: profile?.full_name ?? "",
+        phone: (profile as { phone?: string } | null)?.phone ?? "",
       });
-      if (error) throw new Error(error.message);
-      if (data && data.ok === false) throw new Error(data.error || "Send failed");
-      return data;
+      // buildEmailSignature returns <tr>...</tr> table rows, so wrap it in a
+      // table to render standalone under the message body.
+      const htmlBody =
+        `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#0f172a">${typed}</div>` +
+        `<table role="presentation" width="100%" style="margin-top:20px;border-collapse:collapse">${signature}</table>`;
+      const res = await sendThreadReply(reading.threadId, htmlBody, { cc: vars.cc });
+      if (!res.ok) throw new Error(res.error || "Send failed");
+      return res;
     },
     onSuccess: () => {
-      toast.success("Reply sent — a copy is saved to the shared inbox");
+      toast.success("Reply sent — it's now in the same Gmail thread");
       setReplyText("");
       setReplyOpen(false);
+      // Refresh the thread so the just-sent reply appears in the conversation.
+      qc.invalidateQueries({ queryKey: ["gmail-thread", reading?.threadId] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -970,7 +987,7 @@ function LeadInboxPage() {
                     <Button
                       size="sm"
                       disabled={reply.isPending || !replyText.trim() || !replyTo}
-                      onClick={() => reply.mutate({ to: replyTo as string, subject: replySubject, text: replyText.trim() })}
+                      onClick={() => reply.mutate({ text: replyText.trim() })}
                     >
                       <Send className="h-4 w-4 mr-1" /> {reply.isPending ? "Sending…" : "Send reply"}
                     </Button>
@@ -1333,7 +1350,7 @@ function LeadInboxPage() {
               <Button variant="ghost" onClick={() => setReplyExpanded(false)}>Back to email</Button>
               <Button
                 disabled={reply.isPending || !replyText.trim() || !replyTo}
-                onClick={() => reply.mutate({ to: replyTo as string, subject: replySubject, text: replyText.trim() })}
+                onClick={() => reply.mutate({ text: replyText.trim() })}
               >
                 <Send className="h-4 w-4 mr-1" /> {reply.isPending ? "Sending…" : "Send reply"}
               </Button>

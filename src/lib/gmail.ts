@@ -65,6 +65,35 @@ export async function claimEmailInGmail(threadId: string, label: string, fn: Gma
   }
 }
 
+// Send a reply INSIDE the same Gmail thread (native Gmail reply). The Apps
+// Script behind the bridge uses GmailThread.reply/replyAll, so the message
+// stays in the original conversation and appears in the mailbox's Sent — the
+// customer sees it as a normal reply to their email. `htmlBody` is the full
+// reply HTML (the rep's typed text + their signature) built by the caller.
+export async function sendThreadReply(
+  threadId: string,
+  htmlBody: string,
+  opts: { cc?: string; replyAll?: boolean; fn?: GmailBridgeFn } = {},
+): Promise<{ ok: boolean; error?: string }> {
+  const fn = opts.fn ?? "gmail-bridge";
+  try {
+    const { data, error } = await supabase.functions.invoke(fn, {
+      body: {
+        action: "reply",
+        threadId,
+        htmlBody,
+        cc: opts.cc || "",
+        replyAll: opts.replyAll ? true : false,
+      },
+    });
+    if (error) return { ok: false, error: error.message };
+    if (!data?.ok) return { ok: false, error: data?.error || "reply failed" };
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || "reply failed" };
+  }
+}
+
 // Split "Name <email@x.com>" into its parts.
 export function parseFrom(from: string): { name: string; address: string } {
   if (!from) return { name: "", address: "" };
