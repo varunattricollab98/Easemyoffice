@@ -185,6 +185,60 @@ export type Database = {
         }
         Relationships: []
       }
+      telecmi_call_events: {
+        Row: {
+          id: string
+          direction: string | null
+          status: string | null
+          caller_number: string | null
+          agent_number: string | null
+          agent_name: string | null
+          duration_sec: number | null
+          call_id: string | null
+          call_time: string | null
+          matched_lead_id: string | null
+          matched_agent_id: string | null
+          created_lead: boolean
+          note: string | null
+          payload: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          direction?: string | null
+          status?: string | null
+          caller_number?: string | null
+          agent_number?: string | null
+          agent_name?: string | null
+          duration_sec?: number | null
+          call_id?: string | null
+          call_time?: string | null
+          matched_lead_id?: string | null
+          matched_agent_id?: string | null
+          created_lead?: boolean
+          note?: string | null
+          payload?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          direction?: string | null
+          status?: string | null
+          caller_number?: string | null
+          agent_number?: string | null
+          agent_name?: string | null
+          duration_sec?: number | null
+          call_id?: string | null
+          call_time?: string | null
+          matched_lead_id?: string | null
+          matched_agent_id?: string | null
+          created_lead?: boolean
+          note?: string | null
+          payload?: Json
+          created_at?: string
+        }
+        Relationships: []
+      }
       reminders: {
         Row: {
           assigned_to: string | null

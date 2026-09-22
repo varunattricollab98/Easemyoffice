@@ -2,7 +2,7 @@ import { Link, useLocation } from "@tanstack/react-router";
 import {
   LayoutDashboard, Users, Kanban, Bell, CheckSquare, FileText, Receipt,
   RefreshCcw, Activity, BarChart3, Settings, UsersRound, LogOut, Building2, UserCog, BookOpen,
-  UserCheck, FileSignature, Calendar, FolderOpen, Inbox, TrendingUp, Trophy, Mail, AlarmClock,
+  UserCheck, FileSignature, Calendar, FolderOpen, Inbox, TrendingUp, Trophy, Mail, AlarmClock, Phone,
 } from "lucide-react";
 import { useAuth, type AppRole } from "@/lib/auth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -20,6 +20,7 @@ type NavItem = { to: string; label: string; icon: typeof Users; roles?: AppRole[
 const NAV: NavItem[] = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/inbox", label: "Lead Inbox", icon: Mail, roles: ["admin", "sales", "bd"] },
+  { to: "/calls", label: "Calls", icon: Phone, roles: ["admin", "sales", "bd"] },
   { to: "/leads", label: "Leads", icon: Users, roles: ["admin", "sales", "bd"] },
   { to: "/pipeline", label: "Pipeline", icon: Kanban, roles: ["admin", "sales", "bd"] },
   { to: "/renewals/inbox", label: "Renewal Inbox", icon: Mail, roles: ["admin", "renewals"] },
