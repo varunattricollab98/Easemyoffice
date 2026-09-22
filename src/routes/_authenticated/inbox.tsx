@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { Mail, ExternalLink, UserPlus, Search, RefreshCcw, ChevronLeft, ChevronRight, CheckCircle2, Hand, Reply, Send, FileText, Maximize2, Minimize2, MapPin, IndianRupee, Calculator } from "lucide-react";
+import { Mail, ExternalLink, UserPlus, Search, RefreshCcw, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, CheckCircle2, Hand, Reply, Send, FileText, Maximize2, Minimize2, MapPin, IndianRupee, Calculator } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { fetchInbox, fetchThread, claimEmailInGmail, sendThreadReply, parseFrom, claimedOwner, matchOwnerTagToName, parseWeb3FormLead, isThrowawayAddress, htmlToText, type InboxEmail, type ThreadMessage } from "@/lib/gmail";
@@ -100,6 +100,9 @@ function LeadInboxPage() {
   const [quotationExpanded, setQuotationExpanded] = useState(false);
   const [replyExpanded, setReplyExpanded] = useState(false);
   const [replySnippetId, setReplySnippetId] = useState("custom");
+  // Attachments panel is collapsed by default so a long inline-image list can't
+  // push the email body / reply composer out of the fixed-height modal.
+  const [attachmentsOpen, setAttachmentsOpen] = useState(false);
   const [quotationBasePrice, setQuotationBasePrice] = useState("");
   const [quotationLocation, setQuotationLocation] = useState("");
   const [premiumQuotationOpen, setPremiumQuotationOpen] = useState(false);
@@ -138,7 +141,12 @@ function LeadInboxPage() {
   });
 
   // Reset the reply composer whenever a different email is opened / closed.
-  useEffect(() => { setReplyOpen(false); setReplyText(""); setReplySnippetId("custom"); setQuotationOpen(false); setQuotationBasePrice(""); setQuotationLocation(""); }, [reading?.threadId]);
+  useEffect(() => { setReplyOpen(false); setReplyText(""); setReplySnippetId("custom"); setQuotationOpen(false); setQuotationBasePrice(""); setQuotationLocation(""); setAttachmentsOpen(false); }, [reading?.threadId]);
+
+  // When the reply composer opens, collapse the attachments panel so the
+  // composer gets the vertical room (prevents a long attachment list from
+  // squeezing the reply box on tall emails).
+  useEffect(() => { if (replyOpen) setAttachmentsOpen(false); }, [replyOpen]);
 
   // Who a reply should go to: the real customer address. Web3Forms relays put
   // the customer's email in the body, so parse that first; otherwise fall back
@@ -921,16 +929,41 @@ function LeadInboxPage() {
               {(() => {
                 if (quotationOpen) return null; // Hide attachments when composing quotation
                 const atts = (threadQ.data.messages ?? []).flatMap((m) => m.attachments ?? []);
-                return atts.length > 0 ? (
-                  <div className="space-y-1 shrink-0">
-                    <div className="flex flex-wrap gap-2">
-                      {atts.map((a, j) => (
-                        <span key={j} className="text-xs inline-flex items-center gap-1 rounded border px-2 py-1 bg-muted/40">📎 {a.name}</span>
-                      ))}
-                    </div>
-                    <div className="text-xs text-muted-foreground">To download an attachment (e.g. a quotation PDF), use "Open in Gmail" below.</div>
+                if (atts.length === 0) return null;
+                // Attachments are collapsible and height-capped. Emails with many
+                // inline images (60+ chips) used to render the whole list with no
+                // scroll, which pushed the email body and the reply composer out of
+                // the fixed-height modal. Now the list is a summary that expands into
+                // a scroll area, and it auto-collapses while replying so the composer
+                // always has room.
+                return (
+                  <div className="shrink-0 rounded-md border bg-muted/20">
+                    <button
+                      type="button"
+                      onClick={() => setAttachmentsOpen((v) => !v)}
+                      className="flex w-full items-center justify-between gap-2 px-3 py-2 text-xs font-medium hover:bg-muted/40"
+                      aria-expanded={attachmentsOpen}
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        📎 {atts.length} {atts.length === 1 ? "attachment" : "attachments"}
+                      </span>
+                      {attachmentsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </button>
+                    {attachmentsOpen && (
+                      <div className="max-h-24 overflow-y-auto px-3 pb-2">
+                        <div className="flex flex-wrap gap-2">
+                          {atts.map((a, j) => (
+                            <span key={j} className="text-xs inline-flex items-center gap-1 rounded border bg-background px-2 py-1 max-w-[220px]">
+                              <span className="shrink-0">📎</span>
+                              <span className="truncate">{a.name}</span>
+                            </span>
+                          ))}
+                        </div>
+                        <div className="mt-1 text-[11px] text-muted-foreground">To download an attachment (e.g. a quotation PDF), use "Open in Gmail" below.</div>
+                      </div>
+                    )}
                   </div>
-                ) : null;
+                );
               })()}
               {/* In-CRM reply composer */}
               {replyOpen && !replyExpanded && (
