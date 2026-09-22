@@ -56,7 +56,7 @@ export const Route = createFileRoute("/_authenticated/inbox")({
     qc.prefetchQuery({
       queryKey: ["lead-inbox", 0],
       queryFn: () => fetchInbox(25, 0),
-      staleTime: 30 * 1000,
+      staleTime: 60 * 1000, // match the page query's staleTime so the prefetch is reused, not re-fetched
     });
   },
   component: LeadInboxPage,
@@ -367,13 +367,20 @@ function LeadInboxPage() {
 
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["lead-inbox", page],
-    staleTime: 30 * 1000, // 30s — leads arrive in real-time, stale data = missed opportunities
+    // 60s fresh window: reopening the inbox (or switching pages back) within a
+    // minute shows the cached list INSTANTLY instead of re-fetching from Gmail
+    // and flashing the skeleton. New leads still surface via the 60s auto-poll,
+    // window-focus refetch, and the manual Refresh button below.
+    staleTime: 60 * 1000,
     gcTime: 10 * 60 * 1000,
     refetchInterval: 60 * 1000, // Auto-poll every 60s so new leads appear without manual refresh
     refetchOnWindowFocus: true, // Fetch immediately when tab regains focus
-    placeholderData: (prev) => prev,
+    placeholderData: (prev) => prev, // keep showing the old list while refreshing (no skeleton)
     queryFn: () => fetchInbox(PAGE_SIZE, page * PAGE_SIZE),
-    refetchOnMount: "always",
+    // Only refetch on mount if the cache is stale (older than staleTime). This
+    // removes the "always re-fetch + skeleton on every visit" cost; a fresh
+    // cache renders immediately.
+    refetchOnMount: true,
   });
 
   const emails = data?.emails ?? [];
