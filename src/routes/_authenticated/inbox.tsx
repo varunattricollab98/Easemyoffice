@@ -937,11 +937,10 @@ function LeadInboxPage() {
                 <div className="shrink-0 rounded-md border bg-muted/20 p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="text-xs text-muted-foreground">
-                      Reply to{" "}
                       {replyTo
-                        ? <span className="font-medium text-foreground">{replyTo}</span>
-                        : <span className="text-destructive">no customer address found — use "Open in Gmail" instead</span>}
-                      {replyTo && " · sent from your CRM, a copy is saved to the shared inbox"}
+                        ? <>Reply to <span className="font-medium text-foreground">{replyTo}</span></>
+                        : <>Reply in this Gmail thread</>}
+                      {" · goes into the same Gmail conversation (shows in Sent)"}
                     </div>
                     <Button
                       size="sm"
@@ -986,7 +985,7 @@ function LeadInboxPage() {
                     <Button size="sm" variant="ghost" onClick={() => setReplyOpen(false)}>Cancel</Button>
                     <Button
                       size="sm"
-                      disabled={reply.isPending || !replyText.trim() || !replyTo}
+                      disabled={reply.isPending || !replyText.trim()}
                       onClick={() => reply.mutate({ text: replyText.trim() })}
                     >
                       <Send className="h-4 w-4 mr-1" /> {reply.isPending ? "Sending…" : "Send reply"}
@@ -1157,7 +1156,11 @@ function LeadInboxPage() {
                     </Button>
                   );
                 })()}
-                {replyTo && !replyOpen && (
+                {/* Reply goes into the same Gmail thread, so Gmail resolves the
+                    recipient itself — we don't need a parsed `replyTo`. Show the
+                    button on ANY open thread (incoming lead OR our own outbound
+                    quotation), as long as the thread loaded ok. */}
+                {threadQ.data?.ok && !replyOpen && (
                   <Button size="sm" onClick={() => setReplyOpen(true)}>
                     <Reply className="h-4 w-4 mr-1" /> Reply in CRM
                   </Button>
@@ -1311,8 +1314,8 @@ function LeadInboxPage() {
 
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-6 py-4">
             <div className="text-sm text-muted-foreground">
-              To: <span className="font-medium text-foreground">{replyTo || "no email"}</span>
-              {replyTo && <span className="text-xs ml-2">· sent from your CRM, a copy is saved to the shared inbox</span>}
+              To: <span className="font-medium text-foreground">{replyTo || "same Gmail thread"}</span>
+              <span className="text-xs ml-2">· goes into the same Gmail conversation (shows in Sent)</span>
             </div>
             <div className="grid gap-3 sm:grid-cols-[minmax(0,220px)_minmax(0,1fr)]">
               <div className="space-y-1.5">
@@ -1344,12 +1347,12 @@ function LeadInboxPage() {
 
           <div className="shrink-0 flex items-center justify-between gap-2 border-t px-6 py-4">
             <span className="text-xs text-muted-foreground">
-              Replying to {replyTo || "unknown"}
+              Replying to {replyTo || "this Gmail thread"}
             </span>
             <div className="flex gap-2">
               <Button variant="ghost" onClick={() => setReplyExpanded(false)}>Back to email</Button>
               <Button
-                disabled={reply.isPending || !replyText.trim() || !replyTo}
+                disabled={reply.isPending || !replyText.trim()}
                 onClick={() => reply.mutate({ text: replyText.trim() })}
               >
                 <Send className="h-4 w-4 mr-1" /> {reply.isPending ? "Sending…" : "Send reply"}
