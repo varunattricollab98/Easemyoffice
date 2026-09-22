@@ -341,6 +341,7 @@ export type Database = {
           vo_gst: number
           vo_plan: string | null
           vo_status: string
+          plan_years: number
           plan_start_date: string | null
           plan_expiry_date: string | null
           renewal_status: string
@@ -409,6 +410,7 @@ export type Database = {
           vo_gst?: number
           vo_plan?: string | null
           vo_status?: string
+          plan_years?: number
           plan_start_date?: string | null
           plan_expiry_date?: string | null
           renewal_status?: string
@@ -477,6 +479,7 @@ export type Database = {
           vo_gst?: number
           vo_plan?: string | null
           vo_status?: string
+          plan_years?: number
           plan_start_date?: string | null
           plan_expiry_date?: string | null
           renewal_status?: string
