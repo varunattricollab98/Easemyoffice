@@ -47,6 +47,10 @@ const SOURCES = [
 const SP_STATUSES = ["Active", "Pending", "Inactive"];
 const PAY_STATUSES = ["Pending", "Paid", "Partial"];
 const VO_STATUSES = ["Pending", "Active", "Delivered"];
+// Plan duration options (in years) for multi-year bookings. Amounts are still
+// entered manually — a longer term does NOT auto-multiply the price, since
+// multi-year deals often carry a negotiated discount from the space.
+const PLAN_YEARS = [1, 2, 3, 4, 5];
 
 function genBookingId() {
   const d = new Date();
@@ -72,6 +76,17 @@ const num = (v: string) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+// Add N whole years to an ISO date (YYYY-MM-DD) and return an ISO date.
+// Used to auto-compute a multi-year plan's expiry from its start date so the
+// renewal module fires at the correct time. Returns null on an invalid input.
+function addYearsISO(startISO: string, years: number): string | null {
+  if (!startISO) return null;
+  const d = new Date(startISO);
+  if (isNaN(d.getTime())) return null;
+  d.setFullYear(d.getFullYear() + years);
+  return d.toISOString().slice(0, 10);
+}
+
 // Default values for one booking entry. `booking_id` gets a fresh local
 // fallback per entry; the authoritative sequential id is resolved from the
 // sheet at save time (see persistBooking). Split out from useState so both the
@@ -84,6 +99,8 @@ const initialForm = {
   booking_source: "Website",
   plan_name: "",
   vo_plan: "",
+  plan_years: "1",
+  plan_start_date: todayISO(),
   sp_name: "",
   area: "",
   city: "",
@@ -149,6 +166,13 @@ function deriveBooking(form: BookingForm) {
   const isPartial = form.payment_type === "partial";
   const amountReceived = isPartial ? num(form.amount_received) : afterTds;
   const balanceAmount = isPartial ? Math.max(0, +(afterTds - amountReceived).toFixed(2)) : 0;
+  // Multi-year plan term. planYears defaults to 1 (single-year booking).
+  // planExpiry = plan_start_date + planYears, so the renewal module fires at
+  // the end of the paid term. Amounts above are NOT scaled by planYears — they
+  // are entered manually to allow negotiated multi-year discounts.
+  const planYears = Math.max(1, Math.round(num(form.plan_years) || 1));
+  const planStart = form.plan_start_date || "";
+  const planExpiry = addYearsISO(planStart, planYears);
   return {
     vo,
     voGst,
@@ -167,6 +191,9 @@ function deriveBooking(form: BookingForm) {
     isPartial,
     amountReceived,
     balanceAmount,
+    planYears,
+    planStart,
+    planExpiry,
   };
 }
 
@@ -816,6 +843,7 @@ export function NewBookingDialog() {
     isPartial,
     amountReceived,
     balanceAmount,
+    planExpiry,
   } = useMemo(() => deriveBooking(f), [f]);
   const month = useMemo(() => salesMonth(f.date), [f.date]);
 
@@ -854,6 +882,8 @@ export function NewBookingDialog() {
       booking_id: genBookingId(),
       plan_name: "",
       vo_plan: "",
+      plan_years: "1",
+      plan_start_date: todayISO(),
       sp_name: "",
       area: "",
       city: "",
@@ -922,6 +952,9 @@ export function NewBookingDialog() {
         booking_source: form.booking_source,
         plan_name: form.plan_name,
         vo_plan: form.vo_plan,
+        plan_years: d.planYears,
+        plan_start_date: d.planStart || null,
+        plan_expiry_date: d.planExpiry,
         sp_name: form.sp_name,
         area: form.area,
         city: form.city,
@@ -1006,6 +1039,10 @@ export function NewBookingDialog() {
       d.amountReceived,
       d.balanceAmount,
       d.isPartial && form.balance_due_date ? form.balance_due_date : "",
+      // Multi-year fields appended at the end so existing sheet columns don't shift.
+      d.planYears,
+      d.planStart || "",
+      d.planExpiry || "",
     ];
     const sheet = await syncBookingToSheet(values);
     return { sheet, bookingId, bookingUuid: insertedBooking?.id ?? null };
@@ -1760,6 +1797,27 @@ export function NewBookingDialog() {
               )}
             </div>
             {T("vo_plan", "VO Plan")}
+
+            <div>
+              <Label className="text-xs">Plan Duration (Years)</Label>
+              <Select value={f.plan_years} onValueChange={(v) => setF({ ...f, plan_years: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PLAN_YEARS.map((y) => (
+                    <SelectItem key={y} value={String(y)}>
+                      {y} {y === 1 ? "Year" : "Years"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {T("plan_start_date", "Plan Start Date", { type: "date" })}
+            <div>
+              <Label className="text-xs">Plan Expiry (auto)</Label>
+              <Input value={planExpiry ?? ""} readOnly className="bg-muted/40" />
+            </div>
 
             {T("sp_name", "SP Name")}
             {T("area", "Area")}
