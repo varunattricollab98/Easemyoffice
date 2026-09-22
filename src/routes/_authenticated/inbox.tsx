@@ -14,6 +14,8 @@ import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { Mail, ExternalLink, UserPlus, Search, RefreshCcw, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, CheckCircle2, Hand, Reply, Send, FileText, Maximize2, Minimize2, MapPin, IndianRupee, Calculator } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
+import { Paperclip, X as XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fetchInbox, fetchThread, claimEmailInGmail, sendThreadReply, parseFrom, claimedOwner, matchOwnerTagToName, parseWeb3FormLead, isThrowawayAddress, htmlToText, type InboxEmail, type ThreadMessage } from "@/lib/gmail";
 import { buildEmailSignature } from "@/lib/email-signature";
@@ -21,6 +23,88 @@ import { SendQuotationDialog } from "@/components/send-quotation-dialog";
 
 function esc(s: unknown) {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// Per-file attachment cap. Gmail allows ~25 MB total, and base64 inflates size
+// by ~33% over the edge-function payload, so we cap each file conservatively and
+// surface a clear error rather than failing opaquely at send time.
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024; // 10 MB per file
+
+export interface ReplyAttachment {
+  name: string;
+  mimeType: string;
+  dataBase64: string;
+}
+
+// Read picked files into base64 attachments for the Gmail thread reply. Throws
+// a friendly error if any file exceeds the per-file cap.
+async function filesToAttachments(files: File[]): Promise<ReplyAttachment[]> {
+  const out: ReplyAttachment[] = [];
+  for (const f of files) {
+    if (f.size > MAX_ATTACHMENT_BYTES) {
+      throw new Error(`"${f.name}" is larger than 10 MB. Attach a smaller file or use "Open in Gmail".`);
+    }
+    const dataBase64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const res = String(reader.result || "");
+        // reader gives "data:<mime>;base64,<data>" — keep only the base64 part.
+        const comma = res.indexOf(",");
+        resolve(comma >= 0 ? res.slice(comma + 1) : res);
+      };
+      reader.onerror = () => reject(new Error(`Could not read "${f.name}"`));
+      reader.readAsDataURL(f);
+    });
+    out.push({ name: f.name, mimeType: f.type || "application/octet-stream", dataBase64 });
+  }
+  return out;
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// Attach-file control + selected-file chips for the reply composer. Purely
+// presentational over a File[] the parent owns; the parent turns files into
+// base64 at send time (filesToAttachments).
+function ReplyAttachmentBar({ files, onChange }: { files: File[]; onChange: (f: File[]) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const add = (picked: FileList | null) => {
+    if (!picked || picked.length === 0) return;
+    const next = [...files];
+    for (const f of Array.from(picked)) {
+      if (!next.some((e) => e.name === f.name && e.size === f.size)) next.push(f);
+    }
+    onChange(next);
+    if (inputRef.current) inputRef.current.value = ""; // allow re-picking the same file
+  };
+  const remove = (i: number) => onChange(files.filter((_, j) => j !== i));
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <input ref={inputRef} type="file" multiple className="hidden" onChange={(e) => add(e.target.files)} />
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="h-7 text-xs"
+        onClick={() => inputRef.current?.click()}
+      >
+        <Paperclip className="h-3.5 w-3.5 mr-1" /> Attach
+      </Button>
+      {files.map((f, i) => (
+        <span key={i} className="inline-flex items-center gap-1 rounded border bg-background px-2 py-1 text-xs max-w-[220px]">
+          <Paperclip className="h-3 w-3 shrink-0" />
+          <span className="truncate">{f.name}</span>
+          <span className="shrink-0 text-muted-foreground">({formatBytes(f.size)})</span>
+          <button type="button" onClick={() => remove(i)} className="shrink-0 text-muted-foreground hover:text-destructive" aria-label={`Remove ${f.name}`}>
+            <XIcon className="h-3 w-3" />
+          </button>
+        </span>
+      ))}
+    </div>
+  );
 }
 
 // Stitch every message in the thread into one continuous HTML document, so the
@@ -103,6 +187,8 @@ function LeadInboxPage() {
   // Attachments panel is collapsed by default so a long inline-image list can't
   // push the email body / reply composer out of the fixed-height modal.
   const [attachmentsOpen, setAttachmentsOpen] = useState(false);
+  // Files the rep attaches to their reply (sent with the Gmail thread reply).
+  const [replyFiles, setReplyFiles] = useState<File[]>([]);
   const [quotationBasePrice, setQuotationBasePrice] = useState("");
   const [quotationLocation, setQuotationLocation] = useState("");
   const [premiumQuotationOpen, setPremiumQuotationOpen] = useState(false);
@@ -141,7 +227,7 @@ function LeadInboxPage() {
   });
 
   // Reset the reply composer whenever a different email is opened / closed.
-  useEffect(() => { setReplyOpen(false); setReplyText(""); setReplySnippetId("custom"); setQuotationOpen(false); setQuotationBasePrice(""); setQuotationLocation(""); setAttachmentsOpen(false); }, [reading?.threadId]);
+  useEffect(() => { setReplyOpen(false); setReplyText(""); setReplyFiles([]); setReplySnippetId("custom"); setQuotationOpen(false); setQuotationBasePrice(""); setQuotationLocation(""); setAttachmentsOpen(false); }, [reading?.threadId]);
 
   // When the reply composer opens, collapse the attachments panel so the
   // composer gets the vertical room (prevents a long attachment list from
@@ -168,6 +254,13 @@ function LeadInboxPage() {
   const replySubject = reading
     ? (/^\s*re:/i.test(reading.subject || "") ? (reading.subject || "") : `Re: ${reading.subject || "(no subject)"}`)
     : "";
+
+  // The reply body is HTML from the rich editor; it's "empty" only when there's
+  // no visible text (ignoring tags/whitespace/&nbsp;). Used to gate Send.
+  const isReplyEmpty = useMemo(
+    () => replyText.replace(/<[^>]+>/g, "").replace(/&nbsp;/gi, " ").trim() === "",
+    [replyText],
+  );
 
   // Fetch email snippets for the quotation composer dropdown
   const { data: emailSnippets = [] } = useQuery({
@@ -259,25 +352,23 @@ function LeadInboxPage() {
     }
   };
 
-  // Apply a template or snippet to the reply composer
+  // Apply a template or snippet to the reply composer. The reply body is now a
+  // rich-text (HTML) editor, so we set HTML directly (custom snippets are stored
+  // as HTML; built-in templates are plain text, converted to HTML paragraphs).
   const applyReplyTemplate = (id: string) => {
     setReplySnippetId(id);
-    // Check if it's a custom snippet (UUID format from DB)
     const snippet = emailSnippets.find((s) => s.id === id);
     if (snippet) {
-      // Convert HTML to plain text for the textarea
-      const plainBody = snippet.body_html
-        ? snippet.body_html.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ")
-        : "";
-      setReplyText(plainBody);
+      setReplyText(snippet.body_html || "");
     } else {
-      // Parse the client name from the thread body
       const msgs = threadQ.data?.messages ?? [];
       const bodyText = msgs.map((m) => (m.body && m.body.trim() ? m.body : htmlToText(m.html || ""))).join("\n");
       const parsed = parseWeb3FormLead(bodyText);
       const clientName = parsed.name || "";
       const t = buildQuotationTemplate(id, clientName);
-      setReplyText(t.body);
+      // Built-in templates are plain text — escape and turn newlines into <br>
+      // so they render correctly in the HTML editor.
+      setReplyText(esc(t.body).replace(/\n/g, "<br>"));
     }
   };
 
@@ -339,9 +430,11 @@ function LeadInboxPage() {
   // followed by THEIR OWN signature (built from their profile name + phone), so
   // whoever sends from their panel signs off as themselves.
   const reply = useMutation({
-    mutationFn: async (vars: { text: string; cc?: string }) => {
+    mutationFn: async (vars: { html: string; cc?: string }) => {
       if (!reading?.threadId) throw new Error("No email thread to reply to");
-      const typed = esc(vars.text.trim()).replace(/\n/g, "<br>");
+      // vars.html is already HTML from the rich-text editor (bold/italic/lists/
+      // links), so it is NOT escaped — it is used as-is.
+      const typed = vars.html;
       const signature = buildEmailSignature({
         name: profile?.full_name ?? "",
         phone: (profile as { phone?: string } | null)?.phone ?? "",
@@ -351,13 +444,17 @@ function LeadInboxPage() {
       const htmlBody =
         `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#0f172a">${typed}</div>` +
         `<table role="presentation" width="100%" style="margin-top:20px;border-collapse:collapse">${signature}</table>`;
-      const res = await sendThreadReply(reading.threadId, htmlBody, { cc: vars.cc });
+      // Read any picked files into base64 so they can be sent through the
+      // edge function -> Apps Script and attached to the Gmail reply.
+      const attachments = await filesToAttachments(replyFiles);
+      const res = await sendThreadReply(reading.threadId, htmlBody, { cc: vars.cc, attachments });
       if (!res.ok) throw new Error(res.error || "Send failed");
       return res;
     },
     onSuccess: () => {
       toast.success("Reply sent — it's now in the same Gmail thread");
       setReplyText("");
+      setReplyFiles([]);
       setReplyOpen(false);
       // Refresh the thread so the just-sent reply appears in the conversation.
       qc.invalidateQueries({ queryKey: ["gmail-thread", reading?.threadId] });
@@ -1013,20 +1110,19 @@ function LeadInboxPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Textarea
-                    rows={4}
-                    autoFocus
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
+                  <RichTextEditor
+                    html={replyText}
+                    onChange={setReplyText}
                     placeholder="Type your reply…"
-                    className="resize-none"
+                    minHeight={160}
                   />
+                  <ReplyAttachmentBar files={replyFiles} onChange={setReplyFiles} />
                   <div className="flex justify-end gap-2">
                     <Button size="sm" variant="ghost" onClick={() => setReplyOpen(false)}>Cancel</Button>
                     <Button
                       size="sm"
-                      disabled={reply.isPending || !replyText.trim()}
-                      onClick={() => reply.mutate({ text: replyText.trim() })}
+                      disabled={reply.isPending || isReplyEmpty}
+                      onClick={() => reply.mutate({ html: replyText })}
                     >
                       <Send className="h-4 w-4 mr-1" /> {reply.isPending ? "Sending…" : "Send reply"}
                     </Button>
@@ -1375,13 +1471,13 @@ function LeadInboxPage() {
             </div>
             <div className="flex min-h-0 flex-1 flex-col space-y-1.5">
               <Label className="text-xs">Message</Label>
-              <Textarea
-                autoFocus
-                value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
+              <RichTextEditor
+                html={replyText}
+                onChange={setReplyText}
                 placeholder="Type your reply…"
-                className="resize-none min-h-0 flex-1 leading-relaxed"
+                minHeight={360}
               />
+              <ReplyAttachmentBar files={replyFiles} onChange={setReplyFiles} />
             </div>
           </div>
 
@@ -1392,8 +1488,8 @@ function LeadInboxPage() {
             <div className="flex gap-2">
               <Button variant="ghost" onClick={() => setReplyExpanded(false)}>Back to email</Button>
               <Button
-                disabled={reply.isPending || !replyText.trim()}
-                onClick={() => reply.mutate({ text: replyText.trim() })}
+                disabled={reply.isPending || isReplyEmpty}
+                onClick={() => reply.mutate({ html: replyText })}
               >
                 <Send className="h-4 w-4 mr-1" /> {reply.isPending ? "Sending…" : "Send reply"}
               </Button>

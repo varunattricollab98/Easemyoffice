@@ -8,7 +8,8 @@
 //   { action: "thread", threadId }            -> full text of one thread
 //   { action: "claim", threadId, label }      -> label the thread + mark read
 //   { action: "reply", threadId, htmlBody,    -> reply INSIDE the same Gmail
-//            cc?, replyAll? }                     thread (shows in Sent + threaded)
+//            cc?, replyAll?, attachments? }       thread (shows in Sent + threaded);
+//                                                 attachments: [{name,mimeType,dataBase64}]
 //
 // Secrets (Supabase -> Edge Functions -> Secrets):
 //   GMAIL_WEBHOOK_URL  -> the Gmail Apps Script Web App /exec URL
@@ -101,6 +102,9 @@ Deno.serve(async (req) => {
           htmlBody: body.htmlBody,
           cc: body.cc || "",
           replyAll: body.replyAll ? true : false,
+          // Attachments: [{ name, mimeType, dataBase64 }]. The Apps Script turns
+          // each into a Blob and attaches it to the thread reply.
+          attachments: Array.isArray(body.attachments) ? body.attachments : [],
         },
       });
       if (!result.ok) throw new Error(result.error);
