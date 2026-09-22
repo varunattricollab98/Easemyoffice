@@ -1302,13 +1302,8 @@ function LeadInboxPage() {
                   </Button>
                 )}
                 {replyTo && !quotationOpen && (
-                  <Button size="sm" variant="secondary" onClick={openQuotationComposer}>
-                    <FileText className="h-4 w-4 mr-1" /> Send Quotation
-                  </Button>
-                )}
-                {replyTo && !quotationOpen && (
                   <Button size="sm" variant="default" onClick={() => setPremiumQuotationOpen(true)}>
-                    <FileText className="h-4 w-4 mr-1" /> Premium Quotation
+                    <FileText className="h-4 w-4 mr-1" /> Send Quote
                   </Button>
                 )}
                 {(threadQ.data.url || reading?.url) && (
