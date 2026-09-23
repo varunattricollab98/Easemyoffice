@@ -16,6 +16,7 @@ import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { getSheetPlans } from "@/lib/bookings-sheet";
+import { num, salesMonth, computeBookingMoney } from "@/lib/booking-math";
 
 export const Route = createFileRoute("/_authenticated/renewals/bookings")({
   head: () => ({ meta: [{ title: "Renewal Bookings — EaseMyOffice CRM" }] }),
@@ -23,7 +24,9 @@ export const Route = createFileRoute("/_authenticated/renewals/bookings")({
 });
 
 const fmtINR = (n: number) => `₹${(n ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
-const num = (v: string) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
+// `num`, `salesMonth`, and the GST/profit/balance math come from the shared,
+// unit-tested @/lib/booking-math module (renewals have no TDS/discount, so
+// computeBookingMoney is called with tdsPct 0 / quotedAmount 0).
 
 
 const SOURCES = ["Renewal Call", "Email", "WhatsApp", "Referral", "Walk-in", "Other"];
@@ -185,17 +188,28 @@ function NewRenewalBookingDialog({ open, onClose, userId, team }: { open: boolea
       sp_payable: (p?.sp_payable !== undefined && p?.sp_payable !== null && p?.sp_payable !== "") ? String(p.sp_payable) : s.sp_payable,
     }));
   };
-  const voGst = +(vo * 0.18).toFixed(2);
-  const addOn = num(f.addon_amount);
-  const addOnGst = +(addOn * 0.18).toFixed(2);
-  const totalWithGst = +(vo + voGst + addOn + addOnGst).toFixed(2);
-  const spPay = num(f.sp_payable);
-  const addOnPay = num(f.addon_payable);
-  // Profit = (VO - SP Payable) + (Add-on - Add-on Payable) — WITHOUT GST
-  const profit = +((vo - spPay) + (addOn - addOnPay)).toFixed(2);
   const isPartial = f.payment_type === "partial";
-  const amountReceived = isPartial ? num(f.amount_received) : totalWithGst;
-  const balanceAmount = isPartial ? Math.max(0, +(totalWithGst - amountReceived).toFixed(2)) : 0;
+  // Renewals have no TDS or quoted-price discount, so afterTds === total here.
+  const _m = computeBookingMoney({
+    voAmount: vo,
+    addOnAmount: num(f.addon_amount),
+    quotedAmount: 0,
+    tdsPct: 0,
+    spPayable: num(f.sp_payable),
+    addOnPayable: num(f.addon_payable),
+    isPartial,
+    amountReceived: num(f.amount_received),
+  });
+  const voGst = _m.voGst;
+  const addOn = _m.addOn;
+  const addOnGst = _m.addOnGst;
+  const totalWithGst = _m.total;
+  const spPay = _m.spPay;
+  const addOnPay = _m.addOnPay;
+  // Profit = (VO + Add-on) - SP Payable - Add-on Payable — WITHOUT GST
+  const profit = _m.profit;
+  const amountReceived = _m.amountReceived;
+  const balanceAmount = _m.balanceAmount;
 
   const reset = () => setF({
     date: new Date().toISOString().slice(0, 10), sales_agent: profile?.full_name ?? "", booking_source: "Renewal Call",
@@ -254,7 +268,7 @@ function NewRenewalBookingDialog({ open, onClose, userId, team }: { open: boolea
       // SP Payment Status, VO Status,
       // Business Name, Client Name, Email Id, Contact No., Remarks, Sales Month,
       // Amount Received, Balance Amount, Balance Due Date
-      const salesMonth = (() => { const d = new Date(f.date); return d.toLocaleDateString(undefined, { month: "short", year: "numeric" }).replace(" ", "-"); })();
+      const salesMonthLabel = salesMonth(f.date);
       const values = [
         f.date, f.sales_agent, "", f.booking_source, f.plan_name, f.vo_plan,
         f.sp_name, f.area, f.city, f.state, "",
@@ -263,7 +277,7 @@ function NewRenewalBookingDialog({ open, onClose, userId, team }: { open: boolea
         f.payment_mode_ref, f.payment_id_utr, f.invoice_number,
         spPay, addOnPay, profit,
         f.sp_payment_status, f.vo_status,
-        f.business_name, f.client_name, f.email_id, f.contact_no, f.remarks, salesMonth,
+        f.business_name, f.client_name, f.email_id, f.contact_no, f.remarks, salesMonthLabel,
         amountReceived, balanceAmount, f.balance_due_date || "",
       ];
       const sheet = await syncRenewalToSheet(values);
