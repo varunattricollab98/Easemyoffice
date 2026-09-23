@@ -218,7 +218,7 @@ function DashboardPage() {
 
   return (
     <div className="dash-canvas min-h-full">
-      <div className="relative p-5 md:p-10 max-w-[1400px] mx-auto space-y-5">
+      <div className="stagger relative p-5 md:p-10 max-w-[1400px] mx-auto space-y-5">
         {/* View switcher for admins */}
         {availableViews.length > 1 && (
           <div className="inline-flex rounded-lg border bg-muted/40 p-1 gap-1">
@@ -238,7 +238,7 @@ function DashboardPage() {
           </div>
         )}
         {/* Personalized header — makes the salesperson feel ownership */}
-        <div className="flex flex-col gap-1">
+        <div className="lift-in flex flex-col gap-1" style={{ "--i": 0 } as React.CSSProperties}>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
             {profile?.full_name?.split(" ")[0] ?? "Your"}'s Dashboard
           </h1>
@@ -248,7 +248,7 @@ function DashboardPage() {
         </div>
 
         {/* Actions bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="lift-in flex flex-wrap items-center justify-between gap-3" style={{ "--i": 1 } as React.CSSProperties}>
           <div className="flex items-center gap-3">
             <LivePulsePill />
           </div>
@@ -323,9 +323,12 @@ function DashboardPage() {
         </div>
 
         {/* Top KPI strip — configurable cards; drag to reorder in edit mode */}
-        <KpiStrip pulseTick={pulseTick} editing={editing} kpis={kpis} onReorder={setKpis} />
+        <div className="lift-in" style={{ "--i": 2 } as React.CSSProperties}>
+          <KpiStrip pulseTick={pulseTick} editing={editing} kpis={kpis} onReorder={setKpis} />
+        </div>
 
         {/* Customizable widget grid */}
+        <div className="lift-in" style={{ "--i": 3 } as React.CSSProperties}>
         <Suspense
           fallback={
             <div className="grid gap-3 grid-cols-1 md:grid-cols-2 animate-pulse">
@@ -337,15 +340,18 @@ function DashboardPage() {
         >
           <WidgetGrid editing={editing} pulseTick={pulseTick} visible={visible} />
         </Suspense>
+        </div>
 
         {/* Hero of the Month leaderboard */}
-        <Suspense fallback={<div className="h-48 rounded-xl bg-muted/40 animate-pulse" />}>
-          <HeroOfMonth />
-        </Suspense>
+        <div className="lift-in" style={{ "--i": 4 } as React.CSSProperties}>
+          <Suspense fallback={<div className="h-48 rounded-xl bg-muted/40 animate-pulse" />}>
+            <HeroOfMonth />
+          </Suspense>
+        </div>
 
         {/* Pipeline board — right on the dashboard so the whole day's work stays
             focused in one place (same board as the /pipeline route). */}
-        <div className="pt-2">
+        <div className="lift-in pt-2" style={{ "--i": 5 } as React.CSSProperties}>
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-lg font-semibold tracking-tight">Pipeline</h2>
             <Button asChild variant="ghost" size="sm">
