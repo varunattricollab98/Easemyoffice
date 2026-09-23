@@ -47,29 +47,36 @@ async function tick() {
   }
 }
 
-export function setSimEnabled(value: boolean) {
-  enabled = value;
-  try {
-    localStorage.setItem(STORAGE_KEY, value ? "1" : "0");
-  } catch {
-    /* ignore */
-  }
+// PERMANENTLY DISABLED. The realtime simulator mutated random REAL leads every
+// 5s (changing stage/interest/follow-up), which corrupted live data and made
+// the app appear to "reload" every few seconds. It must never run against the
+// production database, so setSimEnabled is now a no-op that keeps the sim OFF
+// and clears any lingering "on" flag from a previous session.
+export function setSimEnabled(_value: boolean) {
+  enabled = false;
   if (intervalId) {
     clearInterval(intervalId);
     intervalId = null;
   }
-  if (value) {
-    // Fire one immediately, then every 5s
-    void tick();
-    intervalId = setInterval(() => void tick(), 5000);
+  try {
+    localStorage.setItem(STORAGE_KEY, "0");
+  } catch {
+    /* ignore */
   }
   emit();
 }
 
+// On boot, make sure the simulator is OFF and any stale interval is cleared —
+// even if a browser still has the old "emo-crm:realtime-sim=1" flag set.
 export function bootstrapSim() {
   if (typeof window === "undefined") return;
+  if (intervalId) {
+    clearInterval(intervalId);
+    intervalId = null;
+  }
+  enabled = false;
   try {
-    if (localStorage.getItem(STORAGE_KEY) === "1") setSimEnabled(true);
+    localStorage.setItem(STORAGE_KEY, "0");
   } catch {
     /* ignore */
   }

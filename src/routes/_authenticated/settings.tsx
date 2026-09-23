@@ -779,15 +779,15 @@ function DemoControls() {
         <CardDescription>Tools for testing the CRM. Disable these before going live.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex items-center justify-between gap-3 p-3 border rounded-lg">
+        <div className="flex items-center justify-between gap-3 p-3 border rounded-lg opacity-70">
           <div>
             <div className="font-medium text-sm flex items-center gap-2">
-              <Radio className={`h-4 w-4 ${simOn ? "text-success animate-pulse" : "text-muted-foreground"}`} />
-              Simulate realtime updates
+              <Radio className="h-4 w-4 text-muted-foreground" />
+              Simulate realtime updates <span className="text-[10px] uppercase tracking-wide rounded bg-muted px-1.5 py-0.5">Disabled</span>
             </div>
-            <div className="text-xs text-muted-foreground">Every 5s, randomly mutate a lead so Pipeline &amp; Follow-ups show live changes.</div>
+            <div className="text-xs text-muted-foreground">Permanently disabled — it mutated real leads every 5s and corrupted live data.</div>
           </div>
-          <Switch checked={simOn} onCheckedChange={setSimEnabled} />
+          <Switch checked={false} disabled onCheckedChange={setSimEnabled} />
         </div>
         <div className="flex flex-wrap gap-2">
           <Button onClick={reseed} disabled={busy !== null} variant="default">
