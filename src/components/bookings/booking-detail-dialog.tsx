@@ -13,12 +13,12 @@ import { logAudit } from "@/lib/audit";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
 import { Plus } from "lucide-react";
+import { num, computeBookingMoney } from "@/lib/booking-math";
 
 const PAY_STATUSES = ["Pending", "Paid", "Partial"];
 const VO_STATUSES = ["Pending", "Active", "Delivered"];
 const PAY_MODES = ["UPI", "Bank Transfer / NEFT", "Cheque", "Cash", "Card", "Payment Link", "Other"];
 const SOURCES = ["Website", "Referral", "IndiaMART", "Google Ads", "Meta Ads", "WhatsApp", "Direct", "Other"];
-const num = (v: any) => { const n = parseFloat(String(v)); return Number.isFinite(n) ? n : 0; };
 const fmtINR = (n: number) => `₹${(n ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 
 export function BookingDetailDialog({ booking, open, onOpenChange }: { booking: any | null; open: boolean; onOpenChange: (v: boolean) => void }) {
@@ -49,18 +49,27 @@ export function BookingDetailDialog({ booking, open, onOpenChange }: { booking: 
     }
   }, [booking]);
 
-  // recomputed money
-  const vo = num(f.vo_amount), voGst = +(vo * 0.18).toFixed(2);
-  const addOn = num(f.addon_amount), addOnGst = +(addOn * 0.18).toFixed(2);
-  const total = +(vo + voGst + addOn + addOnGst).toFixed(2);
-  const tdsPct = num(f.tds_pct), tdsAmt = +((total * tdsPct) / 100).toFixed(2);
-  const afterTds = +(total - tdsAmt).toFixed(2);
-  const spPay = num(f.sp_payable), addOnPay = num(f.addon_payable);
-  // Profit is computed on the pre-GST base amounts (VO + Add-on), not the GST-inclusive total.
-  const profit = +((vo + addOn) - spPay - addOnPay).toFixed(2);
-  // Discount = originally quoted price minus the final deal value (never negative).
-  const quoted = num(f.quoted_amount);
-  const discount = quoted > 0 ? Math.max(0, +(quoted - total).toFixed(2)) : 0;
+  // recomputed money — shared, unit-tested math (@/lib/booking-math). The
+  // outstanding balance below is computed separately from the payment history.
+  const _m = computeBookingMoney({
+    voAmount: num(f.vo_amount),
+    addOnAmount: num(f.addon_amount),
+    quotedAmount: num(f.quoted_amount),
+    tdsPct: num(f.tds_pct),
+    spPayable: num(f.sp_payable),
+    addOnPayable: num(f.addon_payable),
+    isPartial: false,
+    amountReceived: 0,
+  });
+  const vo = _m.vo, voGst = _m.voGst;
+  const addOn = _m.addOn, addOnGst = _m.addOnGst;
+  const total = _m.total;
+  const tdsPct = _m.tdsPct, tdsAmt = _m.tdsAmt;
+  const afterTds = _m.afterTds;
+  const spPay = _m.spPay, addOnPay = _m.addOnPay;
+  const profit = _m.profit;
+  const quoted = _m.quoted;
+  const discount = _m.discount;
 
   const { data: payments = [] } = useQuery({
     queryKey: ["booking-payments", bookingId],
