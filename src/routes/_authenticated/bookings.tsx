@@ -54,6 +54,8 @@ const NewBookingDialog = lazy(() =>
 );
 
 export const Route = createFileRoute("/_authenticated/bookings")({
+  // Optional ?q= to pre-fill the search box (used by global search).
+  validateSearch: (s: Record<string, unknown>): { q?: string } => ({ q: typeof s.q === "string" ? s.q : undefined }),
   component: BookingsPage,
 });
 
@@ -185,7 +187,8 @@ function SortHeader({
 function BookingsPage() {
   const { isAdmin, user } = useAuth();
   const qc = useQueryClient();
-  const [q, setQ] = useState("");
+  const initialQ = Route.useSearch().q ?? "";
+  const [q, setQ] = useState(initialQ);
   const [selected, setSelected] = useState<BookingRow | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [sort, setSort] = useState<SortState>({ key: "date", dir: "desc" });
