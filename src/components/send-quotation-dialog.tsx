@@ -28,7 +28,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Send, Loader2, Eye, ArrowLeft, FileText, X, ChevronsUpDown } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Send, Loader2, Eye, ArrowLeft, FileText, X, ChevronsUpDown, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getSheetPlans, type PlanRow } from "@/lib/bookings-sheet";
@@ -825,6 +826,12 @@ export function SendQuotationDialog({
   // building the email HTML. Blank/garbage rows are filtered out at that point.
   const [addonServices, setAddonServices] = useState<{ name: string; amount: string }[]>([]);
   const [previewing, setPreviewing] = useState(false);
+  // Extra recipients: companies sometimes ask for the quote on several emails.
+  // `extraToEmails` are additional To addresses (the primary is clientEmail);
+  // `ccEmails` is a comma-separated CC list. Both are optional.
+  const [extraToEmails, setExtraToEmails] = useState<string[]>([]);
+  const [newToEmail, setNewToEmail] = useState("");
+  const [ccEmails, setCcEmails] = useState("");
 
   // Single-state convenience: when exactly one state is chosen we keep the
   // classic single-state + optional-city behavior.
@@ -855,8 +862,32 @@ export function SendQuotationDialog({
       setAddonServices([]);
       setStatePopoverOpen(false);
       setPreviewing(false);
+      setExtraToEmails([]);
+      setNewToEmail("");
+      setCcEmails("");
     }
   }, [open, defaultState, defaultCity]);
+
+  // All recipient To addresses = the primary client email + any extra ones the
+  // rep added (deduped, valid-looking). CC is parsed from the comma list.
+  const isEmailStr = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+  const allToEmails = useMemo(() => {
+    const list = [clientEmail, ...extraToEmails].map((e) => e.trim()).filter(Boolean);
+    return Array.from(new Set(list));
+  }, [clientEmail, extraToEmails]);
+  const ccList = useMemo(
+    () => Array.from(new Set(ccEmails.split(",").map((e) => e.trim()).filter((e) => isEmailStr(e)))),
+    [ccEmails],
+  );
+  const addToEmail = () => {
+    const e = newToEmail.trim();
+    if (!e) return;
+    if (!isEmailStr(e)) { toast.error("Enter a valid email address"); return; }
+    if (allToEmails.some((x) => x.toLowerCase() === e.toLowerCase())) { toast.error("That email is already added"); setNewToEmail(""); return; }
+    setExtraToEmails((prev) => [...prev, e]);
+    setNewToEmail("");
+  };
+  const removeToEmail = (email: string) => setExtraToEmails((prev) => prev.filter((e) => e !== email));
 
   // Derive unique states and cities
   const states = useMemo(() => {
@@ -1013,13 +1044,15 @@ export function SendQuotationDialog({
 
   // Send handler
   const handleSend = async () => {
-    if (!clientEmail) return toast.error("No email address for this client");
+    if (allToEmails.length === 0) return toast.error("No email address for this client");
     if (displayPlans.length === 0) return toast.error("No plans found for selected location. Please select a state.");
     setSending(true);
     try {
       const { data, error } = await supabase.functions.invoke("send-client-email", {
         body: {
-          to: clientEmail,
+          // Send to every To recipient (primary client + any extra emails).
+          to: allToEmails,
+          cc: ccList.length ? ccList : undefined,
           subject,
           html: emailHtml,
           from: fromEmail,
@@ -1033,7 +1066,7 @@ export function SendQuotationDialog({
       });
       if (error) throw new Error(error.message);
       if (!data?.ok) throw new Error(data?.error || "Failed to send email");
-      toast.success(`Quotation sent to ${clientEmail}`);
+      toast.success(`Quotation sent to ${allToEmails.join(", ")}`);
       onSent?.(subject);
       onOpenChange(false);
     } catch (e: any) {
@@ -1149,6 +1182,57 @@ export function SendQuotationDialog({
                   <SelectItem value="trademark">Trademark Registration</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Recipients: To (primary + extra emails) and CC. Companies sometimes
+                ask for the quote on several emails, so extra To addresses can be
+                added, and a CC list is supported. */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">
+                To <span className="text-muted-foreground">(add more if needed)</span>
+              </Label>
+              <div className="flex flex-wrap gap-1.5">
+                {allToEmails.map((email) => {
+                  const isPrimary = email === clientEmail;
+                  return (
+                    <span key={email} className="inline-flex items-center gap-1 rounded-md border bg-muted/40 px-2 py-1 text-xs max-w-[260px]">
+                      <span className="truncate">{email}</span>
+                      {!isPrimary && (
+                        <button type="button" onClick={() => removeToEmail(email)} className="shrink-0 text-muted-foreground hover:text-destructive" aria-label={`Remove ${email}`}>
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </span>
+                  );
+                })}
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="email"
+                  value={newToEmail}
+                  onChange={(e) => setNewToEmail(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addToEmail(); } }}
+                  placeholder="Add another recipient email"
+                  className="h-9 text-sm"
+                />
+                <Button type="button" variant="outline" size="sm" className="h-9 shrink-0" onClick={addToEmail}>
+                  <Plus className="h-4 w-4 mr-1" /> Add
+                </Button>
+              </div>
+            </div>
+
+            {/* CC */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">
+                CC <span className="text-muted-foreground">(optional, comma-separated)</span>
+              </Label>
+              <Input
+                type="text"
+                value={ccEmails}
+                onChange={(e) => setCcEmails(e.target.value)}
+                placeholder="accounts@company.com, founder@company.com"
+                className="h-9 text-sm"
+              />
             </div>
 
             {/* State (multi-select) */}
@@ -1370,7 +1454,8 @@ export function SendQuotationDialog({
 
             {/* Email summary */}
             <div className="bg-muted/40 rounded-lg p-3 text-xs space-y-1">
-              <div><b>To:</b> {clientEmail}</div>
+              <div><b>To:</b> {allToEmails.join(", ")}</div>
+              {ccList.length > 0 && <div><b>CC:</b> {ccList.join(", ")}</div>}
               <div><b>Subject:</b> {subject}</div>
               <div><b>From:</b> EaseMyOffice &lt;contact@easemyoffice.in&gt;</div>
               <div><b>BCC:</b> contact@easemyoffice.in</div>

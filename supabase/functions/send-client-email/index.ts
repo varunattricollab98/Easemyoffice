@@ -88,7 +88,9 @@ Deno.serve(async (req) => {
       payload.html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;white-space:pre-wrap;color:#0f172a">${escHtml(text)}</div>` + CRM_MARKER;
     }
     if (isEmail(replyTo)) payload.reply_to = replyTo;
-    if (isEmail(cc)) payload.cc = [cc];
+    // CC accepts a single address, a comma-separated string, or an array.
+    const ccList = toEmailList(cc);
+    if (ccList.length) payload.cc = Array.from(new Set(ccList));
     // BCC is now strictly opt-in: only what the caller explicitly passes. No
     // shared-inbox copy is added by default anymore.
     const bccList = toEmailList(bcc);
