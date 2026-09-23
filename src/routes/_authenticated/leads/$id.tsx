@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -59,6 +59,14 @@ function LeadDetailPage() {
   const { user, isAdmin } = useAuth();
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const router = useRouter();
+  // Go back to wherever the user came from (notifications, leads list, pipeline,
+  // etc.). Falls back to /leads if there is no history to go back to (e.g. the
+  // lead was opened directly via a shared URL).
+  const goBack = () => {
+    if (window.history.length > 1) router.history.back();
+    else navigate({ to: "/leads" });
+  };
   const [emailOpen, setEmailOpen] = useState(false);
   const [reminderOpen, setReminderOpen] = useState(false);
   const [quotationDialogOpen, setQuotationDialogOpen] = useState(false);
@@ -203,7 +211,7 @@ function LeadDetailPage() {
   return (
     <div className="p-4 md:p-8 space-y-5 max-w-6xl mx-auto">
       <div className="flex items-center justify-between">
-        <Button asChild variant="ghost" size="sm"><Link to="/leads"><ArrowLeft className="h-4 w-4 mr-1" /> Leads</Link></Button>
+        <Button variant="ghost" size="sm" onClick={goBack}><ArrowLeft className="h-4 w-4 mr-1" /> Back</Button>
         <div className="flex items-center gap-2">
           {/* Fire the dialer/WhatsApp link, then open the manual log dialog immediately.
               ASSUMPTION: on mobile the browser tab stays open behind the phone/WhatsApp app,

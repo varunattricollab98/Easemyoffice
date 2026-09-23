@@ -77,12 +77,13 @@ const FILTER_STYLES: Record<string, string> = {
   overdue: "bg-red-500/10 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800",
   due: "bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800",
   payments: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800",
+  read: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
 };
 
 function NotificationsPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const [filter, setFilter] = useState<"all" | "assigned" | "overdue" | "due" | "payments">("all");
+  const [filter, setFilter] = useState<"all" | "assigned" | "overdue" | "due" | "payments" | "read">("all");
   const [doneIds, setDoneIds] = useState<Set<string>>(new Set());
 
   const { data: followups = [] } = useQuery({
@@ -110,6 +111,18 @@ function NotificationsPage() {
       const { data } = await supabase.from("notifications")
         .select("id, title, body, lead_id, task_id, read, created_at")
         .eq("read", false as never).order("created_at", { ascending: false }).limit(100);
+      return data ?? [];
+    },
+  });
+
+  // Already-read notifications, shown under the "Read" tab (so a notification
+  // you've read moves out of the active list but is still viewable).
+  const { data: readNotifs = [] } = useQuery({
+    queryKey: ["notif-read", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase.from("notifications")
+        .select("id, title, body, lead_id, task_id, read, created_at")
+        .eq("read", true as never).order("created_at", { ascending: false }).limit(100);
       return data ?? [];
     },
   });
@@ -151,8 +164,24 @@ function NotificationsPage() {
     onSuccess: (_d, id) => {
       setDoneIds((prev) => new Set(prev).add(`nt-${id}`));
       qc.invalidateQueries({ queryKey: ["notif-assigned"] });
+      qc.invalidateQueries({ queryKey: ["notif-read"] });
       qc.invalidateQueries({ queryKey: ["notif-unread-count"] });
       toast.success("Marked read");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  // Mark ALL unread lead/task notifications as read at once ("Clear").
+  const markAllRead = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("notifications").update({ read: true as never }).eq("read", false as never);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["notif-assigned"] });
+      qc.invalidateQueries({ queryKey: ["notif-read"] });
+      qc.invalidateQueries({ queryKey: ["notif-unread-count"] });
+      toast.success("All notifications marked read");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -218,13 +247,32 @@ function NotificationsPage() {
     });
   }, [followups, payments, assigned, doneIds, markDone, markPaid, markNotifRead]);
 
-  const filtered = items.filter((i) => filter === "all" || (filter === "payments" ? i.type === "payment" : i.type === filter));
+  // Read notifications shown under the "Read" tab (already-read lead/task alerts).
+  const readItems = useMemo(() => {
+    return (readNotifs as any[]).map((n) => ({
+      id: `rd-${n.id}`,
+      key: `rd-${n.id}`,
+      type: "assigned" as const,
+      title: n.title,
+      sub: formatDistanceToNow(new Date(n.created_at), { addSuffix: true }),
+      ts: new Date(n.created_at).getTime(),
+      channels: [] as Array<"whatsapp" | "email">,
+      onDone: () => {},
+      href: n.lead_id ? "/leads/$id" : n.task_id ? "/tasks" : undefined,
+      params: n.lead_id ? { id: n.lead_id } : undefined,
+    }));
+  }, [readNotifs]);
+
+  const filtered = filter === "read"
+    ? readItems
+    : items.filter((i) => filter === "all" || (filter === "payments" ? i.type === "payment" : i.type === filter));
   const counts = {
     all: items.length,
     assigned: items.filter((i) => i.type === "assigned").length,
     overdue: items.filter((i) => i.type === "overdue").length,
     due: items.filter((i) => i.type === "due").length,
     payments: items.filter((i) => i.type === "payment").length,
+    read: readItems.length,
   };
 
   // Show dummy notifications when there are no real ones
@@ -246,15 +294,28 @@ function NotificationsPage() {
           </p>
         </div>
         {!showDummy && (
-          <Badge variant="secondary" className="text-xs rounded-full px-3 py-1 bg-primary/10 text-primary font-medium">
-            {items.length} pending
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="text-xs rounded-full px-3 py-1 bg-primary/10 text-primary font-medium">
+              {items.length} pending
+            </Badge>
+            {counts.assigned > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-full"
+                disabled={markAllRead.isPending}
+                onClick={() => markAllRead.mutate()}
+              >
+                <Check className="h-4 w-4 mr-1" /> Mark all read
+              </Button>
+            )}
+          </div>
         )}
       </div>
 
       {/* Filter Pills */}
       <div className="flex gap-2 flex-wrap">
-        {(["all", "assigned", "overdue", "due", "payments"] as const).map((f) => {
+        {(["all", "assigned", "overdue", "due", "payments", "read"] as const).map((f) => {
           const isActive = filter === f;
           return (
             <button
@@ -371,14 +432,17 @@ function NotificationsPage() {
                     <span className="text-[11px] text-muted-foreground/50 hidden sm:block">
                       {formatDistanceToNow(new Date(i.ts), { addSuffix: true })}
                     </span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 w-8 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-emerald-100 hover:text-emerald-700 dark:hover:bg-emerald-950 dark:hover:text-emerald-400"
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); i.onDone(); }}
-                    >
-                      <Check className="h-4 w-4" />
-                    </Button>
+                    {filter !== "read" && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 w-8 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-emerald-100 hover:text-emerald-700 dark:hover:bg-emerald-950 dark:hover:text-emerald-400"
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); i.onDone(); }}
+                        title="Mark read"
+                      >
+                        <Check className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
