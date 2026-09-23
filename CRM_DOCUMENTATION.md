@@ -282,6 +282,26 @@ All support `{{name}}` placeholder. Can be overridden with custom snippets via A
 
 ---
 
+## Renewals Module
+
+A parallel workspace for the renewals team (separate from sales), gated by the `renewals` role in the sidebar:
+
+- **Renewal Inbox** — reads the `renewals@easemyoffice.in` shared mailbox (same Gmail bridge pattern as the sales inbox, separate mailbox). Claim-to-assign, full-thread reading, inline reply.
+- **Renewal Leads / Renewal Pipeline** — leads and a drag-and-drop pipeline scoped to renewals, with renewal-specific stages (New Renewal → Contacted → Following Up → Not Responding → Pending Payment → Renewed → Not Interested → Address Changed → Lost → Cancelled).
+- **Renewal Bookings** — a booking form for renewal deals (no TDS/quoted-discount; shares the GST/profit math via `@/lib/booking-math`).
+- **Renewal Dashboard** (`renewals/index.tsx`) — due-in-30/90, needs-attention (expiring ≤7 days), today's & overdue follow-ups, and per-stage counts. Driven by `bookings.plan_expiry_date` + `renewal_*` columns.
+
+## Zoho Books Invoice Integration
+
+GST invoices are created in Zoho Books (org "Narula Technologies LLP", GSTIN 06AANFN9510H1Z3, Haryana) via a manual flow on the **Invoices** page: **Create Invoice → Send to Client** (+ Resend / Sent) + **PDF**.
+
+- Edge function `supabase/functions/zoho-invoice/index.ts` — actions `create` / `send` / `pdf` / `status`. Refreshes the Zoho access token per call, finds/creates the Zoho contact with GSTIN + place_of_supply, attaches 18% GST, and Zoho auto-splits CGST/SGST vs IGST from the client's state.
+- Invoice number/template are owned by Zoho (auto-numbered `INV-HR-xxxx`).
+- IDs stored on `bookings`: `zoho_customer_id`, `zoho_invoice_id`, `zoho_invoice_number`, `zoho_invoice_status`, `zoho_pdf_url`, `zoho_invoice_sent_at`; plus `gst_number` / `gst_address` captured in both booking forms.
+- Manual-only by design, so a Zoho/GST error never blocks saving a booking.
+- Required Supabase Edge Function secrets (live only in Supabase, not in the repo): `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET`, `ZOHO_REFRESH_TOKEN`, `ZOHO_ORG_ID`, `ZOHO_API_DOMAIN` (`https://www.zohoapis.in`), `ZOHO_ACCOUNTS_DOMAIN` (`https://accounts.zoho.in`).
+- Migration `setup/ADD_ZOHO_INVOICE.sql`; setup guide `setup/ZOHO_INVOICE_SETUP.md`.
+
 ## Testing
 
 - **Unit tests (Vitest):** `bun run test` (or `bun run test:watch`). Config in `vitest.config.ts`; specs live next to source as `*.test.ts` (e.g. `src/lib/booking-math.test.ts`, `src/lib/payment-ack-email.test.ts`). CI runs these before the build.

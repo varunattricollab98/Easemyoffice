@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { logger } from "@/lib/logger";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -150,7 +151,7 @@ export function BulkUploadDialog({ open, onOpenChange }: { open: boolean; onOpen
       for (const chunk of chunks) {
         const payload = chunk.map((r) => ({ ...r, created_by: user.id }));
         const { error } = await supabase.from("bookings").insert(payload as any[]);
-        if (error) { errors += chunk.length; console.error(error); }
+        if (error) { errors += chunk.length; logger.error(error); }
         else inserted += chunk.length;
       }
       return { inserted, errors };

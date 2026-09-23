@@ -360,7 +360,13 @@ function RenewalInboxPage() {
             const fromP = parseFrom(e.from);
             return (
               <div key={e.threadId} className="p-4 flex flex-wrap items-center gap-3 hover:bg-muted/30">
-                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setReading(e)}>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  className="flex-1 min-w-0 cursor-pointer"
+                  onClick={() => setReading(e)}
+                  onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); setReading(e); } }}
+                >
                   <div className="flex items-center gap-2">
                     <span className={cn("font-medium text-sm truncate", e.unread && "font-bold")}>{fromP.name || fromP.address || e.from}</span>
                     {owner ? <Badge variant="secondary" className="text-[10px]">{owner}</Badge> : <Badge variant="outline" className="text-[10px]">Unclaimed</Badge>}
