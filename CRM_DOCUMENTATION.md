@@ -139,6 +139,8 @@ lead_activities, follow_ups, tasks, profiles, user_roles, user_targets, sales_ta
 | `manage-users` | Admin user management |
 | `sync-booking-to-sheet` | Sync new bookings to Google Sheet |
 | `get-sheet-config` | Get sheet configuration (cached 5min) |
+| `notify-stale-followups` | Daily: emails salespeople about leads stuck in Follow-ups 4+ days |
+| `notify-expiring-renewals` | Daily: emails the renewals team about client plans expiring within 30 days (grouped by renewal owner; unassigned → `RENEWALS_ADMIN_EMAIL`) |
 
 ---
 
@@ -152,6 +154,7 @@ lead_activities, follow_ups, tasks, profiles, user_roles, user_targets, sales_ta
 | `CRON_SECRET` | your chosen word | Authenticates the cron job |
 | `GMAIL_WEBHOOK_URL` | Apps Script `/exec` URL | Gmail inbox bridge |
 | `GMAIL_TOKEN` | your chosen word | Authenticates Gmail requests |
+| `RENEWALS_ADMIN_EMAIL` | an inbox address | (Optional) where `notify-expiring-renewals` sends the summary of expiring plans that have no renewal owner |
 
 ---
 
@@ -290,6 +293,7 @@ A parallel workspace for the renewals team (separate from sales), gated by the `
 - **Renewal Leads / Renewal Pipeline** — leads and a drag-and-drop pipeline scoped to renewals, with renewal-specific stages (New Renewal → Contacted → Following Up → Not Responding → Pending Payment → Renewed → Not Interested → Address Changed → Lost → Cancelled).
 - **Renewal Bookings** — a booking form for renewal deals (no TDS/quoted-discount; shares the GST/profit math via `@/lib/booking-math`).
 - **Renewal Dashboard** (`renewals/index.tsx`) — due-in-30/90, needs-attention (expiring ≤7 days), today's & overdue follow-ups, and per-stage counts. Driven by `bookings.plan_expiry_date` + `renewal_*` columns.
+- **Auto expiry nudge** — the `notify-expiring-renewals` edge function runs daily (pg_cron, `setup/ADD_EXPIRING_RENEWALS_CRON.sql`) and emails each renewal owner a summary of their client plans expiring within 30 days. Plans with no owner go to the optional `RENEWALS_ADMIN_EMAIL` secret. Already-closed renewals (renewed/cancelled/lost/not_interested) are skipped.
 
 ## Zoho Books Invoice Integration
 

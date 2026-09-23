@@ -12,3 +12,9 @@ verify_jwt = false
 # JWT, so JWT verification must be off (same as the other cron functions).
 [functions.gmail-tag-sync]
 verify_jwt = false
+
+# Daily renewal-expiry nudge (see setup/ADD_EXPIRING_RENEWALS_CRON.sql).
+# Invoked by pg_cron with the anon key + CRON_SECRET in the body, not a user
+# JWT, so JWT verification must be off (same as the other cron functions).
+[functions.notify-expiring-renewals]
+verify_jwt = false
