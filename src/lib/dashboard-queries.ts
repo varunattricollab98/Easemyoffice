@@ -30,6 +30,45 @@ function scopeLeads<Q>(q: Q, s: DashboardScope): Q {
   return q;
 }
 
+// Today's TeleCMI call counts (answered vs missed). The helpline is shared, so
+// these are org-wide totals (not per-user) — the "morning picture" of call
+// volume. Safe if the table doesn't exist yet: returns zeros.
+async function callStatsToday(startOfDay: Date): Promise<{ answered: number; missed: number }> {
+  try {
+    const [ans, miss] = await Promise.all([
+      supabase.from("telecmi_call_events").select("id", { count: "exact", head: true })
+        .eq("status", "answered").gte("created_at", startOfDay.toISOString()),
+      supabase.from("telecmi_call_events").select("id", { count: "exact", head: true })
+        .eq("status", "missed").gte("created_at", startOfDay.toISOString()),
+    ]);
+    return { answered: ans.count ?? 0, missed: miss.count ?? 0 };
+  } catch {
+    return { answered: 0, missed: 0 };
+  }
+}
+
+// This month's bookings count + revenue (sum of amount_after_tds, matching how
+// the Bookings/Clients pages total value). Scoped to the user's own bookings
+// for non-admins via sales_agent_id / assigned_to / created_by.
+async function bookingStatsMonth(startOfMonth: Date, scope: DashboardScope): Promise<{ count: number; revenue: number }> {
+  try {
+    let q = supabase.from("bookings")
+      .select("amount_after_tds, total_amount")
+      .gte("booking_date", startOfMonth.toISOString().slice(0, 10));
+    if (scope.scoped && scope.uid) {
+      q = (q as unknown as { or: (f: string) => typeof q }).or(
+        `sales_agent_id.eq.${scope.uid},assigned_to.eq.${scope.uid},created_by.eq.${scope.uid}`,
+      );
+    }
+    const { data } = await q.limit(5000);
+    const rows = (data ?? []) as { amount_after_tds: number | null; total_amount: number | null }[];
+    const revenue = rows.reduce((sum, r) => sum + (Number(r.amount_after_tds) || Number(r.total_amount) || 0), 0);
+    return { count: rows.length, revenue: Math.round(revenue) };
+  } catch {
+    return { count: 0, revenue: 0 };
+  }
+}
+
 // Hook for widgets to read the current user's dashboard scope.
 export function useDashboardScope(): DashboardScope {
   const { user, roles, isAdmin } = useAuth();
@@ -75,11 +114,13 @@ export const dashboardStatsQuery = (scope: DashboardScope) =>
       if (!rpcError && rpcData && typeof rpcData === "object" && !Array.isArray(rpcData)) {
         const agg = rpcData as unknown as { byStage: Record<string, number>; hot: number; closures: number; assignedToday: number };
         // Still need the count queries for newLeads/total/pending/overdue (these are cheap HEAD counts)
-        const [newLeadsC, totalC, pendingC, overdueC] = await Promise.all([
+        const [newLeadsC, totalC, pendingC, overdueC, callStats, bookingStats] = await Promise.all([
           scopeLeads(supabase.from("leads").select("id", { count: "exact", head: true }).gte("created_at", startOfMonth.toISOString()), scope),
           scopeLeads(supabase.from("leads").select("id", { count: "exact", head: true }), scope),
           supabase.from("follow_ups").select("id", { count: "exact", head: true }).eq("status", "pending"),
           supabase.from("follow_ups").select("id", { count: "exact", head: true }).eq("status", "pending").lt("due_at", now.toISOString()),
+          callStatsToday(startOfDay),
+          bookingStatsMonth(startOfMonth, scope),
         ]);
 
         return {
@@ -92,16 +133,22 @@ export const dashboardStatsQuery = (scope: DashboardScope) =>
           assignedToday: agg.assignedToday,
           renewals: agg.byStage["renewal_due"] ?? 0,
           byStage: agg.byStage,
+          callsToday: callStats.answered,
+          callsMissedToday: callStats.missed,
+          monthBookings: bookingStats.count,
+          monthRevenue: bookingStats.revenue,
         };
       }
 
       // Fallback: client-side aggregation (works if RPC not yet deployed)
-      const [rows, newLeadsC, totalC, pendingC, overdueC] = await Promise.all([
+      const [rows, newLeadsC, totalC, pendingC, overdueC, callStats, bookingStats] = await Promise.all([
         scopeLeads(supabase.from("leads").select("stage, interest, created_at, updated_at").limit(5000), scope),
         scopeLeads(supabase.from("leads").select("id", { count: "exact", head: true }).gte("created_at", startOfMonth.toISOString()), scope),
         scopeLeads(supabase.from("leads").select("id", { count: "exact", head: true }), scope),
         supabase.from("follow_ups").select("id", { count: "exact", head: true }).eq("status", "pending"),
         supabase.from("follow_ups").select("id", { count: "exact", head: true }).eq("status", "pending").lt("due_at", now.toISOString()),
+        callStatsToday(startOfDay),
+        bookingStatsMonth(startOfMonth, scope),
       ]);
 
       const byStage: Record<string, number> = {};
@@ -125,6 +172,10 @@ export const dashboardStatsQuery = (scope: DashboardScope) =>
         assignedToday,
         renewals: byStage["renewal_due"] ?? 0,
         byStage,
+        callsToday: callStats.answered,
+        callsMissedToday: callStats.missed,
+        monthBookings: bookingStats.count,
+        monthRevenue: bookingStats.revenue,
       };
     },
   });
