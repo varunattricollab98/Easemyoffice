@@ -32,6 +32,12 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      - name: Unit tests
+        # Pure-logic tests (booking money math, etc.). Fast, no credentials or
+        # network needed. Guards the GST/TDS/profit/discount arithmetic that
+        # every invoice depends on.
+        run: bun run test
+
       - name: Build
         # Deliberately runs without Supabase credentials. The build must succeed
         # on its own, which is precisely what regressed before. Credentials are
