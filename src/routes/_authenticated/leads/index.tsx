@@ -33,6 +33,33 @@ type LeadSearch = {
   sort?: string;
 };
 
+// A user that a lead can be assigned to (from the `profiles` table).
+type AssignableUser = { id: string; full_name: string | null; email: string | null };
+
+// The subset of lead columns fetched for the list/dupe views. Kept as a hand
+// written shape (rather than the full generated Row) because the queries only
+// select these columns.
+type LeadListRow = {
+  id: string;
+  lead_code: string | null;
+  client_name: string | null;
+  company_name?: string | null;
+  mobile: string | null;
+  email: string | null;
+  stage: string | null;
+  interest?: string | null;
+  service_required?: string | null;
+  source?: string | null;
+  score?: number | null;
+  assigned_to: string | null;
+  next_follow_up_at?: string | null;
+  last_activity_at?: string | null;
+  created_at: string;
+};
+
+// A lead in the duplicate finder — the fetched row plus normalized match fields.
+type DupeLead = LeadListRow & { _phone: string; _email: string; _name: string };
+
 const PAGE_SIZES = [25, 50, 100, 200];
 
 export const Route = createFileRoute("/_authenticated/leads/")({
@@ -164,7 +191,7 @@ function LeadsListPage() {
 
   const { data: assignableUsers = [] } = useQuery({
     queryKey: ["assignable-users"],
-    queryFn: async () => {
+    queryFn: async (): Promise<AssignableUser[]> => {
       const { data } = await supabase.from("profiles").select("id, full_name, email").order("full_name", { ascending: true });
       return data ?? [];
     },
@@ -174,7 +201,7 @@ function LeadsListPage() {
   // the same contact info. Only runs when "Show duplicates" is active.
   // A lead is a duplicate only if AT LEAST 2 of 3 fields match another lead:
   //   - Name + Email, OR Name + Phone, OR Email + Phone
-  type DupeGroup = { matchKey: string; matchType: string; leads: any[] };
+  type DupeGroup = { matchKey: string; matchType: string; leads: DupeLead[] };
   const { data: dupeData, isLoading: dupesLoading } = useQuery({
     queryKey: ["leads-duplicates"],
     enabled: showDupes,
@@ -188,7 +215,7 @@ function LeadsListPage() {
       if (!data) return { ids: new Set<string>(), groups: [] as DupeGroup[] };
 
       // Normalise fields for comparison
-      const leads = (data as any[]).map((l) => ({
+      const leads: DupeLead[] = ((data ?? []) as LeadListRow[]).map((l) => ({
         ...l,
         _phone: (l.mobile ?? "").replace(/\D/g, "").slice(-10),
         _email: (l.email ?? "").trim().toLowerCase(),
@@ -197,7 +224,7 @@ function LeadsListPage() {
 
       // For each pair of leads, check if 2+ fields match.
       // Use composite keys to group: "name+phone", "name+email", "phone+email"
-      const groupMap = new Map<string, any[]>();
+      const groupMap = new Map<string, DupeLead[]>();
 
       for (let i = 0; i < leads.length; i++) {
         for (let j = i + 1; j < leads.length; j++) {
@@ -217,8 +244,8 @@ function LeadsListPage() {
           const gKey = parts.sort().join("|");
 
           const group = groupMap.get(gKey) ?? [];
-          if (!group.find((x: any) => x.id === a.id)) group.push(a);
-          if (!group.find((x: any) => x.id === b.id)) group.push(b);
+          if (!group.find((x) => x.id === a.id)) group.push(a);
+          if (!group.find((x) => x.id === b.id)) group.push(b);
           groupMap.set(gKey, group);
         }
       }
@@ -232,7 +259,7 @@ function LeadsListPage() {
           const [type, val] = p.split(":");
           return `${type[0].toUpperCase() + type.slice(1)}: ${val}`;
         }).join(" + ");
-        groups.push({ matchKey: key, matchType: types, leads: arr.sort((a: any, b: any) => a.created_at < b.created_at ? -1 : 1) });
+        groups.push({ matchKey: key, matchType: types, leads: arr.sort((a, b) => a.created_at < b.created_at ? -1 : 1) });
       }
       return { ids, groups };
     },
@@ -277,7 +304,7 @@ function LeadsListPage() {
   const rows = useMemo(() => {
     const allRows = data?.rows ?? [];
     if (!showDupes) return allRows;
-    return allRows.filter((r: any) => dupeIds.has(r.id));
+    return allRows.filter((r) => dupeIds.has(r.id));
   }, [data?.rows, showDupes, dupeIds]);
   const total = showDupes ? rows.length : (data?.count ?? 0);
   const totalPages = Math.max(1, Math.ceil(total / size));
@@ -286,7 +313,7 @@ function LeadsListPage() {
 
   const nameById = useMemo(() => {
     const m = new Map<string, string>();
-    (assignableUsers as any[]).forEach((u) => m.set(u.id, u.full_name || u.email || ""));
+    assignableUsers.forEach((u) => m.set(u.id, u.full_name || u.email || ""));
     return m;
   }, [assignableUsers]);
 
@@ -361,8 +388,8 @@ function LeadsListPage() {
       const list = leadsData ?? [];
       if (list.length === 0) { toast.error("No leads match to export"); return; }
 
-      const nameById = new Map((assignableUsers as any[]).map((u) => [u.id, u.full_name || u.email || ""]));
-      const out = list.map((l: any) => ({
+      const nameById = new Map(assignableUsers.map((u) => [u.id, u.full_name || u.email || ""]));
+      const out = list.map((l) => ({
         "Lead Code": l.lead_code,
         "Name": l.client_name,
         "Company": l.company_name ?? "",
@@ -530,8 +557,8 @@ function LeadsListPage() {
                 // Reorder leads: if user has overridden the original, put that one first
                 const gKey = g.matchKey;
                 const overrideId = originalOverrides[gKey];
-                const orderedLeads: any[] = overrideId && g.leads.some((l: any) => l.id === overrideId)
-                  ? [g.leads.find((l: any) => l.id === overrideId)!, ...g.leads.filter((l: any) => l.id !== overrideId)]
+                const orderedLeads: DupeLead[] = overrideId && g.leads.some((l) => l.id === overrideId)
+                  ? [g.leads.find((l) => l.id === overrideId)!, ...g.leads.filter((l) => l.id !== overrideId)]
                   : [...g.leads];
                 return (
                 <div key={`${gKey}-${overrideVersion}`} className="rounded-xl border bg-background p-3 hover:shadow-sm transition-all duration-200 ease-out">
@@ -540,7 +567,7 @@ function LeadsListPage() {
                     <span className="ml-2">({g.leads.length} entries)</span>
                   </div>
                   <div className="space-y-1.5">
-                    {orderedLeads.map((l: any, li: number) => (
+                    {orderedLeads.map((l, li: number) => (
                       <div key={l.id} className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm ${li === 0 ? "bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800" : "bg-muted/40 border border-dashed"}`}>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
@@ -564,9 +591,9 @@ function LeadsListPage() {
                               className="text-emerald-600 hover:text-emerald-700 border-emerald-300 text-xs transition-all duration-200 ease-out"
                               disabled={mergeLead.isPending}
                               onClick={() => {
-                                const others = orderedLeads.filter((_: any, i: number) => i !== li);
-                                const assignFrom = l.assigned_to ? null : others.find((o: any) => o.assigned_to)?.assigned_to ?? null;
-                                const deleteIds = others.map((o: any) => o.id);
+                                const others = orderedLeads.filter((_, i: number) => i !== li);
+                                const assignFrom = l.assigned_to ? null : others.find((o) => o.assigned_to)?.assigned_to ?? null;
+                                const deleteIds = others.map((o) => o.id);
                                 if (window.confirm(
                                   `Keep "${l.client_name}" (${l.lead_code}) as the original and delete ${deleteIds.length} duplicate(s)?` +
                                   (assignFrom ? `\n\nThe assignee (${nameById.get(assignFrom) || "salesperson"}) will be transferred to this lead.` : "")
@@ -718,7 +745,7 @@ function LeadsListPage() {
   );
 }
 
-function LeadRow({ l, selected, onToggle, nameOf }: { l: any; selected: boolean; onToggle: (id: string) => void; nameOf: Map<string, string> }) {
+function LeadRow({ l, selected, onToggle, nameOf }: { l: LeadListRow; selected: boolean; onToggle: (id: string) => void; nameOf: Map<string, string> }) {
   const interestMeta = INTERESTS.find((i) => i.id === l.interest);
   const stageMeta = STAGES.find((s) => s.id === l.stage);
   const overdue = l.next_follow_up_at && new Date(l.next_follow_up_at) < new Date();
