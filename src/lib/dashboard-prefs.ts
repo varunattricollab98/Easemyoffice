@@ -7,6 +7,30 @@ const VISIBLE_KEY = (uid: string) => `dashboard:visible:v1:${uid}`;
 const KPI_KEY = (uid: string) => `dashboard:kpis:v1:${uid}`;
 const QUIET_KEY = "dashboard:quiet:v1";
 
+// One-time migration: cards added AFTER users already had a saved KPI layout.
+// We append any of these that a user doesn't already have, so existing users
+// see the new cards without losing their current selection/order. The marker
+// key ensures it runs at most once per new-cards batch (bump the version to
+// introduce a future batch).
+const KPI_MIGRATION_KEY = (uid: string) => `dashboard:kpis:migrated:v2:${uid}`;
+const KPI_ADDED_IN_V2: KpiId[] = ["calls_today", "calls_missed_today", "month_bookings", "month_revenue"];
+
+function migrateKpis(uid: string): KpiId[] | null {
+  try {
+    if (localStorage.getItem(KPI_MIGRATION_KEY(uid)) === "1") return null; // already migrated
+    const raw = localStorage.getItem(KPI_KEY(uid));
+    if (!raw) { localStorage.setItem(KPI_MIGRATION_KEY(uid), "1"); return null; } // no saved layout -> uses DEFAULT_KPIS anyway
+    const current = JSON.parse(raw) as KpiId[];
+    const toAdd = KPI_ADDED_IN_V2.filter((id) => !current.includes(id));
+    const next = toAdd.length ? [...current, ...toAdd] : current;
+    if (toAdd.length) localStorage.setItem(KPI_KEY(uid), JSON.stringify(next));
+    localStorage.setItem(KPI_MIGRATION_KEY(uid), "1");
+    return toAdd.length ? next : null;
+  } catch {
+    return null;
+  }
+}
+
 export const ALL_WIDGETS = [
   { id: "hero",     label: "Hero — goal progress" },
   { id: "needs",    label: "Needs attention" },
@@ -42,6 +66,9 @@ export function clearLayouts(uid: string) {
 export function useVisibleKpis(uid: string) {
   const [kpis, setKpis] = useState<KpiId[]>(() => {
     try {
+      // Append any newly-added cards to an existing saved layout (one-time).
+      const migrated = migrateKpis(uid);
+      if (migrated) return migrated;
       const raw = localStorage.getItem(KPI_KEY(uid));
       if (raw) return JSON.parse(raw) as KpiId[];
     } catch { /* ignore */ }
@@ -49,6 +76,8 @@ export function useVisibleKpis(uid: string) {
   });
   useEffect(() => {
     try {
+      const migrated = migrateKpis(uid);
+      if (migrated) { setKpis(migrated); return; }
       const raw = localStorage.getItem(KPI_KEY(uid));
       if (raw) setKpis(JSON.parse(raw) as KpiId[]);
       else setKpis(DEFAULT_KPIS);
