@@ -7,7 +7,22 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { useMemo, useState, useEffect } from "react";
+import type { ComponentType } from "react";
 import { Trophy, Package, IndianRupee, Ticket, Target, Pencil } from "lucide-react";
+
+// Row shapes fetched by this widget's queries.
+type HeroBooking = {
+  id?: string;
+  sales_agent_id: string | null;
+  sales_agent_name: string | null;
+  plan_name?: string | null;
+  total_amount: number | null;
+  profit: number | null;
+  booking_date: string | null;
+  booking_source?: string | null;
+};
+type HeroProfile = { id: string; full_name: string | null; email: string | null };
+type UserTargetRow = { user_id: string; bookings: number | null; profit: number | null };
 
 function barColor(pct: number) {
   if (pct >= 75) return "bg-emerald-500";
@@ -59,26 +74,26 @@ export function HeroOfMonth() {
         .neq("booking_source", "Renewal")
         .limit(5000);
       if (error) throw new Error(error.message);
-      return data ?? [];
+      return (data ?? []) as HeroBooking[];
     },
   });
 
   const { data: profiles = [] } = useQuery({
     queryKey: ["hero-profiles"],
-    queryFn: async () => {
+    queryFn: async (): Promise<HeroProfile[]> => {
       const { data } = await supabase.from("profiles").select("id, full_name, email");
       return data ?? [];
     },
   });
 
   const agents = useMemo<AgentRow[]>(() => {
-    const nameOf = (id: string | null, fallback?: string) => {
+    const nameOf = (id: string | null, fallback?: string | null) => {
       if (fallback) return fallback;
-      const p = (profiles as any[]).find((x) => x.id === id);
+      const p = profiles.find((x) => x.id === id);
       return p?.full_name || p?.email || "Unknown";
     };
     const map = new Map<string, AgentRow>();
-    (bookings as any[]).forEach((b) => {
+    bookings.forEach((b) => {
       const key = b.sales_agent_id || b.sales_agent_name || "unknown";
       const r = map.get(key) ?? { key, name: nameOf(b.sales_agent_id, b.sales_agent_name), bookings: 0, revenue: 0, profit: 0, avg: 0 };
       r.bookings++;
@@ -96,7 +111,7 @@ export function HeroOfMonth() {
   }, [bookings, profiles, rankBy]);
 
   const totals = useMemo(() => {
-    const t = (bookings as any[]).reduce(
+    const t = bookings.reduce(
       (acc, b) => { acc.count++; acc.sales += Number(b.total_amount ?? 0); acc.profit += Number(b.profit ?? 0); return acc; },
       { count: 0, sales: 0, profit: 0 },
     );
@@ -105,7 +120,7 @@ export function HeroOfMonth() {
 
   const topPlans = useMemo(() => {
     const map = new Map<string, { plan: string; bookings: number; revenue: number }>();
-    (bookings as any[]).forEach((b) => {
+    bookings.forEach((b) => {
       const plan = (b.plan_name || "—").trim() || "—";
       const e = map.get(plan) ?? { plan, bookings: 0, revenue: 0 };
       e.bookings++; e.revenue += Number(b.total_amount ?? 0);
@@ -129,7 +144,7 @@ export function HeroOfMonth() {
         .neq("booking_source", "Renewal")
         .limit(5000);
       if (error) throw new Error(error.message);
-      return data ?? [];
+      return (data ?? []) as HeroBooking[];
     },
   });
   const trendMonths = useMemo(() => {
@@ -141,7 +156,7 @@ export function HeroOfMonth() {
       idx.set(key, buckets.length);
       buckets.push({ key, label: d.toLocaleDateString(undefined, { month: "short" }), bookings: 0, revenue: 0, profit: 0 });
     }
-    (trendBookings as any[]).forEach((b) => {
+    trendBookings.forEach((b) => {
       if (!b.booking_date) return;
       const d = new Date(b.booking_date);
       const i = idx.get(`${d.getFullYear()}-${d.getMonth()}`);
@@ -152,14 +167,14 @@ export function HeroOfMonth() {
     });
     return buckets;
   }, [trendBookings, year, month]);
-  const maxTrend = Math.max(1, ...trendMonths.map((x) => (x as any)[metric] as number));
+  const maxTrend = Math.max(1, ...trendMonths.map((x) => x[metric]));
 
   // Org (cumulative) target — shown to admins.
   const { data: targets } = useQuery({
     queryKey: ["sales-targets"],
     queryFn: async () => {
       const { data } = await supabase.from("app_settings").select("value").eq("key", "sales_targets").maybeSingle();
-      const v = (data?.value as any) || {};
+      const v = (data?.value as { bookings?: number; profit?: number } | null) || {};
       return { bookings: Number(v.bookings) || 100, profit: Number(v.profit) || 500000 };
     },
   });
@@ -180,20 +195,20 @@ export function HeroOfMonth() {
   const { data: allTargets = [] } = useQuery({
     queryKey: ["all-user-targets"],
     enabled: isAdmin,
-    queryFn: async () => { const { data } = await supabase.from("user_targets").select("user_id, bookings, profit"); return data ?? []; },
+    queryFn: async (): Promise<UserTargetRow[]> => { const { data } = await supabase.from("user_targets").select("user_id, bookings, profit"); return data ?? []; },
   });
   const { data: targetTeam = [] } = useQuery({
     queryKey: ["target-team-users"],
     enabled: isAdmin && editingTarget,
-    queryFn: async () => { const { data } = await supabase.from("profiles").select("id, full_name, email").order("full_name", { ascending: true }); return data ?? []; },
+    queryFn: async (): Promise<HeroProfile[]> => { const { data } = await supabase.from("profiles").select("id, full_name, email").order("full_name", { ascending: true }); return data ?? []; },
   });
 
   // Seed the per-person draft when the editor opens.
   useEffect(() => {
-    if (editingTarget && (targetTeam as any[]).length) {
+    if (editingTarget && targetTeam.length) {
       const map: Record<string, { bookings: string; profit: string }> = {};
-      (targetTeam as any[]).forEach((u) => {
-        const t = (allTargets as any[]).find((x) => x.user_id === u.id);
+      targetTeam.forEach((u) => {
+        const t = allTargets.find((x) => x.user_id === u.id);
         map[u.id] = { bookings: t ? String(t.bookings) : "", profit: t ? String(t.profit) : "" };
       });
       setIndivDraft(map);
@@ -212,7 +227,7 @@ export function HeroOfMonth() {
       const payload = { bookings: Number(targetDraft.bookings) || 0, profit: Number(targetDraft.profit) || 0 };
       const { error } = await supabase.from("app_settings").upsert({ key: "sales_targets", value: payload });
       if (error) throw new Error(error.message);
-      const rows = (targetTeam as any[]).map((u) => ({
+      const rows = targetTeam.map((u) => ({
         user_id: u.id,
         bookings: Number(indivDraft[u.id]?.bookings) || 0,
         profit: Number(indivDraft[u.id]?.profit) || 0,
@@ -298,14 +313,14 @@ export function HeroOfMonth() {
                   <div className="text-xs font-semibold text-muted-foreground">Team (cumulative) target</div>
                   <div><label className="text-xs text-muted-foreground">Bookings</label><Input type="number" value={targetDraft.bookings} onChange={(e) => setTargetDraft({ ...targetDraft, bookings: e.target.value })} /></div>
                   <div><label className="text-xs text-muted-foreground">Profit (₹)</label><Input type="number" value={targetDraft.profit} onChange={(e) => setTargetDraft({ ...targetDraft, profit: e.target.value })} /></div>
-                  {(targetTeam as any[]).length > 0 && (
+                  {targetTeam.length > 0 && (
                     <>
                       <div className="text-xs font-semibold text-muted-foreground pt-1">Individual targets</div>
                       <div className="grid grid-cols-[1fr_60px_82px] gap-2 text-[11px] text-muted-foreground">
                         <span>Member</span><span>Bookings</span><span>Profit ₹</span>
                       </div>
                       <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-                        {(targetTeam as any[]).map((u) => (
+                        {targetTeam.map((u) => (
                           <div key={u.id} className="grid grid-cols-[1fr_60px_82px] gap-2 items-center">
                             <span className="text-xs truncate">{u.full_name || u.email}</span>
                             <Input className="h-8" type="number" value={indivDraft[u.id]?.bookings ?? ""} onChange={(e) => setIndivDraft((d) => ({ ...d, [u.id]: { ...(d[u.id] ?? { bookings: "", profit: "" }), bookings: e.target.value } }))} />
@@ -416,7 +431,7 @@ export function HeroOfMonth() {
           </div>
           <div className="grid grid-cols-6 gap-2">
             {trendMonths.map((b) => {
-              const val = (b as any)[metric] as number;
+              const val = b[metric];
               const h = val > 0 ? Math.max(4, Math.round((val / maxTrend) * 100)) : 0;
               return (
                 <div key={b.key} className="flex flex-col items-center gap-1">
@@ -435,7 +450,7 @@ export function HeroOfMonth() {
   );
 }
 
-function Kpi({ icon: Icon, label, value, tone }: { icon: any; label: string; value: string; tone: string }) {
+function Kpi({ icon: Icon, label, value, tone }: { icon: ComponentType<{ className?: string }>; label: string; value: string; tone: string }) {
   const tones: Record<string, string> = {
     blue: "from-blue-500/10 to-blue-500/5 text-blue-600",
     emerald: "from-emerald-500/10 to-emerald-500/5 text-emerald-600",
