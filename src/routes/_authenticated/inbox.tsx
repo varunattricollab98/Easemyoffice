@@ -549,6 +549,16 @@ function LeadInboxPage() {
 
     const fromParsed = parseFrom(email.from);
     const senderAddr = fromParsed.address.trim().toLowerCase();
+
+    // Detect a CRM-sent copy (a quotation/reply WE sent that landed back in the
+    // shared inbox as a BCC/Sent copy) so we DON'T turn it into a junk lead.
+    // Two reliable signals: (1) the invisible EMO-CRM-SENT marker send-client-email
+    // stamps on every outbound mail — checked on the RAW html/body BEFORE
+    // htmlToText, since it lives in a display:none div; (2) the sender is our own
+    // @easemyoffice.in address. Genuine inbound customer emails have neither.
+    const rawAll = messages.map((m) => `${m.html || ""}\n${m.body || ""}`).join("\n");
+    const isCrmSent =
+      /EMO-CRM-SENT/i.test(rawAll) || senderAddr.endsWith("@easemyoffice.in");
     const realEmail = parsed.email || (isThrowawayAddress(fromParsed.address) ? "" : fromParsed.address);
     const clientName =
       parsed.name ||
@@ -578,6 +588,8 @@ function LeadInboxPage() {
       // Dedup keys: the real customer email AND the throwaway sender address
       // (covers new leads and any created before this parsing existed).
       dedupKeys: [realEmail.trim().toLowerCase(), senderAddr].filter(Boolean),
+      // True when this thread is our own outbound copy, not a customer lead.
+      isCrmSent,
     };
   };
 
@@ -593,7 +605,7 @@ function LeadInboxPage() {
   const claim = useMutation({
     mutationFn: async (email: InboxEmail) => {
       if (!user) throw new Error("Not signed in");
-      const { fields, dedupKeys } = await resolveLeadFields(email);
+      const { fields, dedupKeys, isCrmSent } = await resolveLeadFields(email);
       const existing = existingLeadFor(dedupKeys);
       // 1) Create (or, if it somehow already exists, take over) the lead as mine.
       if (existing) {
@@ -605,6 +617,10 @@ function LeadInboxPage() {
           if (error) throw new Error(error.message);
           if (!moved || moved.length === 0) throw new Error("Couldn't claim this lead — it's already assigned to another rep. Ask an admin to reassign it to you.");
         }
+      } else if (isCrmSent) {
+        // This is a copy of an email WE sent (not a customer enquiry) — don't
+        // create a junk lead from it.
+        throw new Error("This is an email your team sent (a copy landed in the shared inbox), not a new lead.");
       } else {
         const { error } = await supabase.from("leads").insert({
           ...fields,
@@ -631,13 +647,15 @@ function LeadInboxPage() {
   const markMine = useMutation({
     mutationFn: async (email: InboxEmail) => {
       if (!user) throw new Error("Not signed in");
-      const { fields, dedupKeys } = await resolveLeadFields(email);
+      const { fields, dedupKeys, isCrmSent } = await resolveLeadFields(email);
       const existing = existingLeadFor(dedupKeys);
       if (existing) {
         if (existing.assigned_to !== user.id) {
           const { data: moved, error } = await supabase.from("leads").update({ assigned_to: user.id }).eq("id", existing.id).select("id");
           if (error || !moved || moved.length === 0) throw new Error("Couldn't reassign this lead — it may belong to another rep. Ask an admin to move it.");
         }
+      } else if (isCrmSent) {
+        throw new Error("This is an email your team sent (a copy landed in the shared inbox), not a new lead.");
       } else {
         const { error } = await supabase.from("leads").insert({
           ...fields,
@@ -663,7 +681,7 @@ function LeadInboxPage() {
   const assign = useMutation({
     mutationFn: async ({ email, target }: { email: InboxEmail; target: TeamMember }) => {
       if (!user) throw new Error("Not signed in");
-      const { fields, dedupKeys } = await resolveLeadFields(email);
+      const { fields, dedupKeys, isCrmSent } = await resolveLeadFields(email);
       const existing = existingLeadFor(dedupKeys);
       if (existing) {
         if (existing.assigned_to !== target.id) {
@@ -671,6 +689,8 @@ function LeadInboxPage() {
           if (error) throw new Error(error.message);
           if (!moved || moved.length === 0) throw new Error("Couldn't assign this lead — please check permissions and try again.");
         }
+      } else if (isCrmSent) {
+        throw new Error("This is an email your team sent (a copy landed in the shared inbox), not a new lead.");
       } else {
         const { error } = await supabase.from("leads").insert({
           ...fields,

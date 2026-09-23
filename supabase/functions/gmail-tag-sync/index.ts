@@ -238,6 +238,16 @@ Deno.serve(async (req) => {
 
       const fromParsed = parseFrom(email.from || "");
       const senderAddr = fromParsed.address.trim().toLowerCase();
+
+      // Skip our own outbound copies (a quotation/reply we sent that came back
+      // into the shared inbox) so they never become junk leads. Signals: the
+      // invisible EMO-CRM-SENT marker on every CRM send, or our own domain.
+      const isCrmSent = /EMO-CRM-SENT/i.test(bodyText) || senderAddr.endsWith("@easemyoffice.in");
+      if (isCrmSent) {
+        skippedExisting++;
+        continue;
+      }
+
       const realEmail =
         parsed.email ||
         (isThrowawayAddress(fromParsed.address) ? "" : fromParsed.address);
