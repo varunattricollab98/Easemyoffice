@@ -273,6 +273,8 @@ All support `{{name}}` placeholder. Can be overridden with custom snippets via A
 | `src/lib/gmail.ts` | Gmail fetch/claim helpers |
 | `src/lib/crm.ts` | STAGES, INTERESTS, SERVICES, SOURCES, labelFor |
 | `src/lib/auth.tsx` | Auth provider + useAuth hook |
+| `src/lib/booking-math.ts` | Pure GST/TDS/profit/discount/partial-payment math + `num`/`salesMonth`/`addYearsISO` (single source of truth for all 3 booking forms) |
+| `src/lib/payment-ack-email.ts` | Payment-acknowledgment email HTML builder (pure) |
 | `supabase/functions/gmail-bridge/index.ts` | Gmail proxy edge function |
 | `supabase/functions/send-client-email/index.ts` | Email sender edge function |
 | `supabase/functions/process-reminders/index.ts` | Background reminder processor |
@@ -280,4 +282,12 @@ All support `{{name}}` placeholder. Can be overridden with custom snippets via A
 
 ---
 
-*Last updated: July 2026*
+## Testing
+
+- **Unit tests (Vitest):** `bun run test` (or `bun run test:watch`). Config in `vitest.config.ts`; specs live next to source as `*.test.ts` (e.g. `src/lib/booking-math.test.ts`, `src/lib/payment-ack-email.test.ts`). CI runs these before the build.
+- **E2E (Playwright):** specs in `e2e/`, config `playwright.config.ts` (separate from the Vitest run).
+- The money-critical booking math (GST/TDS/profit/discount/partial payments) lives in `src/lib/booking-math.ts` and is covered by unit tests. All three booking forms (new booking, renewals, booking-detail edit) share it — change a rate in one place.
+
+---
+
+*Last updated: September 2026*
