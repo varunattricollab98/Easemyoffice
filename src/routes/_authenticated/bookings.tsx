@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { logAudit } from "@/lib/audit";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -247,6 +248,12 @@ function BookingsPage() {
   // and child rows (booking_payments / booking_updates) cascade automatically.
   const deleteM = useMutation({
     mutationFn: async (id: string) => {
+      // Audit before delete (audit_log has no FK, so it survives the delete).
+      logAudit({
+        actorId: user?.id, action: "delete", entity: "booking",
+        entityId: id, entityLabel: toDelete?.client_name ?? toDelete?.booking_code ?? null,
+        detail: `Deleted booking${toDelete?.booking_code ? ` ${toDelete.booking_code}` : ""}${toDelete?.client_name ? ` (${toDelete.client_name})` : ""}`,
+      });
       const { error } = await supabase.from("bookings").delete().eq("id", id);
       if (error) throw new Error(error.message);
     },

@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/lib/auth";
+import { logAudit } from "@/lib/audit";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
 import { Plus } from "lucide-react";
@@ -96,6 +97,12 @@ export function BookingDetailDialog({ booking, open, onOpenChange }: { booking: 
   const logUpdate = async (action: string, detail = "") => {
     if (!bookingId) return;
     await supabase.from("booking_updates").insert({ booking_id: bookingId, actor_id: user?.id ?? null, action, detail });
+    // Mirror to the global accountability audit log (best-effort, non-blocking).
+    logAudit({
+      actorId: user?.id, action: "edit", entity: "booking",
+      entityId: bookingId, entityLabel: booking?.client_name ?? booking?.booking_code ?? null,
+      detail: detail ? `${action} — ${detail}` : action,
+    });
   };
 
   const saveDetails = useMutation({

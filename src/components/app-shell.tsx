@@ -2,7 +2,7 @@ import { Link, useLocation } from "@tanstack/react-router";
 import {
   LayoutDashboard, Users, Kanban, Bell, CheckSquare, FileText, Receipt,
   RefreshCcw, Activity, BarChart3, Settings, UsersRound, LogOut, Building2, UserCog, BookOpen,
-  UserCheck, FileSignature, Calendar, FolderOpen, Inbox, TrendingUp, Trophy, Mail, AlarmClock, Phone,
+  UserCheck, FileSignature, Calendar, FolderOpen, Inbox, TrendingUp, Trophy, Mail, AlarmClock, Phone, ScrollText,
 } from "lucide-react";
 import { useAuth, type AppRole } from "@/lib/auth";
 import { useGlobalSearch } from "@/lib/global-search-context";
@@ -48,6 +48,7 @@ const ADMIN_NAV: NavItem[] = [
   { to: "/admin/analytics", label: "Analytics", icon: TrendingUp, roles: ["admin"] },
   { to: "/admin/sales-performance", label: "Sales Performance", icon: Trophy, roles: ["admin"] },
   { to: "/admin/email-automation", label: "Email Automation", icon: Mail, roles: ["admin"] },
+  { to: "/admin/activity-log", label: "Activity Log", icon: ScrollText, roles: ["admin"] },
   { to: "/team", label: "Team", icon: UsersRound, roles: ["admin"] },
   { to: "/admin/users", label: "Users", icon: UserCog, roles: ["admin"] },
   { to: "/settings", label: "Settings", icon: Settings },
