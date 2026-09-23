@@ -11,6 +11,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/lib/auth";
 import { ThemeProvider } from "@/lib/theme";
 import { PerfPanel } from "@/components/perf-panel";
+import { DefaultCatchBoundary } from "@/components/default-catch-boundary";
 import { useEffect } from "react";
 import { bootstrapSim } from "@/lib/demo";
 import appCss from "../styles.css?url";
@@ -79,6 +80,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
+  errorComponent: DefaultCatchBoundary,
 });
 
 function RootShell({ children }: { children: React.ReactNode }) {

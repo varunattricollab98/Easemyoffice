@@ -23,7 +23,7 @@ export const Route = createFileRoute("/_authenticated/renewals/bookings")({
   component: RenewalBookingsPage,
 });
 
-const fmtINR = (n: number) => `₹${(n ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+import { formatINR as fmtINR } from "@/lib/utils";
 // `num`, `salesMonth`, and the GST/profit/balance math come from the shared,
 // unit-tested @/lib/booking-math module (renewals have no TDS/discount, so
 // computeBookingMoney is called with tdsPct 0 / quotedAmount 0).

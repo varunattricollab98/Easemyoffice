@@ -60,7 +60,7 @@ export const Route = createFileRoute("/_authenticated/bookings")({
   component: BookingsPage,
 });
 
-const fmtINR = (n: number) => `₹${(n ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+import { formatINR as fmtINR } from "@/lib/utils";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
