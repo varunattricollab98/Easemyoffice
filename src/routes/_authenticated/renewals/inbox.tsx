@@ -408,9 +408,14 @@ function RenewalInboxPage() {
               Open in Gmail <ExternalLink className="h-3 w-3" />
             </a>
           )}
-          <div
-            className="rounded-md border bg-white overflow-x-auto"
-            dangerouslySetInnerHTML={{ __html: thread?.messages ? buildThreadHtml(thread.messages) : "<div style='padding:24px;color:#64748b;font:14px Arial'>Loading…</div>" }}
+          {/* Render the (untrusted) email HTML inside a fully sandboxed iframe so
+              no scripts/embeds from an incoming email can run in the CRM origin.
+              Mirrors the sales inbox. */}
+          <iframe
+            title="email"
+            sandbox=""
+            srcDoc={thread?.messages ? buildThreadHtml(thread.messages) : "<div style='padding:24px;color:#64748b;font:14px Arial'>Loading…</div>"}
+            className="w-full min-h-[320px] rounded-md border bg-white"
           />
 
           {/* Inline reply composer */}
