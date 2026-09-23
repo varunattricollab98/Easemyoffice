@@ -34,6 +34,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { getSheetPlans, getNextBookingIdFromSheet, syncBookingToSheet } from "@/lib/bookings-sheet";
 import { buildEmailSignature } from "@/lib/email-signature";
 import { logAudit } from "@/lib/audit";
+import {
+  num,
+  salesMonth,
+  addYearsISO,
+  computeBookingMoney,
+} from "@/lib/booking-math";
 
 const SOURCES = [
   "Website",
@@ -66,27 +72,8 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function salesMonth(dateStr: string) {
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return "";
-  return d.toLocaleDateString(undefined, { month: "short", year: "numeric" }).replace(" ", "-");
-}
-
-const num = (v: string) => {
-  const n = parseFloat(v);
-  return Number.isFinite(n) ? n : 0;
-};
-
-// Add N whole years to an ISO date (YYYY-MM-DD) and return an ISO date.
-// Used to auto-compute a multi-year plan's expiry from its start date so the
-// renewal module fires at the correct time. Returns null on an invalid input.
-function addYearsISO(startISO: string, years: number): string | null {
-  if (!startISO) return null;
-  const d = new Date(startISO);
-  if (isNaN(d.getTime())) return null;
-  d.setFullYear(d.getFullYear() + years);
-  return d.toISOString().slice(0, 10);
-}
+// `num`, `salesMonth`, and `addYearsISO` now live in @/lib/booking-math (imported
+// above) so the booking money math has a single, unit-tested source of truth.
 
 // Default values for one booking entry. `booking_id` gets a fresh local
 // fallback per entry; the authoritative sequential id is resolved from the
@@ -148,25 +135,20 @@ function makeInitialForm(): BookingForm {
 // path use identical math (GST 18%, TDS, profit on the pre-GST base, partial
 // payment amounts). Pure: depends only on the passed form.
 function deriveBooking(form: BookingForm) {
-  const vo = num(form.vo_amount);
-  const voGst = +(vo * 0.18).toFixed(2);
-  const addOn = num(form.addon_amount);
-  const addOnGst = +(addOn * 0.18).toFixed(2);
-  const total = +(vo + voGst + addOn + addOnGst).toFixed(2);
-  // Discount = originally quoted price minus the final deal value (never negative).
-  const quoted = num(form.quoted_amount);
-  const discount = quoted > 0 ? Math.max(0, +(quoted - total).toFixed(2)) : 0;
-  const tdsPct = num(form.tds_pct);
-  const tdsAmt = +((total * tdsPct) / 100).toFixed(2);
-  const afterTds = +(total - tdsAmt).toFixed(2);
-  const spPay = num(form.sp_payable);
-  const addOnPay = num(form.addon_payable);
-  // Profit is computed on the pre-GST base amounts (VO + Add-on), not the GST-inclusive total.
-  const profit = +(vo + addOn - spPay - addOnPay).toFixed(2);
-  const month = salesMonth(form.date);
   const isPartial = form.payment_type === "partial";
-  const amountReceived = isPartial ? num(form.amount_received) : afterTds;
-  const balanceAmount = isPartial ? Math.max(0, +(afterTds - amountReceived).toFixed(2)) : 0;
+  // All GST/TDS/profit/discount/partial-payment arithmetic lives in the
+  // unit-tested @/lib/booking-math module.
+  const money = computeBookingMoney({
+    voAmount: num(form.vo_amount),
+    addOnAmount: num(form.addon_amount),
+    quotedAmount: num(form.quoted_amount),
+    tdsPct: num(form.tds_pct),
+    spPayable: num(form.sp_payable),
+    addOnPayable: num(form.addon_payable),
+    isPartial,
+    amountReceived: num(form.amount_received),
+  });
+  const month = salesMonth(form.date);
   // Multi-year plan term. planYears defaults to 1 (single-year booking).
   // planExpiry = plan_start_date + planYears, so the renewal module fires at
   // the end of the paid term. Amounts above are NOT scaled by planYears — they
@@ -175,23 +157,9 @@ function deriveBooking(form: BookingForm) {
   const planStart = form.plan_start_date || "";
   const planExpiry = addYearsISO(planStart, planYears);
   return {
-    vo,
-    voGst,
-    addOn,
-    addOnGst,
-    total,
-    quoted,
-    discount,
-    tdsPct,
-    tdsAmt,
-    afterTds,
-    spPay,
-    addOnPay,
-    profit,
+    ...money,
     month,
     isPartial,
-    amountReceived,
-    balanceAmount,
     planYears,
     planStart,
     planExpiry,
