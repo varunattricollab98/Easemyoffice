@@ -5,6 +5,8 @@ import {
   UserCheck, FileSignature, Calendar, FolderOpen, Inbox, TrendingUp, Trophy, Mail, AlarmClock, Phone,
 } from "lucide-react";
 import { useAuth, type AppRole } from "@/lib/auth";
+import { useGlobalSearch } from "@/lib/global-search-context";
+import { Search } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { initials } from "@/lib/crm";
@@ -59,6 +61,7 @@ function visibleFor(items: NavItem[], roles: AppRole[], isAdmin: boolean) {
 export function AppSidebar() {
   const { profile, isAdmin, signOut, user, roles } = useAuth();
   const loc = useLocation();
+  const search = useGlobalSearch();
   const items = [...visibleFor(NAV, roles, isAdmin), ...visibleFor(ADMIN_NAV, roles, isAdmin)];
 
   const { data: unreadCount = 0 } = useQuery({
@@ -86,6 +89,20 @@ export function AppSidebar() {
           <div className="text-xs text-muted-foreground">Sales CRM</div>
         </div>
         <ThemeToggle />
+      </div>
+
+      <div className="px-3 pt-3">
+        <button
+          type="button"
+          onClick={() => search.open()}
+          className="flex w-full items-center gap-2 rounded-md border bg-background/50 px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-foreground"
+        >
+          <Search className="h-4 w-4" />
+          <span className="flex-1 text-left">Search…</span>
+          <kbd className="pointer-events-none hidden select-none rounded border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground sm:inline-block">
+            ⌘K
+          </kbd>
+        </button>
       </div>
 
       <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">

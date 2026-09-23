@@ -16,6 +16,8 @@ import { ClientDetailDialog } from "@/components/clients/client-detail-dialog";
 
 export const Route = createFileRoute("/_authenticated/clients")({
   head: () => ({ meta: [{ title: "Client Database — EaseMyOffice CRM" }] }),
+  // Optional ?q= to pre-fill the search box (used by global search).
+  validateSearch: (s: Record<string, unknown>): { q?: string } => ({ q: typeof s.q === "string" ? s.q : undefined }),
   component: ClientsPage,
 });
 
@@ -137,7 +139,7 @@ function ClientsPage() {
   // renewal pages use). Admin/sales/bd keep the full, unfiltered database.
   const renewalsOnly = hasRole("renewals") && !isAdmin && !hasRole("sales") && !hasRole("bd");
   const qc = useQueryClient();
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(Route.useSearch().q ?? "");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [detail, setDetail] = useState<ClientRow | null>(null);
   // Merge duplicates (admin): pick clients, choose a primary, and re-link all
