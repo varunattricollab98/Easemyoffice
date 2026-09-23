@@ -951,7 +951,15 @@ function LeadInboxPage() {
                       : "border-transparent hover:border-border/50 bg-background/50 hover:bg-accent/20 opacity-90"
                   }`}
                 >
-                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setReading(e)} onMouseEnter={() => prefetchThread(e.threadId)} title="Click to read">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    className="flex-1 min-w-0 cursor-pointer"
+                    onClick={() => setReading(e)}
+                    onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); setReading(e); } }}
+                    onMouseEnter={() => prefetchThread(e.threadId)}
+                    title="Click to read"
+                  >
                     <div className="flex items-center gap-2 flex-wrap">
                       {e.unread && <span className="h-2.5 w-2.5 rounded-full bg-blue-500 shadow-sm shadow-blue-500/50 shrink-0" title="Unread" />}
                       <span className={`text-[15px] truncate ${e.unread ? "font-bold text-foreground" : "font-semibold text-foreground/80"}`}>{name || address || "Unknown sender"}</span>

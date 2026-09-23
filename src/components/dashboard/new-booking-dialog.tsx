@@ -35,6 +35,7 @@ import { getSheetPlans, getNextBookingIdFromSheet, syncBookingToSheet } from "@/
 import { buildPaymentAckEmailHtml } from "@/lib/payment-ack-email";
 import { logAudit } from "@/lib/audit";
 import { getErrorMessage } from "@/lib/utils";
+import { logger } from "@/lib/logger";
 import {
   num,
   salesMonth,
@@ -745,7 +746,7 @@ export function NewBookingDialog() {
       })
       .then(({ error: remErr }) => {
         if (remErr) {
-          console.error("Failed to create client reminder:", remErr.message);
+          logger.error("Failed to create client reminder:", remErr.message);
           toast.warning("Booking saved, but client reminder could not be scheduled: " + remErr.message);
         }
       });
@@ -786,7 +787,7 @@ export function NewBookingDialog() {
         })
         .then(({ error: remErr }) => {
           if (remErr) {
-            console.error("Failed to create salesperson reminder:", remErr.message);
+            logger.error("Failed to create salesperson reminder:", remErr.message);
             toast.warning("Booking saved, but salesperson reminder could not be scheduled: " + remErr.message);
           }
         });
