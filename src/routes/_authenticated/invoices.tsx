@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getErrorMessage } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -66,8 +67,8 @@ function InvoicesPage() {
           : `Invoice ${data.invoice_number || ""} created in Zoho`,
       );
       await qc.invalidateQueries({ queryKey: ["invoices-bookings"] });
-    } catch (e: any) {
-      toast.error(e.message || "Could not create invoice");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e, "Could not create invoice"));
     } finally {
       setRowBusy(b.id, undefined);
     }
@@ -84,8 +85,8 @@ function InvoicesPage() {
       if (!data?.ok) throw new Error(data?.error || "Could not send invoice");
       toast.success(`Invoice sent to ${data.to}`);
       await qc.invalidateQueries({ queryKey: ["invoices-bookings"] });
-    } catch (e: any) {
-      toast.error(e.message || "Could not send invoice");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e, "Could not send invoice"));
     } finally {
       setRowBusy(b.id, undefined);
     }
@@ -110,8 +111,8 @@ function InvoicesPage() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-    } catch (e: any) {
-      toast.error(e.message || "Could not fetch PDF");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e, "Could not fetch PDF"));
     } finally {
       setRowBusy(b.id, undefined);
     }

@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { getErrorMessage } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -403,7 +404,7 @@ function BulkUploadDialog({ open, onClose, userId }: { open: boolean; onClose: (
       setRows([]); onClose();
       qc.invalidateQueries({ queryKey: ["renewal-leads-all"] });
       qc.invalidateQueries({ queryKey: ["renewal-bookings"] });
-    } catch (e: any) { toast.error(e.message); }
+    } catch (e: unknown) { toast.error(getErrorMessage(e)); }
     setUploading(false);
   };
 

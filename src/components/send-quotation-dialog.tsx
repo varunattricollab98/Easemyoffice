@@ -14,6 +14,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { getErrorMessage } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -1069,8 +1070,8 @@ export function SendQuotationDialog({
       toast.success(`Quotation sent to ${allToEmails.join(", ")}`);
       onSent?.(subject);
       onOpenChange(false);
-    } catch (e: any) {
-      toast.error(e.message || "Could not send quotation");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e, "Could not send quotation"));
     } finally {
       setSending(false);
     }

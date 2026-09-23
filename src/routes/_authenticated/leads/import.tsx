@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
+import { getErrorMessage } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -277,8 +278,8 @@ function ImportLeadsPage() {
       }
       setResult({ inserted, skipped, skippedReasons });
       toast.success(`Imported ${inserted} lead${inserted === 1 ? "" : "s"}`);
-    } catch (e: any) {
-      toast.error(e.message ?? "Import failed");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e, "Import failed"));
     } finally {
       setBusy(false);
     }

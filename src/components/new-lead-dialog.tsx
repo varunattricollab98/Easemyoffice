@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
+import { getErrorMessage } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -82,7 +83,7 @@ export function NewLeadDialog({ open, onOpenChange, onCreated }: Props) {
       onOpenChange(false);
       onCreated?.(id);
     },
-    onError: (e: any) => toast.error(e.message ?? "Could not create lead"),
+    onError: (e: unknown) => toast.error(getErrorMessage(e, "Could not create lead")),
   });
 
   // Before creating, look for an existing lead with the same mobile or email.

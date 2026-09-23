@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import { ArrowLeft, Phone, Mail, MessageCircle, Calendar, Plus, Check, Trash2, Send, Loader2, XCircle, Maximize2, Minimize2, AlarmClock, FileText } from "lucide-react";
 import { RichTextEditor, htmlToText } from "@/components/ui/rich-text-editor";
-import { cn } from "@/lib/utils";
+import { cn, getErrorMessage } from "@/lib/utils";
 import { INTERESTS, INTENT_FLAGS, SERVICES, SOURCES, STAGES, calcScore, deriveInterest, labelFor } from "@/lib/crm";
 import { useAuth } from "@/lib/auth";
 import { handleStageChange, stopAllFollowUps, triggerStageReminder } from "@/lib/stage-reminders";
@@ -172,7 +172,7 @@ function LeadDetailPage() {
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["lead", id] }); toast.success("Updated"); },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: unknown) => toast.error(getErrorMessage(e)),
   });
 
   const deleteLead = useMutation({
@@ -194,7 +194,7 @@ function LeadDetailPage() {
       toast.success("Lead deleted");
       navigate({ to: "/leads" });
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: unknown) => toast.error(getErrorMessage(e)),
   });
 
   const logActivity = async (type: string, title: string, body?: string, payload?: Record<string, any>) => {
@@ -927,8 +927,8 @@ function EmailComposeDialog({
       toast.success(`Email sent to ${lead.email}`);
       onSent(subject.trim());
       onOpenChange(false);
-    } catch (e: any) {
-      toast.error(e.message || "Could not send email");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e, "Could not send email"));
     } finally {
       setSending(false);
     }
@@ -1250,8 +1250,8 @@ function ScheduleReminderDialog({
       qc.invalidateQueries({ queryKey: ["reminders"] });
       qc.invalidateQueries({ queryKey: ["lead-reminders", lead.id] });
       onOpenChange(false);
-    } catch (e: any) {
-      toast.error(e.message || "Could not schedule reminder");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e, "Could not schedule reminder"));
     } finally {
       setSubmitting(false);
     }
