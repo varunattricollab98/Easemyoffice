@@ -14,12 +14,12 @@ import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
 import { Plus } from "lucide-react";
 import { num, computeBookingMoney } from "@/lib/booking-math";
+import { formatINR as fmtINR } from "@/lib/utils";
 
 const PAY_STATUSES = ["Pending", "Paid", "Partial"];
 const VO_STATUSES = ["Pending", "Active", "Delivered"];
 const PAY_MODES = ["UPI", "Bank Transfer / NEFT", "Cheque", "Cash", "Card", "Payment Link", "Other"];
 const SOURCES = ["Website", "Referral", "IndiaMART", "Google Ads", "Meta Ads", "WhatsApp", "Direct", "Other"];
-const fmtINR = (n: number) => `₹${(n ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 
 export function BookingDetailDialog({ booking, open, onOpenChange }: { booking: any | null; open: boolean; onOpenChange: (v: boolean) => void }) {
   const { user, isAdmin } = useAuth();

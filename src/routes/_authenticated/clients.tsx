@@ -21,7 +21,7 @@ export const Route = createFileRoute("/_authenticated/clients")({
   component: ClientsPage,
 });
 
-const fmtINR = (n: number) => `₹${(n ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+import { formatINR as fmtINR } from "@/lib/utils";
 
 // ── Category thresholds. A client is ranked by EITHER lifetime amount paid
 //    OR number of bookings — whichever puts them in the higher tier.

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { formatINR as fmtINR } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
@@ -19,7 +20,6 @@ import { Users, BookOpen, UserCheck, Loader2, Phone, Mail } from "lucide-react";
 // Uses server-side ILIKE queries (not cmdk's client filter) so it searches the
 // whole database, not just what's on screen.
 
-const fmtINR = (n: number) => `\u20B9${(n ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 const normPhone = (v?: string | null) => {
   const d = String(v ?? "").replace(/\D/g, "");
   return d.length >= 10 ? d.slice(-10) : d;

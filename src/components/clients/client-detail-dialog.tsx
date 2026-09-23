@@ -4,8 +4,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge";
 import { useMemo } from "react";
 import { MessageSquare, FileText, Wallet, UserPlus, Phone, Mail, Building2 } from "lucide-react";
+import { formatINR as fmtINR } from "@/lib/utils";
 
-const fmtINR = (n: number) => `₹${(n ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 const normPhone = (v?: string) => { const d = String(v ?? "").replace(/\D/g, ""); return d.length >= 10 ? d.slice(-10) : d; };
 const ordinal = (n: number) => { const s = ["th", "st", "nd", "rd"], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
 const fmtDate = (d: string) => {
