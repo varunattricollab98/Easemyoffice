@@ -37,6 +37,7 @@ import { cn } from "@/lib/utils";
 import { INTERESTS, INTENT_FLAGS, SERVICES, SOURCES, STAGES, calcScore, deriveInterest, labelFor } from "@/lib/crm";
 import { useAuth } from "@/lib/auth";
 import { handleStageChange, stopAllFollowUps, triggerStageReminder } from "@/lib/stage-reminders";
+import { logAudit } from "@/lib/audit";
 import { FollowupConfigDialog } from "@/components/followup-config-dialog";
 import { SendQuotationDialog } from "@/components/send-quotation-dialog";
 import { EmailStatusRow } from "@/components/email-status-row";
@@ -176,6 +177,13 @@ function LeadDetailPage() {
 
   const deleteLead = useMutation({
     mutationFn: async () => {
+      // Record the deletion in the audit log BEFORE deleting (survives because
+      // audit_log has no FK to the lead — unlike lead_activities which cascades).
+      logAudit({
+        actorId: user?.id, action: "delete", entity: "lead",
+        entityId: id, entityLabel: lead?.client_name ?? null,
+        detail: `Deleted lead${lead?.lead_code ? ` ${lead.lead_code}` : ""}${lead?.client_name ? ` (${lead.client_name})` : ""}`,
+      });
       // Follow-ups and timeline activities are removed automatically via the
       // database's ON DELETE CASCADE on their lead_id foreign keys.
       const { error } = await supabase.from("leads").delete().eq("id", id);
@@ -308,6 +316,13 @@ function LeadDetailPage() {
                     updateLead.mutate({ stage: v }, {
                       onSuccess: async () => {
                         logActivity("stage_change", `Stage changed to ${stageLabel}`);
+                        const prevLabel = STAGES.find((s) => s.id === prevStage)?.label ?? prevStage;
+                        logAudit({
+                          actorId: user?.id, action: "stage_change", entity: "lead",
+                          entityId: id, entityLabel: lead.client_name,
+                          detail: `Stage: ${prevLabel} → ${stageLabel}`,
+                          meta: { from: prevStage, to: v },
+                        });
                         if (user) {
                           if (isFollowupTarget) {
                             // Open the config dialog for email reminders
@@ -367,7 +382,21 @@ function LeadDetailPage() {
               <Label className="text-xs">Assigned to</Label>
               <Select
                 value={lead.assigned_to ?? "unassigned"}
-                onValueChange={(v) => updateLead.mutate({ assigned_to: v === "unassigned" ? null : v })}
+                onValueChange={(v) => {
+                  const newId = v === "unassigned" ? null : v;
+                  updateLead.mutate({ assigned_to: newId }, {
+                    onSuccess: () => {
+                      const nameOf = (uid: string | null) =>
+                        uid ? (assignableUsers?.find((u: any) => u.id === uid)?.full_name ?? "someone") : "Unassigned";
+                      logAudit({
+                        actorId: user?.id, action: "assign", entity: "lead",
+                        entityId: id, entityLabel: lead.client_name,
+                        detail: `Assigned: ${nameOf(lead.assigned_to)} → ${nameOf(newId)}`,
+                        meta: { from: lead.assigned_to, to: newId },
+                      });
+                    },
+                  });
+                }}
               >
                 <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
                 <SelectContent>

@@ -48,6 +48,7 @@ import { Route as AuthenticatedAdminSalesPerformanceRouteImport } from './routes
 import { Route as AuthenticatedAdminKpiReportRouteImport } from './routes/_authenticated/admin/kpi-report'
 import { Route as AuthenticatedAdminEmailAutomationRouteImport } from './routes/_authenticated/admin/email-automation'
 import { Route as AuthenticatedAdminAnalyticsRouteImport } from './routes/_authenticated/admin/analytics'
+import { Route as AuthenticatedAdminActivityLogRouteImport } from './routes/_authenticated/admin/activity-log'
 import { Route as ApiPublicHooksLeadIntakeRouteImport } from './routes/api/public/hooks/lead-intake'
 import { Route as ApiPublicHooksBalanceRemindersRouteImport } from './routes/api/public/hooks/balance-reminders'
 
@@ -257,6 +258,12 @@ const AuthenticatedAdminAnalyticsRoute =
     path: '/admin/analytics',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAdminActivityLogRoute =
+  AuthenticatedAdminActivityLogRouteImport.update({
+    id: '/admin/activity-log',
+    path: '/admin/activity-log',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const ApiPublicHooksLeadIntakeRoute =
   ApiPublicHooksLeadIntakeRouteImport.update({
     id: '/api/public/hooks/lead-intake',
@@ -295,6 +302,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRoute
   '/tasks': typeof AuthenticatedTasksRoute
   '/team': typeof AuthenticatedTeamRoute
+  '/admin/activity-log': typeof AuthenticatedAdminActivityLogRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/email-automation': typeof AuthenticatedAdminEmailAutomationRoute
   '/admin/kpi-report': typeof AuthenticatedAdminKpiReportRoute
@@ -337,6 +345,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRoute
   '/tasks': typeof AuthenticatedTasksRoute
   '/team': typeof AuthenticatedTeamRoute
+  '/admin/activity-log': typeof AuthenticatedAdminActivityLogRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/email-automation': typeof AuthenticatedAdminEmailAutomationRoute
   '/admin/kpi-report': typeof AuthenticatedAdminKpiReportRoute
@@ -381,6 +390,7 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/tasks': typeof AuthenticatedTasksRoute
   '/_authenticated/team': typeof AuthenticatedTeamRoute
+  '/_authenticated/admin/activity-log': typeof AuthenticatedAdminActivityLogRoute
   '/_authenticated/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/_authenticated/admin/email-automation': typeof AuthenticatedAdminEmailAutomationRoute
   '/_authenticated/admin/kpi-report': typeof AuthenticatedAdminKpiReportRoute
@@ -425,6 +435,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/tasks'
     | '/team'
+    | '/admin/activity-log'
     | '/admin/analytics'
     | '/admin/email-automation'
     | '/admin/kpi-report'
@@ -467,6 +478,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/tasks'
     | '/team'
+    | '/admin/activity-log'
     | '/admin/analytics'
     | '/admin/email-automation'
     | '/admin/kpi-report'
@@ -510,6 +522,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/_authenticated/tasks'
     | '/_authenticated/team'
+    | '/_authenticated/admin/activity-log'
     | '/_authenticated/admin/analytics'
     | '/_authenticated/admin/email-automation'
     | '/_authenticated/admin/kpi-report'
@@ -814,6 +827,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAnalyticsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/admin/activity-log': {
+      id: '/_authenticated/admin/activity-log'
+      path: '/admin/activity-log'
+      fullPath: '/admin/activity-log'
+      preLoaderRoute: typeof AuthenticatedAdminActivityLogRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/api/public/hooks/lead-intake': {
       id: '/api/public/hooks/lead-intake'
       path: '/api/public/hooks/lead-intake'
@@ -851,6 +871,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedTasksRoute: typeof AuthenticatedTasksRoute
   AuthenticatedTeamRoute: typeof AuthenticatedTeamRoute
+  AuthenticatedAdminActivityLogRoute: typeof AuthenticatedAdminActivityLogRoute
   AuthenticatedAdminAnalyticsRoute: typeof AuthenticatedAdminAnalyticsRoute
   AuthenticatedAdminEmailAutomationRoute: typeof AuthenticatedAdminEmailAutomationRoute
   AuthenticatedAdminKpiReportRoute: typeof AuthenticatedAdminKpiReportRoute
@@ -887,6 +908,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedTasksRoute: AuthenticatedTasksRoute,
   AuthenticatedTeamRoute: AuthenticatedTeamRoute,
+  AuthenticatedAdminActivityLogRoute: AuthenticatedAdminActivityLogRoute,
   AuthenticatedAdminAnalyticsRoute: AuthenticatedAdminAnalyticsRoute,
   AuthenticatedAdminEmailAutomationRoute:
     AuthenticatedAdminEmailAutomationRoute,

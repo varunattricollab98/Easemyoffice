@@ -185,6 +185,42 @@ export type Database = {
         }
         Relationships: []
       }
+      audit_log: {
+        Row: {
+          id: string
+          actor_id: string | null
+          action: string
+          entity_type: string
+          entity_id: string | null
+          entity_label: string | null
+          detail: string | null
+          meta: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          actor_id?: string | null
+          action: string
+          entity_type: string
+          entity_id?: string | null
+          entity_label?: string | null
+          detail?: string | null
+          meta?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          actor_id?: string | null
+          action?: string
+          entity_type?: string
+          entity_id?: string | null
+          entity_label?: string | null
+          detail?: string | null
+          meta?: Json
+          created_at?: string
+        }
+        Relationships: []
+      }
       telecmi_call_events: {
         Row: {
           id: string

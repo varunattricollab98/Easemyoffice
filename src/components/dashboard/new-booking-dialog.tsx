@@ -33,6 +33,7 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { getSheetPlans, getNextBookingIdFromSheet, syncBookingToSheet } from "@/lib/bookings-sheet";
 import { buildEmailSignature } from "@/lib/email-signature";
+import { logAudit } from "@/lib/audit";
 
 const SOURCES = [
   "Website",
@@ -998,6 +999,14 @@ export function NewBookingDialog() {
       .select("id")
       .single();
     if (error) throw new Error(error.message);
+
+    // Audit: record who created this booking (best-effort, non-blocking).
+    logAudit({
+      actorId: user?.id, action: "create", entity: "booking",
+      entityId: insertedBooking?.id ?? null, entityLabel: form.client_name || form.business_name || bookingId,
+      detail: `Created booking ${bookingId}${form.client_name ? ` for ${form.client_name}` : ""} · ₹${d.total}`,
+      meta: { booking_id: bookingId, total: d.total, plan: form.plan_name },
+    });
 
     // 2) Best-effort: append the same row to the connected Google Sheet.
     //    Must be awaited BEFORE the next booking's id fetch (see note above).
