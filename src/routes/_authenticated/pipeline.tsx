@@ -50,7 +50,7 @@ const useIsMobile = () => {
   return isMobile;
 };
 
-function PipelinePage() {
+export function PipelinePage({ embedded = false }: { embedded?: boolean } = {}) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -307,13 +307,15 @@ function PipelinePage() {
   );
 
   return (
-    <div className="p-5 md:p-10 space-y-4 max-w-[1600px] mx-auto">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold">Pipeline</h1>
-        <p className="text-sm text-muted-foreground">
-          {filtered.length} of {leads?.length ?? 0} leads · drag cards across stages on desktop.
-        </p>
-      </div>
+    <div className={embedded ? "space-y-4" : "p-5 md:p-10 space-y-4 max-w-[1600px] mx-auto"}>
+      {!embedded && (
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold">Pipeline</h1>
+          <p className="text-sm text-muted-foreground">
+            {filtered.length} of {leads?.length ?? 0} leads · drag cards across stages on desktop.
+          </p>
+        </div>
+      )}
 
       {Filters}
 

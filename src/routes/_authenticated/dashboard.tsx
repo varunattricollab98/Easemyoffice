@@ -21,6 +21,12 @@ const NewBookingDialog = lazy(() =>
 const HeroOfMonth = lazy(() =>
   import("@/components/dashboard/hero-of-month").then((m) => ({ default: m.HeroOfMonth })),
 );
+// Lazy-load the full Pipeline board so it can live at the bottom of the
+// dashboard without adding to the initial dashboard bundle (it pulls in dnd-kit
+// + virtualizer). Reuses the exact same board as the /pipeline route.
+const PipelineBoard = lazy(() =>
+  import("@/routes/_authenticated/pipeline").then((m) => ({ default: m.PipelinePage })),
+);
 import { getSheetPlans, getNextBookingIdFromSheet } from "@/lib/bookings-sheet";
 import { LivePulsePill } from "@/components/dashboard/live-pulse-pill";
 import { AddWidgetPanel } from "@/components/dashboard/add-widget-panel";
@@ -336,6 +342,20 @@ function DashboardPage() {
         <Suspense fallback={<div className="h-48 rounded-xl bg-muted/40 animate-pulse" />}>
           <HeroOfMonth />
         </Suspense>
+
+        {/* Pipeline board — right on the dashboard so the whole day's work stays
+            focused in one place (same board as the /pipeline route). */}
+        <div className="pt-2">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-lg font-semibold tracking-tight">Pipeline</h2>
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/pipeline">Open full page →</Link>
+            </Button>
+          </div>
+          <Suspense fallback={<div className="h-96 rounded-xl bg-muted/40 animate-pulse" />}>
+            <PipelineBoard embedded />
+          </Suspense>
+        </div>
 
         {/* Footer hint */}
         <p className="text-center text-[11px] text-muted-foreground/70 pt-2">
