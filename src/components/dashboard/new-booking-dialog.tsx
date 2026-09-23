@@ -34,6 +34,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getSheetPlans, getNextBookingIdFromSheet, syncBookingToSheet } from "@/lib/bookings-sheet";
 import { buildPaymentAckEmailHtml } from "@/lib/payment-ack-email";
 import { logAudit } from "@/lib/audit";
+import { getErrorMessage } from "@/lib/utils";
 import {
   num,
   salesMonth,
@@ -1105,8 +1106,8 @@ export function NewBookingDialog() {
       if (!data?.ok) throw new Error(data?.error || "Failed to send email");
 
       toast.success("Payment acknowledgment email sent successfully!");
-    } catch (err: any) {
-      toast.error("Failed to send email: " + (err?.message || "Unknown error"));
+    } catch (err: unknown) {
+      toast.error("Failed to send email: " + getErrorMessage(err, "Unknown error"));
     } finally {
       setSendingEmail(false);
       setShowAckDialog(false);

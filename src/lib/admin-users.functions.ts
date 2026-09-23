@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { getErrorMessage } from "@/lib/utils";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 const ROLES = ["admin", "sales", "documentation", "accounts", "renewals", "bd"] as const;
@@ -95,9 +96,9 @@ export const listTeamUsers = createServerFn({ method: "POST" })
         };
       });
       return { users, error: null as string | null };
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("listTeamUsers failed:", e);
-      return { users: [] as any[], error: e?.message ?? "Failed to load users" };
+      return { users: [] as any[], error: getErrorMessage(e, "Failed to load users") };
     }
   });
 

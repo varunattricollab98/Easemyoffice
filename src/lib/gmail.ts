@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { getErrorMessage } from "@/lib/utils";
 
 export interface InboxEmail {
   threadId: string;
@@ -26,8 +27,8 @@ export async function fetchInbox(max = 40, start = 0, fn: GmailBridgeFn = "gmail
     if (!data?.ok) return { ok: false, emails: [], hasMore: false, error: data?.error || "unknown error" };
     const emails = Array.isArray(data.emails) ? data.emails : [];
     return { ok: true, emails, hasMore: data.hasMore ?? emails.length >= max };
-  } catch (e: any) {
-    return { ok: false, emails: [], hasMore: false, error: e?.message || "unknown error" };
+  } catch (e: unknown) {
+    return { ok: false, emails: [], hasMore: false, error: getErrorMessage(e, "unknown error") };
   }
 }
 
@@ -48,8 +49,8 @@ export async function fetchThread(threadId: string, fn: GmailBridgeFn = "gmail-b
     if (error) return { ok: false, messages: [], error: error.message };
     if (!data?.ok) return { ok: false, messages: [], error: data?.error || "could not load" };
     return { ok: true, subject: data.subject, url: data.url, messages: Array.isArray(data.messages) ? data.messages : [] };
-  } catch (e: any) {
-    return { ok: false, messages: [], error: e?.message || "could not load" };
+  } catch (e: unknown) {
+    return { ok: false, messages: [], error: getErrorMessage(e, "could not load") };
   }
 }
 
@@ -60,8 +61,8 @@ export async function claimEmailInGmail(threadId: string, label: string, fn: Gma
     if (error) return { ok: false, error: error.message };
     if (!data?.ok) return { ok: false, error: data?.error || "claim failed" };
     return { ok: true };
-  } catch (e: any) {
-    return { ok: false, error: e?.message || "claim failed" };
+  } catch (e: unknown) {
+    return { ok: false, error: getErrorMessage(e, "claim failed") };
   }
 }
 
@@ -96,8 +97,8 @@ export async function sendThreadReply(
     if (error) return { ok: false, error: error.message };
     if (!data?.ok) return { ok: false, error: data?.error || "reply failed" };
     return { ok: true };
-  } catch (e: any) {
-    return { ok: false, error: e?.message || "reply failed" };
+  } catch (e: unknown) {
+    return { ok: false, error: getErrorMessage(e, "reply failed") };
   }
 }
 

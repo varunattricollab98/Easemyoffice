@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { getErrorMessage } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -312,7 +313,7 @@ function LeadsListPage() {
       if (error) throw error;
     },
     onSuccess: () => { toast.success(`Assigned ${selected.size} lead(s)`); clearSel(); qc.invalidateQueries({ queryKey: ["leads"] }); },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: unknown) => toast.error(getErrorMessage(e)),
   });
 
   const bulkStage = useMutation({
@@ -335,7 +336,7 @@ function LeadsListPage() {
       clearSel();
       qc.invalidateQueries({ queryKey: ["leads"] });
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: unknown) => toast.error(getErrorMessage(e)),
   });
 
   const bulkDelete = useMutation({
@@ -344,7 +345,7 @@ function LeadsListPage() {
       if (error) throw error;
     },
     onSuccess: () => { toast.success(`Deleted ${selected.size} lead(s)`); clearSel(); qc.invalidateQueries({ queryKey: ["leads"] }); },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: unknown) => toast.error(getErrorMessage(e)),
   });
 
   // ---- export (respects current filters, all matching rows) ----
@@ -382,8 +383,8 @@ function LeadsListPage() {
       }));
       downloadCsv(out, `leads-${new Date().toISOString().slice(0, 10)}.csv`);
       toast.success(`Exported ${out.length} lead(s)`);
-    } catch (e: any) {
-      toast.error(e.message ?? "Export failed");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e, "Export failed"));
     } finally {
       setExporting(false);
     }
