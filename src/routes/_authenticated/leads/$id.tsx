@@ -211,7 +211,18 @@ function LeadDetailPage() {
           <Button variant="outline" size="sm" onClick={() => { window.location.href = `tel:${lead.mobile}`; setLogInteraction({ channel: "call" }); }}><Phone className="h-4 w-4 mr-1" /> Call</Button>
           <Button variant="outline" size="sm" onClick={() => { window.open(`https://wa.me/${lead.mobile.replace(/\D/g,"")}`, "_blank", "noopener,noreferrer"); setLogInteraction({ channel: "whatsapp" }); }}><MessageCircle className="h-4 w-4 mr-1" /> WhatsApp</Button>
           {lead.email && <Button variant="outline" size="sm" onClick={() => setEmailOpen(true)}><Mail className="h-4 w-4 mr-1" /> Email</Button>}
-          {lead.email && <Button variant="outline" size="sm" onClick={() => setQuotationDialogOpen(true)}><FileText className="h-4 w-4 mr-1" /> Send Quotation</Button>}
+          {/* Always show Send Quotation. It needs an email to send to, so if the
+              lead has none, tell the rep to add one instead of hiding the button. */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (!lead.email) { toast.error("Add an email to this lead first to send a quotation."); return; }
+              setQuotationDialogOpen(true);
+            }}
+          >
+            <FileText className="h-4 w-4 mr-1" /> Send Quotation
+          </Button>
           {lead.email && <Button variant="outline" size="sm" onClick={() => setReminderOpen(true)}><AlarmClock className="h-4 w-4 mr-1" /> Schedule Reminder</Button>}
           {isAdmin && (
             <AlertDialog>
