@@ -10,8 +10,33 @@ import {
   Users, Trophy, AlertTriangle, Bell, Clock, BarChart3,
 } from "lucide-react";
 import { useMemo, useEffect, useState } from "react";
+import type { ComponentType } from "react";
 import { format, differenceInDays, startOfMonth, formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
+
+// A booking row as used by the renewal dashboard (the columns it selects, plus
+// the renewal fields it reads). Nullable where the DB allows it.
+type RenewalBooking = {
+  id: string;
+  booking_code: string | null;
+  external_booking_id: string | null;
+  client_name: string | null;
+  business_name: string | null;
+  contact_no: string | null;
+  email_id: string | null;
+  plan_name: string | null;
+  plan_start_date: string | null;
+  plan_expiry_date: string | null;
+  renewal_status: string | null;
+  renewal_assigned_to: string | null;
+  renewal_followup_at: string | null;
+  renewal_notes: string | null;
+  renewal_outcome: string | null;
+  renewal_stage_changed_at?: string | null;
+  total_amount: number | null;
+  amount_received: number | null;
+  created_at: string;
+};
 
 export const Route = createFileRoute("/_authenticated/renewals/")({
   head: () => ({ meta: [{ title: "Renewal Dashboard — EaseMyOffice CRM" }] }),
@@ -45,7 +70,7 @@ export function RenewalDashboard() {
         .not("plan_expiry_date", "is", null)
         .order("plan_expiry_date", { ascending: true })
         .limit(2000);
-      return (data ?? []) as any[];
+      return (data ?? []) as RenewalBooking[];
     },
   });
 
@@ -71,27 +96,29 @@ export function RenewalDashboard() {
     const in30 = new Date(Date.now() + 30 * 86400000);
     const in90 = new Date(Date.now() + 90 * 86400000);
 
-    const dueIn30 = bookings.filter((b: any) => {
+    const dueIn30 = bookings.filter((b) => {
+      if (!b.plan_expiry_date) return false;
       const exp = new Date(b.plan_expiry_date);
       return exp >= now && exp <= in30 && b.renewal_status === "pending";
     });
-    const dueIn90 = bookings.filter((b: any) => {
+    const dueIn90 = bookings.filter((b) => {
+      if (!b.plan_expiry_date) return false;
       const exp = new Date(b.plan_expiry_date);
       return exp >= now && exp <= in90 && b.renewal_status === "pending";
     });
-    const assigned = bookings.filter((b: any) => b.renewal_assigned_to);
-    const renewed = bookings.filter((b: any) => b.renewal_status === "renewed");
-    const notInterested = bookings.filter((b: any) => b.renewal_status === "not_interested");
-    const addressChanged = bookings.filter((b: any) => b.renewal_status === "address_changed");
-    const lost = bookings.filter((b: any) => b.renewal_status === "lost");
-    const cancelled = bookings.filter((b: any) => b.renewal_status === "cancelled");
+    const assigned = bookings.filter((b) => b.renewal_assigned_to);
+    const renewed = bookings.filter((b) => b.renewal_status === "renewed");
+    const notInterested = bookings.filter((b) => b.renewal_status === "not_interested");
+    const addressChanged = bookings.filter((b) => b.renewal_status === "address_changed");
+    const lost = bookings.filter((b) => b.renewal_status === "lost");
+    const cancelled = bookings.filter((b) => b.renewal_status === "cancelled");
 
     // Monthly performance (this month's renewals)
     const monthStart = startOfMonth(now);
-    const thisMonthRenewed = renewed.filter((b: any) => b.renewal_stage_changed_at && new Date(b.renewal_stage_changed_at) >= monthStart);
+    const thisMonthRenewed = renewed.filter((b) => b.renewal_stage_changed_at && new Date(b.renewal_stage_changed_at) >= monthStart);
 
     // Referrals (from renewal_outcome)
-    const referrals = bookings.filter((b: any) => (b.renewal_outcome || "").toLowerCase().includes("referral"));
+    const referrals = bookings.filter((b) => (b.renewal_outcome || "").toLowerCase().includes("referral"));
 
     return {
       dueIn30: dueIn30.length,
@@ -113,9 +140,10 @@ export function RenewalDashboard() {
     const now = new Date();
     const in7 = new Date(Date.now() + 7 * 86400000);
     return bookings
-      .filter((b: any) => {
+      .filter((b) => {
+        if (!b.plan_expiry_date) return false;
         const exp = new Date(b.plan_expiry_date);
-        return exp >= now && exp <= in7 && !["renewed", "cancelled", "lost", "not_interested"].includes(b.renewal_status);
+        return exp >= now && exp <= in7 && !["renewed", "cancelled", "lost", "not_interested"].includes(b.renewal_status ?? "");
       })
       .slice(0, 8);
   }, [bookings]);
@@ -124,7 +152,7 @@ export function RenewalDashboard() {
   const todayFollowups = useMemo(() => {
     const today = format(new Date(), "yyyy-MM-dd");
     return bookings
-      .filter((b: any) => b.renewal_followup_at && format(new Date(b.renewal_followup_at), "yyyy-MM-dd") === today)
+      .filter((b) => b.renewal_followup_at && format(new Date(b.renewal_followup_at), "yyyy-MM-dd") === today)
       .slice(0, 10);
   }, [bookings]);
 
@@ -132,7 +160,7 @@ export function RenewalDashboard() {
   const overdueFollowups = useMemo(() => {
     const now = new Date();
     return bookings
-      .filter((b: any) => b.renewal_followup_at && new Date(b.renewal_followup_at) < now && !["renewed", "cancelled", "lost", "not_interested"].includes(b.renewal_status))
+      .filter((b) => b.renewal_followup_at && new Date(b.renewal_followup_at) < now && !["renewed", "cancelled", "lost", "not_interested"].includes(b.renewal_status ?? ""))
       .slice(0, 10);
   }, [bookings]);
 
@@ -183,14 +211,14 @@ export function RenewalDashboard() {
               <p className="text-sm text-muted-foreground text-center py-4">All caught up!</p>
             ) : (
               <div className="space-y-2 max-h-[280px] overflow-y-auto">
-                {needsAttention.map((b: any) => (
+                {needsAttention.map((b) => (
                   <div key={b.id} className="flex items-center gap-3 p-2 rounded-lg border hover:bg-muted/40 text-sm">
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">{b.client_name}</div>
-                      <div className="text-xs text-muted-foreground">{b.plan_name} · Expires {format(new Date(b.plan_expiry_date), "MMM d")}</div>
+                      <div className="text-xs text-muted-foreground">{b.plan_name} · Expires {b.plan_expiry_date ? format(new Date(b.plan_expiry_date), "MMM d") : "—"}</div>
                     </div>
                     <Badge variant="outline" className="text-amber-600 border-amber-300 text-[10px] shrink-0">
-                      {differenceInDays(new Date(b.plan_expiry_date), new Date())}d left
+                      {b.plan_expiry_date ? differenceInDays(new Date(b.plan_expiry_date), new Date()) : 0}d left
                     </Badge>
                   </div>
                 ))}
@@ -211,7 +239,7 @@ export function RenewalDashboard() {
               <p className="text-sm text-muted-foreground text-center py-4">No follow-ups scheduled today.</p>
             ) : (
               <div className="space-y-2 max-h-[280px] overflow-y-auto">
-                {todayFollowups.map((b: any) => (
+                {todayFollowups.map((b) => (
                   <div key={b.id} className="flex items-center gap-3 p-2 rounded-lg border text-sm">
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">{b.client_name}</div>
@@ -238,14 +266,14 @@ export function RenewalDashboard() {
               <Badge variant="destructive" className="ml-auto">{overdueFollowups.length}</Badge>
             </div>
             <div className="space-y-2 max-h-[200px] overflow-y-auto">
-              {overdueFollowups.map((b: any) => (
+              {overdueFollowups.map((b) => (
                 <div key={b.id} className="flex items-center gap-3 p-2 rounded-lg border border-destructive/20 text-sm">
                   <div className="flex-1 min-w-0">
                     <div className="font-medium truncate">{b.client_name}</div>
                     <div className="text-xs text-muted-foreground">{b.plan_name}</div>
                   </div>
                   <span className="text-xs text-destructive font-medium shrink-0">
-                    {formatDistanceToNow(new Date(b.renewal_followup_at), { addSuffix: true })}
+                    {b.renewal_followup_at ? formatDistanceToNow(new Date(b.renewal_followup_at), { addSuffix: true }) : ""}
                   </span>
                 </div>
               ))}
@@ -263,7 +291,7 @@ export function RenewalDashboard() {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
             {RENEWAL_STAGES.filter((s) => !["cancelled"].includes(s.id)).map((stage) => {
-              const count = bookings.filter((b: any) => b.renewal_status === stage.id).length;
+              const count = bookings.filter((b) => b.renewal_status === stage.id).length;
               return (
                 <div key={stage.id} className="rounded-lg border p-3 text-center">
                   <div className="flex items-center justify-center gap-1.5 mb-1">
@@ -282,7 +310,7 @@ export function RenewalDashboard() {
 }
 
 function KpiCard({ icon: Icon, label, value, color, highlight, small }: {
-  icon: any; label: string; value: number; color: string; highlight?: boolean; small?: boolean;
+  icon: ComponentType<{ className?: string }>; label: string; value: number; color: string; highlight?: boolean; small?: boolean;
 }) {
   return (
     <Card className={highlight ? "border-amber-300 bg-amber-50/50 dark:bg-amber-950/20" : ""}>
