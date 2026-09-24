@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { INTERESTS, SERVICES, SOURCES, STAGES, labelFor } from "@/lib/crm";
 import { Plus, Search, Phone, Mail, Upload, Download, Trash2, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CalendarIcon, AlertTriangle } from "lucide-react";
+import { useLeadColWidths, LEAD_COLUMNS, type LeadColKey } from "@/lib/leads-columns";
 import { NewLeadDialog } from "@/components/new-lead-dialog";
 import { useAuth } from "@/lib/auth";
 import { triggerStageReminder } from "@/lib/stage-reminders";
@@ -84,6 +85,27 @@ function LeadsListPage() {
   const navigate = useNavigate();
   const { isAdmin, user } = useAuth();
   const qc = useQueryClient();
+  // Per-user resizable column widths for the list.
+  const { setWidth, reset: resetCols, template: colTemplate } = useLeadColWidths(user?.id ?? "anon");
+  // Begin a column drag-resize from the header handle.
+  const startResize = (e: React.MouseEvent, key: LeadColKey) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startW = (e.currentTarget.closest("[data-col-header]") as HTMLElement | null)?.offsetWidth
+      ?? (e.currentTarget.parentElement as HTMLElement).offsetWidth;
+    const onMove = (ev: MouseEvent) => setWidth(key, startW + (ev.clientX - startX));
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
   const [q, setQ] = useState(search.q ?? "");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState(false);
@@ -548,6 +570,15 @@ function LeadsListPage() {
           >
             {dupesLoading ? "Checking…" : showDupes ? `Duplicates (${dupeIds.size})` : "Duplicates"}
           </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={resetCols}
+            title="Reset column widths to default"
+            className="transition-all duration-200 ease-out"
+          >
+            Reset columns
+          </Button>
         </CardContent>
       </Card>
 
@@ -696,13 +727,42 @@ function LeadsListPage() {
             </div>
           ) : (
             <div className={isFetching ? "opacity-60 transition-opacity" : "transition-opacity"}>
-              <div className="flex items-center gap-3 px-4 py-2 border-b bg-muted/30 text-xs text-muted-foreground">
-                <Checkbox checked={allOnPageSelected} onCheckedChange={toggleAllOnPage} aria-label="Select all on page" />
-                <span>Select all on this page</span>
+              {/* Horizontal scroll wrapper — columns have fixed px widths that
+                  can exceed the viewport once the user widens them. */}
+              <div className="overflow-x-auto scrollbar-modern">
+                <div style={{ minWidth: "min-content" }}>
+                  {/* Resizable column header. Drag the handle between two
+                      headers to resize; widths persist per user. */}
+                  <div
+                    className="grid items-center border-b bg-muted/30 text-[11px] font-medium uppercase tracking-wide text-muted-foreground select-none"
+                    style={{ gridTemplateColumns: colTemplate }}
+                  >
+                    <div className="flex items-center justify-center py-2">
+                      <Checkbox checked={allOnPageSelected} onCheckedChange={toggleAllOnPage} aria-label="Select all on page" />
+                    </div>
+                    {LEAD_COLUMNS.map((c, i) => (
+                      <div key={c.key} data-col-header className="relative flex items-center px-3 py-2">
+                        <span className="truncate">{c.label}</span>
+                        {/* Drag handle on the right edge (not after the last col). */}
+                        {i < LEAD_COLUMNS.length - 1 && (
+                          <span
+                            role="separator"
+                            aria-orientation="vertical"
+                            aria-label={`Resize ${c.label} column`}
+                            onMouseDown={(e) => startResize(e, c.key)}
+                            className="absolute right-0 top-0 h-full w-2 cursor-col-resize group"
+                          >
+                            <span className="absolute right-0 top-1/2 -translate-y-1/2 h-4 w-px bg-border group-hover:bg-primary group-hover:w-0.5 transition-colors" />
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {rows.map((l) => (
+                    <LeadRow key={l.id} l={l} selected={selected.has(l.id)} onToggle={toggleOne} nameOf={nameById} isDupe={dupeIds.has(l.id)} template={colTemplate} />
+                  ))}
+                </div>
               </div>
-              {rows.map((l) => (
-                <LeadRow key={l.id} l={l} selected={selected.has(l.id)} onToggle={toggleOne} nameOf={nameById} isDupe={dupeIds.has(l.id)} />
-              ))}
             </div>
           )}
         </CardContent>
@@ -754,70 +814,70 @@ function LeadsListPage() {
   );
 }
 
-function LeadRow({ l, selected, onToggle, nameOf, isDupe }: { l: LeadListRow; selected: boolean; onToggle: (id: string) => void; nameOf: Map<string, string>; isDupe?: boolean }) {
+function LeadRow({ l, selected, onToggle, nameOf, isDupe, template }: { l: LeadListRow; selected: boolean; onToggle: (id: string) => void; nameOf: Map<string, string>; isDupe?: boolean; template: string }) {
   const interestMeta = INTERESTS.find((i) => i.id === l.interest);
   const stageMeta = STAGES.find((s) => s.id === l.stage);
   const overdue = l.next_follow_up_at && new Date(l.next_follow_up_at) < new Date();
   const assigneeName = l.assigned_to ? nameOf.get(l.assigned_to) ?? "" : "";
   return (
-    <div className="flex items-center border-b last:border-b-0">
-      <div className="pl-4 pr-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+    <div className="grid items-center border-b last:border-b-0 hover:bg-accent/30 transition-colors" style={{ gridTemplateColumns: template }}>
+      <div className="flex items-center justify-center py-3" onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}>
         <Checkbox checked={selected} onCheckedChange={() => onToggle(l.id)} aria-label="Select lead" />
       </div>
-      <Link
-        to="/leads/$id"
-        params={{ id: l.id }}
-        className="flex-1 grid grid-cols-12 gap-3 items-center px-3 py-3 hover:bg-accent/30 transition-all duration-200 ease-out"
-      >
-        <div className="col-span-12 md:col-span-4 min-w-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="font-medium truncate">{l.client_name}</div>
-            {interestMeta && (
-              <Badge variant="secondary" className={`${interestMeta.className} rounded-full shrink-0`}>
-                {interestMeta.emoji} {interestMeta.label}
-              </Badge>
-            )}
-            {isDupe && (
-              <span
-                className="inline-flex items-center justify-center h-5 w-5 rounded-full border border-amber-300 text-amber-600 dark:text-amber-300 shrink-0"
-                title="Possible duplicate — shares a name, phone, or email with another lead"
-                aria-label="Possible duplicate"
-              >
-                <AlertTriangle className="h-3 w-3" />
-              </span>
-            )}
-          </div>
-          <div className="text-xs text-muted-foreground truncate">
-            {l.lead_code} · {l.company_name ?? "—"}
-          </div>
-        </div>
-        <div className="col-span-6 md:col-span-3 text-sm min-w-0">
-          <div className="flex items-center gap-1 text-muted-foreground"><Phone className="h-3 w-3 shrink-0" /><span className="truncate">{l.mobile}</span></div>
-          {l.email && <div className="flex items-center gap-1 text-xs text-muted-foreground"><Mail className="h-3 w-3 shrink-0" /><span className="truncate">{l.email}</span></div>}
-        </div>
-        <div className="col-span-6 md:col-span-1 text-xs text-muted-foreground truncate">
-          {labelFor(SERVICES, l.service_required)}
-        </div>
-        <div className="col-span-4 md:col-span-2 min-w-0">
-          {stageMeta && (
-            <span className="inline-flex items-center gap-1.5 text-xs">
-              <span className={`h-2 w-2 rounded-full shrink-0 ${stageMeta.color}`} />
-              <span className="truncate">{stageMeta.label}</span>
+      {/* Name */}
+      <Link to="/leads/$id" params={{ id: l.id }} className="min-w-0 px-3 py-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="font-medium truncate">{l.client_name}</div>
+          {interestMeta && (
+            <Badge variant="secondary" className={`${interestMeta.className} rounded-full shrink-0`}>
+              {interestMeta.emoji} {interestMeta.label}
+            </Badge>
+          )}
+          {isDupe && (
+            <span
+              className="inline-flex items-center justify-center h-5 w-5 rounded-full border border-amber-300 text-amber-600 dark:text-amber-300 shrink-0"
+              title="Possible duplicate — shares a name, phone, or email with another lead"
+              aria-label="Possible duplicate"
+            >
+              <AlertTriangle className="h-3 w-3" />
             </span>
           )}
         </div>
-        <div className="col-span-4 md:col-span-1 text-xs text-muted-foreground truncate">
-          {assigneeName || <span className="text-muted-foreground/50">—</span>}
+        <div className="text-xs text-muted-foreground truncate">
+          {l.lead_code} · {l.company_name ?? "—"}
         </div>
-        <div className="col-span-4 md:col-span-1 text-right text-[11px]">
-          {l.next_follow_up_at ? (
-            <span className={overdue ? "text-destructive font-medium" : "text-muted-foreground/70"}>
-              {overdue ? "Overdue " : ""}{formatDistanceToNow(new Date(l.next_follow_up_at), { addSuffix: true })}
-            </span>
-          ) : (
-            <span className="text-amber-600">No follow-up</span>
-          )}
-        </div>
+      </Link>
+      {/* Contact */}
+      <Link to="/leads/$id" params={{ id: l.id }} className="min-w-0 px-3 py-3 text-sm">
+        <div className="flex items-center gap-1 text-muted-foreground"><Phone className="h-3 w-3 shrink-0" /><span className="truncate">{l.mobile}</span></div>
+        {l.email && <div className="flex items-center gap-1 text-xs text-muted-foreground"><Mail className="h-3 w-3 shrink-0" /><span className="truncate">{l.email}</span></div>}
+      </Link>
+      {/* Service */}
+      <Link to="/leads/$id" params={{ id: l.id }} className="min-w-0 px-3 py-3 text-xs text-muted-foreground truncate">
+        {labelFor(SERVICES, l.service_required)}
+      </Link>
+      {/* Stage */}
+      <Link to="/leads/$id" params={{ id: l.id }} className="min-w-0 px-3 py-3">
+        {stageMeta && (
+          <span className="inline-flex items-center gap-1.5 text-xs min-w-0">
+            <span className={`h-2 w-2 rounded-full shrink-0 ${stageMeta.color}`} />
+            <span className="truncate">{stageMeta.label}</span>
+          </span>
+        )}
+      </Link>
+      {/* Owner */}
+      <Link to="/leads/$id" params={{ id: l.id }} className="min-w-0 px-3 py-3 text-xs text-muted-foreground truncate">
+        {assigneeName || <span className="text-muted-foreground/50">—</span>}
+      </Link>
+      {/* Follow-up */}
+      <Link to="/leads/$id" params={{ id: l.id }} className="min-w-0 px-3 py-3 text-[11px]">
+        {l.next_follow_up_at ? (
+          <span className={overdue ? "text-destructive font-medium" : "text-muted-foreground/70"}>
+            {overdue ? "Overdue " : ""}{formatDistanceToNow(new Date(l.next_follow_up_at), { addSuffix: true })}
+          </span>
+        ) : (
+          <span className="text-amber-600">No follow-up</span>
+        )}
       </Link>
     </div>
   );
