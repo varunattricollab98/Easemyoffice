@@ -61,6 +61,33 @@ const COL_MAP: Record<string, string> = {
   "area": "area",
 };
 
+// Normalize a header for fuzzy matching: lowercase, drop currency/percent/
+// emoji/parenthetical noise & punctuation, collapse spaces. So "Total Amount
+// (₹)", "TDS in (percentage) (%)", "Profit 📈(₹)", "SP Payable  (₹)" all reduce
+// to their core name and still map to the right column.
+function normalizeHeader(h: string): string {
+  return h
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, " ")   // drop anything in parentheses e.g. (₹), (%), (percentage)
+    .replace(/[₹%📈👨‍💼]/g, " ")    // drop stray symbols/emoji
+    .replace(/\d+/g, " ")          // drop numbers like the "18" in "VO GST 18%"
+    .replace(/[^a-z\s.]/g, " ")    // keep letters, spaces, dots
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Pre-computed normalized lookup so a noisy header still resolves.
+const NORM_COL_MAP: Record<string, string> = Object.fromEntries(
+  Object.entries(COL_MAP).map(([k, v]) => [normalizeHeader(k), v]),
+);
+
+// Resolve a sheet header to a DB column: exact match first, then normalized.
+function resolveColKey(header: string): string | undefined {
+  const raw = header.trim().toLowerCase();
+  if (COL_MAP[raw]) return COL_MAP[raw];
+  return NORM_COL_MAP[normalizeHeader(header)];
+}
+
 // Numeric fields that should parse as numbers.
 const NUMERIC = new Set([
   "vo_amount", "vo_gst", "addon_amount", "addon_gst", "total_amount",
@@ -115,7 +142,7 @@ function normalizeDate(raw: string): string {
 function mapRow(headers: string[], values: string[]) {
   const obj: Record<string, unknown> = {};
   headers.forEach((h, i) => {
-    const key = COL_MAP[h.trim().toLowerCase()];
+    const key = resolveColKey(h);
     if (!key) return;
     let val: unknown = (values[i] ?? "").trim();
     if (NUMERIC.has(key)) val = Number(String(val).replace(/[₹,\s]/g, "")) || 0;
