@@ -116,7 +116,10 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="overflow-hidden p-0 max-w-xl">
+      {/* Command-palette style: anchor near the top of the screen (not dead
+          center), fixed width, and hide the default Dialog close button so the
+          input's own clear ✕ is the only one. */}
+      <DialogContent className="overflow-hidden p-0 max-w-xl w-[92vw] top-[12%] translate-y-0 rounded-xl shadow-2xl [&>button.absolute]:hidden">
         <Command shouldFilter={false} className="[&_[cmdk-input]]:h-12">
           <CommandInput
             ref={inputRef}
@@ -124,9 +127,9 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
             onValueChange={setTerm}
             placeholder="Search leads, bookings, clients by name, phone, email, ID…"
           />
-          <CommandList>
+          <CommandList className="max-h-[60vh]">
             {!enabled && (
-              <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+              <div className="px-4 py-8 text-center text-sm text-muted-foreground">
                 Type at least 2 characters to search.
               </div>
             )}
