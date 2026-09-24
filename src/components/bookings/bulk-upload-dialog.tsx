@@ -146,7 +146,12 @@ function mapRow(headers: string[], values: string[]) {
     if (!key) return;
     let val: unknown = (values[i] ?? "").trim();
     if (NUMERIC.has(key)) val = Number(String(val).replace(/[₹,\s]/g, "")) || 0;
-    if (key === "booking_date" && val) val = normalizeDate(val as string);
+    if (key === "booking_date") {
+      // Blank/unparseable date -> null (an empty string would make Postgres
+      // reject the whole insert chunk with "invalid input syntax for type date").
+      const norm = val ? normalizeDate(val as string) : "";
+      val = norm || null;
+    }
     obj[key] = val;
   });
   // Ensure required fields have defaults.
@@ -209,8 +214,15 @@ export function BulkUploadDialog({ open, onOpenChange }: { open: boolean; onOpen
       for (const chunk of chunks) {
         const payload = chunk.map((r) => ({ ...r, created_by: user.id }));
         const { error } = await supabase.from("bookings").insert(payload as any[]);
-        if (error) { errors += chunk.length; logger.error(error); }
-        else inserted += chunk.length;
+        if (!error) { inserted += chunk.length; continue; }
+        // One bad row would otherwise fail the whole 50-row chunk. Retry the
+        // chunk row-by-row so only the genuinely bad rows are counted as errors.
+        logger.error(error);
+        for (const r of payload) {
+          const { error: rowErr } = await supabase.from("bookings").insert([r] as any[]);
+          if (rowErr) { errors++; logger.error(rowErr); }
+          else inserted++;
+        }
       }
       return { inserted, errors };
     },
