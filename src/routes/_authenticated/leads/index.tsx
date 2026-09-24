@@ -61,6 +61,20 @@ type LeadListRow = {
 // A lead in the duplicate finder — the fetched row plus normalized match fields.
 type DupeLead = LeadListRow & { _phone: string; _email: string; _name: string };
 
+// Row shape returned by the find_lead_duplicates() RPC.
+type DupeRpcRow = {
+  id: string;
+  lead_code: string | null;
+  client_name: string | null;
+  mobile: string | null;
+  email: string | null;
+  created_at: string;
+  assigned_to: string | null;
+  stage: string | null;
+  match_key: string;
+  match_type: string;
+};
+
 const PAGE_SIZES = [25, 50, 100, 200];
 
 export const Route = createFileRoute("/_authenticated/leads/")({
@@ -235,58 +249,44 @@ function LeadsListPage() {
     staleTime: 60_000,
     gcTime: 5 * 60_000,
     queryFn: async () => {
-      const { data } = await supabase.from("leads")
-        .select("id, lead_code, client_name, mobile, email, created_at, assigned_to, stage")
-        .order("created_at", { ascending: true })
-        .limit(5000);
-      if (!data) return { ids: new Set<string>(), groups: [] as DupeGroup[] };
+      // Server-side detection: the find_lead_duplicates() RPC returns only the
+      // leads that are part of a duplicate group (tagged with match_key +
+      // match_type). No big fetch, no O(n^2) loop in the browser.
+      const { data, error } = await (supabase.rpc as unknown as (
+        fn: string,
+      ) => Promise<{ data: DupeRpcRow[] | null; error: { message: string } | null }>)("find_lead_duplicates");
+      if (error || !data) return { ids: new Set<string>(), groups: [] as DupeGroup[] };
 
-      // Normalise fields for comparison
-      const leads: DupeLead[] = ((data ?? []) as LeadListRow[]).map((l) => ({
-        ...l,
-        _phone: (l.mobile ?? "").replace(/\D/g, "").slice(-10),
-        _email: (l.email ?? "").trim().toLowerCase(),
-        _name: (l.client_name ?? "").trim().toLowerCase(),
-      }));
-
-      // For each pair of leads, check if 2+ fields match.
-      // Use composite keys to group: "name+phone", "name+email", "phone+email"
-      const groupMap = new Map<string, DupeLead[]>();
-
-      for (let i = 0; i < leads.length; i++) {
-        for (let j = i + 1; j < leads.length; j++) {
-          const a = leads[i], b = leads[j];
-          const nameMatch = a._name && b._name && a._name.length > 2 && a._name === b._name;
-          const phoneMatch = a._phone && b._phone && a._phone.length >= 10 && a._phone === b._phone;
-          const emailMatch = a._email && b._email && a._email === b._email;
-
-          const matchCount = (nameMatch ? 1 : 0) + (phoneMatch ? 1 : 0) + (emailMatch ? 1 : 0);
-          if (matchCount < 2) continue;
-
-          // Build a stable group key from the matching values
-          const parts: string[] = [];
-          if (nameMatch) parts.push(`name:${a._name}`);
-          if (phoneMatch) parts.push(`phone:${a._phone}`);
-          if (emailMatch) parts.push(`email:${a._email}`);
-          const gKey = parts.sort().join("|");
-
-          const group = groupMap.get(gKey) ?? [];
-          if (!group.find((x) => x.id === a.id)) group.push(a);
-          if (!group.find((x) => x.id === b.id)) group.push(b);
-          groupMap.set(gKey, group);
-        }
+      // Group the (already-small) rows by match_key.
+      const groupMap = new Map<string, { matchType: string; leads: DupeLead[] }>();
+      for (const r of data) {
+        const entry = groupMap.get(r.match_key) ?? { matchType: r.match_type, leads: [] };
+        entry.leads.push({
+          id: r.id,
+          lead_code: r.lead_code,
+          client_name: r.client_name,
+          company_name: null,
+          mobile: r.mobile,
+          email: r.email,
+          stage: r.stage,
+          assigned_to: r.assigned_to,
+          created_at: r.created_at,
+          _phone: (r.mobile ?? "").replace(/\D/g, "").slice(-10),
+          _email: (r.email ?? "").trim().toLowerCase(),
+          _name: (r.client_name ?? "").trim().toLowerCase(),
+        });
+        groupMap.set(r.match_key, entry);
       }
 
       const ids = new Set<string>();
       const groups: DupeGroup[] = [];
-      for (const [key, arr] of groupMap.entries()) {
-        arr.forEach((l) => ids.add(l.id));
-        // Describe the match type for display
-        const types = key.split("|").map((p) => {
-          const [type, val] = p.split(":");
-          return `${type[0].toUpperCase() + type.slice(1)}: ${val}`;
-        }).join(" + ");
-        groups.push({ matchKey: key, matchType: types, leads: arr.sort((a, b) => a.created_at < b.created_at ? -1 : 1) });
+      for (const [key, { matchType, leads }] of groupMap.entries()) {
+        leads.forEach((l) => ids.add(l.id));
+        groups.push({
+          matchKey: key,
+          matchType,
+          leads: leads.sort((a, b) => (a.created_at < b.created_at ? -1 : 1)),
+        });
       }
       return { ids, groups };
     },
