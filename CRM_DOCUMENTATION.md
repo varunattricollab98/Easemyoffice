@@ -141,7 +141,17 @@ lead_activities, follow_ups, tasks, profiles, user_roles, user_targets, sales_ta
 | `get-sheet-config` | Get sheet configuration (cached 5min) |
 | `notify-stale-followups` | Daily: emails salespeople about leads stuck in Follow-ups 4+ days |
 | `notify-expiring-renewals` | Daily: emails the renewals team about client plans expiring within 30 days (grouped by renewal owner; unassigned → `RENEWALS_ADMIN_EMAIL`) |
-| `notify-new-leads` | Every ~15 min: creates **in-CRM notifications** (the bell) — assigned lead → its owner ("New lead assigned to you"); unassigned lead → **every** user ("New lead arrived — claim as yours"). No per-user email needed. Stamps `leads.first_alert_sent_at` so nothing is alerted twice; capped at 40 leads/run. Email is opt-in only (`LEADS_ALERT_EMAIL_ENABLED = "true"`). |
+| `notify-new-leads` | (Superseded by the instant DB trigger below — leave its cron unscheduled.) Optional every-N-min sweep that creates the same in-CRM notifications; email path is opt-in (`LEADS_ALERT_EMAIL_ENABLED = "true"`). |
+
+### Instant new-lead notification (DB trigger — preferred)
+
+`setup/ADD_NEW_LEAD_NOTIFY_TRIGGER.sql` adds an `AFTER INSERT` trigger on `public.leads` that fires the **moment** a lead is created (no cron, no delay):
+- **Assigned** lead → one in-CRM notification to the owner ("New lead assigned to you").
+- **Unassigned** lead → a notification to **every** user ("New lead arrived — claim as yours").
+- The notification carries `lead_id` so clicking opens the lead.
+- `SECURITY DEFINER` + exception-guarded, so a notification failure can never block the lead insert.
+
+This replaces the `notify-new-leads` cron — after installing the trigger, run `SELECT cron.unschedule('notify-new-leads');`.
 
 ---
 
