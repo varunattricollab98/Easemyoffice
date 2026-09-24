@@ -145,9 +145,9 @@ lead_activities, follow_ups, tasks, profiles, user_roles, user_targets, sales_ta
 
 ### Instant new-lead notification (DB trigger — preferred)
 
-`setup/ADD_NEW_LEAD_NOTIFY_TRIGGER.sql` adds an `AFTER INSERT` trigger on `public.leads` that fires the **moment** a lead is created (no cron, no delay):
-- **Assigned** lead → one in-CRM notification to the owner ("New lead assigned to you").
-- **Unassigned** lead → a notification to **every** user ("New lead arrived — claim as yours").
+`setup/ADD_NEW_LEAD_NOTIFY_TRIGGER.sql` adds an `AFTER INSERT` trigger on `public.leads` that fires the **moment** a lead is created (no cron, no delay). It splits work with the pre-existing `notify_lead_assignment` trigger to avoid duplicates:
+- **Assigned** lead → handled by the existing `notify_lead_assignment` trigger (notifies the owner). This trigger does nothing for assigned leads.
+- **Unassigned** lead → this trigger notifies **every** user ("New lead arrived — claim as yours") — the case that had no coverage before.
 - The notification carries `lead_id` so clicking opens the lead.
 - `SECURITY DEFINER` + exception-guarded, so a notification failure can never block the lead insert.
 
