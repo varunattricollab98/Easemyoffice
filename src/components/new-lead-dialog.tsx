@@ -93,14 +93,17 @@ export function NewLeadDialog({ open, onOpenChange, onCreated }: Props) {
     e.preventDefault();
     const mobile = form.mobile.trim();
     const email = form.email.trim();
+    const name = form.client_name.trim();
     setChecking(true);
     try {
       // Company-wide duplicate check via a SECURITY DEFINER function, so it
       // catches a match owned by ANY teammate (not just the current user's).
-      // If the function isn't installed yet, we fail open and just create.
+      // Matches on mobile / email / name. If the function isn't installed yet,
+      // we fail open and just create.
       const { data, error } = await supabase.rpc("find_duplicate_lead", {
         p_mobile: mobile || null,
         p_email: email || null,
+        p_name: name || null,
       } as never);
       if (!error && Array.isArray(data) && data.length > 0) {
         setDupe(data[0]);
