@@ -9,6 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -190,6 +197,7 @@ function BookingsPage() {
   const qc = useQueryClient();
   const initialQ = Route.useSearch().q ?? "";
   const [q, setQ] = useState(initialQ);
+  const [agentFilter, setAgentFilter] = useState("all");
   const [selected, setSelected] = useState<BookingRow | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [sort, setSort] = useState<SortState>({ key: "date", dir: "desc" });
@@ -270,11 +278,25 @@ function BookingsPage() {
   // which would change the deps of the memos below every time and defeat them.
   const all = useMemo(() => data?.bookings ?? [], [data]);
 
+  // Distinct sales agents (for the admin filter dropdown), sorted A–Z.
+  const agents = useMemo(() => {
+    const set = new Set<string>();
+    for (const b of all) {
+      const name = String(b.sales_agent_name ?? "").trim();
+      if (name && name !== "—") set.add(name);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [all]);
+
   const filtered = useMemo(() => {
-    if (!q) return all;
     const s = q.toLowerCase();
-    return all.filter((b) =>
-      [
+    return all.filter((b) => {
+      // Sales-agent filter (admin only; "all" = no filter).
+      if (agentFilter !== "all" && String(b.sales_agent_name ?? "").trim() !== agentFilter) {
+        return false;
+      }
+      if (!q) return true;
+      return [
         b.booking_code,
         b.external_booking_id,
         b.client_name,
@@ -286,9 +308,9 @@ function BookingsPage() {
         String(v ?? "")
           .toLowerCase()
           .includes(s),
-      ),
-    );
-  }, [all, q]);
+      );
+    });
+  }, [all, q, agentFilter]);
 
   const rows = useMemo(() => {
     const mult = sort.dir === "asc" ? 1 : -1;
@@ -352,7 +374,8 @@ function BookingsPage() {
                 {" · "}
                 <span className="font-medium text-foreground">{rows.length}</span>
                 {rows.length === 1 ? " booking" : " bookings"}
-                {q && all.length !== rows.length ? ` of ${all.length}` : ""}
+                {(q || agentFilter !== "all") && all.length !== rows.length ? ` of ${all.length}` : ""}
+                {agentFilter !== "all" ? ` · ${agentFilter}` : ""}
               </>
             )}
           </p>
@@ -369,6 +392,19 @@ function BookingsPage() {
             >
               <Upload className="h-4 w-4 mr-1" /> Bulk Upload
             </Button>
+          )}
+          {isAdmin && agents.length > 0 && (
+            <Select value={agentFilter} onValueChange={setAgentFilter}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="All sales agents" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All sales agents</SelectItem>
+                {agents.map((a) => (
+                  <SelectItem key={a} value={a}>{a}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
           <div className="relative w-72 max-w-full">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
