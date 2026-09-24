@@ -17,6 +17,9 @@ const COL_MAP: Record<string, string> = {
   "remarks": "remarks",
   "date": "booking_date",
   "sales poc": "sales_agent_name",
+  "sales agent": "sales_agent_name",
+  "sales agent 👨‍💼": "sales_agent_name",
+  "sales person": "sales_agent_name",
   "booking id": "external_booking_id",
   "booking source": "booking_source",
   "vo status": "vo_status",
@@ -88,6 +91,27 @@ function parseCSV(text: string): string[][] {
   return rows;
 }
 
+// Parse a date cell into YYYY-MM-DD. Handles DD/MM/YYYY and DD-MM-YYYY (the
+// sheet's format) explicitly, since `new Date("01/04/2026")` misreads it as
+// US MM/DD. Falls back to Date parsing, else returns "".
+function normalizeDate(raw: string): string {
+  const s = raw.trim();
+  if (!s) return "";
+  const m = s.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})$/);
+  if (m) {
+    let [, d, mo, y] = m;
+    if (y.length === 2) y = "20" + y;
+    const dd = d.padStart(2, "0");
+    const mm = mo.padStart(2, "0");
+    // Guard against an already-YYYY-first value slipping through.
+    if (Number(mm) >= 1 && Number(mm) <= 12 && Number(dd) >= 1 && Number(dd) <= 31) {
+      return `${y}-${mm}-${dd}`;
+    }
+  }
+  const dt = new Date(s);
+  return isNaN(dt.getTime()) ? "" : dt.toISOString().slice(0, 10);
+}
+
 function mapRow(headers: string[], values: string[]) {
   const obj: Record<string, unknown> = {};
   headers.forEach((h, i) => {
@@ -95,11 +119,7 @@ function mapRow(headers: string[], values: string[]) {
     if (!key) return;
     let val: unknown = (values[i] ?? "").trim();
     if (NUMERIC.has(key)) val = Number(String(val).replace(/[₹,\s]/g, "")) || 0;
-    if (key === "booking_date" && val) {
-      // Try to normalise date; if it fails, keep as-is.
-      const d = new Date(val as string);
-      if (!isNaN(d.getTime())) val = d.toISOString().slice(0, 10);
-    }
+    if (key === "booking_date" && val) val = normalizeDate(val as string);
     obj[key] = val;
   });
   // Ensure required fields have defaults.
@@ -134,7 +154,18 @@ export function BulkUploadDialog({ open, onOpenChange }: { open: boolean; onOpen
       if (parsed.length < 2) { toast.error("CSV has no data rows."); return; }
       const hdrs = parsed[0];
       setHeaders(hdrs);
-      const mapped = parsed.slice(1).filter((r) => r.some((c) => c.trim())).map((r) => mapRow(hdrs, r));
+      const mapped = parsed
+        .slice(1)
+        .filter((r) => r.some((c) => c.trim()))
+        .map((r) => mapRow(hdrs, r))
+        // Only keep real booking rows: must have a Booking ID. This drops the
+        // sheet's month-header rows ("April 2026"), the trailing blank/GST-only
+        // filler rows, and any line without an EMO booking id.
+        .filter((o) => String(o.external_booking_id ?? "").trim() !== "");
+      if (mapped.length === 0) {
+        toast.error("No valid booking rows found (each row needs a Booking ID).");
+        return;
+      }
       setRows(mapped);
       setStep("preview");
     };
