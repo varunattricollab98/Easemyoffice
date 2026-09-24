@@ -141,6 +141,7 @@ lead_activities, follow_ups, tasks, profiles, user_roles, user_targets, sales_ta
 | `get-sheet-config` | Get sheet configuration (cached 5min) |
 | `notify-stale-followups` | Daily: emails salespeople about leads stuck in Follow-ups 4+ days |
 | `notify-expiring-renewals` | Daily: emails the renewals team about client plans expiring within 30 days (grouped by renewal owner; unassigned → `RENEWALS_ADMIN_EMAIL`) |
+| `notify-new-leads` | Every ~15 min: emails a rep the moment a lead is assigned to them; unassigned new leads go as one summary to `LEADS_ADMIN_EMAIL`. Stamps `leads.first_alert_sent_at` so nothing is alerted twice. |
 
 ---
 
@@ -155,6 +156,8 @@ lead_activities, follow_ups, tasks, profiles, user_roles, user_targets, sales_ta
 | `GMAIL_WEBHOOK_URL` | Apps Script `/exec` URL | Gmail inbox bridge |
 | `GMAIL_TOKEN` | your chosen word | Authenticates Gmail requests |
 | `RENEWALS_ADMIN_EMAIL` | an inbox address | (Optional) where `notify-expiring-renewals` sends the summary of expiring plans that have no renewal owner |
+| `LEADS_ADMIN_EMAIL` | an inbox address | (Optional) where `notify-new-leads` sends the summary of new unassigned leads |
+| `CRM_APP_URL` | e.g. `https://crm.easemyoffice.in` | (Optional) base URL so alert emails include deep links to the lead / inbox |
 
 ---
 
