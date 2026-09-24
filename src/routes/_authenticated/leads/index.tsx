@@ -769,47 +769,47 @@ function LeadRow({ l, selected, onToggle, nameOf, isDupe }: { l: LeadListRow; se
         params={{ id: l.id }}
         className="flex-1 grid grid-cols-12 gap-3 items-center px-3 py-3 hover:bg-accent/30 transition-all duration-200 ease-out"
       >
-        <div className="col-span-12 md:col-span-3 min-w-0">
-          <div className="flex items-center gap-2">
+        <div className="col-span-12 md:col-span-4 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
             <div className="font-medium truncate">{l.client_name}</div>
             {interestMeta && (
-              <Badge variant="secondary" className={`${interestMeta.className} rounded-full`}>
+              <Badge variant="secondary" className={`${interestMeta.className} rounded-full shrink-0`}>
                 {interestMeta.emoji} {interestMeta.label}
               </Badge>
             )}
             {isDupe && (
-              <Badge
-                variant="outline"
-                className="rounded-full border-amber-300 text-amber-700 dark:text-amber-300 gap-1 shrink-0"
-                title="This lead shares a name, phone, or email with another lead"
+              <span
+                className="inline-flex items-center justify-center h-5 w-5 rounded-full border border-amber-300 text-amber-600 dark:text-amber-300 shrink-0"
+                title="Possible duplicate — shares a name, phone, or email with another lead"
+                aria-label="Possible duplicate"
               >
-                <AlertTriangle className="h-3 w-3" /> Possible duplicate
-              </Badge>
+                <AlertTriangle className="h-3 w-3" />
+              </span>
             )}
           </div>
           <div className="text-xs text-muted-foreground truncate">
             {l.lead_code} · {l.company_name ?? "—"}
           </div>
         </div>
-        <div className="col-span-6 md:col-span-2 text-sm">
-          <div className="flex items-center gap-1 text-muted-foreground"><Phone className="h-3 w-3" />{l.mobile}</div>
-          {l.email && <div className="flex items-center gap-1 text-xs text-muted-foreground truncate"><Mail className="h-3 w-3" />{l.email}</div>}
+        <div className="col-span-6 md:col-span-3 text-sm min-w-0">
+          <div className="flex items-center gap-1 text-muted-foreground"><Phone className="h-3 w-3 shrink-0" /><span className="truncate">{l.mobile}</span></div>
+          {l.email && <div className="flex items-center gap-1 text-xs text-muted-foreground"><Mail className="h-3 w-3 shrink-0" /><span className="truncate">{l.email}</span></div>}
         </div>
-        <div className="col-span-6 md:col-span-2 text-xs text-muted-foreground truncate">
+        <div className="col-span-6 md:col-span-1 text-xs text-muted-foreground truncate">
           {labelFor(SERVICES, l.service_required)}
         </div>
-        <div className="col-span-4 md:col-span-2">
+        <div className="col-span-4 md:col-span-2 min-w-0">
           {stageMeta && (
             <span className="inline-flex items-center gap-1.5 text-xs">
-              <span className={`h-2 w-2 rounded-full ${stageMeta.color}`} />
-              {stageMeta.label}
+              <span className={`h-2 w-2 rounded-full shrink-0 ${stageMeta.color}`} />
+              <span className="truncate">{stageMeta.label}</span>
             </span>
           )}
         </div>
         <div className="col-span-4 md:col-span-1 text-xs text-muted-foreground truncate">
           {assigneeName || <span className="text-muted-foreground/50">—</span>}
         </div>
-        <div className="col-span-4 md:col-span-2 text-right text-[11px]">
+        <div className="col-span-4 md:col-span-1 text-right text-[11px]">
           {l.next_follow_up_at ? (
             <span className={overdue ? "text-destructive font-medium" : "text-muted-foreground/70"}>
               {overdue ? "Overdue " : ""}{formatDistanceToNow(new Date(l.next_follow_up_at), { addSuffix: true })}
