@@ -320,6 +320,13 @@ GST invoices are created in Zoho Books (org "Narula Technologies LLP", GSTIN 06A
 - Required Supabase Edge Function secrets (live only in Supabase, not in the repo): `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET`, `ZOHO_REFRESH_TOKEN`, `ZOHO_ORG_ID`, `ZOHO_API_DOMAIN` (`https://www.zohoapis.in`), `ZOHO_ACCOUNTS_DOMAIN` (`https://accounts.zoho.in`).
 - Migration `setup/ADD_ZOHO_INVOICE.sql`; setup guide `setup/ZOHO_INVOICE_SETUP.md`.
 
+## Duplicate-lead handling
+
+- **Add-time warning** — the New Lead dialog calls the `find_duplicate_lead(p_mobile, p_email, p_name)` SECURITY DEFINER RPC (`setup/ADD_DUPLICATE_LEAD_FEATURES.sql`) before inserting. It's company-wide (sees teammates' leads), matches on mobile (last-10-digit), email, or name, and shows an amber "Possible duplicate" panel with Open existing / Create anyway / Dismiss.
+- **List badge** — the Leads list shows a "Possible duplicate" badge on any row that shares name/phone/email (2-of-3) with another lead (the duplicate query now always runs, not only when the Duplicates filter is on).
+- **Merge preserves history** — the Duplicates panel's Merge uses the `merge_leads(p_keep_id, p_delete_ids)` RPC, which re-points the losing leads' `lead_activities` and `follow_ups` onto the kept lead before deleting them (so no timeline is lost to `ON DELETE CASCADE`). Per-lead permission matches the delete policy (own / unassigned / admin).
+- **Delete policy** — `leads_delete_own_or_admin` (`setup/ALLOW_ALL_USERS_DELETE_LEADS.sql`): a user can delete a lead that is theirs or unassigned; admins can delete any.
+
 ## Testing
 
 - **Unit tests (Vitest):** `bun run test` (or `bun run test:watch`). Config in `vitest.config.ts`; specs live next to source as `*.test.ts` (e.g. `src/lib/booking-math.test.ts`, `src/lib/payment-ack-email.test.ts`). CI runs these before the build.

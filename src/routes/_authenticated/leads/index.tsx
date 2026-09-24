@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { INTERESTS, SERVICES, SOURCES, STAGES, labelFor } from "@/lib/crm";
-import { Plus, Search, Phone, Mail, Upload, Download, Trash2, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CalendarIcon } from "lucide-react";
+import { Plus, Search, Phone, Mail, Upload, Download, Trash2, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CalendarIcon, AlertTriangle } from "lucide-react";
 import { NewLeadDialog } from "@/components/new-lead-dialog";
 import { useAuth } from "@/lib/auth";
 import { triggerStageReminder } from "@/lib/stage-reminders";
@@ -204,7 +204,8 @@ function LeadsListPage() {
   type DupeGroup = { matchKey: string; matchType: string; leads: DupeLead[] };
   const { data: dupeData, isLoading: dupesLoading } = useQuery({
     queryKey: ["leads-duplicates"],
-    enabled: showDupes,
+    // Always run (not just when the Duplicates filter is on) so the list can
+    // show a "possible duplicate" badge on affected rows. Cheap + 60s stale.
     staleTime: 60_000,
     gcTime: 5 * 60_000,
     queryFn: async () => {
@@ -280,21 +281,29 @@ function LeadsListPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Merge: keep the selected lead as original, transfer assignee, delete the rest
+  // Merge: keep the selected lead as original, transfer assignee, and merge the
+  // rest INTO it. The merge_leads RPC re-points the losing leads' activities +
+  // follow-ups onto the kept lead before deleting them, so no history is lost.
   const mergeLead = useMutation({
     mutationFn: async ({ keepId, deleteIds, assignFrom }: { keepId: string; deleteIds: string[]; assignFrom: string | null }) => {
       // 1) If the lead we're keeping has no assignee, copy from the one being deleted
       if (assignFrom) {
         await supabase.from("leads").update({ assigned_to: assignFrom }).eq("id", keepId);
       }
-      // 2) Delete all the other duplicates
-      for (const id of deleteIds) {
-        const { error } = await supabase.from("leads").delete().eq("id", id);
-        if (error) throw new Error(error.message);
-      }
+      // 2) Merge (re-point history) + delete the duplicates in one RPC call.
+      // merge_leads is a custom RPC not in the generated types yet; cast the
+      // client so TS allows the call (mirrors find_duplicate_lead usage).
+      const { error } = await (supabase.rpc as unknown as (
+        fn: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ error: { message: string } | null }>)("merge_leads", {
+        p_keep_id: keepId,
+        p_delete_ids: deleteIds,
+      });
+      if (error) throw new Error(error.message);
     },
     onSuccess: () => {
-      toast.success("Merged — duplicates removed, assignee transferred");
+      toast.success("Merged — duplicates removed, history & assignee kept");
       qc.invalidateQueries({ queryKey: ["leads"] });
       qc.invalidateQueries({ queryKey: ["leads-duplicates"] });
     },
@@ -692,7 +701,7 @@ function LeadsListPage() {
                 <span>Select all on this page</span>
               </div>
               {rows.map((l) => (
-                <LeadRow key={l.id} l={l} selected={selected.has(l.id)} onToggle={toggleOne} nameOf={nameById} />
+                <LeadRow key={l.id} l={l} selected={selected.has(l.id)} onToggle={toggleOne} nameOf={nameById} isDupe={dupeIds.has(l.id)} />
               ))}
             </div>
           )}
@@ -745,7 +754,7 @@ function LeadsListPage() {
   );
 }
 
-function LeadRow({ l, selected, onToggle, nameOf }: { l: LeadListRow; selected: boolean; onToggle: (id: string) => void; nameOf: Map<string, string> }) {
+function LeadRow({ l, selected, onToggle, nameOf, isDupe }: { l: LeadListRow; selected: boolean; onToggle: (id: string) => void; nameOf: Map<string, string>; isDupe?: boolean }) {
   const interestMeta = INTERESTS.find((i) => i.id === l.interest);
   const stageMeta = STAGES.find((s) => s.id === l.stage);
   const overdue = l.next_follow_up_at && new Date(l.next_follow_up_at) < new Date();
@@ -766,6 +775,15 @@ function LeadRow({ l, selected, onToggle, nameOf }: { l: LeadListRow; selected: 
             {interestMeta && (
               <Badge variant="secondary" className={`${interestMeta.className} rounded-full`}>
                 {interestMeta.emoji} {interestMeta.label}
+              </Badge>
+            )}
+            {isDupe && (
+              <Badge
+                variant="outline"
+                className="rounded-full border-amber-300 text-amber-700 dark:text-amber-300 gap-1 shrink-0"
+                title="This lead shares a name, phone, or email with another lead"
+              >
+                <AlertTriangle className="h-3 w-3" /> Possible duplicate
               </Badge>
             )}
           </div>
