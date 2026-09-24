@@ -599,12 +599,13 @@ function LeadsListPage() {
           >
             {dupesLoading ? "Checking…" : showDupes ? `Duplicates (${dupeIds.size})` : "Duplicates"}
           </Button>
+          {/* Column resizing is desktop-only, so hide the reset on mobile. */}
           <Button
             size="sm"
             variant="ghost"
             onClick={resetCols}
             title="Reset column widths to default"
-            className="transition-all duration-200 ease-out"
+            className="hidden md:inline-flex transition-all duration-200 ease-out"
           >
             Reset columns
           </Button>
@@ -765,7 +766,8 @@ function LeadsListPage() {
             <div className={isFetching ? "opacity-60 transition-opacity" : "transition-opacity"}>
               {/* Horizontal scroll wrapper — columns have fixed px widths that
                   can exceed the viewport once the user widens them. */}
-              <div className="overflow-x-auto scrollbar-modern">
+              {/* Desktop: resizable table (fixed px columns + horizontal scroll). */}
+              <div className="hidden md:block overflow-x-auto scrollbar-modern">
                 <div style={{ minWidth: "min-content" }}>
                   {/* Resizable column header. Drag the handle between two
                       headers to resize; widths persist per user. */}
@@ -798,6 +800,13 @@ function LeadsListPage() {
                     <LeadRow key={l.id} l={l} selected={selected.has(l.id)} onToggle={toggleOne} nameOf={nameById} isDupe={dupeIds.has(l.id)} onDupeClick={openDuplicatesFor} template={colTemplate} />
                   ))}
                 </div>
+              </div>
+
+              {/* Mobile: stacked cards (no horizontal scroll / no tiny columns). */}
+              <div className="md:hidden divide-y">
+                {rows.map((l) => (
+                  <LeadCard key={l.id} l={l} selected={selected.has(l.id)} onToggle={toggleOne} nameOf={nameById} isDupe={dupeIds.has(l.id)} onDupeClick={openDuplicatesFor} />
+                ))}
               </div>
             </div>
           )}
@@ -916,6 +925,72 @@ function LeadRow({ l, selected, onToggle, nameOf, isDupe, onDupeClick, template 
         ) : (
           <span className="text-amber-600">No follow-up</span>
         )}
+      </Link>
+    </div>
+  );
+}
+
+// Mobile card — same data as a row, stacked so nothing gets truncated on a
+// phone. The whole card is tappable (opens the lead); the checkbox + duplicate
+// icon stop propagation.
+function LeadCard({ l, selected, onToggle, nameOf, isDupe, onDupeClick }: { l: LeadListRow; selected: boolean; onToggle: (id: string) => void; nameOf: Map<string, string>; isDupe?: boolean; onDupeClick?: (id: string) => void }) {
+  const interestMeta = INTERESTS.find((i) => i.id === l.interest);
+  const stageMeta = STAGES.find((s) => s.id === l.stage);
+  const overdue = l.next_follow_up_at && new Date(l.next_follow_up_at) < new Date();
+  const assigneeName = l.assigned_to ? nameOf.get(l.assigned_to) ?? "" : "";
+  return (
+    <div className="flex items-start gap-3 px-4 py-3 hover:bg-accent/30 transition-colors">
+      <div className="pt-1 shrink-0" onClick={(e) => { e.stopPropagation(); }}>
+        <Checkbox checked={selected} onCheckedChange={() => onToggle(l.id)} aria-label="Select lead" />
+      </div>
+      <Link to="/leads/$id" params={{ id: l.id }} className="flex-1 min-w-0 space-y-1.5">
+        {/* Top: name + interest + dupe */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-medium">{l.client_name}</span>
+          {interestMeta && (
+            <Badge variant="secondary" className={`${interestMeta.className} rounded-full`}>
+              {interestMeta.emoji} {interestMeta.label}
+            </Badge>
+          )}
+          {isDupe && (
+            <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDupeClick?.(l.id); }}
+              className="inline-flex items-center justify-center h-5 w-5 rounded-full border border-amber-300 text-amber-600 dark:text-amber-300 shrink-0 hover:bg-amber-100 dark:hover:bg-amber-900/40"
+              title="Possible duplicate — tap to see all matching leads"
+              aria-label="Show duplicate leads"
+            >
+              <AlertTriangle className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+        <div className="text-xs text-muted-foreground">{l.lead_code} · {l.company_name ?? "—"}</div>
+        {/* Contact */}
+        <div className="text-sm text-muted-foreground space-y-0.5">
+          {l.mobile && <div className="flex items-center gap-1"><Phone className="h-3 w-3 shrink-0" />{l.mobile}</div>}
+          {l.email && <div className="flex items-center gap-1 text-xs"><Mail className="h-3 w-3 shrink-0" /><span className="truncate">{l.email}</span></div>}
+        </div>
+        {/* Meta row: stage · service · owner */}
+        <div className="flex items-center gap-2 flex-wrap text-xs">
+          {stageMeta && (
+            <span className="inline-flex items-center gap-1.5">
+              <span className={`h-2 w-2 rounded-full ${stageMeta.color}`} />
+              {stageMeta.label}
+            </span>
+          )}
+          <span className="text-muted-foreground">· {labelFor(SERVICES, l.service_required)}</span>
+          {assigneeName && <span className="text-muted-foreground">· {assigneeName}</span>}
+        </div>
+        {/* Follow-up */}
+        <div className="text-[11px]">
+          {l.next_follow_up_at ? (
+            <span className={overdue ? "text-destructive font-medium" : "text-muted-foreground/70"}>
+              {overdue ? "Overdue " : "Follow-up "}{formatDistanceToNow(new Date(l.next_follow_up_at), { addSuffix: true })}
+            </span>
+          ) : (
+            <span className="text-amber-600">No follow-up</span>
+          )}
+        </div>
       </Link>
     </div>
   );
