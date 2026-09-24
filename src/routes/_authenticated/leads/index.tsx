@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getErrorMessage } from "@/lib/utils";
@@ -112,6 +112,10 @@ function LeadsListPage() {
   const [bulkReasonStage, setBulkReasonStage] = useState<string | null>(null);
   const [bulkReason, setBulkReason] = useState("");
   const [showDupes, setShowDupes] = useState(false);
+  // When a lead's duplicate icon is clicked, open the Duplicates panel focused
+  // on that lead's group.
+  const [focusGroupKey, setFocusGroupKey] = useState<string | null>(null);
+  const focusGroupRef = useRef<HTMLDivElement | null>(null);
   const [customDate, setCustomDate] = useState("");
   // Custom date-range mode: inclusive from/to as YYYY-MM-DD strings (component state, mirrors customDate).
   const [customFrom, setCustomFrom] = useState("");
@@ -289,6 +293,31 @@ function LeadsListPage() {
   });
   const dupeIds = dupeData?.ids ?? new Set<string>();
   const dupeGroups = dupeData?.groups ?? [];
+
+  // leadId -> its duplicate group key, so clicking a row's duplicate icon can
+  // jump straight to that group in the Duplicates panel.
+  const groupKeyByLead = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const g of dupeGroups) for (const l of g.leads) m.set(l.id, g.matchKey);
+    return m;
+  }, [dupeGroups]);
+
+  // Open the Duplicates panel focused on a specific lead's group.
+  const openDuplicatesFor = useCallback(
+    (leadId: string) => {
+      const key = groupKeyByLead.get(leadId) ?? null;
+      setShowDupes(true);
+      setFocusGroupKey(key);
+    },
+    [groupKeyByLead],
+  );
+
+  // Scroll the focused duplicate group into view once the panel renders it.
+  useEffect(() => {
+    if (showDupes && focusGroupKey && focusGroupRef.current) {
+      focusGroupRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [showDupes, focusGroupKey, dupeGroups]);
 
   const deleteLead = useMutation({
     mutationFn: async (id: string) => {
@@ -593,15 +622,22 @@ function LeadsListPage() {
               </div>
             </div>
             <div className="space-y-3 max-h-[400px] overflow-y-auto">
-              {dupeGroups.map((g, gi) => {
+              {[...dupeGroups]
+                .sort((a, b) => (a.matchKey === focusGroupKey ? -1 : b.matchKey === focusGroupKey ? 1 : 0))
+                .map((g, gi) => {
                 // Reorder leads: if user has overridden the original, put that one first
                 const gKey = g.matchKey;
                 const overrideId = originalOverrides[gKey];
                 const orderedLeads: DupeLead[] = overrideId && g.leads.some((l) => l.id === overrideId)
                   ? [g.leads.find((l) => l.id === overrideId)!, ...g.leads.filter((l) => l.id !== overrideId)]
                   : [...g.leads];
+                const isFocused = gKey === focusGroupKey;
                 return (
-                <div key={`${gKey}-${overrideVersion}`} className="rounded-xl border bg-background p-3 hover:shadow-sm transition-all duration-200 ease-out">
+                <div
+                  key={`${gKey}-${overrideVersion}`}
+                  ref={isFocused ? focusGroupRef : undefined}
+                  className={`rounded-xl border bg-background p-3 hover:shadow-sm transition-all duration-200 ease-out ${isFocused ? "ring-2 ring-amber-400 border-amber-400" : ""}`}
+                >
                   <div className="text-xs text-muted-foreground mb-2">
                     Matched by <Badge variant="outline" className="text-[10px] ml-1 rounded-full">{g.matchType}</Badge>
                     <span className="ml-2">({g.leads.length} entries)</span>
@@ -759,7 +795,7 @@ function LeadsListPage() {
                     ))}
                   </div>
                   {rows.map((l) => (
-                    <LeadRow key={l.id} l={l} selected={selected.has(l.id)} onToggle={toggleOne} nameOf={nameById} isDupe={dupeIds.has(l.id)} template={colTemplate} />
+                    <LeadRow key={l.id} l={l} selected={selected.has(l.id)} onToggle={toggleOne} nameOf={nameById} isDupe={dupeIds.has(l.id)} onDupeClick={openDuplicatesFor} template={colTemplate} />
                   ))}
                 </div>
               </div>
@@ -814,7 +850,7 @@ function LeadsListPage() {
   );
 }
 
-function LeadRow({ l, selected, onToggle, nameOf, isDupe, template }: { l: LeadListRow; selected: boolean; onToggle: (id: string) => void; nameOf: Map<string, string>; isDupe?: boolean; template: string }) {
+function LeadRow({ l, selected, onToggle, nameOf, isDupe, onDupeClick, template }: { l: LeadListRow; selected: boolean; onToggle: (id: string) => void; nameOf: Map<string, string>; isDupe?: boolean; onDupeClick?: (id: string) => void; template: string }) {
   const interestMeta = INTERESTS.find((i) => i.id === l.interest);
   const stageMeta = STAGES.find((s) => s.id === l.stage);
   const overdue = l.next_follow_up_at && new Date(l.next_follow_up_at) < new Date();
@@ -834,13 +870,15 @@ function LeadRow({ l, selected, onToggle, nameOf, isDupe, template }: { l: LeadL
             </Badge>
           )}
           {isDupe && (
-            <span
-              className="inline-flex items-center justify-center h-5 w-5 rounded-full border border-amber-300 text-amber-600 dark:text-amber-300 shrink-0"
-              title="Possible duplicate — shares a name, phone, or email with another lead"
-              aria-label="Possible duplicate"
+            <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDupeClick?.(l.id); }}
+              className="inline-flex items-center justify-center h-5 w-5 rounded-full border border-amber-300 text-amber-600 dark:text-amber-300 shrink-0 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors cursor-pointer"
+              title="Possible duplicate — click to see all matching leads"
+              aria-label="Show duplicate leads"
             >
               <AlertTriangle className="h-3 w-3" />
-            </span>
+            </button>
           )}
         </div>
         <div className="text-xs text-muted-foreground truncate">
