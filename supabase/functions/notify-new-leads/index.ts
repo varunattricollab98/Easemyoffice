@@ -1,20 +1,23 @@
-// Instant new-lead alerts — cuts the "keep refreshing the CRM" dependency.
+// Instant new-lead alerts — IN-CRM notifications (no per-user email needed).
 //
 // Runs every ~15 minutes (pg_cron). For leads created recently that haven't
 // been alerted yet (first_alert_sent_at IS NULL):
-//   • ASSIGNED lead   -> emails the owning salesperson: "new lead, act now".
-//   • UNASSIGNED lead -> collected into one summary to LEADS_ADMIN_EMAIL so a
-//                        manager assigns it before it goes cold.
-// Every alerted lead is stamped with first_alert_sent_at so it's never
-// re-alerted. Speed-to-lead drives conversion, so pushing beats polling.
+//   • ASSIGNED lead   -> one in-CRM notification to the owning salesperson.
+//   • UNASSIGNED lead -> an in-CRM notification to EVERY user:
+//                        "New lead arrived — claim as yours".
+// These land in the app's notifications bell (no email dependency), so the
+// team is nudged the moment a lead comes in. Every alerted lead is stamped
+// with first_alert_sent_at so it's never re-alerted (prevents flooding).
+//
+// Email is OFF by default. It only sends per-rep emails when the edge secret
+// LEADS_ALERT_EMAIL_ENABLED = "true" AND profiles have correct emails.
 //
 // Required Edge Function secrets:
-//   RESEND_API_KEY     -> Resend API key
-//   CRM_FROM_EMAIL     -> sender address (e.g. "EaseMyOffice <crm@easemyoffice.in>")
-//   CRON_SECRET        -> shared secret for auth
-//   LEADS_ADMIN_EMAIL  -> (optional) where the unassigned-leads summary is sent
-//   CRM_APP_URL        -> (optional) base URL for deep links (e.g. https://crm.easemyoffice.in)
+//   CRON_SECRET  -> shared secret for auth
 //   (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are auto-injected)
+// Optional (email path, default off):
+//   LEADS_ALERT_EMAIL_ENABLED -> "true" to also email assigned reps
+//   RESEND_API_KEY, CRM_FROM_EMAIL, LEADS_ADMIN_EMAIL, CRM_APP_URL
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
@@ -24,17 +27,25 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
-const FROM_EMAIL = Deno.env.get("CRM_FROM_EMAIL") ?? "EaseMyOffice CRM <onboarding@resend.dev>";
 const CRON_SECRET = Deno.env.get("CRON_SECRET") ?? "";
-const LEADS_ADMIN_EMAIL = Deno.env.get("LEADS_ADMIN_EMAIL") ?? "";
-const APP_URL = (Deno.env.get("CRM_APP_URL") ?? "").replace(/\/$/, "");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
+// Email path is opt-in only (kept off so the CRM never bombards inboxes while
+// profiles lack correct individual emails).
+const EMAIL_ENABLED = (Deno.env.get("LEADS_ALERT_EMAIL_ENABLED") ?? "").toLowerCase() === "true";
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
+const FROM_EMAIL = Deno.env.get("CRM_FROM_EMAIL") ?? "EaseMyOffice CRM <onboarding@resend.dev>";
+const LEADS_ADMIN_EMAIL = Deno.env.get("LEADS_ADMIN_EMAIL") ?? "";
+const APP_URL = (Deno.env.get("CRM_APP_URL") ?? "").replace(/\/$/, "");
 
 // Only alert leads created within this many hours (avoids blasting a backlog of
 // old NULL-first_alert_sent_at leads the first time this runs).
 const LOOKBACK_HOURS = 24;
+
+// Hard cap on how many leads one run will process, as a flood safety-net even
+// if something upstream misbehaves.
+const MAX_PER_RUN = 40;
 
 function json(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
@@ -61,71 +72,9 @@ interface LeadRow {
   created_at: string;
 }
 
-function contactLine(l: LeadRow): string {
-  const bits = [l.mobile, l.email].filter(Boolean).map(esc);
-  return bits.length ? bits.join(" · ") : "—";
-}
-
-function assignedEmailHtml(firstName: string, l: LeadRow): string {
-  const deepLink = APP_URL ? `${APP_URL}/leads/${l.id}` : "";
-  return `
-    <div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto">
-      <div style="background:#1e40af;padding:20px 24px;border-radius:8px 8px 0 0">
-        <h2 style="margin:0;color:#fff;font-size:18px">🌟 New Lead Assigned to You</h2>
-      </div>
-      <div style="padding:24px;background:#fff;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px">
-        <p style="margin:0 0 16px;font-size:15px;color:#334155">
-          ${esc(firstName)}, a new lead just landed in your queue. Leads contacted within minutes convert far better — reach out now.
-        </p>
-        <table style="width:100%;border-collapse:collapse;font-size:14px;border:1px solid #e2e8f0;border-radius:6px">
-          <tr><td style="padding:8px 12px;color:#64748b;border-bottom:1px solid #eef2f7">Name</td><td style="padding:8px 12px;font-weight:600;border-bottom:1px solid #eef2f7">${esc(l.client_name || "—")}</td></tr>
-          <tr><td style="padding:8px 12px;color:#64748b;border-bottom:1px solid #eef2f7">Company</td><td style="padding:8px 12px;border-bottom:1px solid #eef2f7">${esc(l.company_name || "—")}</td></tr>
-          <tr><td style="padding:8px 12px;color:#64748b;border-bottom:1px solid #eef2f7">Contact</td><td style="padding:8px 12px;border-bottom:1px solid #eef2f7">${contactLine(l)}</td></tr>
-          <tr><td style="padding:8px 12px;color:#64748b">Source</td><td style="padding:8px 12px">${esc(l.source || "—")}</td></tr>
-        </table>
-        ${deepLink ? `<p style="margin:20px 0 0"><a href="${deepLink}" style="background:#1e40af;color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:10px 18px;border-radius:6px;display:inline-block">Open lead →</a></p>` : ""}
-        <p style="margin:16px 0 0;font-size:12px;color:#94a3b8">Automated alert from EaseMyOffice CRM.</p>
-      </div>
-    </div>
-  `;
-}
-
-function unassignedEmailHtml(rows: LeadRow[]): string {
-  const count = rows.length;
-  const tableRows = rows
-    .map(
-      (l) => `<tr>
-        <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0">${esc(l.client_name || "—")}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0">${esc(l.company_name || "—")}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0">${contactLine(l)}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0">${esc(l.source || "—")}</td>
-      </tr>`,
-    )
-    .join("");
-  const deepLink = APP_URL ? `${APP_URL}/inbox` : "";
-  return `
-    <div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;margin:0 auto">
-      <div style="background:#b45309;padding:20px 24px;border-radius:8px 8px 0 0">
-        <h2 style="margin:0;color:#fff;font-size:18px">📥 ${count} Unassigned Lead${count > 1 ? "s" : ""} Waiting</h2>
-      </div>
-      <div style="padding:24px;background:#fff;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px">
-        <p style="margin:0 0 16px;font-size:15px;color:#334155">
-          ${count} new lead${count > 1 ? "s have" : " has"} come in without an owner. Assign ${count > 1 ? "them" : "it"} to a rep so ${count > 1 ? "they don't" : "it doesn't"} go cold.
-        </p>
-        <table style="width:100%;border-collapse:collapse;font-size:13px;border:1px solid #e2e8f0;border-radius:6px">
-          <thead><tr style="background:#f8fafc">
-            <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e2e8f0">Name</th>
-            <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e2e8f0">Company</th>
-            <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e2e8f0">Contact</th>
-            <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e2e8f0">Source</th>
-          </tr></thead>
-          <tbody>${tableRows}</tbody>
-        </table>
-        ${deepLink ? `<p style="margin:20px 0 0"><a href="${deepLink}" style="background:#b45309;color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:10px 18px;border-radius:6px;display:inline-block">Open Lead Inbox →</a></p>` : ""}
-        <p style="margin:16px 0 0;font-size:12px;color:#94a3b8">Automated alert from EaseMyOffice CRM.</p>
-      </div>
-    </div>
-  `;
+function contactBits(l: LeadRow): string {
+  const bits = [l.client_name, l.company_name].filter(Boolean).join(" · ");
+  return bits || l.mobile || "New enquiry";
 }
 
 async function sendEmail(to: string, subject: string, html: string): Promise<string | null> {
@@ -153,7 +102,6 @@ Deno.serve(async (req) => {
     if (!CRON_SECRET || (bodySecret !== CRON_SECRET && headerSecret !== CRON_SECRET)) {
       return json({ ok: false, error: "unauthorized" }, 401);
     }
-    if (!RESEND_API_KEY) return json({ ok: false, error: "RESEND_API_KEY not set" }, 200);
 
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 
@@ -164,7 +112,8 @@ Deno.serve(async (req) => {
       .select("id, lead_code, client_name, company_name, mobile, email, source, assigned_to, created_at")
       .is("first_alert_sent_at", null)
       .gte("created_at", since)
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: true })
+      .limit(MAX_PER_RUN);
 
     if (error) throw new Error(error.message);
     if (!leads || leads.length === 0) {
@@ -172,68 +121,102 @@ Deno.serve(async (req) => {
     }
 
     const rows = leads as LeadRow[];
+    const notes: string[] = [];
 
-    // Profiles for name + email lookup (assigned alerts).
-    const { data: profiles } = await supabase.from("profiles").select("id, full_name, email");
-    const profileMap = new Map(
-      (profiles ?? []).map((p: { id: string; full_name: string | null; email: string | null }) => [p.id, p]),
-    );
+    // Build in-CRM notification rows.
+    const notifRows: Array<{
+      user_id: string;
+      type: string;
+      title: string;
+      body: string;
+      lead_id: string | null;
+    }> = [];
 
-    const errors: string[] = [];
-    let alerted = 0;
-    const stampedIds: string[] = [];
-
-    // 1) Assigned leads -> notify each owner individually.
+    // 1) Assigned leads -> one notification to the owner.
     const assigned = rows.filter((l) => l.assigned_to);
     for (const lead of assigned) {
-      const profile = profileMap.get(lead.assigned_to as string);
-      // Even if we can't email (no profile/email), stamp it so we don't retry forever.
-      stampedIds.push(lead.id);
-      if (!profile?.email) continue;
-      const firstName = (profile.full_name ?? "").split(" ")[0] || "Hi";
-      const err = await sendEmail(
-        profile.email,
-        `🌟 New lead assigned: ${lead.client_name || "New enquiry"}`,
-        assignedEmailHtml(firstName, lead),
-      );
-      if (err) errors.push(err);
-      else alerted++;
+      notifRows.push({
+        user_id: lead.assigned_to as string,
+        type: "new_lead_assigned",
+        title: "New lead assigned to you",
+        body: `${contactBits(lead)} — reach out soon.`,
+        lead_id: lead.id,
+      });
     }
 
-    // 2) Unassigned leads -> one summary to the leads admin (if configured).
+    // 2) Unassigned leads -> notify EVERY user to claim.
     const unassigned = rows.filter((l) => !l.assigned_to);
     if (unassigned.length > 0) {
-      if (LEADS_ADMIN_EMAIL) {
-        const err = await sendEmail(
-          LEADS_ADMIN_EMAIL,
-          `📥 ${unassigned.length} unassigned lead${unassigned.length > 1 ? "s" : ""} waiting`,
-          unassignedEmailHtml(unassigned),
-        );
-        if (err) errors.push(err);
-        else alerted++;
-        // Stamp regardless of send outcome so the summary isn't repeated every run.
-        for (const l of unassigned) stampedIds.push(l.id);
+      const { data: everyone } = await supabase.from("profiles").select("id");
+      const userIds = (everyone ?? []).map((p) => (p as { id: string }).id);
+      for (const lead of unassigned) {
+        for (const uid of userIds) {
+          notifRows.push({
+            user_id: uid,
+            type: "new_lead_unclaimed",
+            title: "New lead arrived — claim as yours",
+            body: `${contactBits(lead)} is unassigned. Open the Lead Inbox to claim it.`,
+            lead_id: lead.id,
+          });
+        }
       }
-      // If no admin email is set, DO NOT stamp — leave them so they're picked up
-      // once LEADS_ADMIN_EMAIL is configured.
     }
 
-    // Mark everything we've handled so it's never alerted again.
-    if (stampedIds.length > 0) {
-      const { error: upErr } = await supabase
-        .from("leads")
-        .update({ first_alert_sent_at: new Date().toISOString() })
-        .in("id", stampedIds);
-      if (upErr) errors.push(`stamp: ${upErr.message}`);
+    if (notifRows.length > 0) {
+      const { error: nErr } = await supabase.from("notifications").insert(notifRows);
+      if (nErr) throw new Error(`notifications insert: ${nErr.message}`);
     }
+    notes.push(`in-CRM notifications: ${notifRows.length}`);
+
+    // 3) OPTIONAL email path (off unless LEADS_ALERT_EMAIL_ENABLED = "true").
+    let emailsSent = 0;
+    const emailErrors: string[] = [];
+    if (EMAIL_ENABLED && RESEND_API_KEY) {
+      const { data: profiles } = await supabase.from("profiles").select("id, full_name, email");
+      const pMap = new Map(
+        (profiles ?? []).map((p: { id: string; full_name: string | null; email: string | null }) => [p.id, p]),
+      );
+      for (const lead of assigned) {
+        const prof = pMap.get(lead.assigned_to as string);
+        if (!prof?.email) continue;
+        const first = (prof.full_name ?? "").split(" ")[0] || "Hi";
+        const link = APP_URL ? `${APP_URL}/leads/${lead.id}` : "";
+        const html = `<div style="font-family:Arial,sans-serif;font-size:15px;color:#334155">
+          <p>${esc(first)}, a new lead was assigned to you:</p>
+          <p><strong>${esc(contactBits(lead))}</strong>${lead.mobile ? " · " + esc(lead.mobile) : ""}</p>
+          ${link ? `<p><a href="${link}">Open lead →</a></p>` : ""}
+        </div>`;
+        const err = await sendEmail(prof.email, `New lead: ${lead.client_name || "enquiry"}`, html);
+        if (err) emailErrors.push(err);
+        else emailsSent++;
+      }
+      if (unassigned.length > 0 && LEADS_ADMIN_EMAIL) {
+        const html = `<div style="font-family:Arial,sans-serif;font-size:15px;color:#334155">
+          <p>${unassigned.length} new unassigned lead(s) waiting to be claimed.</p>
+        </div>`;
+        const err = await sendEmail(LEADS_ADMIN_EMAIL, `${unassigned.length} unassigned lead(s)`, html);
+        if (err) emailErrors.push(err);
+        else emailsSent++;
+      }
+    }
+
+    // Stamp every handled lead so it's never alerted again.
+    const stampedIds = rows.map((l) => l.id);
+    const { error: upErr } = await supabase
+      .from("leads")
+      .update({ first_alert_sent_at: new Date().toISOString() })
+      .in("id", stampedIds);
+    if (upErr) notes.push(`stamp error: ${upErr.message}`);
 
     return json({
       ok: true,
       newLeads: rows.length,
       assigned: assigned.length,
       unassigned: unassigned.length,
-      emailsSent: alerted,
-      errors: errors.length > 0 ? errors : undefined,
+      notificationsCreated: notifRows.length,
+      emailsSent,
+      emailErrors: emailErrors.length ? emailErrors : undefined,
+      notes,
     });
   } catch (e) {
     return json({ ok: false, error: (e as Error).message }, 200);
