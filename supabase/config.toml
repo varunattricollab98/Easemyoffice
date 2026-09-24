@@ -18,3 +18,8 @@ verify_jwt = false
 # JWT, so JWT verification must be off (same as the other cron functions).
 [functions.notify-expiring-renewals]
 verify_jwt = false
+
+# Instant new-lead alerts, every ~15 min (see setup/ADD_NEW_LEAD_ALERT_CRON.sql).
+# Invoked by pg_cron with the anon key + CRON_SECRET in the body, not a user JWT.
+[functions.notify-new-leads]
+verify_jwt = false
