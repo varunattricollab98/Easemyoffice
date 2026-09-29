@@ -42,11 +42,19 @@ const NAV: NavItem[] = [
   { to: "/payments", label: "Payments", icon: Receipt, roles: ["admin", "accounts", "sales"] },
   { to: "/activity", label: "Activity", icon: Activity, roles: ["admin", "sales", "bd"] },
   { to: "/reports", label: "Reports", icon: BarChart3, roles: ["admin"] },
+  // Rep-facing now, not an admin tool: the page scopes itself so a sales user
+  // sees their own closures, activity and productivity index. Moved out of
+  // ADMIN_NAV so it sits with the day-to-day items rather than after Settings.
+  {
+    to: "/admin/sales-performance",
+    label: "Sales Performance",
+    icon: Trophy,
+    roles: ["admin", "sales", "bd"],
+  },
 ];
 
 const ADMIN_NAV: NavItem[] = [
   { to: "/admin/analytics", label: "Analytics", icon: TrendingUp, roles: ["admin"] },
-  { to: "/admin/sales-performance", label: "Sales Performance", icon: Trophy, roles: ["admin"] },
   { to: "/admin/email-automation", label: "Email Automation", icon: Mail, roles: ["admin"] },
   { to: "/admin/activity-log", label: "Activity Log", icon: ScrollText, roles: ["admin"] },
   { to: "/team", label: "Team", icon: UsersRound, roles: ["admin"] },
