@@ -23,12 +23,6 @@ const NewBookingDialog = lazy(() =>
     default: m.NewBookingDialog,
   })),
 );
-// Lazy-load the full Pipeline board so it can live at the bottom of the
-// dashboard without adding to the initial dashboard bundle (it pulls in dnd-kit
-// + virtualizer). Reuses the exact same board as the /pipeline route.
-const PipelineBoard = lazy(() =>
-  import("@/routes/_authenticated/pipeline").then((m) => ({ default: m.PipelinePage })),
-);
 import { getSheetPlans, getNextBookingIdFromSheet } from "@/lib/bookings-sheet";
 import { LivePulsePill } from "@/components/dashboard/live-pulse-pill";
 import { AddWidgetPanel } from "@/components/dashboard/add-widget-panel";
@@ -354,19 +348,9 @@ function DashboardPage() {
         </Suspense>
         </div>
 
-        {/* Pipeline board — right on the dashboard so the whole day's work stays
-            focused in one place (same board as the /pipeline route). */}
-        <div className="lift-in pt-2" style={{ "--i": 5 } as React.CSSProperties}>
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-lg font-semibold tracking-tight">Pipeline</h2>
-            <Button asChild variant="ghost" size="sm">
-              <Link to="/pipeline">Open full page →</Link>
-            </Button>
-          </div>
-          <Suspense fallback={<div className="h-96 rounded-xl bg-muted/40 animate-pulse" />}>
-            <PipelineBoard embedded />
-          </Suspense>
-        </div>
+        {/* The Pipeline board used to be embedded here. Removed: it duplicates
+            the dedicated /pipeline route in the sidebar, and it pushed the
+            dashboard's own content far above a very tall board. */}
 
         {/* Footer hint */}
         <p className="text-center text-[11px] text-muted-foreground/70 pt-2">
