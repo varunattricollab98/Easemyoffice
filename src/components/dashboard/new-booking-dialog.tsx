@@ -120,6 +120,10 @@ const initialForm = {
   payment_type: "full" as "full" | "partial",
   amount_received: "",
   balance_due_date: "",
+  // Set only by "Convert to Booking", which seeds it from the lead. Not a
+  // visible field — there is no UI for picking a lead here, and a booking made
+  // directly on the Bookings page has no lead behind it.
+  lead_id: "",
 };
 
 // The full shape of a single booking's form state. Derived from `initialForm`
@@ -620,6 +624,9 @@ export function NewBookingDialog({
       payment_type: "full",
       amount_received: "",
       balance_due_date: "",
+      // Cleared so a follow-up booking in the same dialog isn't attributed to
+      // the lead the previous one came from.
+      lead_id: "",
     }));
   };
 
@@ -701,6 +708,9 @@ export function NewBookingDialog({
         balance_due_date: d.isPartial && form.balance_due_date ? form.balance_due_date : null,
         assigned_to: user?.id ?? null,
         created_by: user?.id ?? null,
+        // Only included when this booking came from a lead conversion, so the
+        // payload for an ordinary booking is byte-for-byte what it was before.
+        ...(form.lead_id ? { lead_id: form.lead_id } : {}),
       })
       .select("id")
       .single();
