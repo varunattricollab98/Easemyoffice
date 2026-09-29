@@ -10,6 +10,7 @@ import { Search, FileText, Download, FilePlus2, Send, Loader2, CheckCircle2 } fr
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { BookingDetailDialog } from "@/components/bookings/booking-detail-dialog";
 
 export const Route = createFileRoute("/_authenticated/invoices")({
   head: () => ({ meta: [{ title: "Invoices — EaseMyOffice CRM" }] }),
@@ -17,7 +18,11 @@ export const Route = createFileRoute("/_authenticated/invoices")({
 });
 
 function formatINR(n: number) {
-  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(n);
 }
 
 // Bookings created BEFORE this date already had their invoices made manually in
@@ -32,21 +37,35 @@ function InvoicesPage() {
   // Per-booking in-flight action ("create" | "send" | "pdf") so only the
   // clicked row's button spins.
   const [busy, setBusy] = useState<Record<string, string | undefined>>({});
+  // Booking opened in the detail dialog, or null when closed. Rows come from
+  // `select("*")`, so they are keyed records rather than a narrow row type.
+  const [detailBooking, setDetailBooking] = useState<Record<string, unknown> | null>(null);
 
   const { data: bookings = [] } = useQuery({
     queryKey: ["invoices-bookings"],
     queryFn: async () => {
-      const { data } = await supabase.from("bookings").select("*").order("created_at", { ascending: false }).limit(500);
+      const { data } = await supabase
+        .from("bookings")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(500);
       return data ?? [];
     },
   });
 
   const filtered = useMemo(() => {
     const t = search.trim().toLowerCase();
-    return bookings.filter((b: any) =>
-      !t || [b.client_name, b.business_name, b.invoice_number, b.zoho_invoice_number, b.booking_code, b.external_booking_id].some((v: string) =>
-        (v ?? "").toLowerCase().includes(t),
-      ),
+    return bookings.filter(
+      (b: any) =>
+        !t ||
+        [
+          b.client_name,
+          b.business_name,
+          b.invoice_number,
+          b.zoho_invoice_number,
+          b.booking_code,
+          b.external_booking_id,
+        ].some((v: string) => (v ?? "").toLowerCase().includes(t)),
     );
   }, [bookings, search]);
 
@@ -118,77 +137,143 @@ function InvoicesPage() {
     }
   };
 
-  const totalRevenue = useMemo(() =>
-    filtered.reduce((s: number, b: any) => s + Number(b.total_amount || 0), 0), [filtered]);
+  const totalRevenue = useMemo(
+    () => filtered.reduce((s: number, b: any) => s + Number(b.total_amount || 0), 0),
+    [filtered],
+  );
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">Invoices</h1>
-          <p className="text-sm text-muted-foreground">{filtered.length} invoices · Total {formatINR(totalRevenue)}</p>
+          <p className="text-sm text-muted-foreground">
+            {filtered.length} invoices · Total {formatINR(totalRevenue)}
+          </p>
         </div>
       </div>
 
       <div className="relative max-w-md">
         <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <Input className="pl-9" placeholder="Search invoices…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <Input
+          className="pl-9"
+          placeholder="Search invoices…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
       </div>
 
       <Card>
         <CardContent className="p-0 divide-y">
           {filtered.length === 0 ? (
-            <div className="p-10 text-center text-muted-foreground">No invoices yet. Create a booking to generate one.</div>
-          ) : filtered.map((b: any) => {
-            const hasInvoice = !!b.zoho_invoice_id;
-            const rowBusy = busy[b.id];
-            const sent = !!b.zoho_invoice_sent_at;
-            // Old bookings (before the cutoff) were invoiced manually in Zoho —
-            // never offer to create a duplicate for them. Only show "Create
-            // Invoice" for a post-cutoff booking that has no invoice yet.
-            const createdAt = b.created_at ? new Date(b.created_at) : null;
-            const eligibleForCreate = !!createdAt && createdAt >= ZOHO_INVOICE_CUTOFF;
-            return (
-              <div key={b.id} className="p-4 flex flex-wrap items-center gap-3 hover:bg-muted/30">
-                <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm">
-                    {b.zoho_invoice_number || b.invoice_number || b.external_booking_id || b.booking_code}
-                    <span className="text-muted-foreground font-normal"> · {b.client_name}</span>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {b.plan_name} · {format(new Date(b.created_at), "MMM d, yyyy")}
-                    {sent && <span className="text-emerald-600"> · Sent ✓</span>}
-                  </div>
-                </div>
-                <Badge variant="secondary">{formatINR(Number(b.total_amount || 0))}</Badge>
+            <div className="p-10 text-center text-muted-foreground">
+              No invoices yet. Create a booking to generate one.
+            </div>
+          ) : (
+            filtered.map((b: any) => {
+              const hasInvoice = !!b.zoho_invoice_id;
+              const rowBusy = busy[b.id];
+              const sent = !!b.zoho_invoice_sent_at;
+              // Old bookings (before the cutoff) were invoiced manually in Zoho —
+              // never offer to create a duplicate for them. Only show "Create
+              // Invoice" for a post-cutoff booking that has no invoice yet.
+              const createdAt = b.created_at ? new Date(b.created_at) : null;
+              const eligibleForCreate = !!createdAt && createdAt >= ZOHO_INVOICE_CUTOFF;
+              return (
+                <div key={b.id} className="p-4 flex flex-wrap items-center gap-3 hover:bg-muted/30">
+                  <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
+                  {/* The id/client block opens the full booking so everything the
+                  invoice needs — GSTIN, billing address, amounts, client details
+                  — can be checked and corrected BEFORE creating it in Zoho.
+                  A button, not the whole row, so the action buttons on the right
+                  are not swallowed by a row-level click target. */}
+                  <button
+                    type="button"
+                    className="flex-1 min-w-0 text-left rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    onClick={() => setDetailBooking(b)}
+                    title="Open booking details"
+                  >
+                    <div className="font-medium text-sm group-hover:underline">
+                      <span className="underline decoration-dotted decoration-muted-foreground/50 underline-offset-2">
+                        {b.zoho_invoice_number ||
+                          b.invoice_number ||
+                          b.external_booking_id ||
+                          b.booking_code}
+                      </span>
+                      <span className="text-muted-foreground font-normal"> · {b.client_name}</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {b.plan_name} · {format(new Date(b.created_at), "MMM d, yyyy")}
+                      {sent && <span className="text-emerald-600"> · Sent ✓</span>}
+                    </div>
+                  </button>
+                  <Badge variant="secondary">{formatINR(Number(b.total_amount || 0))}</Badge>
 
-                {hasInvoice ? (
-                  <>
-                    <Button size="sm" variant={sent ? "outline" : "default"} onClick={() => sendInvoice(b)} disabled={rowBusy === "send"}>
-                      {rowBusy === "send" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : sent ? <CheckCircle2 className="h-3 w-3 mr-1" /> : <Send className="h-3 w-3 mr-1" />}
-                      {sent ? "Resend" : "Send to Client"}
+                  {hasInvoice ? (
+                    <>
+                      <Button
+                        size="sm"
+                        variant={sent ? "outline" : "default"}
+                        onClick={() => sendInvoice(b)}
+                        disabled={rowBusy === "send"}
+                      >
+                        {rowBusy === "send" ? (
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        ) : sent ? (
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                        ) : (
+                          <Send className="h-3 w-3 mr-1" />
+                        )}
+                        {sent ? "Resend" : "Send to Client"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => downloadPdf(b)}
+                        disabled={rowBusy === "pdf"}
+                      >
+                        {rowBusy === "pdf" ? (
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        ) : (
+                          <Download className="h-3 w-3 mr-1" />
+                        )}
+                        PDF
+                      </Button>
+                    </>
+                  ) : eligibleForCreate ? (
+                    <Button
+                      size="sm"
+                      onClick={() => createInvoice(b)}
+                      disabled={rowBusy === "create"}
+                    >
+                      {rowBusy === "create" ? (
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      ) : (
+                        <FilePlus2 className="h-3 w-3 mr-1" />
+                      )}
+                      Create Invoice
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => downloadPdf(b)} disabled={rowBusy === "pdf"}>
-                      {rowBusy === "pdf" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Download className="h-3 w-3 mr-1" />}
-                      PDF
-                    </Button>
-                  </>
-                ) : eligibleForCreate ? (
-                  <Button size="sm" onClick={() => createInvoice(b)} disabled={rowBusy === "create"}>
-                    {rowBusy === "create" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <FilePlus2 className="h-3 w-3 mr-1" />}
-                    Create Invoice
-                  </Button>
-                ) : (
-                  // Pre-cutoff booking with no Zoho invoice: invoice was made
-                  // manually, so show a static label instead of a Create button.
-                  <span className="text-xs text-muted-foreground italic">Invoiced manually</span>
-                )}
-              </div>
-            );
-          })}
+                  ) : (
+                    // Pre-cutoff booking with no Zoho invoice: invoice was made
+                    // manually, so show a static label instead of a Create button.
+                    <span className="text-xs text-muted-foreground italic">Invoiced manually</span>
+                  )}
+                </div>
+              );
+            })
+          )}
         </CardContent>
       </Card>
+
+      {/* Same dialog the Bookings page uses, so invoice prep and booking edits
+        cannot drift apart. It refreshes this page's query on save. */}
+      <BookingDetailDialog
+        booking={detailBooking}
+        open={!!detailBooking}
+        onOpenChange={(v) => {
+          if (!v) setDetailBooking(null);
+        }}
+      />
     </div>
   );
 }
