@@ -9,9 +9,17 @@ import {
   Bell, Clock, AlertCircle, IndianRupee, Check, MessageSquare, Mail,
   User, AlarmClock, ListTodo, Target, Sparkles,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { formatDistanceToNow, isPast } from "date-fns";
 import { toast } from "sonner";
+import {
+  notifyState,
+  notifyEnabled,
+  setNotifyEnabled,
+  requestBrowserNotifications,
+  showBrowserNotification,
+  type NotifyState,
+} from "@/lib/browser-notify";
 
 export const Route = createFileRoute("/_authenticated/notifications")({
   head: () => ({ meta: [{ title: "Notifications — EaseMyOffice CRM" }] }),
@@ -313,6 +321,8 @@ function NotificationsPage() {
         )}
       </div>
 
+      <DesktopAlertsCard />
+
       {/* Filter Pills */}
       <div className="flex gap-2 flex-wrap">
         {(["all", "assigned", "overdue", "due", "payments", "read"] as const).map((f) => {
@@ -457,5 +467,79 @@ function NotificationsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Desktop-alert opt-in.
+ *
+ * The permission prompt has to come from a click — browsers ignore (or silently
+ * deny) a request fired on page load — so this is a visible control rather than
+ * something the app does on its own.
+ */
+function DesktopAlertsCard() {
+  // Read on mount, not during render: Notification.permission does not exist on
+  // the server and this page is server-rendered.
+  const [state, setState] = useState<NotifyState>("unsupported");
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    setState(notifyState());
+    setOn(notifyEnabled());
+  }, []);
+
+  if (state === "unsupported") return null;
+
+  const enable = async () => {
+    const result = await requestBrowserNotifications();
+    setState(result);
+    setOn(notifyEnabled());
+    if (result === "granted") {
+      // Fired with force so the confirmation shows even though the user is
+      // looking at this tab — otherwise clicking "Enable" appears to do nothing.
+      showBrowserNotification({
+        title: "🔔 Desktop alerts are on",
+        body: "You'll be notified about pending tasks, follow-ups and new leads.",
+        force: true,
+      });
+    } else if (result === "denied") {
+      toast.error(
+        "Your browser blocked notifications. Allow them in site settings to turn this on.",
+      );
+    }
+  };
+
+  const turnOff = () => {
+    setNotifyEnabled(false);
+    setOn(false);
+    toast.success("Desktop alerts turned off");
+  };
+
+  return (
+    <Card className="border-border/60 bg-gradient-to-br from-primary/[0.04] to-transparent">
+      <CardContent className="flex flex-wrap items-center gap-3 p-4">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
+          <Bell className="h-4 w-4 text-primary" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-medium">Desktop alerts</div>
+          <div className="text-xs text-muted-foreground">
+            {state === "denied"
+              ? "Blocked by your browser. Allow notifications for this site in the address-bar settings, then reload."
+              : on
+                ? "On — pending tasks, follow-ups and new leads pop up even when the CRM is in another tab."
+                : "Get a popup outside the browser when a task is pending or a lead is assigned."}
+          </div>
+        </div>
+        {state === "granted" && on ? (
+          <Button size="sm" variant="outline" className="rounded-full" onClick={turnOff}>
+            Turn off
+          </Button>
+        ) : state === "denied" ? null : (
+          <Button size="sm" className="rounded-full" onClick={enable}>
+            Enable alerts
+          </Button>
+        )}
+      </CardContent>
+    </Card>
   );
 }

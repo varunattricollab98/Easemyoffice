@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
+import { showBrowserNotification } from "@/lib/browser-notify";
 
 // Repeating reminder cadence per task priority (minutes).
 const REMINDER_MINUTES: Record<string, number> = {
@@ -41,12 +42,27 @@ export function NotificationsWatcher() {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
         (payload) => {
-          const n = payload.new as { title?: string; body?: string; type?: string };
+          const n = payload.new as {
+            title?: string;
+            body?: string;
+            type?: string;
+            id?: string;
+            lead_id?: string | null;
+          };
           const emoji = TYPE_EMOJI[n.type || "general"] || "\ud83d\udd14";
           toast(`${emoji} ${n.title ?? "New notification"}`, {
             description: n.body ?? undefined,
             duration: 6000,
             position: "top-right",
+          });
+          // Same event as an OS notification, for when the CRM is in a background
+          // tab. showBrowserNotification suppresses itself while the tab is
+          // visible, so this never doubles up with the toast above.
+          showBrowserNotification({
+            title: `${emoji} ${n.title ?? "New notification"}`,
+            body: n.body ?? undefined,
+            tag: n.id ? `notif-${n.id}` : undefined,
+            url: n.lead_id ? `/leads/${n.lead_id}` : "/notifications",
           });
           lastNotifTs.current = Date.now();
           qc.invalidateQueries({ queryKey: ["notif-unread-count"] });
@@ -68,10 +84,15 @@ export function NotificationsWatcher() {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "follow_ups", filter: `owner_id=eq.${user.id}` },
         (payload) => {
-          const f = payload.new as { action?: string };
+          const f = payload.new as { action?: string; id?: string; lead_id?: string | null };
           toast(`\u23f0 New follow-up: ${f.action ?? "Follow up"}`, {
             duration: 5000,
             position: "top-right",
+          });
+          showBrowserNotification({
+            title: `\u23f0 New follow-up: ${f.action ?? "Follow up"}`,
+            tag: f.id ? `followup-${f.id}` : undefined,
+            url: f.lead_id ? `/leads/${f.lead_id}` : "/follow-ups",
           });
           qc.invalidateQueries({ queryKey: ["notif-followups"] });
         },
@@ -100,12 +121,22 @@ export function NotificationsWatcher() {
         const last = t.last_reminded_at ? new Date(t.last_reminded_at).getTime() : 0;
         if (now - last >= intervalMs) {
           const emoji = t.priority === "high" || t.priority === "urgent" ? "\ud83d\udea8" : "\ud83d\udccb";
+          const detail =
+            `Priority: ${t.priority}` +
+            (t.due_at ? ` \u00b7 due ${new Date(t.due_at).toLocaleString()}` : "");
           toast(`${emoji} Task reminder: ${t.title}`, {
-            description:
-              `Priority: ${t.priority}` +
-              (t.due_at ? ` \u00b7 due ${new Date(t.due_at).toLocaleString()}` : ""),
+            description: detail,
             duration: 5000,
             position: "top-right",
+          });
+          // The pending-task nag is the main reason a rep wants desktop alerts,
+          // so it is tagged per task: the OS replaces the previous reminder for
+          // that task instead of stacking one every cadence.
+          showBrowserNotification({
+            title: `${emoji} Task pending: ${t.title}`,
+            body: detail,
+            tag: `task-${t.id}`,
+            url: "/tasks",
           });
           await supabase
             .from("tasks")
@@ -144,6 +175,14 @@ export function NotificationsWatcher() {
             description: n.body ?? undefined,
             duration: 5000,
             position: "top-right",
+          });
+          // Tagged by row id so a notification the realtime channel already
+          // popped is not popped again by this catch-up poll.
+          showBrowserNotification({
+            title: `${emoji} ${n.title ?? "New notification"}`,
+            body: n.body ?? undefined,
+            tag: `notif-${n.id}`,
+            url: "/notifications",
           });
         }
         qc.invalidateQueries({ queryKey: ["notif-unread-count"] });
