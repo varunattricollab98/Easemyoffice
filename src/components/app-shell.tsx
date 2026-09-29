@@ -28,7 +28,8 @@ const NAV: NavItem[] = [
   { to: "/renewals/inbox", label: "Renewal Inbox", icon: Mail, roles: ["admin", "renewals"] },
   { to: "/renewals/leads", label: "Renewal Leads", icon: Users, roles: ["admin", "renewals"] },
   { to: "/renewals/pipeline", label: "Renewal Pipeline", icon: Kanban, roles: ["admin", "renewals"] },
-  { to: "/renewals/bookings", label: "Renewal Bookings", icon: BookOpen, roles: ["admin", "renewals"] },
+  // "Renewal Bookings" was merged into Bookings, which now carries a
+  // Fresh / Renewal filter and the renewal creation form.
   { to: "/clients", label: "Clients", icon: UserCheck, roles: ["admin", "sales", "bd", "renewals", "accounts"] },
   { to: "/follow-ups", label: "Follow-ups", icon: Bell, roles: ["admin", "sales", "bd", "renewals"] },
   { to: "/reminders", label: "Reminders", icon: AlarmClock, roles: ["admin", "sales", "bd", "renewals"] },
