@@ -2,7 +2,7 @@
 
 > This file is the persistent memory/handoff for the AI agent working on this repo.
 > If you're an agent starting a new session on this repo: **read this first.**
-> Last updated: after PR #152.
+> Last updated: after PR #155.
 
 ---
 
@@ -56,8 +56,10 @@ owner after deploy. Some external-URL fetches may also be blocked.
 
 ## 5. Workflow the user expects
 - Implement on a **feature branch**; **rebase onto latest origin/main** before pushing (otherwise a stale base can REVERT already-merged PRs — this happened twice).
-- Push via provider Power, open a PR, then **squash-merge without asking** (user said "sab khud hi kara karo").
-- `gh` notes: gateway blocks GraphQL → use `gh api` REST (not `gh pr list`); `gh --body-file /tmp/...` fails (sandbox fs) → pass body inline via `gh api -f body=`.
+- Push via provider Power, open a PR, then **squash-merge without asking** (user said "sab khud hi kara karo", reconfirmed after #154: "merge kardiya karo"). Merge with
+  `gh api -X PUT repos/varunattricollab98/Easemyoffice/pulls/<n>/merge -f merge_method=squash`, then sync `main` and delete the branch. Still report the PR link and what shipped.
+- **Gate the merge on CI, not on asking:** merge only once the check-runs for the head SHA are green and the PR reports `mergeable_state: clean`. Never merge around a failing check — fix it, or say why it can't be fixed.
+- `gh` notes: gateway blocks GraphQL → use `gh api` REST (not `gh pr list`, `gh pr merge`); `gh --body-file /tmp/...` fails → pass body inline via `gh api -f body=`. **`/tmp` is not writable in the sandbox** — write scratch files under the workspace instead. `diff` is also absent from the sandbox shell.
 - **User language:** communicates in Hindi/Hinglish, prefers replies in **Hinglish**. But **SQL/code must be clean English** (comments fine).
 
 ## 6. Gmail lead-inbox + tag-sync
@@ -136,6 +138,25 @@ owner after deploy. Some external-URL fetches may also be blocked.
   the Month (fixing latent null bugs), renewals inbox HTML rendered in a **sandboxed
   iframe** (XSS), a11y on email rows + logger util.
 - **Misc** (#121): realtime demo simulator permanently disabled.
+
+### #153 onwards
+- #153 corrected §4 of this doc (the sandbox CAN run the full pipeline) and added
+  `.kiro/steering/emo-crm.md` so Kiro loads the guardrails automatically.
+- #154 **Convert to Booking on a lead** — opens the normal booking dialog prefilled from the
+  lead (name, company, phone, alt phone, email, city, state, mapped source, and a remarks
+  line carrying the lead code, service and budget). `NewBookingDialog` gained optional
+  `open`/`onOpenChange`/`prefill`/`onSaved` props and renders its built-in trigger only when
+  uncontrolled, so the Bookings and Dashboard usages are unchanged. `prefill` also disables
+  the queue and the localStorage draft for that dialog — restore would have overwritten the
+  lead, the writer would have leaked it into the user's shared draft, and `clearDraft()`
+  would have deleted an unrelated in-progress draft. Mapping lives in the pure
+  `src/lib/lead-to-booking.ts`, which never prefills money (`vo_amount` is the pre-GST base;
+  `quoted_amount` has no input since #64 so writing it would be invisible yet still persist a
+  discount) and never prefills a value that would disable Save (malformed email, sub-10-digit
+  alt phone). On save the lead advances to `payment_received` via the shared
+  `handleStageChange` (forward-only; already-past stages are left alone) and stamps
+  `converted_date` if empty.
+- #155 recorded the merge-without-asking policy in §5 and the steering file.
 
 ## 9. Data state
 CRM was cleaned once: all dummy leads/bookings/reminders/notifications deleted via SQL; **users/roles/settings/email snippets kept**. The connected **Google Sheet still holds old booking data separately** from Supabase.
