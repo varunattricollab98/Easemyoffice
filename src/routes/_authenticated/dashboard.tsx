@@ -4,6 +4,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Plus, LayoutDashboard, RotateCcw, Volume2, VolumeX, Check } from "lucide-react";
 import { KpiStrip, resetWidgetLayout } from "@/components/dashboard/widget-grid";
+// Imported eagerly, not lazily: it now sits above the fold as the dashboard's
+// primary block, and it only depends on react-query + shadcn/lucide, all of
+// which are already in this bundle. Lazy-loading it just bought a skeleton
+// flash on the one section the team opens the dashboard to see.
+import { HeroOfMonth } from "@/components/dashboard/hero-of-month";
 
 // Lazy-load WidgetGrid — it pulls in react-grid-layout (~60KB) which is only
 // needed once the grid section scrolls into view / mounts. KpiStrip is lightweight
@@ -17,9 +22,6 @@ const NewBookingDialog = lazy(() =>
   import("@/components/dashboard/new-booking-dialog").then((m) => ({
     default: m.NewBookingDialog,
   })),
-);
-const HeroOfMonth = lazy(() =>
-  import("@/components/dashboard/hero-of-month").then((m) => ({ default: m.HeroOfMonth })),
 );
 // Lazy-load the full Pipeline board so it can live at the bottom of the
 // dashboard without adding to the initial dashboard bundle (it pulls in dnd-kit
@@ -327,8 +329,18 @@ function DashboardPage() {
           <KpiStrip pulseTick={pulseTick} editing={editing} kpis={kpis} onReorder={setKpis} />
         </div>
 
-        {/* Customizable widget grid */}
+        {/* Hero of the Month leaderboard + monthly target.
+            Sits directly under the KPI strip, ABOVE the widget grid, because
+            this is the block the team actually opens the dashboard for. It has
+            to stay outside the grid: the grid's widget order is per-user and
+            draggable, so placing it in there could not guarantee it renders
+            above the "% to this month's goal" hero widget. */}
         <div className="lift-in" style={{ "--i": 3 } as React.CSSProperties}>
+          <HeroOfMonth />
+        </div>
+
+        {/* Customizable widget grid */}
+        <div className="lift-in" style={{ "--i": 4 } as React.CSSProperties}>
         <Suspense
           fallback={
             <div className="grid gap-3 grid-cols-1 md:grid-cols-2 animate-pulse">
@@ -340,13 +352,6 @@ function DashboardPage() {
         >
           <WidgetGrid editing={editing} pulseTick={pulseTick} visible={visible} />
         </Suspense>
-        </div>
-
-        {/* Hero of the Month leaderboard */}
-        <div className="lift-in" style={{ "--i": 4 } as React.CSSProperties}>
-          <Suspense fallback={<div className="h-48 rounded-xl bg-muted/40 animate-pulse" />}>
-            <HeroOfMonth />
-          </Suspense>
         </div>
 
         {/* Pipeline board — right on the dashboard so the whole day's work stays
