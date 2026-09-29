@@ -369,6 +369,34 @@ function BookingsPage() {
       b.balance_due_date <= today,
   );
 
+  // Counts per type, shown on the tabs. Derived from everything the agent/search
+  // filters allow EXCEPT typeFilter itself — otherwise the inactive tabs would
+  // always read zero.
+  const typeCounts = useMemo(() => {
+    const base = all.filter((b) => {
+      if (agentFilter !== "all" && String(b.sales_agent_name ?? "").trim() !== agentFilter) {
+        return false;
+      }
+      if (!q) return true;
+      const s = q.toLowerCase();
+      return [
+        b.booking_code,
+        b.external_booking_id,
+        b.client_name,
+        b.business_name,
+        b.plan_name,
+        b.contact_no,
+        b.email_id,
+      ].some((v) =>
+        String(v ?? "")
+          .toLowerCase()
+          .includes(s),
+      );
+    });
+    const renewal = base.filter((b) => RENEWAL_STATUSES.has(String(b.renewal_status ?? ""))).length;
+    return { all: base.length, renewal, fresh: base.length - renewal };
+  }, [all, q, agentFilter]);
+
   // Totals reflect what's on screen, so they follow the search filter.
   const totals = useMemo(
     () =>
@@ -425,19 +453,6 @@ function BookingsPage() {
           >
             <Plus className="h-4 w-4 mr-1" /> New Renewal Booking
           </Button>
-          <Select
-            value={typeFilter}
-            onValueChange={(v) => setTypeFilter(v as "all" | "fresh" | "renewal")}
-          >
-            <SelectTrigger className="w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All bookings</SelectItem>
-              <SelectItem value="fresh">Fresh bookings</SelectItem>
-              <SelectItem value="renewal">Renewal bookings</SelectItem>
-            </SelectContent>
-          </Select>
           {isAdmin && agents.length > 0 && (
             <Select value={agentFilter} onValueChange={setAgentFilter}>
               <SelectTrigger className="w-48">
@@ -461,6 +476,43 @@ function BookingsPage() {
             />
           </div>
         </div>
+      </div>
+
+      {/* Type tabs, directly above the table. A segmented control rather than a
+        dropdown: all three options and their counts stay visible, and switching
+        is one click instead of open-then-pick. */}
+      <div className="inline-flex rounded-lg border bg-muted/40 p-1">
+        {(
+          [
+            { id: "all", label: "All bookings", count: typeCounts.all },
+            { id: "fresh", label: "Fresh bookings", count: typeCounts.fresh },
+            { id: "renewal", label: "Renewal bookings", count: typeCounts.renewal },
+          ] as const
+        ).map((t) => {
+          const active = typeFilter === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTypeFilter(t.id)}
+              aria-pressed={active}
+              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-all duration-200 ease-out ${
+                active
+                  ? "bg-background font-medium shadow-sm"
+                  : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
+              }`}
+            >
+              {t.label}
+              <span
+                className={`rounded-full px-1.5 py-0.5 text-[11px] tabular-nums ${
+                  active ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {t.count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {overdue.length > 0 && (
