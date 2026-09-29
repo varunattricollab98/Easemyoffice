@@ -35,6 +35,12 @@ CI (`.github/workflows/ci.yml`) runs the same steps plus a check that
 - Open PRs with `gh api repos/varunattricollab98/Easemyoffice/pulls -f ...`. The gateway
   blocks GraphQL, so `gh pr *` subcommands fail. Pass the body inline with `-f body='...'`,
   not `--body-file`.
+- **Squash-merge your own PRs without asking** — the owner has said so explicitly. Merge with
+  `gh api -X PUT repos/varunattricollab98/Easemyoffice/pulls/<n>/merge -f merge_method=squash`,
+  then sync `main` and delete the branch. Still report the PR link and what shipped.
+- Merge only once CI is green and the PR reports `mergeable_state: clean`. Check with
+  `gh api repos/varunattricollab98/Easemyoffice/commits/<sha>/check-runs`. Never merge around
+  a failing check — fix it or say why it cannot be fixed.
 
 ## Deployment is automatic — never deploy by hand
 
