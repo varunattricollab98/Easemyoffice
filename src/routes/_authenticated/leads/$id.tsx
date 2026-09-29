@@ -715,7 +715,12 @@ function LeadDetailPage() {
           defaultState={lead.state || ""}
           defaultCity={lead.city || ""}
           leadId={lead.id}
-          onSent={(subject) => logActivity("email", `Sent quotation to ${lead.email}`, subject)}
+          // `kind: "quotation"` makes this countable without matching on the
+          // title string — reporting needs "quotations shared" separated from
+          // ordinary emails, and both are logged as type "email".
+          onSent={(subject) =>
+            logActivity("email", `Sent quotation to ${lead.email}`, subject, { kind: "quotation" })
+          }
         />
       )}
 
