@@ -409,6 +409,7 @@ export type Database = {
           id: string
           invoice_number: string | null
           last_reminder_sent_at: string | null
+          lead_id: string | null
           quoted_amount: number
           payment_id_utr: string | null
           payment_mode_ref: string | null
@@ -478,6 +479,7 @@ export type Database = {
           id?: string
           invoice_number?: string | null
           last_reminder_sent_at?: string | null
+          lead_id?: string | null
           quoted_amount?: number
           payment_id_utr?: string | null
           payment_mode_ref?: string | null
@@ -547,6 +549,7 @@ export type Database = {
           id?: string
           invoice_number?: string | null
           last_reminder_sent_at?: string | null
+          lead_id?: string | null
           quoted_amount?: number
           payment_id_utr?: string | null
           payment_mode_ref?: string | null
@@ -579,7 +582,15 @@ export type Database = {
           renewal_followup_at?: string | null
           renewal_outcome?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "bookings_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       documentation_tasks: {
         Row: {

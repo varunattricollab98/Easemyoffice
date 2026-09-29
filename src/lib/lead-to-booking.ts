@@ -19,6 +19,8 @@ import { SERVICES } from "@/lib/crm";
 
 /** The subset of booking form fields we can populate from a lead. */
 export type BookingPrefill = {
+  /** Persisted to bookings.lead_id so conversions are reportable via a join. */
+  lead_id?: string;
   client_name?: string;
   business_name?: string;
   contact_no?: string;
@@ -36,6 +38,7 @@ export type BookingPrefill = {
  * pass a thinner row.
  */
 export type LeadForBooking = {
+  id?: string | null;
   lead_code?: string | null;
   client_name?: string | null;
   company_name?: string | null;
@@ -154,6 +157,11 @@ export function canConvertLead(lead: LeadForBooking): { ok: boolean; reason?: st
  */
 export function leadToBookingPrefill(lead: LeadForBooking): BookingPrefill {
   const prefill: BookingPrefill = {};
+
+  // Carries the FK through the form into the insert. Omitted when absent so the
+  // booking insert simply doesn't mention the column.
+  const leadId = clean(lead.id);
+  if (leadId) prefill.lead_id = leadId;
 
   const name = clean(lead.client_name);
   if (name) prefill.client_name = name;
