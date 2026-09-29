@@ -2,7 +2,7 @@
 
 > This file is the persistent memory/handoff for the AI agent working on this repo.
 > If you're an agent starting a new session on this repo: **read this first.**
-> Last updated: after PR #77.
+> Last updated: after PR #152.
 
 ---
 
@@ -20,14 +20,39 @@ Sales team manages leads → follow-ups → bookings → clients, and sends quot
 - Cloudflare Workers (hosting)
 - UI: Radix + Tailwind v4 + shadcn-style components in `src/components/ui`
 - Package manager: **bun**
+- Tests: **Vitest** unit tests (`src/lib/*.test.ts`) + Playwright e2e (`e2e/`)
 
 ## 3. Deployment — ALL AUTOMATIC (don't deploy manually)
 - **Frontend:** Cloudflare is connected to GitHub → every merge to `main` auto-builds + deploys (~3 min). No manual `bun run deploy`.
 - **Edge functions:** `.github/workflows/deploy-supabase-functions.yml` auto-deploys `supabase/functions/**` on push to main (needs `SUPABASE_ACCESS_TOKEN` repo secret).
 - **CI:** `.github/workflows/ci.yml` runs `npx tsc --noEmit` + `bun run build` on every PR.
 
-## 4. Sandbox constraint (IMPORTANT)
-Network is **INTEGRATIONS_ONLY**: `bun install` FAILS (npm 403). So build/lint/typecheck/dev-server and external-URL fetches **cannot run in-sandbox**. Rely on CI to validate; always note this limitation in PRs.
+## 4. Sandbox: validate locally BEFORE pushing
+The npm registry is reachable, so the whole CI pipeline runs in-sandbox. Verified 2026-09-28 on `main` (`ac58d09`):
+
+| Step | Command | Result |
+|---|---|---|
+| Install | `bun install --frozen-lockfile` | 562 packages, ~8s |
+| Typecheck | `npx tsc --noEmit` | clean |
+| Unit tests | `bun run test` | 38 passed / 3 files |
+| Build | `bun run build` | ~9s, emits `dist/server/index.js` + `wrangler.json` |
+
+**Always run typecheck + tests + build before pushing** instead of waiting on CI, and don't
+claim in PRs that validation was impossible.
+
+`node`/`npx` are often missing from a fresh sandbox shell's PATH (`npx: command not found`).
+Export it first, otherwise the typecheck silently doesn't run:
+
+```sh
+export PATH="/root/.nvm/versions/node/v22.23.2/bin:$PATH"
+```
+
+Still genuinely unavailable: no Supabase credentials in-sandbox, so the dev server can't
+exercise real data and anything needing live DB/Gmail/Zoho access must be checked by the
+owner after deploy. Some external-URL fetches may also be blocked.
+
+> Historical note: this section previously said `bun install` failed with npm 403 and that
+> nothing could be validated locally. That is no longer true — don't reintroduce that claim.
 
 ## 5. Workflow the user expects
 - Implement on a **feature branch**; **rebase onto latest origin/main** before pushing (otherwise a stale base can REVERT already-merged PRs — this happened twice).
@@ -52,6 +77,8 @@ Network is **INTEGRATIONS_ONLY**: `bun install` FAILS (npm 403). So build/lint/t
 - DB: `leads` (source='email' for email leads); `lead_activities` has a `payload` JSONB and `activity_type` enum includes `call`/`whatsapp`.
 
 ## 8. Shipped features (merged PRs)
+
+### Up to #77
 - #62 password show/hide toggle (reusable `PasswordInput`)
 - #63 reliable Gmail tag→lead sync (server cron)
 - #64 booking profit = pre-GST base `(vo+addOn)-spPay-addOnPay`; removed "Quoted Price" & "Discount Given" UI fields
@@ -66,6 +93,49 @@ Network is **INTEGRATIONS_ONLY**: `bun install` FAILS (npm 403). So build/lint/t
 - #74 payment-ack email icon layout fix (`@media` stacked `.stack` cells lost centering → added `text-align:center`)
 - #75 quotation dialog body scroll (Radix ScrollArea → native `overflow-y` div so footer/Send stays reachable)
 - #76 reusable `.scrollbar-modern` CSS utility (thin/rounded, always-visible via `overflow-y-scroll`)
+
+### #78–#152 (grouped by area)
+- **Quotation** (#79–#87, #90, #91): self-hosted then enlarged/aligned brand logos, CA pricing
+  + mail-handling wording, correct UPI, UPI QR code, removed the 10-row pricing cap, serial
+  number column, selected states float to top, day-pass price settled at **599/day**.
+- **Zoho Books invoicing** (#92–#96): manual Create + Send to Client, new-bookings-only
+  cutoff, IGST inter-state vs CGST+SGST intra-state, client-state place of supply,
+  client-only billing address, mark Paid for paid bookings. Docs point at the
+  EaseMyOffice-HR org.
+- **Renewals** (#99–#101, #103): renewals-only users see only renewal clients, separate
+  Gmail inbox for `renewals@easemyoffice.in` with reply + snippet/premium quotation, and a
+  renewal pipeline at parity with the sales pipeline.
+- **Inbox / Gmail** (#89, #107–#111, #120): retry transient Google HTML interstitials,
+  Reply in CRM on any thread, attachment-list layout fix, instant reopen (#109), rich-text
+  + attachments composer, one "Send Quote" button, and no junk leads from our own sent copies.
+- **Payment-ack email** (#98, #102, #104): reliable logo/alignment across clients,
+  consistent emoji+label alignment, removed floating decorative emoji.
+- **Leads** (#88, #113, #142–#152): WhatsApp opens in a new tab, Send Quotation always
+  visible, delete scoped own/unassigned for users and all for admins, duplicate-lead
+  name-match warning + history-preserving merge + list badge + clickable badge opening the
+  duplicate group, column rebalance, user-resizable persisted columns, mobile card layout,
+  and duplicate detection moved **server-side** for performance.
+- **Bulk upload** (#140, #141, #145): accepts the EMO sales sheet as-is, fuzzy header
+  matching (fixed Total Amount reading 0), blank date → null with per-row retry (recovered
+  31 dropped rows).
+- **Bookings** (#97, #105, #146): admin delete, multi-year plan duration, admin Sales Agent
+  filter.
+- **Calls** (#112): TeleCMI call auto-logging webhook + Calls section — this is the first
+  real step of the Phase 2 telephony work in §10.
+- **Dashboard / nav / search** (#115–#118, #122, #123, #135, #150): global search palette
+  (+ positioning fix), call & booking-revenue KPI cards (backfilled for existing users),
+  Pipeline board on the dashboard, Pipeline above Lead Inbox in the sidebar, notifications
+  Mark-all-read + Read tab, staggered entrance animation.
+- **Automations / notifications** (#134, #136–#139): daily renewal-expiry nudge email,
+  instant new-lead alerts delivered as in-CRM notifications (email opt-in) via a DB trigger
+  that replaced the 15-min cron, restricted to UNASSIGNED leads to avoid duplicates.
+- **Audit** (#119): team accountability Activity Log.
+- **Code health** (#124–#133): booking money math extracted into a tested module and deduped
+  behind shared `computeBookingMoney`, **Vitest introduced**, app-wide error boundary +
+  shared `formatINR`, ~90 `any` removed across error handling / lead-renewal rows / Hero of
+  the Month (fixing latent null bugs), renewals inbox HTML rendered in a **sandboxed
+  iframe** (XSS), a11y on email rows + logger util.
+- **Misc** (#121): realtime demo simulator permanently disabled.
 
 ## 9. Data state
 CRM was cleaned once: all dummy leads/bookings/reminders/notifications deleted via SQL; **users/roles/settings/email snippets kept**. The connected **Google Sheet still holds old booking data separately** from Supabase.
