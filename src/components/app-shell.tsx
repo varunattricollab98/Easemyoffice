@@ -2,7 +2,7 @@ import { Link, useLocation } from "@tanstack/react-router";
 import {
   LayoutDashboard, Users, Kanban, Bell, CheckSquare, FileText, Receipt,
   RefreshCcw, Activity, BarChart3, Settings, UsersRound, LogOut, Building2, UserCog, BookOpen,
-  UserCheck, FileSignature, Calendar, FolderOpen, Inbox, TrendingUp, Trophy, Mail, AlarmClock, Phone, ScrollText,
+  UserCheck, FileSignature, Calendar, FolderOpen, Inbox, Trophy, Mail, AlarmClock, Phone,
 } from "lucide-react";
 import { useAuth, type AppRole } from "@/lib/auth";
 import { useGlobalSearch } from "@/lib/global-search-context";
@@ -54,9 +54,11 @@ const NAV: NavItem[] = [
 ];
 
 const ADMIN_NAV: NavItem[] = [
-  { to: "/admin/analytics", label: "Analytics", icon: TrendingUp, roles: ["admin"] },
+  // Analytics and Activity Log were removed: Analytics duplicated Reports and
+  // Sales Performance, and Activity Log read the audit trail that Activity
+  // already sits next to in the nav. The audit_log table keeps being written,
+  // so a viewer can be brought back without any data loss.
   { to: "/admin/email-automation", label: "Email Automation", icon: Mail, roles: ["admin"] },
-  { to: "/admin/activity-log", label: "Activity Log", icon: ScrollText, roles: ["admin"] },
   { to: "/team", label: "Team", icon: UsersRound, roles: ["admin"] },
   { to: "/admin/users", label: "Users", icon: UserCog, roles: ["admin"] },
   { to: "/settings", label: "Settings", icon: Settings },

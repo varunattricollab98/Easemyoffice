@@ -47,8 +47,6 @@ import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminSalesPerformanceRouteImport } from './routes/_authenticated/admin/sales-performance'
 import { Route as AuthenticatedAdminKpiReportRouteImport } from './routes/_authenticated/admin/kpi-report'
 import { Route as AuthenticatedAdminEmailAutomationRouteImport } from './routes/_authenticated/admin/email-automation'
-import { Route as AuthenticatedAdminAnalyticsRouteImport } from './routes/_authenticated/admin/analytics'
-import { Route as AuthenticatedAdminActivityLogRouteImport } from './routes/_authenticated/admin/activity-log'
 import { Route as ApiPublicHooksLeadIntakeRouteImport } from './routes/api/public/hooks/lead-intake'
 import { Route as ApiPublicHooksBalanceRemindersRouteImport } from './routes/api/public/hooks/balance-reminders'
 
@@ -252,18 +250,6 @@ const AuthenticatedAdminEmailAutomationRoute =
     path: '/admin/email-automation',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedAdminAnalyticsRoute =
-  AuthenticatedAdminAnalyticsRouteImport.update({
-    id: '/admin/analytics',
-    path: '/admin/analytics',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAdminActivityLogRoute =
-  AuthenticatedAdminActivityLogRouteImport.update({
-    id: '/admin/activity-log',
-    path: '/admin/activity-log',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
 const ApiPublicHooksLeadIntakeRoute =
   ApiPublicHooksLeadIntakeRouteImport.update({
     id: '/api/public/hooks/lead-intake',
@@ -302,8 +288,6 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRoute
   '/tasks': typeof AuthenticatedTasksRoute
   '/team': typeof AuthenticatedTeamRoute
-  '/admin/activity-log': typeof AuthenticatedAdminActivityLogRoute
-  '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/email-automation': typeof AuthenticatedAdminEmailAutomationRoute
   '/admin/kpi-report': typeof AuthenticatedAdminKpiReportRoute
   '/admin/sales-performance': typeof AuthenticatedAdminSalesPerformanceRoute
@@ -345,8 +329,6 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRoute
   '/tasks': typeof AuthenticatedTasksRoute
   '/team': typeof AuthenticatedTeamRoute
-  '/admin/activity-log': typeof AuthenticatedAdminActivityLogRoute
-  '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/email-automation': typeof AuthenticatedAdminEmailAutomationRoute
   '/admin/kpi-report': typeof AuthenticatedAdminKpiReportRoute
   '/admin/sales-performance': typeof AuthenticatedAdminSalesPerformanceRoute
@@ -390,8 +372,6 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/tasks': typeof AuthenticatedTasksRoute
   '/_authenticated/team': typeof AuthenticatedTeamRoute
-  '/_authenticated/admin/activity-log': typeof AuthenticatedAdminActivityLogRoute
-  '/_authenticated/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/_authenticated/admin/email-automation': typeof AuthenticatedAdminEmailAutomationRoute
   '/_authenticated/admin/kpi-report': typeof AuthenticatedAdminKpiReportRoute
   '/_authenticated/admin/sales-performance': typeof AuthenticatedAdminSalesPerformanceRoute
@@ -435,8 +415,6 @@ export interface FileRouteTypes {
     | '/settings'
     | '/tasks'
     | '/team'
-    | '/admin/activity-log'
-    | '/admin/analytics'
     | '/admin/email-automation'
     | '/admin/kpi-report'
     | '/admin/sales-performance'
@@ -478,8 +456,6 @@ export interface FileRouteTypes {
     | '/settings'
     | '/tasks'
     | '/team'
-    | '/admin/activity-log'
-    | '/admin/analytics'
     | '/admin/email-automation'
     | '/admin/kpi-report'
     | '/admin/sales-performance'
@@ -522,8 +498,6 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/_authenticated/tasks'
     | '/_authenticated/team'
-    | '/_authenticated/admin/activity-log'
-    | '/_authenticated/admin/analytics'
     | '/_authenticated/admin/email-automation'
     | '/_authenticated/admin/kpi-report'
     | '/_authenticated/admin/sales-performance'
@@ -820,20 +794,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminEmailAutomationRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/analytics': {
-      id: '/_authenticated/admin/analytics'
-      path: '/admin/analytics'
-      fullPath: '/admin/analytics'
-      preLoaderRoute: typeof AuthenticatedAdminAnalyticsRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/admin/activity-log': {
-      id: '/_authenticated/admin/activity-log'
-      path: '/admin/activity-log'
-      fullPath: '/admin/activity-log'
-      preLoaderRoute: typeof AuthenticatedAdminActivityLogRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/api/public/hooks/lead-intake': {
       id: '/api/public/hooks/lead-intake'
       path: '/api/public/hooks/lead-intake'
@@ -871,8 +831,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedTasksRoute: typeof AuthenticatedTasksRoute
   AuthenticatedTeamRoute: typeof AuthenticatedTeamRoute
-  AuthenticatedAdminActivityLogRoute: typeof AuthenticatedAdminActivityLogRoute
-  AuthenticatedAdminAnalyticsRoute: typeof AuthenticatedAdminAnalyticsRoute
   AuthenticatedAdminEmailAutomationRoute: typeof AuthenticatedAdminEmailAutomationRoute
   AuthenticatedAdminKpiReportRoute: typeof AuthenticatedAdminKpiReportRoute
   AuthenticatedAdminSalesPerformanceRoute: typeof AuthenticatedAdminSalesPerformanceRoute
@@ -908,8 +866,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedTasksRoute: AuthenticatedTasksRoute,
   AuthenticatedTeamRoute: AuthenticatedTeamRoute,
-  AuthenticatedAdminActivityLogRoute: AuthenticatedAdminActivityLogRoute,
-  AuthenticatedAdminAnalyticsRoute: AuthenticatedAdminAnalyticsRoute,
   AuthenticatedAdminEmailAutomationRoute:
     AuthenticatedAdminEmailAutomationRoute,
   AuthenticatedAdminKpiReportRoute: AuthenticatedAdminKpiReportRoute,
