@@ -2,7 +2,7 @@ import { Link, useLocation } from "@tanstack/react-router";
 import {
   LayoutDashboard, Users, Kanban, Bell, CheckSquare, FileText, Receipt,
   RefreshCcw, Activity, BarChart3, Settings, UsersRound, LogOut, Building2, UserCog, BookOpen,
-  UserCheck, FileSignature, Calendar, FolderOpen, Inbox, Trophy, Mail, AlarmClock, Phone,
+  UserCheck, FileSignature, Calendar, Inbox, Trophy, Mail, AlarmClock, Phone,
 } from "lucide-react";
 import { useAuth, type AppRole } from "@/lib/auth";
 import { useGlobalSearch } from "@/lib/global-search-context";
@@ -36,7 +36,8 @@ const NAV: NavItem[] = [
   { to: "/tasks", label: "Tasks", icon: CheckSquare },
   { to: "/notifications", label: "Notifications", icon: Inbox },
   { to: "/documentation", label: "Documentation", icon: FileText, roles: ["admin", "documentation", "sales"] },
-  { to: "/documents", label: "Documents", icon: FolderOpen, roles: ["admin", "documentation", "accounts"] },
+  // "Documents" (a per-client KYC/agreement file browser) was removed — it sat
+  // next to Documentation, which is the workflow the team actually uses.
   { to: "/bookings", label: "Bookings", icon: BookOpen, roles: ["admin", "sales", "bd", "accounts", "renewals"] },
   { to: "/invoices", label: "Invoices", icon: FileSignature, roles: ["admin", "accounts"] },
   { to: "/payments", label: "Payments", icon: Receipt, roles: ["admin", "accounts", "sales"] },
