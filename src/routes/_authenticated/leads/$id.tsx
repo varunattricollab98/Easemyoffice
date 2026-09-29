@@ -31,7 +31,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Phone, Mail, MessageCircle, Calendar, Plus, Check, Trash2, Send, Loader2, XCircle, Maximize2, Minimize2, AlarmClock, FileText } from "lucide-react";
+import { ArrowLeft, Phone, Mail, MessageCircle, Calendar, Plus, Check, Trash2, Send, Loader2, XCircle, Maximize2, Minimize2, AlarmClock, FileText, BriefcaseBusiness } from "lucide-react";
 import { RichTextEditor, htmlToText } from "@/components/ui/rich-text-editor";
 import { cn, getErrorMessage } from "@/lib/utils";
 import { INTERESTS, INTENT_FLAGS, SERVICES, SOURCES, STAGES, calcScore, deriveInterest, labelFor } from "@/lib/crm";
@@ -42,7 +42,8 @@ import { FollowupConfigDialog } from "@/components/followup-config-dialog";
 import { SendQuotationDialog } from "@/components/send-quotation-dialog";
 import { EmailStatusRow } from "@/components/email-status-row";
 import type { EmailConfig } from "@/components/followup-config-dialog";
-import { useState, useEffect, useMemo } from "react";
+import { canConvertLead, leadToBookingPrefill } from "@/lib/lead-to-booking";
+import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
 
@@ -54,6 +55,26 @@ export const Route = createFileRoute("/_authenticated/leads/$id")({
 // Outcome options for manual call/WhatsApp interaction logging (Option A).
 const CALL_OUTCOMES = ["Connected", "No answer", "Busy", "Switched off", "Wrong number", "Call back later"] as const;
 const WHATSAPP_OUTCOMES = ["Sent", "Delivered", "Read", "Replied", "No response"] as const;
+
+// Lazy-loaded for "Convert to Booking": the booking dialog is a large component
+// (plan sheet lookup, payment-ack email, documentation assignment) that most
+// visits to a lead never open. Mirrors how Bookings and Dashboard import it.
+const NewBookingDialog = lazy(() =>
+  import("@/components/dashboard/new-booking-dialog").then((m) => ({
+    default: m.NewBookingDialog,
+  })),
+);
+
+// Stages at or past "payment received" — a lead that already reached one of
+// these must not be dragged backwards when a(nother) booking is created.
+const POST_PAYMENT_STAGES = new Set([
+  "payment_received",
+  "documents_pending",
+  "draft_shared",
+  "agreement_signed",
+  "completed",
+  "renewal_due",
+]);
 
 function LeadDetailPage() {
   const { id } = Route.useParams();
@@ -71,6 +92,12 @@ function LeadDetailPage() {
   const [emailOpen, setEmailOpen] = useState(false);
   const [reminderOpen, setReminderOpen] = useState(false);
   const [quotationDialogOpen, setQuotationDialogOpen] = useState(false);
+  const [convertOpen, setConvertOpen] = useState(false);
+  // Latches on first open and never clears, so the booking dialog's chunk is
+  // fetched on demand but the component is not destroyed when the rep closes it.
+  // That matters because conversions deliberately skip the localStorage draft —
+  // keeping it mounted means an accidental Cancel doesn't lose a half-filled form.
+  const [convertMounted, setConvertMounted] = useState(false);
   const [reasonStage, setReasonStage] = useState<string | null>(null);
   const [reasonText, setReasonText] = useState("");
   const [followupConfigOpen, setFollowupConfigOpen] = useState(false);
@@ -203,6 +230,94 @@ function LeadDetailPage() {
     qc.invalidateQueries({ queryKey: ["activities", id] });
   };
 
+  // Values to open the booking form with. Recomputed only when the lead row
+  // changes; `undefined` while it loads, which also keeps the dialog out of
+  // convert mode until there is something to convert.
+  const bookingPrefill = useMemo(() => (lead ? leadToBookingPrefill(lead) : undefined), [lead]);
+
+  /**
+   * Runs once the booking row exists. There is no `lead_id` column on
+   * `bookings`, so the link between the two is recorded here: a timeline entry
+   * carrying the booking id, plus a provenance line the mapper already put in
+   * the booking's remarks.
+   */
+  const handleConverted = async ({
+    bookingId,
+    bookingUuid,
+  }: {
+    bookingId: string;
+    bookingUuid: string | null;
+  }) => {
+    if (!lead) return;
+
+    // `activity_type` has no "conversion" value and lead_activities would reject
+    // an unknown enum (the insert above swallows the error), so this is a note.
+    await logActivity("note", `Converted to booking ${bookingId}`, undefined, {
+      booking_id: bookingId,
+      booking_uuid: bookingUuid,
+      lead_code: lead.lead_code,
+    });
+
+    // Only ever move the stage FORWARD. A lead already at documents-pending or
+    // completed (e.g. a second booking for the same client) must not be dragged
+    // back to payment-received.
+    const advance = !POST_PAYMENT_STAGES.has(lead.stage);
+    const patch: { stage?: "payment_received"; converted_date?: string } = {};
+    if (advance) patch.stage = "payment_received";
+    // Stamp the first conversion only, so a repeat booking doesn't rewrite it.
+    if (!lead.converted_date) patch.converted_date = new Date().toISOString().slice(0, 10);
+
+    if (Object.keys(patch).length > 0) {
+      const { error } = await supabase.from("leads").update(patch).eq("id", id);
+      if (error) {
+        // The booking is already saved — surface this without implying failure.
+        toast.warning(`Booking ${bookingId} saved, but updating the lead failed: ${error.message}`);
+        return;
+      }
+    }
+
+    if (advance) {
+      const prevStage = lead.stage;
+      const prevLabel = STAGES.find((s) => s.id === prevStage)?.label ?? prevStage;
+      logAudit({
+        actorId: user?.id,
+        action: "stage_change",
+        entity: "lead",
+        entityId: id,
+        entityLabel: lead.client_name,
+        detail: `Stage: ${prevLabel} → Payment Received (converted to booking ${bookingId})`,
+        meta: { from: prevStage, to: "payment_received", booking_id: bookingId },
+      });
+      if (user) {
+        // Reuses the shared stage handler so a converted lead stops chasing the
+        // client with follow-ups and reminders, exactly as a manual stage change
+        // would.
+        const result = await handleStageChange({
+          leadId: id,
+          oldStage: prevStage,
+          newStage: "payment_received",
+          clientName: lead.client_name,
+          clientEmail: lead.email,
+          userId: user.id,
+        });
+        if (result.followUpsStopped > 0 || result.remindersStopped > 0) {
+          toast.info(
+            `Auto-stopped ${result.followUpsStopped} follow-up(s) and ${result.remindersStopped} reminder(s)`,
+          );
+        }
+        if (result.warning) toast.warning(result.warning, { duration: 6000 });
+      }
+    }
+
+    qc.invalidateQueries({ queryKey: ["lead", id] });
+    qc.invalidateQueries({ queryKey: ["leads"] });
+    toast.success(
+      advance
+        ? `Converted to booking ${bookingId} · stage set to Payment Received`
+        : `Booking ${bookingId} created from this lead`,
+    );
+  };
+
   if (isLoading || !lead) return <div className="p-8 text-muted-foreground">Loading…</div>;
 
   const interestMeta = INTERESTS.find((i) => i.id === lead.interest);
@@ -220,7 +335,9 @@ function LeadDetailPage() {
     <div className="p-4 md:p-8 space-y-5 max-w-6xl mx-auto">
       <div className="flex items-center justify-between">
         <Button variant="ghost" size="sm" onClick={goBack}><ArrowLeft className="h-4 w-4 mr-1" /> Back</Button>
-        <div className="flex items-center gap-2">
+        {/* Wraps because this row now holds up to 7 actions — without it the
+            last ones overflow the viewport on a phone. */}
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {/* Fire the dialer/WhatsApp link, then open the manual log dialog immediately.
               ASSUMPTION: on mobile the browser tab stays open behind the phone/WhatsApp app,
               so the rep fills in the outcome when they return to the CRM. */}
@@ -238,6 +355,25 @@ function LeadDetailPage() {
             }}
           >
             <FileText className="h-4 w-4 mr-1" /> Send Quotation
+          </Button>
+          {/* Convert to Booking: opens the normal booking form with this lead's
+              details already filled in. Always shown — if the lead is missing
+              something a booking requires, say what is wrong instead of hiding
+              the button (same reasoning as Send Quotation above). */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const { ok, reason } = canConvertLead(lead);
+              if (!ok) {
+                toast.error(reason);
+                return;
+              }
+              setConvertMounted(true);
+              setConvertOpen(true);
+            }}
+          >
+            <BriefcaseBusiness className="h-4 w-4 mr-1" /> Convert to Booking
           </Button>
           {lead.email && <Button variant="outline" size="sm" onClick={() => setReminderOpen(true)}><AlarmClock className="h-4 w-4 mr-1" /> Schedule Reminder</Button>}
           {isAdmin && (
@@ -581,6 +717,17 @@ function LeadDetailPage() {
           leadId={lead.id}
           onSent={(subject) => logActivity("email", `Sent quotation to ${lead.email}`, subject)}
         />
+      )}
+
+      {convertMounted && (
+        <Suspense fallback={null}>
+          <NewBookingDialog
+            open={convertOpen}
+            onOpenChange={setConvertOpen}
+            prefill={bookingPrefill}
+            onSaved={handleConverted}
+          />
+        </Suspense>
       )}
 
       <Dialog open={!!reasonStage} onOpenChange={(o) => { if (!o) setReasonStage(null); }}>
