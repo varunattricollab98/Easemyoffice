@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { ArrowLeft, UserPlus } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/users")({
-  head: () => ({ meta: [{ title: "Team Users — Admin" }] }),
+  head: () => ({ meta: [{ title: "Team — EaseMyOffice CRM" }] }),
   component: AdminUsersPage,
 });
 
@@ -183,8 +183,8 @@ function AdminUsersPage() {
           <Link to="/dashboard" className="text-xs text-muted-foreground inline-flex items-center gap-1 hover:text-foreground">
             <ArrowLeft className="h-3 w-3" /> Back to Dashboard
           </Link>
-          <h1 className="text-2xl font-semibold mt-1">Team Users</h1>
-          <p className="text-sm text-muted-foreground">Create new sales / team accounts and manage their roles.</p>
+          <h1 className="text-2xl font-semibold mt-1">Team</h1>
+          <p className="text-sm text-muted-foreground">All members and their roles. Create accounts, change roles and departments.</p>
         </div>
       </div>
 

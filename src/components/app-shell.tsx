@@ -1,7 +1,7 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import {
   LayoutDashboard, Users, Kanban, Bell, CheckSquare, FileText, Receipt,
-  RefreshCcw, Activity, BarChart3, Settings, UsersRound, LogOut, Building2, UserCog, BookOpen,
+  RefreshCcw, Activity, BarChart3, Settings, UsersRound, LogOut, Building2, BookOpen,
   UserCheck, FileSignature, Calendar, Inbox, Trophy, Mail, AlarmClock, Phone,
 } from "lucide-react";
 import { useAuth, type AppRole } from "@/lib/auth";
@@ -60,8 +60,10 @@ const ADMIN_NAV: NavItem[] = [
   // already sits next to in the nav. The audit_log table keeps being written,
   // so a viewer can be brought back without any data loss.
   { to: "/admin/email-automation", label: "Email Automation", icon: Mail, roles: ["admin"] },
-  { to: "/team", label: "Team", icon: UsersRound, roles: ["admin"] },
-  { to: "/admin/users", label: "Users", icon: UserCog, roles: ["admin"] },
+  // The old read-only /team page was removed and this one took its label: it is
+  // the same list plus the role/department editing and user create/delete that
+  // /team said was "coming next phase".
+  { to: "/admin/users", label: "Team", icon: UsersRound, roles: ["admin"] },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 

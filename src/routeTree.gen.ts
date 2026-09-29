@@ -15,7 +15,6 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AuthenticatedTeamRouteImport } from './routes/_authenticated/team'
 import { Route as AuthenticatedTasksRouteImport } from './routes/_authenticated/tasks'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated/reports'
@@ -77,11 +76,6 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedTeamRoute = AuthenticatedTeamRouteImport.update({
-  id: '/team',
-  path: '/team',
-  getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedTasksRoute = AuthenticatedTasksRouteImport.update({
   id: '/tasks',
@@ -280,7 +274,6 @@ export interface FileRoutesByFullPath {
   '/reports': typeof AuthenticatedReportsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/tasks': typeof AuthenticatedTasksRoute
-  '/team': typeof AuthenticatedTeamRoute
   '/admin/email-automation': typeof AuthenticatedAdminEmailAutomationRoute
   '/admin/kpi-report': typeof AuthenticatedAdminKpiReportRoute
   '/admin/sales-performance': typeof AuthenticatedAdminSalesPerformanceRoute
@@ -320,7 +313,6 @@ export interface FileRoutesByTo {
   '/reports': typeof AuthenticatedReportsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/tasks': typeof AuthenticatedTasksRoute
-  '/team': typeof AuthenticatedTeamRoute
   '/admin/email-automation': typeof AuthenticatedAdminEmailAutomationRoute
   '/admin/kpi-report': typeof AuthenticatedAdminKpiReportRoute
   '/admin/sales-performance': typeof AuthenticatedAdminSalesPerformanceRoute
@@ -362,7 +354,6 @@ export interface FileRoutesById {
   '/_authenticated/reports': typeof AuthenticatedReportsRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/tasks': typeof AuthenticatedTasksRoute
-  '/_authenticated/team': typeof AuthenticatedTeamRoute
   '/_authenticated/admin/email-automation': typeof AuthenticatedAdminEmailAutomationRoute
   '/_authenticated/admin/kpi-report': typeof AuthenticatedAdminKpiReportRoute
   '/_authenticated/admin/sales-performance': typeof AuthenticatedAdminSalesPerformanceRoute
@@ -404,7 +395,6 @@ export interface FileRouteTypes {
     | '/reports'
     | '/settings'
     | '/tasks'
-    | '/team'
     | '/admin/email-automation'
     | '/admin/kpi-report'
     | '/admin/sales-performance'
@@ -444,7 +434,6 @@ export interface FileRouteTypes {
     | '/reports'
     | '/settings'
     | '/tasks'
-    | '/team'
     | '/admin/email-automation'
     | '/admin/kpi-report'
     | '/admin/sales-performance'
@@ -485,7 +474,6 @@ export interface FileRouteTypes {
     | '/_authenticated/reports'
     | '/_authenticated/settings'
     | '/_authenticated/tasks'
-    | '/_authenticated/team'
     | '/_authenticated/admin/email-automation'
     | '/_authenticated/admin/kpi-report'
     | '/_authenticated/admin/sales-performance'
@@ -557,13 +545,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/team': {
-      id: '/_authenticated/team'
-      path: '/team'
-      fullPath: '/team'
-      preLoaderRoute: typeof AuthenticatedTeamRouteImport
-      parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/tasks': {
       id: '/_authenticated/tasks'
@@ -810,7 +791,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedTasksRoute: typeof AuthenticatedTasksRoute
-  AuthenticatedTeamRoute: typeof AuthenticatedTeamRoute
   AuthenticatedAdminEmailAutomationRoute: typeof AuthenticatedAdminEmailAutomationRoute
   AuthenticatedAdminKpiReportRoute: typeof AuthenticatedAdminKpiReportRoute
   AuthenticatedAdminSalesPerformanceRoute: typeof AuthenticatedAdminSalesPerformanceRoute
@@ -844,7 +824,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedReportsRoute: AuthenticatedReportsRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedTasksRoute: AuthenticatedTasksRoute,
-  AuthenticatedTeamRoute: AuthenticatedTeamRoute,
   AuthenticatedAdminEmailAutomationRoute:
     AuthenticatedAdminEmailAutomationRoute,
   AuthenticatedAdminKpiReportRoute: AuthenticatedAdminKpiReportRoute,
