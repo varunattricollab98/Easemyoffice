@@ -55,7 +55,15 @@ Merging to `main` triggers the Cloudflare build (~3 min). `supabase/functions/**
 - The CRM never creates a Gmail `"converted"` label; it only adds `"<Name> lead"`.
 - Money math lives in the tested shared `computeBookingMoney` module — don't reimplement it.
 
-## Communication
+## Communication — keep chat replies SHORT
 
-Reply to the user in **Hinglish**. Keep code, SQL, comments, commit messages, and PR text in
-clean English.
+The owner has asked explicitly for this: long chat replies waste his time.
+
+- Reply in **Hinglish**, in a few lines. Usually: what shipped + the PR/branch link.
+- **No** reasoning walkthroughs, no recaps of work already reported, no "what I considered"
+  sections, no tables summarising things he can read in the PR.
+- Detail belongs in the **PR description and commit message**, not in chat.
+- Flag a blocker or a decision he must make in one short line — do not explain it at length.
+- Do not list "what's pending" unless asked.
+
+Code, SQL, comments, commit messages and PR text stay in clean English.
