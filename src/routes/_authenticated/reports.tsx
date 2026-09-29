@@ -9,6 +9,7 @@ import {
 import { useAuth, type AppRole } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useMemo, useState } from "react";
+import { format, startOfDay, startOfMonth, endOfMonth, startOfWeek, subMonths } from "date-fns";
 import { STAGES, SERVICES, labelFor } from "@/lib/crm";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -138,6 +139,61 @@ function ReportsPage() {
 
   const fromTs = from ? new Date(from + "T00:00:00").getTime() : null;
   const toTs = to ? new Date(to + "T23:59:59").getTime() : null;
+
+  // ---------------------------------------------------------------------------
+  // Period shortcuts. Every section on this page already derives from the
+  // From/To pair, so these only write into that pair rather than introducing a
+  // second filtering mechanism — the aggregations below stay untouched.
+  // ---------------------------------------------------------------------------
+  const ymd = (d: Date) => format(d, "yyyy-MM-dd");
+
+  // Last 12 months, newest first, so a specific month can be picked directly
+  // instead of typing both ends of its range.
+  //
+  // Deliberately NOT useMemo: everything from here down sits after this
+  // component's `isAdmin` early return, so adding another hook here would be a
+  // conditionally-called hook. Building 12 objects per render costs nothing.
+  const monthOptions = Array.from({ length: 12 }, (_, i) => {
+    const m = subMonths(startOfMonth(new Date()), i);
+    return {
+      value: format(m, "yyyy-MM"),
+      label: format(m, "MMM yyyy"),
+      from: ymd(startOfMonth(m)),
+      to: ymd(endOfMonth(m)),
+    };
+  });
+
+  // Derived, not stored: whichever month's bounds exactly match the current
+  // From/To is the selected one. Keeps the dropdown honest when the date inputs
+  // are edited by hand or another shortcut is used.
+  const selectedMonth = monthOptions.find((m) => m.from === from && m.to === to)?.value ?? "any";
+
+  const applyRange = (f: string, t: string) => {
+    setFrom(f);
+    setTo(t);
+  };
+
+  // NOTE: named todayDate, not `today` — a module-level `today()` helper already
+  // exists and is called elsewhere in this component, so shadowing it here would
+  // break those calls.
+  const todayDate = new Date();
+  const PERIOD_SHORTCUTS: { id: string; label: string; from: string; to: string }[] = [
+    { id: "today", label: "Today", from: ymd(startOfDay(todayDate)), to: ymd(todayDate) },
+    // Monday-first: the Indian business week, where date-fns defaults to Sunday.
+    {
+      id: "week",
+      label: "This week",
+      from: ymd(startOfWeek(todayDate, { weekStartsOn: 1 })),
+      to: ymd(todayDate),
+    },
+    { id: "month", label: "This month", from: ymd(startOfMonth(todayDate)), to: ymd(todayDate) },
+    {
+      id: "last_month",
+      label: "Last month",
+      from: ymd(startOfMonth(subMonths(todayDate, 1))),
+      to: ymd(endOfMonth(subMonths(todayDate, 1))),
+    },
+  ];
 
   const inDateRange = (iso: string | null | undefined) => {
     if (!iso) return true;
@@ -395,6 +451,57 @@ function ReportsPage() {
       {/* Global filters */}
       <Card className="shadow-sm">
         <CardContent className="p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+          {/* Period shortcuts — these just set the From/To pair below. Spans the
+            full grid width so the existing filter fields keep their layout. */}
+          <div className="col-span-2 md:col-span-4 flex flex-wrap items-end gap-2">
+            <div>
+              <Label className="text-xs">Month</Label>
+              <Select
+                value={selectedMonth}
+                onValueChange={(v) => {
+                  if (v === "any") {
+                    applyRange("", "");
+                    return;
+                  }
+                  const m = monthOptions.find((o) => o.value === v);
+                  if (m) applyRange(m.from, m.to);
+                }}
+              >
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">All time</SelectItem>
+                  {monthOptions.map((m) => (
+                    <SelectItem key={m.value} value={m.value}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {PERIOD_SHORTCUTS.map((p) => (
+                <Button
+                  key={p.id}
+                  size="sm"
+                  variant={from === p.from && to === p.to ? "default" : "outline"}
+                  onClick={() => applyRange(p.from, p.to)}
+                >
+                  {p.label}
+                </Button>
+              ))}
+              <Button
+                size="sm"
+                variant={!from && !to ? "default" : "outline"}
+                onClick={() => applyRange("", "")}
+              >
+                All time
+              </Button>
+            </div>
+            <span className="ml-auto text-xs text-muted-foreground">Showing {periodLabel}</span>
+          </div>
+
           <div>
             <Label className="text-xs">From</Label>
             <Input type="date" className="focus:ring-2 ring-primary/20 transition-all duration-200 ease-out" value={from} onChange={(e) => setFrom(e.target.value)} />
