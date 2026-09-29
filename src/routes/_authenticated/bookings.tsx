@@ -33,6 +33,7 @@ import {
   ArrowDown,
   ChevronsUpDown,
   Trash2,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { BookingDetailDialog } from "@/components/bookings/booking-detail-dialog";
@@ -53,11 +54,22 @@ import type { Tables } from "@/integrations/supabase/types";
 // checked against the real column names and types.
 type BookingRow = Tables<"bookings">;
 
+// A booking is a renewal when the renewal flow stamped it. Matches the query the
+// old /renewals/bookings page used, so the merged list classifies rows exactly as
+// that page did.
+const RENEWAL_STATUSES = new Set(["renewed", "pending_payment"]);
+
 // Lazy-load the self-contained New Booking dialog (renders its own trigger).
 // Mirrors the dashboard pattern so the bookings route bundle stays lean.
 const NewBookingDialog = lazy(() =>
   import("@/components/dashboard/new-booking-dialog").then((m) => ({
     default: m.NewBookingDialog,
+  })),
+);
+
+const NewRenewalBookingDialog = lazy(() =>
+  import("@/components/bookings/new-renewal-booking-dialog").then((m) => ({
+    default: m.NewRenewalBookingDialog,
   })),
 );
 
@@ -198,6 +210,11 @@ function BookingsPage() {
   const initialQ = Route.useSearch().q ?? "";
   const [q, setQ] = useState(initialQ);
   const [agentFilter, setAgentFilter] = useState("all");
+  // Fresh vs renewal. A renewal is identified by renewal_status — booking_source
+  // is not a reliable marker, since the renewal form lets the agent pick "Email",
+  // "Referral" and so on just like a fresh booking.
+  const [typeFilter, setTypeFilter] = useState<"all" | "fresh" | "renewal">("all");
+  const [renewalOpen, setRenewalOpen] = useState(false);
   const [selected, setSelected] = useState<BookingRow | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [sort, setSort] = useState<SortState>({ key: "date", dir: "desc" });
@@ -295,6 +312,11 @@ function BookingsPage() {
       if (agentFilter !== "all" && String(b.sales_agent_name ?? "").trim() !== agentFilter) {
         return false;
       }
+      if (typeFilter !== "all") {
+        const isRenewal = RENEWAL_STATUSES.has(String((b as BookingRow).renewal_status ?? ""));
+        if (typeFilter === "renewal" && !isRenewal) return false;
+        if (typeFilter === "fresh" && isRenewal) return false;
+      }
       if (!q) return true;
       return [
         b.booking_code,
@@ -310,7 +332,7 @@ function BookingsPage() {
           .includes(s),
       );
     });
-  }, [all, q, agentFilter]);
+  }, [all, q, agentFilter, typeFilter]);
 
   const rows = useMemo(() => {
     const mult = sort.dir === "asc" ? 1 : -1;
@@ -374,7 +396,10 @@ function BookingsPage() {
                 {" · "}
                 <span className="font-medium text-foreground">{rows.length}</span>
                 {rows.length === 1 ? " booking" : " bookings"}
-                {(q || agentFilter !== "all") && all.length !== rows.length ? ` of ${all.length}` : ""}
+                {(q || agentFilter !== "all" || typeFilter !== "all") && all.length !== rows.length
+                  ? ` of ${all.length}`
+                  : ""}
+                {typeFilter !== "all" ? (typeFilter === "fresh" ? " · fresh" : " · renewals") : ""}
                 {agentFilter !== "all" ? ` · ${agentFilter}` : ""}
               </>
             )}
@@ -393,6 +418,26 @@ function BookingsPage() {
               <Upload className="h-4 w-4 mr-1" /> Bulk Upload
             </Button>
           )}
+          <Button
+            variant="outline"
+            className="transition-all duration-200 ease-out hover:shadow-sm"
+            onClick={() => setRenewalOpen(true)}
+          >
+            <Plus className="h-4 w-4 mr-1" /> New Renewal Booking
+          </Button>
+          <Select
+            value={typeFilter}
+            onValueChange={(v) => setTypeFilter(v as "all" | "fresh" | "renewal")}
+          >
+            <SelectTrigger className="w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All bookings</SelectItem>
+              <SelectItem value="fresh">Fresh bookings</SelectItem>
+              <SelectItem value="renewal">Renewal bookings</SelectItem>
+            </SelectContent>
+          </Select>
           {isAdmin && agents.length > 0 && (
             <Select value={agentFilter} onValueChange={setAgentFilter}>
               <SelectTrigger className="w-48">
@@ -618,6 +663,19 @@ function BookingsPage() {
           if (!v) setSelected(null);
         }}
       />
+
+      {/* Renewals keep their own form: no TDS, no quoted-price discount, and a
+        separate Google Sheet with a different column order. Mounted only once
+        opened so its chunk is not fetched on every visit. */}
+      {renewalOpen && (
+        <Suspense fallback={null}>
+          <NewRenewalBookingDialog
+            open={renewalOpen}
+            onClose={() => setRenewalOpen(false)}
+            userId={user?.id ?? null}
+          />
+        </Suspense>
+      )}
       {isAdmin && <BulkUploadDialog open={bulkOpen} onOpenChange={setBulkOpen} />}
 
       {isAdmin && (
