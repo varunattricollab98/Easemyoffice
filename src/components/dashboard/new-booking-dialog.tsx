@@ -183,10 +183,48 @@ function isFormFilled(form: BookingForm): boolean {
 
 // buildPaymentAckEmailHtml now lives in @/lib/payment-ack-email (imported above).
 
-export function NewBookingDialog() {
+export interface NewBookingDialogProps {
+  /**
+   * Controlled visibility. Omit for the classic self-contained usage (Bookings
+   * and Dashboard), where the dialog renders its own "New Booking" trigger and
+   * owns its open state.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /**
+   * Values to seed the form with when it opens — used by "Convert to Booking"
+   * on a lead. Supplying this also switches the dialog into single-booking
+   * mode: the queue and the localStorage draft are disabled, because staging
+   * several bookings or resurrecting an unrelated draft makes no sense when the
+   * form represents one specific lead.
+   */
+  prefill?: Partial<BookingForm>;
+  /** Fired once the booking row exists, before any post-save dialogs. */
+  onSaved?: (info: { bookingId: string; bookingUuid: string | null }) => void;
+}
+
+export function NewBookingDialog({
+  open: controlledOpen,
+  onOpenChange,
+  prefill,
+  onSaved,
+}: NewBookingDialogProps = {}) {
   const { isAdmin, profile, user } = useAuth();
   const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
+
+  // Visibility is controlled when the parent passes `open`, otherwise internal.
+  // Both paths funnel through setOpen() so the existing setOpen(false) calls
+  // scattered through the save/cancel flows keep working in either mode.
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : uncontrolledOpen;
+  const setOpen = (v: boolean) => {
+    if (!isControlled) setUncontrolledOpen(v);
+    onOpenChange?.(v);
+  };
+
+  // Converting a lead: one booking, no queue, no shared draft.
+  const convertMode = !!prefill;
   const [showAckDialog, setShowAckDialog] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [showDocAssignDialog, setShowDocAssignDialog] = useState(false);
@@ -257,6 +295,11 @@ export function NewBookingDialog() {
   };
 
   const clearDraft = () => {
+    // A lead conversion never owns the draft key, so it must not delete it:
+    // doing so would throw away an unrelated plain "New Booking" the rep had
+    // half-finished. The save/cancel paths call this unconditionally, hence the
+    // guard lives here rather than at every call site.
+    if (convertMode) return;
     try {
       localStorage.removeItem(draftKey);
     } catch {
@@ -273,6 +316,11 @@ export function NewBookingDialog() {
   // before they can interact with it.
   useEffect(() => {
     if (!open) return;
+    // Converting a lead: the form is seeded from that lead, so restoring an
+    // unrelated draft would silently overwrite the lead's details (the restore
+    // below replaces the whole form object). Leaving restoredKeyRef unset also
+    // keeps the save effect below from writing lead data into the shared draft.
+    if (convertMode) return;
     if (restoredKeyRef.current === draftKey) return;
     restoredKeyRef.current = draftKey;
     let parsed: unknown;
@@ -305,11 +353,31 @@ export function NewBookingDialog() {
     setQueue(restoredQueue);
     toast("Restored your saved booking draft");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draftKey, open]);
+  }, [draftKey, open, convertMode]);
+
+  // Seed the form from the lead the first time the dialog opens. Deliberately
+  // ONCE per mount: reopening after a cancel must show the rep's own work (plan,
+  // amounts, payment details — none of which come from a lead) rather than
+  // resetting the lead-derived fields over the top of it.
+  const prefillAppliedRef = useRef(false);
+  useEffect(() => {
+    if (!open) return;
+    if (!prefill || prefillAppliedRef.current) return;
+    prefillAppliedRef.current = true;
+    // Merged over current state so the fields the lead says nothing about keep
+    // their defaults — including sales_agent/sales_agent_id, which the profile
+    // effect above owns. The booking belongs to whoever creates it, not to the
+    // lead's assignee (persistBooking stamps assigned_to/created_by with the
+    // current user regardless).
+    setF((s) => ({ ...s, ...prefill }));
+  }, [open, prefill]);
 
   // SAVE (debounced ~400ms): persist the current form + queue whenever they
   // change and there is something worth saving. Guarded against storage errors.
   useEffect(() => {
+    // Never persist a lead conversion: it would leak that lead's details into
+    // the user's next plain "New Booking".
+    if (convertMode) return;
     // Wait until we've attempted a restore for this key so we don't clobber it.
     if (restoredKeyRef.current !== draftKey) return;
     const handle = setTimeout(() => {
@@ -329,7 +397,7 @@ export function NewBookingDialog() {
     }, 400);
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [f, queue, draftKey]);
+  }, [f, queue, draftKey, convertMode]);
 
   // Team members available to be picked as the sales agent (admin only).
   const { data: teamUsers = [] } = useQuery({
@@ -1177,6 +1245,11 @@ export function NewBookingDialog() {
       const bookingUuid = res.bookingUuid;
       toast.success("Booking saved" + (res?.sheet?.ok ? " · added to Google Sheet ✓" : ""));
       qc.invalidateQueries({ queryKey: ["bookings"] });
+      // Tell the caller the booking exists NOW, rather than when the dialog
+      // closes: the ack-email and doc-assign dialogs below can keep the user
+      // here for a while, and a lead conversion must be recorded even if they
+      // abandon those follow-up steps.
+      onSaved?.({ bookingId, bookingUuid });
       // The id we just consumed is now used — make sure the next form open asks
       // the sheet again instead of reusing it from cache.
       qc.invalidateQueries({ queryKey: ["booking-next-id"] });
@@ -1251,15 +1324,27 @@ export function NewBookingDialog() {
   return (
     <>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
-          <Button size="sm" variant="outline">
-            <Plus className="h-4 w-4" /> <span className="hidden sm:inline">New Booking</span>
-          </Button>
-        </DialogTrigger>
+        {/* The built-in trigger only exists for the uncontrolled usage. A parent
+          that controls `open` (e.g. the lead page's Convert button) supplies its
+          own trigger. */}
+        {!isControlled && (
+          <DialogTrigger asChild>
+            <Button size="sm" variant="outline">
+              <Plus className="h-4 w-4" /> <span className="hidden sm:inline">New Booking</span>
+            </Button>
+          </DialogTrigger>
+        )}
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>New Booking</DialogTitle>
+            <DialogTitle>{convertMode ? "Convert Lead to Booking" : "New Booking"}</DialogTitle>
           </DialogHeader>
+
+          {convertMode && (
+            <p className="-mt-2 text-xs text-muted-foreground">
+              Details carried over from the lead. Pick a plan and enter the amount to finish — the
+              plan also fills in the space, area, city and state.
+            </p>
+          )}
 
           {/* Queued bookings staged with "Add another booking" but not yet saved.
             Rendered only when non-empty. Each row is editable / removable. */}
@@ -1664,7 +1749,7 @@ export function NewBookingDialog() {
             {/* Discard draft: visible whenever there is a draft-worthy state
               (queued bookings or a filled current form). Removes the queue,
               resets the form and clears the localStorage draft. */}
-            {(queue.length > 0 || isFormFilled(f)) && (
+            {!convertMode && (queue.length > 0 || isFormFilled(f)) && (
               <Button
                 variant="ghost"
                 className="text-destructive hover:text-destructive sm:mr-auto"
@@ -1681,14 +1766,18 @@ export function NewBookingDialog() {
             >
               Cancel
             </Button>
-            {/* Add the current (valid) form to the queue for a later "Save all". */}
-            <Button
-              variant="outline"
-              disabled={submit.isPending || savingBatch || !isFormValid(f)}
-              onClick={handleAddAnother}
-            >
-              <Plus className="h-4 w-4" /> Add another booking
-            </Button>
+            {/* Add the current (valid) form to the queue for a later "Save all".
+              Hidden when converting a lead — that flow is about this one lead,
+              and queuing would detach the extra bookings from it. */}
+            {!convertMode && (
+              <Button
+                variant="outline"
+                disabled={submit.isPending || savingBatch || !isFormValid(f)}
+                onClick={handleAddAnother}
+              >
+                <Plus className="h-4 w-4" /> Add another booking
+              </Button>
+            )}
             {queue.length > 0 ? (
               // Batch path: save every queued booking (plus the current form if
               // it is filled and valid) sequentially.
