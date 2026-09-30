@@ -1,9 +1,9 @@
-import { Link, Outlet, createFileRoute, redirect, useLocation } from "@tanstack/react-router";
+import { Link, Outlet, createFileRoute, useLocation } from "@tanstack/react-router";
 import { ShieldCheck } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { hrmsDb } from "@/lib/hrms";
-import { supabase } from "@/integrations/supabase/client";
+import { guardRoles } from "@/lib/route-guard";
 import { GLASS_TRACK, glassTabClass } from "@/components/hrms/glass-tab-styles";
 
 // One admin hub for everything HR. There is no separate HR person — the admin
@@ -11,15 +11,8 @@ import { GLASS_TRACK, glassTabClass } from "@/components/hrms/glass-tab-styles";
 // single sidebar entry instead of three.
 export const Route = createFileRoute("/_authenticated/hrms")({
   // Guards every child route. RLS remains the real boundary.
-  beforeLoad: async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw redirect({ to: "/login" });
-    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
-    if (!((roles ?? []) as { role: string }[]).some((r) => r.role === "admin")) {
-      throw redirect({ to: "/dashboard" });
-    }
+  beforeLoad: async ({ context }) => {
+    await guardRoles(context.queryClient, ["admin"]);
   },
   component: HrmsLayout,
 });

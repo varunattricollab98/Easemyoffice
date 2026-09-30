@@ -331,3 +331,17 @@ Sandbox quirks (all learned the hard way — several fail SILENTLY with empty ou
 - **Salary slips:** stay admin-only. When an employee needs one, the admin **downloads** the finalised
   slip as a PDF and sends it himself (owner preferred download over in-CRM email). The `hr-requests`
   `email_salary_slip` action still exists but has no UI.
+
+### Performance (Oct 2026)
+- **Never export a component from a route file** (or import one from another route): TanStack's
+  code-splitter then leaves the route unsplit and it lands in the entry chunk. `PipelinePage` and
+  `RenewalDashboard` did exactly that (pipeline board + dnd-kit + day-picker in the entry); fixed —
+  the renewal dashboard now lives in `src/components/renewals/renewal-dashboard.tsx` and the main
+  Dashboard lazy-loads it. Entry chunk 943 KB → 716 KB (284 → 214 KB gzip).
+- Route guards use `guardRoles()` (`src/lib/route-guard.ts`): `getSession()` (local) + roles cached in
+  react-query for 5 min. The old `auth.getUser()` + `user_roles` ran on every navigation AND on hover
+  preload (`defaultPreload: "intent"`).
+- One shared unread-notifications query (`useUnreadCount`) for sidebar + phone tab bar.
+- To measure bundles: temporarily add `vite: { build: { sourcemap: true } }` to vite.config, build, then
+  `npx -y source-map-explorer dist/client/assets/index-*.js --json --no-border-checks`; revert the config.
+- Not done yet: `/reports` still downloads whole tables client-side (and PostgREST caps each at 1000 rows).

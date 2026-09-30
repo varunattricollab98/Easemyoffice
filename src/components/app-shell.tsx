@@ -78,6 +78,29 @@ const ADMIN_NAV: NavItem[] = [
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
+/**
+ * Unread notifications badge. One shared query for the sidebar and the phone
+ * tab bar (both are mounted at once; they used to poll separately, every 15s
+ * and 30s). New rows arrive over realtime and invalidate this key, so the
+ * interval is only a safety net.
+ */
+function useUnreadCount(userId: string | undefined) {
+  const { data = 0 } = useQuery({
+    queryKey: ["notif-unread-count", userId],
+    enabled: !!userId,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId!)
+        .eq("read", false as never);
+      return count ?? 0;
+    },
+  });
+  return data;
+}
+
 function visibleFor(items: NavItem[], roles: AppRole[], isAdmin: boolean) {
   if (isAdmin) return items;
   return items.filter((i) => !i.roles || i.roles.some((r) => roles.includes(r)));
@@ -89,19 +112,7 @@ export function AppSidebar() {
   const search = useGlobalSearch();
   const items = [...visibleFor(NAV, roles, isAdmin), ...visibleFor(ADMIN_NAV, roles, isAdmin)];
 
-  const { data: unreadCount = 0 } = useQuery({
-    queryKey: ["notif-unread-count"],
-    enabled: !!user?.id,
-    refetchInterval: 15_000,
-    queryFn: async () => {
-      const { count } = await supabase
-        .from("notifications")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user!.id)
-        .eq("read", false as never);
-      return count ?? 0;
-    },
-  });
+  const unreadCount = useUnreadCount(user?.id);
 
   return (
     <aside className="hidden lg:flex sticky top-0 h-screen w-64 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">
@@ -207,19 +218,7 @@ export function MobileTabBar() {
   // Close the sheet whenever the route changes (a link inside it was tapped).
   useEffect(() => setMoreOpen(false), [loc.pathname]);
 
-  const { data: unreadCount = 0 } = useQuery({
-    queryKey: ["notif-unread-count-mobile"],
-    enabled: !!user?.id,
-    refetchInterval: 30_000,
-    queryFn: async () => {
-      const { count } = await supabase
-        .from("notifications")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user!.id)
-        .eq("read", false as never);
-      return count ?? 0;
-    },
-  });
+  const unreadCount = useUnreadCount(user?.id);
 
   const isActive = (to: string) => loc.pathname === to || loc.pathname.startsWith(to + "/");
   const moreActive = rest.some((i) => isActive(i.to));

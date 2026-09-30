@@ -50,7 +50,9 @@ const useIsMobile = () => {
   return isMobile;
 };
 
-export function PipelinePage() {
+// Not exported: an exported route component cannot be code-split, which put
+// the whole pipeline board (and dnd-kit) into the app's entry bundle.
+function PipelinePage() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
