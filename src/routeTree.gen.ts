@@ -44,6 +44,7 @@ import { Route as AuthenticatedLeadsNewRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedLeadsImportRouteImport } from './routes/_authenticated/leads/import'
 import { Route as AuthenticatedLeadsIdRouteImport } from './routes/_authenticated/leads/$id'
 import { Route as AuthenticatedHrmsSettingsRouteImport } from './routes/_authenticated/hrms/settings'
+import { Route as AuthenticatedHrmsSalaryRouteImport } from './routes/_authenticated/hrms/salary'
 import { Route as AuthenticatedHrmsEmployeesRouteImport } from './routes/_authenticated/hrms/employees'
 import { Route as AuthenticatedHrmsAttendanceRouteImport } from './routes/_authenticated/hrms/attendance'
 import { Route as AuthenticatedHrmsApprovalsRouteImport } from './routes/_authenticated/hrms/approvals'
@@ -236,6 +237,11 @@ const AuthenticatedHrmsSettingsRoute =
     path: '/settings',
     getParentRoute: () => AuthenticatedHrmsRoute,
   } as any)
+const AuthenticatedHrmsSalaryRoute = AuthenticatedHrmsSalaryRouteImport.update({
+  id: '/salary',
+  path: '/salary',
+  getParentRoute: () => AuthenticatedHrmsRoute,
+} as any)
 const AuthenticatedHrmsEmployeesRoute =
   AuthenticatedHrmsEmployeesRouteImport.update({
     id: '/employees',
@@ -322,6 +328,7 @@ export interface FileRoutesByFullPath {
   '/hrms/approvals': typeof AuthenticatedHrmsApprovalsRoute
   '/hrms/attendance': typeof AuthenticatedHrmsAttendanceRoute
   '/hrms/employees': typeof AuthenticatedHrmsEmployeesRoute
+  '/hrms/salary': typeof AuthenticatedHrmsSalaryRoute
   '/hrms/settings': typeof AuthenticatedHrmsSettingsRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/leads/import': typeof AuthenticatedLeadsImportRoute
@@ -366,6 +373,7 @@ export interface FileRoutesByTo {
   '/hrms/approvals': typeof AuthenticatedHrmsApprovalsRoute
   '/hrms/attendance': typeof AuthenticatedHrmsAttendanceRoute
   '/hrms/employees': typeof AuthenticatedHrmsEmployeesRoute
+  '/hrms/salary': typeof AuthenticatedHrmsSalaryRoute
   '/hrms/settings': typeof AuthenticatedHrmsSettingsRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/leads/import': typeof AuthenticatedLeadsImportRoute
@@ -413,6 +421,7 @@ export interface FileRoutesById {
   '/_authenticated/hrms/approvals': typeof AuthenticatedHrmsApprovalsRoute
   '/_authenticated/hrms/attendance': typeof AuthenticatedHrmsAttendanceRoute
   '/_authenticated/hrms/employees': typeof AuthenticatedHrmsEmployeesRoute
+  '/_authenticated/hrms/salary': typeof AuthenticatedHrmsSalaryRoute
   '/_authenticated/hrms/settings': typeof AuthenticatedHrmsSettingsRoute
   '/_authenticated/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/_authenticated/leads/import': typeof AuthenticatedLeadsImportRoute
@@ -460,6 +469,7 @@ export interface FileRouteTypes {
     | '/hrms/approvals'
     | '/hrms/attendance'
     | '/hrms/employees'
+    | '/hrms/salary'
     | '/hrms/settings'
     | '/leads/$id'
     | '/leads/import'
@@ -504,6 +514,7 @@ export interface FileRouteTypes {
     | '/hrms/approvals'
     | '/hrms/attendance'
     | '/hrms/employees'
+    | '/hrms/salary'
     | '/hrms/settings'
     | '/leads/$id'
     | '/leads/import'
@@ -550,6 +561,7 @@ export interface FileRouteTypes {
     | '/_authenticated/hrms/approvals'
     | '/_authenticated/hrms/attendance'
     | '/_authenticated/hrms/employees'
+    | '/_authenticated/hrms/salary'
     | '/_authenticated/hrms/settings'
     | '/_authenticated/leads/$id'
     | '/_authenticated/leads/import'
@@ -822,6 +834,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHrmsSettingsRouteImport
       parentRoute: typeof AuthenticatedHrmsRoute
     }
+    '/_authenticated/hrms/salary': {
+      id: '/_authenticated/hrms/salary'
+      path: '/salary'
+      fullPath: '/hrms/salary'
+      preLoaderRoute: typeof AuthenticatedHrmsSalaryRouteImport
+      parentRoute: typeof AuthenticatedHrmsRoute
+    }
     '/_authenticated/hrms/employees': {
       id: '/_authenticated/hrms/employees'
       path: '/employees'
@@ -892,6 +911,7 @@ interface AuthenticatedHrmsRouteChildren {
   AuthenticatedHrmsApprovalsRoute: typeof AuthenticatedHrmsApprovalsRoute
   AuthenticatedHrmsAttendanceRoute: typeof AuthenticatedHrmsAttendanceRoute
   AuthenticatedHrmsEmployeesRoute: typeof AuthenticatedHrmsEmployeesRoute
+  AuthenticatedHrmsSalaryRoute: typeof AuthenticatedHrmsSalaryRoute
   AuthenticatedHrmsSettingsRoute: typeof AuthenticatedHrmsSettingsRoute
   AuthenticatedHrmsIndexRoute: typeof AuthenticatedHrmsIndexRoute
 }
@@ -900,6 +920,7 @@ const AuthenticatedHrmsRouteChildren: AuthenticatedHrmsRouteChildren = {
   AuthenticatedHrmsApprovalsRoute: AuthenticatedHrmsApprovalsRoute,
   AuthenticatedHrmsAttendanceRoute: AuthenticatedHrmsAttendanceRoute,
   AuthenticatedHrmsEmployeesRoute: AuthenticatedHrmsEmployeesRoute,
+  AuthenticatedHrmsSalaryRoute: AuthenticatedHrmsSalaryRoute,
   AuthenticatedHrmsSettingsRoute: AuthenticatedHrmsSettingsRoute,
   AuthenticatedHrmsIndexRoute: AuthenticatedHrmsIndexRoute,
 }
