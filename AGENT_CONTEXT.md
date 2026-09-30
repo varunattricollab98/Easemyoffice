@@ -217,9 +217,9 @@ Sandbox quirks (all learned the hard way — several fail SILENTLY with empty ou
 |---|---|---|
 | 1 | employees, departments, office location, HR settings, holidays + admin pages | ✅ #172 — migration applied, owner verified all 6 tables |
 | 2 | attendance login/logout, geofence edge function, `attendance` + `attendance_events`, device registration, employee dashboard, admin attendance dashboard | ✅ #174 (+ #175 CI fix, #176 admin hub) |
-| 3 | flexible schedules, WFH approval, leave (2/month, carry 1), CRM idle tracking | 🟡 PR open — waiting on owner to run migration `20260516000007`, then merge |
+| 3 | flexible schedules, WFH approval, leave (2/month, carry 1), CRM idle tracking | ✅ #177 (+ #178 per-function deploy with retries, #179 schedule hide/view) |
 | 4 | attendance corrections + payroll readiness | — |
-| 5 | salary structures, incentive rules (from bookings), payroll run + lock + adjustments | — |
+| 5 | salary structures, incentive rules (from bookings), payroll run + lock + adjustments | 🟡 salary structure + slips PR open — waiting on migration `20260516000008`; incentive rules from bookings not yet |
 
 ### Phase 1 as built (#172)
 - Migration `supabase/migrations/20260516000005_hrms_phase1.sql`:
@@ -290,3 +290,17 @@ Sandbox quirks (all learned the hard way — several fail SILENTLY with empty ou
   every 2 min on real interaction; gap ≥ threshold → idle period. Idle is **recorded, not deducted**.
 - Alerts: `_shared/hr-notify.ts` → in-CRM notification + Resend email (admins = `user_roles.admin`
   profile emails). Link target `/hrms/approvals` (new hub tab with pending count).
+
+### Salary slips as built (Phase 5, part 1)
+- Migration `20260516000008_hrms_salary_slips.sql`: `employee_salary` (monthly basic/HRA/conveyance/
+  medical/special/other, PF & ESI flags, PT, TDS) and `salary_slips` (per employee per month; monthly
+  incentive/bonus/other earnings, advance recovery, other deductions, TDS override, note; `status`
+  draft|final; `snapshot` jsonb frozen at finalise). Trigger: final slips are immutable and undeletable
+  except an explicit reopen to draft (stamps `reopened_at`). **Both tables admin-only incl. reads.**
+- Maths `src/lib/payroll.ts` (+ tests): calendar-day basis, LOP = absent (incl. rejected WFH) + ½ per
+  half day + unpaid leave (+ days outside employment); "left early" not deducted. PF 12% of earned basic
+  capped at ₹15,000 wage; ESI 0.75% of earned gross if fixed gross ≤ ₹21,000. Amount in words (Indian).
+- UI `/hrms/salary` hub tab: Salary slips (all slip columns, open-item warnings, adjustments dialog,
+  print/PDF via `src/lib/salary-slip-html.ts`, finalise one/all, reopen) and Salary structure.
+  Default month = previous month during the first 10 days. Employees still see no salary.
+- Not yet: incentive rules fed from bookings (incentive is entered manually per slip).

@@ -262,3 +262,41 @@ export function lateAfter(workStart: string, graceMinutes: number): string {
   const m = total % 60;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
+
+// ---------------------------------------------------------------------------
+// Salary (admin only by RLS — employees never read these tables).
+// ---------------------------------------------------------------------------
+
+export type EmployeeSalary = {
+  employee_id: string;
+  effective_from: string | null;
+  basic: number | string;
+  hra: number | string;
+  conveyance: number | string;
+  medical: number | string;
+  special_allowance: number | string;
+  other_allowance: number | string;
+  pf_enabled: boolean;
+  esi_enabled: boolean;
+  professional_tax: number | string;
+  tds: number | string;
+  notes: string | null;
+};
+
+export type SalarySlipRow = {
+  id: string;
+  employee_id: string;
+  month: string;
+  status: "draft" | "final";
+  incentive: number | string;
+  bonus: number | string;
+  other_earnings: number | string;
+  advance_recovery: number | string;
+  other_deductions: number | string;
+  tds_override: number | string | null;
+  note: string | null;
+  snapshot: unknown;
+  net_pay: number | string | null;
+  finalized_at: string | null;
+  reopened_at: string | null;
+};

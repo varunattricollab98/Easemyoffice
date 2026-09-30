@@ -28,6 +28,7 @@ const SECTIONS = [
   { to: "/hrms/attendance", label: "Attendance" },
   { to: "/hrms/approvals", label: "Approvals" },
   { to: "/hrms/employees", label: "Employees" },
+  { to: "/hrms/salary", label: "Salary" },
   { to: "/hrms/settings", label: "Office & Hours" },
 ] as const;
 
