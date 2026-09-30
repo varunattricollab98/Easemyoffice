@@ -56,6 +56,10 @@ const NAV: NavItem[] = [
 ];
 
 const ADMIN_NAV: NavItem[] = [
+  // HRMS — admin only. RLS is the real boundary (salary lands on this schema in a
+  // later phase); these entries just keep the pages out of a rep's sidebar.
+  { to: "/hrms/employees", label: "Employees", icon: UsersRound, roles: ["admin"] },
+  { to: "/hrms/settings", label: "HR Settings", icon: Settings, roles: ["admin"] },
   // Analytics and Activity Log were removed: Analytics duplicated Reports and
   // Sales Performance, and Activity Log read the audit trail that Activity
   // already sits next to in the nav. The audit_log table keeps being written,

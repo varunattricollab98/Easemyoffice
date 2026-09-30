@@ -40,6 +40,8 @@ import { Route as AuthenticatedRenewalsInboxRouteImport } from './routes/_authen
 import { Route as AuthenticatedLeadsNewRouteImport } from './routes/_authenticated/leads/new'
 import { Route as AuthenticatedLeadsImportRouteImport } from './routes/_authenticated/leads/import'
 import { Route as AuthenticatedLeadsIdRouteImport } from './routes/_authenticated/leads/$id'
+import { Route as AuthenticatedHrmsSettingsRouteImport } from './routes/_authenticated/hrms/settings'
+import { Route as AuthenticatedHrmsEmployeesRouteImport } from './routes/_authenticated/hrms/employees'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
 import { Route as AuthenticatedAdminSalesPerformanceRouteImport } from './routes/_authenticated/admin/sales-performance'
 import { Route as AuthenticatedAdminKpiReportRouteImport } from './routes/_authenticated/admin/kpi-report'
@@ -208,6 +210,18 @@ const AuthenticatedLeadsIdRoute = AuthenticatedLeadsIdRouteImport.update({
   path: '/leads/$id',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedHrmsSettingsRoute =
+  AuthenticatedHrmsSettingsRouteImport.update({
+    id: '/hrms/settings',
+    path: '/hrms/settings',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedHrmsEmployeesRoute =
+  AuthenticatedHrmsEmployeesRouteImport.update({
+    id: '/hrms/employees',
+    path: '/hrms/employees',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   id: '/admin/users',
   path: '/admin/users',
@@ -271,6 +285,8 @@ export interface FileRoutesByFullPath {
   '/admin/kpi-report': typeof AuthenticatedAdminKpiReportRoute
   '/admin/sales-performance': typeof AuthenticatedAdminSalesPerformanceRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/hrms/employees': typeof AuthenticatedHrmsEmployeesRoute
+  '/hrms/settings': typeof AuthenticatedHrmsSettingsRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/leads/import': typeof AuthenticatedLeadsImportRoute
   '/leads/new': typeof AuthenticatedLeadsNewRoute
@@ -309,6 +325,8 @@ export interface FileRoutesByTo {
   '/admin/kpi-report': typeof AuthenticatedAdminKpiReportRoute
   '/admin/sales-performance': typeof AuthenticatedAdminSalesPerformanceRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/hrms/employees': typeof AuthenticatedHrmsEmployeesRoute
+  '/hrms/settings': typeof AuthenticatedHrmsSettingsRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/leads/import': typeof AuthenticatedLeadsImportRoute
   '/leads/new': typeof AuthenticatedLeadsNewRoute
@@ -349,6 +367,8 @@ export interface FileRoutesById {
   '/_authenticated/admin/kpi-report': typeof AuthenticatedAdminKpiReportRoute
   '/_authenticated/admin/sales-performance': typeof AuthenticatedAdminSalesPerformanceRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/_authenticated/hrms/employees': typeof AuthenticatedHrmsEmployeesRoute
+  '/_authenticated/hrms/settings': typeof AuthenticatedHrmsSettingsRoute
   '/_authenticated/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/_authenticated/leads/import': typeof AuthenticatedLeadsImportRoute
   '/_authenticated/leads/new': typeof AuthenticatedLeadsNewRoute
@@ -389,6 +409,8 @@ export interface FileRouteTypes {
     | '/admin/kpi-report'
     | '/admin/sales-performance'
     | '/admin/users'
+    | '/hrms/employees'
+    | '/hrms/settings'
     | '/leads/$id'
     | '/leads/import'
     | '/leads/new'
@@ -427,6 +449,8 @@ export interface FileRouteTypes {
     | '/admin/kpi-report'
     | '/admin/sales-performance'
     | '/admin/users'
+    | '/hrms/employees'
+    | '/hrms/settings'
     | '/leads/$id'
     | '/leads/import'
     | '/leads/new'
@@ -466,6 +490,8 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/kpi-report'
     | '/_authenticated/admin/sales-performance'
     | '/_authenticated/admin/users'
+    | '/_authenticated/hrms/employees'
+    | '/_authenticated/hrms/settings'
     | '/_authenticated/leads/$id'
     | '/_authenticated/leads/import'
     | '/_authenticated/leads/new'
@@ -708,6 +734,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedLeadsIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/hrms/settings': {
+      id: '/_authenticated/hrms/settings'
+      path: '/hrms/settings'
+      fullPath: '/hrms/settings'
+      preLoaderRoute: typeof AuthenticatedHrmsSettingsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/hrms/employees': {
+      id: '/_authenticated/hrms/employees'
+      path: '/hrms/employees'
+      fullPath: '/hrms/employees'
+      preLoaderRoute: typeof AuthenticatedHrmsEmployeesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/admin/users': {
       id: '/_authenticated/admin/users'
       path: '/admin/users'
@@ -775,6 +815,8 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminKpiReportRoute: typeof AuthenticatedAdminKpiReportRoute
   AuthenticatedAdminSalesPerformanceRoute: typeof AuthenticatedAdminSalesPerformanceRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
+  AuthenticatedHrmsEmployeesRoute: typeof AuthenticatedHrmsEmployeesRoute
+  AuthenticatedHrmsSettingsRoute: typeof AuthenticatedHrmsSettingsRoute
   AuthenticatedLeadsIdRoute: typeof AuthenticatedLeadsIdRoute
   AuthenticatedLeadsImportRoute: typeof AuthenticatedLeadsImportRoute
   AuthenticatedLeadsNewRoute: typeof AuthenticatedLeadsNewRoute
@@ -809,6 +851,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminSalesPerformanceRoute:
     AuthenticatedAdminSalesPerformanceRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
+  AuthenticatedHrmsEmployeesRoute: AuthenticatedHrmsEmployeesRoute,
+  AuthenticatedHrmsSettingsRoute: AuthenticatedHrmsSettingsRoute,
   AuthenticatedLeadsIdRoute: AuthenticatedLeadsIdRoute,
   AuthenticatedLeadsImportRoute: AuthenticatedLeadsImportRoute,
   AuthenticatedLeadsNewRoute: AuthenticatedLeadsNewRoute,
