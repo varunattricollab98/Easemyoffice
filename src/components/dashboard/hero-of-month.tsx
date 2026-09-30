@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { isRenewalBooking, planCodeLabel } from "@/lib/booking-kind";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -20,7 +21,11 @@ type HeroBooking = {
   profit: number | null;
   booking_date: string | null;
   booking_source?: string | null;
+  external_booking_id?: string | null;
+  renewal_status?: string | null;
 };
+/** Columns isRenewalBooking needs. */
+const KIND_COLS = "booking_source, external_booking_id, renewal_status";
 type HeroProfile = { id: string; full_name: string | null; email: string | null };
 type UserTargetRow = { user_id: string; bookings: number | null; profit: number | null };
 
@@ -69,12 +74,12 @@ export function HeroOfMonth() {
     queryKey: ["hero-bookings", start, end],
     queryFn: async () => {
       const { data, error } = await supabase.from("bookings")
-        .select("id, sales_agent_id, sales_agent_name, plan_name, total_amount, profit, booking_date, booking_source")
+        .select(`id, sales_agent_id, sales_agent_name, plan_name, total_amount, profit, booking_date, ${KIND_COLS}`)
         .gte("booking_date", start).lt("booking_date", end)
-        .neq("booking_source", "Renewal")
         .limit(5000);
       if (error) throw new Error(error.message);
-      return (data ?? []) as HeroBooking[];
+      // Fresh business only: renewals (Booking ID …R1 etc.) are excluded.
+      return ((data ?? []) as HeroBooking[]).filter((b) => !isRenewalBooking(b));
     },
   });
 
@@ -162,12 +167,11 @@ export function HeroOfMonth() {
     queryKey: ["hero-trend", trendStart, trendEnd],
     queryFn: async () => {
       const { data, error } = await supabase.from("bookings")
-        .select("booking_date, total_amount, profit")
+        .select(`booking_date, total_amount, profit, ${KIND_COLS}`)
         .gte("booking_date", trendStart).lt("booking_date", trendEnd)
-        .neq("booking_source", "Renewal")
         .limit(5000);
       if (error) throw new Error(error.message);
-      return (data ?? []) as HeroBooking[];
+      return ((data ?? []) as HeroBooking[]).filter((b) => !isRenewalBooking(b));
     },
   });
   const trendMonths = useMemo(() => {
@@ -473,7 +477,7 @@ export function HeroOfMonth() {
                 <div key={p.plan} className="flex items-center gap-3">
                   <div className="w-28 shrink-0 sm:w-36">
                     <div className="truncate text-sm font-medium" title={p.plan}>
-                      {p.plan}
+                      {planCodeLabel(p.plan)}
                     </div>
                     {p.variantCount > 1 && (
                       <div

@@ -317,3 +317,16 @@ Sandbox quirks (all learned the hard way — several fail SILENTLY with empty ou
   theme, sign out). Before this, phones could only reach 5 pages.
 - Sandbox cannot run a dev server (tool refuses long-running processes), so mobile layouts are not
   visually verified here.
+
+### Owner answers (30 Sep 2026)
+- **Renewals:** every renewal booking's Booking ID (`external_booking_id`) ends in **R1** (R2… for later
+  renewals); they are uploaded separately. `src/lib/booking-kind.ts#isRenewalBooking` = ID ends R<n>
+  OR `booking_source = 'Renewal'` OR (no Booking ID AND `renewal_status in (renewed, pending_payment)`,
+  i.e. the renewal form). Used by Bookings tabs, Hero of the Month / trend and Sales Performance.
+  Resolves open item 2. The renewal pipeline also sets `renewed` on ORIGINAL bookings — that is why the
+  status rule requires a missing Booking ID.
+- **Plan codes:** BR = Business Registration, MA = Mailing Address, GST = GST (`PLAN_CODE_LABELS`).
+  Resolves open item 3 for these three codes.
+- **Salary slips:** stay admin-only. When an employee needs one, the admin emails the finalised slip as
+  a PDF (`src/lib/salary-slip-pdf.ts` → `hr-requests` action `email_salary_slip`, Resend attachment,
+  sent to `employees.email`, else the login email). Only final slips can be sent.

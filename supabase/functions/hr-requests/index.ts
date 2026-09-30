@@ -6,13 +6,14 @@
 //             { action: "cancel_leave", id }                 (own, pending only)
 //   admin:    { action: "decide_leave", id, approve, note? }
 //             { action: "decide_remote", attendance_id, approve, note? }
+//             { action: "email_salary_slip", employee_id, month, pdf_base64, filename }
 //
 // Replies 200 { ok: true, ... } or 200 { ok: false, message } for business
 // rule failures; non-2xx only for faults. Every new request emails + alerts the
 // admins; every decision alerts the employee.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { expandLeave, istParts, addDays, normalizeSchedules } from "../_shared/attendance-rules.ts";
-import { notifyAdmins, notifyUser } from "../_shared/hr-notify.ts";
+import { esc, notifyAdmins, notifyUser, sendEmailWithAttachments } from "../_shared/hr-notify.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -243,6 +244,61 @@ Deno.serve(async (req) => {
         cta: "Open My Attendance",
       });
       return json({ ok: true });
+    }
+
+    // Salary slips are admin-only in the CRM; the admin sends one to the
+    // employee's email when they ask for it. Only a FINALISED slip can be sent,
+    // so what the employee receives always matches the locked record.
+    if (action === "email_salary_slip") {
+      if (!isAdmin) return json({ error: "Admins only." }, 403);
+      const employeeId = String(body.employee_id ?? "");
+      const month = String(body.month ?? "");
+      const pdf = typeof body.pdf_base64 === "string" ? body.pdf_base64 : "";
+      if (!/^\d{4}-\d{2}-01$/.test(month)) return fail("Invalid month.");
+      if (!pdf || pdf.length > 4_000_000) return fail("The slip PDF is missing or too large.");
+      const { data: slip } = await db
+        .from("salary_slips")
+        .select("status")
+        .eq("employee_id", employeeId)
+        .eq("month", month)
+        .maybeSingle();
+      if (slip?.status !== "final") return fail("Finalise the slip before emailing it.");
+      const { data: emp } = await db
+        .from("employees")
+        .select("first_name, last_name, email, profile_id")
+        .eq("id", employeeId)
+        .maybeSingle();
+      if (!emp) return fail("Employee not found.");
+      let to = String(emp.email ?? "").trim();
+      if (!to.includes("@") && emp.profile_id) {
+        const { data: p } = await db
+          .from("profiles")
+          .select("email")
+          .eq("id", emp.profile_id)
+          .maybeSingle();
+        to = String(p?.email ?? "").trim();
+      }
+      if (!to.includes("@")) return fail("This employee has no email address on record.");
+      const label = new Date(`${month}T00:00:00Z`).toLocaleDateString("en-IN", {
+        month: "long",
+        year: "numeric",
+        timeZone: "UTC",
+      });
+      const name = nameOf(emp);
+      const filename =
+        text(body.filename, 120)?.replace(/[^\w.\-]+/g, "-") ||
+        `Salary-Slip-${month.slice(0, 7)}.pdf`;
+      await sendEmailWithAttachments({
+        to,
+        subject: `Salary slip — ${label}`,
+        html: `<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;font-size:14px;color:#111827;line-height:1.6">
+<p>Hi ${esc(emp.first_name)},</p>
+<p>Please find attached your salary slip for <strong>${esc(label)}</strong>.</p>
+<p>For any questions about it, reply to this email.</p>
+<p>Regards,<br/>EaseMyOffice</p></div>`,
+        attachments: [{ filename, content: pdf }],
+      });
+      return json({ ok: true, to, name });
     }
 
     return json({ error: "Unknown action" }, 400);

@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { DashboardScope } from "@/lib/dashboard-queries";
 import { buildReport, bookingRevenue } from "@/lib/report-metrics";
 import type { ReportResult, BookingRow, LeadRow } from "@/lib/report-metrics";
+import { isRenewalBooking, type BookingKindFields } from "@/lib/booking-kind";
 import type { ResolvedPeriod } from "@/lib/report-period";
 
 // Matches the ceiling used elsewhere in the app. Reports surface when they hit
@@ -59,19 +60,20 @@ async function fetchBookings(
   let q = supabase
     .from("bookings")
     .select(
-      "id, sales_agent_id, sales_agent_name, booking_date, total_amount, amount_after_tds, amount_received, lead_id",
+      "id, sales_agent_id, sales_agent_name, booking_date, total_amount, amount_after_tds, amount_received, lead_id, booking_source, external_booking_id, renewal_status",
     )
     // booking_date is a `date` column, so compare with YYYY-MM-DD, not an
     // instant — passing an ISO timestamp here silently drops the last day.
     .gte("booking_date", fromDate)
-    .lte("booking_date", toDate)
-    // Renewals are not new-business closures. Excluded to stay consistent with
-    // the Hero of the Month / previous sales-performance figures.
-    .neq("booking_source", "Renewal");
+    .lte("booking_date", toDate);
   q = applyOr(q, scope, BOOKING_SCOPE_COLS);
   const { data } = await q.limit(ROW_LIMIT);
-  const rows = (data ?? []) as BookingRow[];
-  return { rows, truncated: rows.length >= ROW_LIMIT };
+  const all = (data ?? []) as (BookingRow & BookingKindFields)[];
+  // Renewals are not new-business closures (Booking ID …R1 etc., see
+  // isRenewalBooking). Filtered after the fetch so truncation still reflects
+  // the raw row count.
+  const rows = all.filter((b) => !isRenewalBooking(b));
+  return { rows, truncated: all.length >= ROW_LIMIT };
 }
 
 export type SalesReport = ReportResult & {
