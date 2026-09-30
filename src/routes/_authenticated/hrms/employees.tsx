@@ -36,6 +36,7 @@ import { format } from "date-fns";
 import { getErrorMessage } from "@/lib/utils";
 import { logAudit } from "@/lib/audit";
 import { useAuth } from "@/lib/auth";
+import { ImportTeamButton } from "@/components/hrms/import-team-dialog";
 import {
   hrmsDb,
   employeeName,
@@ -177,9 +178,12 @@ function EmployeesPage() {
             {counts.active} active · {counts.total} total. Bank, PAN and Aadhaar are admin-only.
           </p>
         </div>
-        <Button onClick={() => setAddOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" /> Add employee
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <ImportTeamButton employees={employees} departments={departments} offices={offices} />
+          <Button onClick={() => setAddOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" /> Add employee
+          </Button>
+        </div>
       </div>
 
       {offices.length === 0 && (

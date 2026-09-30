@@ -300,3 +300,43 @@ export type SalarySlipRow = {
   finalized_at: string | null;
   reopened_at: string | null;
 };
+
+// ---------------------------------------------------------------------------
+// Import team from CRM logins
+// ---------------------------------------------------------------------------
+
+/** "Neha Singh" -> { first: "Neha", last: "Singh" }; falls back to the email's local part. */
+export function splitName(fullName: string | null, email: string | null) {
+  const src =
+    (fullName ?? "").trim() ||
+    (email ?? "")
+      .split("@")[0]
+      .replace(/[._-]+/g, " ")
+      .trim();
+  const parts = src.split(/\s+/).filter(Boolean);
+  const cap = (w: string) => (w ? w[0].toUpperCase() + w.slice(1) : w);
+  if (parts.length === 0) return { first: "Employee", last: null as string | null };
+  return {
+    first: cap(parts[0]),
+    last: parts.length > 1 ? parts.slice(1).map(cap).join(" ") : null,
+  };
+}
+
+/**
+ * The next `count` codes after the highest existing EMO### code, so imports
+ * never collide with codes typed by hand ("EMO007" -> "EMO008", "EMO009"…).
+ */
+export function nextEmployeeCodes(existing: string[], count: number, prefix = "EMO"): string[] {
+  const re = new RegExp(`^${prefix}(\\d+)$`, "i");
+  const max = existing.reduce((m, c) => {
+    const hit = re.exec(c.trim());
+    return hit ? Math.max(m, Number(hit[1])) : m;
+  }, 0);
+  const taken = new Set(existing.map((c) => c.trim().toUpperCase()));
+  const out: string[] = [];
+  for (let n = max + 1; out.length < count; n++) {
+    const code = `${prefix}${String(n).padStart(3, "0")}`;
+    if (!taken.has(code)) out.push(code);
+  }
+  return out;
+}
