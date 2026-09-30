@@ -1,5 +1,5 @@
-// Salary slip as a PDF (jsPDF + autotable, lazy-loaded), used to email the
-// slip to an employee. The built-in PDF fonts have no ₹ glyph, so amounts are
+// Salary slip as a PDF (jsPDF + autotable, lazy-loaded): downloaded by the
+// admin to send to an employee. The built-in PDF fonts have no ₹ glyph, so amounts are
 // written "Rs. 28,200".
 
 import { amountInWords } from "@/lib/payroll";
@@ -11,8 +11,19 @@ const fmtDays = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 export const salarySlipFileName = (s: SlipSnapshot) =>
   `Salary-Slip-${s.employee.name.replace(/\s+/g, "-")}-${s.month}.pdf`;
 
+/** Downloads the slip as a PDF file, for the admin to send to the employee. */
+export async function downloadSalarySlipPdf(s: SlipSnapshot): Promise<void> {
+  const doc = await buildSalarySlipPdf(s);
+  doc.save(salarySlipFileName(s));
+}
+
 /** Base64 PDF (no data: prefix), ready to send as an email attachment. */
 export async function salarySlipPdfBase64(s: SlipSnapshot): Promise<string> {
+  const doc = await buildSalarySlipPdf(s);
+  return doc.output("datauristring").split(",")[1];
+}
+
+async function buildSalarySlipPdf(s: SlipSnapshot) {
   const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
     import("jspdf"),
     import("jspdf-autotable"),
@@ -154,5 +165,5 @@ export async function salarySlipPdfBase64(s: SlipSnapshot): Promise<string> {
     { align: "center" },
   );
 
-  return doc.output("datauristring").split(",")[1];
+  return doc;
 }

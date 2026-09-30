@@ -1,8 +1,9 @@
 // Fresh vs renewal bookings, and friendly names for plan codes.
 //
-// Owner's convention (Sep 2026): every renewal booking's Booking ID ends in
-// "R1" (a second renewal would be "R2", and so on) — renewals are uploaded
-// separately with that suffix. Kept pure so every screen agrees.
+// Owner's convention (Sep 2026): a renewal booking's Booking ID ends in R<n>,
+// where n is the renewal year — R1 = first renewal (year 1), R2 = year 2,
+// R3 = year 3, … Renewals are uploaded separately with that suffix. Kept pure
+// so every screen agrees.
 
 export type BookingKindFields = {
   external_booking_id?: string | null;
@@ -10,7 +11,13 @@ export type BookingKindFields = {
   renewal_status?: string | null;
 };
 
-const RENEWAL_ID = /R\d+$/i;
+const RENEWAL_ID = /R(\d+)$/i;
+
+/** Renewal year from the Booking ID suffix (…R2 → 2), or null. */
+export function renewalYear(externalBookingId: string | null | undefined): number | null {
+  const m = RENEWAL_ID.exec(String(externalBookingId ?? "").trim());
+  return m ? Number(m[1]) : null;
+}
 
 /**
  * A booking is a renewal when:
