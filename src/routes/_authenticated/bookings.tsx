@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { isRenewalBooking } from "@/lib/booking-kind";
+import { isRenewalBooking, renewalYear } from "@/lib/booking-kind";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -610,6 +610,13 @@ function BookingsPage() {
                 >
                   <TableCell className="font-mono text-[11px] whitespace-nowrap text-muted-foreground">
                     {b.external_booking_id || b.booking_code}
+                    {renewalYear(b.external_booking_id) !== null && (
+                      <div className="mt-0.5 font-sans">
+                        <span className="rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 ring-1 ring-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:ring-violet-900">
+                          Renewal · Year {renewalYear(b.external_booking_id)}
+                        </span>
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell className="whitespace-nowrap tabular-nums text-sm">
                     {fmtDate(b.booking_date)}

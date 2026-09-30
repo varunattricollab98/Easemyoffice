@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isRenewalBooking, planCodeLabel } from "./booking-kind";
+import { isRenewalBooking, planCodeLabel, renewalYear } from "./booking-kind";
 
 describe("isRenewalBooking", () => {
   it("treats a Booking ID ending in R1 / R2 as a renewal", () => {
@@ -18,6 +18,15 @@ describe("isRenewalBooking", () => {
       false,
     );
     expect(isRenewalBooking({ external_booking_id: null, renewal_status: "pending" })).toBe(false);
+  });
+});
+
+describe("renewalYear", () => {
+  it("reads the renewal year from the suffix", () => {
+    expect(renewalYear("EMO1234R1")).toBe(1);
+    expect(renewalYear("EMO1234R3")).toBe(3);
+    expect(renewalYear("EMO1234")).toBeNull();
+    expect(renewalYear(null)).toBeNull();
   });
 });
 

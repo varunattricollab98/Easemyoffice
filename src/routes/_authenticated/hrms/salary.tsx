@@ -8,7 +8,7 @@ import {
   IndianRupee,
   Lock,
   LockOpen,
-  Mail,
+  Download,
   Pencil,
   Printer,
   Wallet,
@@ -68,8 +68,7 @@ import {
   type SlipAdjustments,
 } from "@/lib/payroll";
 import { monthLabel, openSalarySlip, type SlipSnapshot } from "@/lib/salary-slip-html";
-import { salarySlipFileName, salarySlipPdfBase64 } from "@/lib/salary-slip-pdf";
-import { hrRequest } from "@/lib/attendance-client";
+import { downloadSalarySlipPdf } from "@/lib/salary-slip-pdf";
 import { MonthNav } from "@/components/hrms/attendance-month";
 import { GlassTabs } from "@/components/hrms/glass-tabs";
 
@@ -637,21 +636,13 @@ function SlipsView() {
     onError: (e: unknown) => toast.error(getErrorMessage(e)),
   });
 
-  // Employees can't see salary in the CRM; when one asks, the admin emails
-  // the finalised slip as a PDF.
-  const emailSlip = useMutation({
+  // Employees can't see salary in the CRM; when one asks, the admin
+  // downloads the finalised slip as a PDF and sends it to them.
+  const download = useMutation({
     mutationFn: async (r: SlipRowView) => {
-      if (!r.snapshot) throw new Error("No slip to send");
-      const pdf = await salarySlipPdfBase64(r.snapshot);
-      return hrRequest<{ to: string }>({
-        action: "email_salary_slip",
-        employee_id: r.employee.id,
-        month: from,
-        pdf_base64: pdf,
-        filename: salarySlipFileName(r.snapshot),
-      });
+      if (!r.snapshot) throw new Error("No slip to download");
+      await downloadSalarySlipPdf(r.snapshot);
     },
-    onSuccess: (res) => toast.success(`Salary slip emailed to ${res.to}`),
     onError: (e: unknown) => toast.error(getErrorMessage(e)),
   });
 
@@ -886,18 +877,11 @@ function SlipsView() {
                             size="icon"
                             variant="ghost"
                             className="h-8 w-8"
-                            title="Email slip (PDF) to employee"
-                            disabled={emailSlip.isPending}
-                            onClick={() => {
-                              if (
-                                window.confirm(
-                                  `Email the ${monthLabel(monthKey)} salary slip to ${employeeName(r.employee)}?`,
-                                )
-                              )
-                                emailSlip.mutate(r);
-                            }}
+                            title="Download slip (PDF)"
+                            disabled={download.isPending}
+                            onClick={() => download.mutate(r)}
                           >
-                            <Mail className="h-4 w-4" />
+                            <Download className="h-4 w-4" />
                           </Button>
                         )}
                         {final && (
