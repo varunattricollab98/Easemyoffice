@@ -486,6 +486,26 @@ export type DayKind =
   | "upcoming"
   | "not_employed";
 
+/** Plain-text labels for reports and exports. */
+export const DAY_KIND_LABELS: Record<DayKind, string> = {
+  present: "Present",
+  short: "Left early",
+  half_day: "Half day",
+  absent: "Absent",
+  in_progress: "Logged in",
+  action_needed: "Logout missing",
+  remote_pending: "WFH pending",
+  remote_rejected: "WFH rejected",
+  paid_leave: "Paid leave",
+  unpaid_leave: "Unpaid leave",
+  leave_pending: "Leave pending",
+  holiday: "Holiday",
+  week_off: "Week off",
+  today: "Today",
+  upcoming: "Upcoming",
+  not_employed: "Not employed",
+};
+
 export type DayCell = {
   date: string;
   day: number;
