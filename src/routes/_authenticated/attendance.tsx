@@ -98,7 +98,7 @@ function MyAttendancePage() {
             <div>
               <div className="font-medium">Your login is not linked to an employee record yet.</div>
               <div className="text-muted-foreground">
-                Ask HR to add you under Employees and link your CRM login. Attendance becomes
+                Ask the admin to add you under Employees and link your CRM login. Attendance becomes
                 available right after.
               </div>
             </div>
@@ -327,7 +327,7 @@ function MonthCard({
         {summary.stats.actionNeeded > 0 && (
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
             {summary.stats.actionNeeded} day(s) have a login without a logout, so their hours are
-            not counted. Tell HR so they can be corrected before month-end.
+            not counted. Tell the admin so they can be corrected before month-end.
           </div>
         )}
         <MonthCalendar days={summary.days} />

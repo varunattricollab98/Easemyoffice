@@ -114,7 +114,9 @@ Sandbox quirks (all learned the hard way — several fail SILENTLY with empty ou
 
 ### Current navigation (after #172)
 - **Main:** Dashboard · Pipeline · Lead Inbox · Calls · Leads · Renewal Inbox · Renewal Leads · Renewal Pipeline · Clients · Follow-ups · Reminders · Calendar · Tasks · Notifications · Documentation · Bookings (All/Fresh/Renewal tabs) · Invoices · Payments · Activity · Reports (admin) · Sales Performance (admin/sales/bd).
-- **Admin:** Employees · HR Settings · Email Automation · Team (`/admin/users`) · Settings.
+- **Main** also has **My Attendance** (`/attendance`, every role).
+- **Admin:** **Staff & Attendance** (`/hrms` hub → tabs Attendance / Employees / Office & Hours; admin guard on the `hrms.tsx` layout route) · Email Automation · Team (`/admin/users`) · Settings.
+- **No separate HR person** — the admin runs all HR. User-facing copy says "admin", never "HR"; keep all HR screens inside the `/hrms` hub rather than adding sidebar items.
 - **Removed on purpose** (don't restore without asking): `/admin/analytics`, `/admin/activity-log`, `/documents`, `/team`, `/renewals/bookings`, and the dashboard Pipeline embed.
 - Dashboard order: header → KPI strip → Hero of the Month → widget grid.
 

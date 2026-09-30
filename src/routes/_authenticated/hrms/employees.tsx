@@ -1,4 +1,4 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -50,18 +50,7 @@ import {
 
 export const Route = createFileRoute("/_authenticated/hrms/employees")({
   head: () => ({ meta: [{ title: "Employees — EaseMyOffice CRM" }] }),
-  // Admin only, enforced before the route loads. RLS blocks the data as well —
-  // this just avoids rendering a page that would come back empty.
-  beforeLoad: async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw redirect({ to: "/login" });
-    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
-    if (!((roles ?? []) as { role: string }[]).some((r) => r.role === "admin")) {
-      throw redirect({ to: "/dashboard" });
-    }
-  },
+  // Admin guard lives on the /hrms layout route.
   component: EmployeesPage,
 });
 
@@ -123,7 +112,7 @@ function EmployeesPage() {
     },
   });
 
-  // CRM logins that have no employee record yet, so HR can attach one instead of
+  // CRM logins that have no employee record yet, so the admin can attach one instead of
   // retyping the person's details.
   const { data: profiles = [] } = useQuery({
     queryKey: ["hrms-profiles"],
@@ -178,12 +167,12 @@ function EmployeesPage() {
   });
 
   return (
-    <div className="p-5 md:p-10 max-w-7xl mx-auto space-y-4">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
-            <Users className="h-6 w-6 text-primary" /> Employees
-          </h1>
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Users className="h-5 w-5 text-primary" /> Employees
+          </h2>
           <p className="text-sm text-muted-foreground">
             {counts.active} active · {counts.total} total. Bank, PAN and Aadhaar are admin-only.
           </p>
@@ -197,7 +186,7 @@ function EmployeesPage() {
         <div className="flex items-start gap-2 rounded-md border border-amber-300/60 bg-amber-50/60 px-3 py-2 text-xs dark:border-amber-800/50 dark:bg-amber-950/20">
           <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
           <span>
-            No office location configured yet. Add one in <strong>HR Settings</strong> before
+            No office location configured yet. Add one in <strong>Office &amp; Hours</strong> before
             attendance goes live — the geofence has nothing to measure against without it.
           </span>
         </div>

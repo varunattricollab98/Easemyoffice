@@ -24,6 +24,7 @@ import { Route as AuthenticatedPaymentsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
 import { Route as AuthenticatedInvoicesRouteImport } from './routes/_authenticated/invoices'
 import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated/inbox'
+import { Route as AuthenticatedHrmsRouteImport } from './routes/_authenticated/hrms'
 import { Route as AuthenticatedFollowUpsRouteImport } from './routes/_authenticated/follow-ups'
 import { Route as AuthenticatedDocumentationRouteImport } from './routes/_authenticated/documentation'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -35,6 +36,7 @@ import { Route as AuthenticatedAttendanceRouteImport } from './routes/_authentic
 import { Route as AuthenticatedActivityRouteImport } from './routes/_authenticated/activity'
 import { Route as AuthenticatedRenewalsIndexRouteImport } from './routes/_authenticated/renewals/index'
 import { Route as AuthenticatedLeadsIndexRouteImport } from './routes/_authenticated/leads/index'
+import { Route as AuthenticatedHrmsIndexRouteImport } from './routes/_authenticated/hrms/index'
 import { Route as AuthenticatedRenewalsPipelineRouteImport } from './routes/_authenticated/renewals/pipeline'
 import { Route as AuthenticatedRenewalsLeadsRouteImport } from './routes/_authenticated/renewals/leads'
 import { Route as AuthenticatedRenewalsInboxRouteImport } from './routes/_authenticated/renewals/inbox'
@@ -126,6 +128,11 @@ const AuthenticatedInboxRoute = AuthenticatedInboxRouteImport.update({
   path: '/inbox',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedHrmsRoute = AuthenticatedHrmsRouteImport.update({
+  id: '/hrms',
+  path: '/hrms',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedFollowUpsRoute = AuthenticatedFollowUpsRouteImport.update({
   id: '/follow-ups',
   path: '/follow-ups',
@@ -183,6 +190,11 @@ const AuthenticatedLeadsIndexRoute = AuthenticatedLeadsIndexRouteImport.update({
   path: '/leads/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedHrmsIndexRoute = AuthenticatedHrmsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedHrmsRoute,
+} as any)
 const AuthenticatedRenewalsPipelineRoute =
   AuthenticatedRenewalsPipelineRouteImport.update({
     id: '/renewals/pipeline',
@@ -219,21 +231,21 @@ const AuthenticatedLeadsIdRoute = AuthenticatedLeadsIdRouteImport.update({
 } as any)
 const AuthenticatedHrmsSettingsRoute =
   AuthenticatedHrmsSettingsRouteImport.update({
-    id: '/hrms/settings',
-    path: '/hrms/settings',
-    getParentRoute: () => AuthenticatedRoute,
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AuthenticatedHrmsRoute,
   } as any)
 const AuthenticatedHrmsEmployeesRoute =
   AuthenticatedHrmsEmployeesRouteImport.update({
-    id: '/hrms/employees',
-    path: '/hrms/employees',
-    getParentRoute: () => AuthenticatedRoute,
+    id: '/employees',
+    path: '/employees',
+    getParentRoute: () => AuthenticatedHrmsRoute,
   } as any)
 const AuthenticatedHrmsAttendanceRoute =
   AuthenticatedHrmsAttendanceRouteImport.update({
-    id: '/hrms/attendance',
-    path: '/hrms/attendance',
-    getParentRoute: () => AuthenticatedRoute,
+    id: '/attendance',
+    path: '/attendance',
+    getParentRoute: () => AuthenticatedHrmsRoute,
   } as any)
 const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   id: '/admin/users',
@@ -286,6 +298,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/documentation': typeof AuthenticatedDocumentationRoute
   '/follow-ups': typeof AuthenticatedFollowUpsRoute
+  '/hrms': typeof AuthenticatedHrmsRouteWithChildren
   '/inbox': typeof AuthenticatedInboxRoute
   '/invoices': typeof AuthenticatedInvoicesRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
@@ -308,6 +321,7 @@ export interface FileRoutesByFullPath {
   '/renewals/inbox': typeof AuthenticatedRenewalsInboxRoute
   '/renewals/leads': typeof AuthenticatedRenewalsLeadsRoute
   '/renewals/pipeline': typeof AuthenticatedRenewalsPipelineRoute
+  '/hrms/': typeof AuthenticatedHrmsIndexRoute
   '/leads/': typeof AuthenticatedLeadsIndexRoute
   '/renewals/': typeof AuthenticatedRenewalsIndexRoute
   '/api/public/hooks/balance-reminders': typeof ApiPublicHooksBalanceRemindersRoute
@@ -350,6 +364,7 @@ export interface FileRoutesByTo {
   '/renewals/inbox': typeof AuthenticatedRenewalsInboxRoute
   '/renewals/leads': typeof AuthenticatedRenewalsLeadsRoute
   '/renewals/pipeline': typeof AuthenticatedRenewalsPipelineRoute
+  '/hrms': typeof AuthenticatedHrmsIndexRoute
   '/leads': typeof AuthenticatedLeadsIndexRoute
   '/renewals': typeof AuthenticatedRenewalsIndexRoute
   '/api/public/hooks/balance-reminders': typeof ApiPublicHooksBalanceRemindersRoute
@@ -372,6 +387,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/documentation': typeof AuthenticatedDocumentationRoute
   '/_authenticated/follow-ups': typeof AuthenticatedFollowUpsRoute
+  '/_authenticated/hrms': typeof AuthenticatedHrmsRouteWithChildren
   '/_authenticated/inbox': typeof AuthenticatedInboxRoute
   '/_authenticated/invoices': typeof AuthenticatedInvoicesRoute
   '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
@@ -394,6 +410,7 @@ export interface FileRoutesById {
   '/_authenticated/renewals/inbox': typeof AuthenticatedRenewalsInboxRoute
   '/_authenticated/renewals/leads': typeof AuthenticatedRenewalsLeadsRoute
   '/_authenticated/renewals/pipeline': typeof AuthenticatedRenewalsPipelineRoute
+  '/_authenticated/hrms/': typeof AuthenticatedHrmsIndexRoute
   '/_authenticated/leads/': typeof AuthenticatedLeadsIndexRoute
   '/_authenticated/renewals/': typeof AuthenticatedRenewalsIndexRoute
   '/api/public/hooks/balance-reminders': typeof ApiPublicHooksBalanceRemindersRoute
@@ -416,6 +433,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/documentation'
     | '/follow-ups'
+    | '/hrms'
     | '/inbox'
     | '/invoices'
     | '/notifications'
@@ -438,6 +456,7 @@ export interface FileRouteTypes {
     | '/renewals/inbox'
     | '/renewals/leads'
     | '/renewals/pipeline'
+    | '/hrms/'
     | '/leads/'
     | '/renewals/'
     | '/api/public/hooks/balance-reminders'
@@ -480,6 +499,7 @@ export interface FileRouteTypes {
     | '/renewals/inbox'
     | '/renewals/leads'
     | '/renewals/pipeline'
+    | '/hrms'
     | '/leads'
     | '/renewals'
     | '/api/public/hooks/balance-reminders'
@@ -501,6 +521,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/documentation'
     | '/_authenticated/follow-ups'
+    | '/_authenticated/hrms'
     | '/_authenticated/inbox'
     | '/_authenticated/invoices'
     | '/_authenticated/notifications'
@@ -523,6 +544,7 @@ export interface FileRouteTypes {
     | '/_authenticated/renewals/inbox'
     | '/_authenticated/renewals/leads'
     | '/_authenticated/renewals/pipeline'
+    | '/_authenticated/hrms/'
     | '/_authenticated/leads/'
     | '/_authenticated/renewals/'
     | '/api/public/hooks/balance-reminders'
@@ -647,6 +669,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedInboxRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/hrms': {
+      id: '/_authenticated/hrms'
+      path: '/hrms'
+      fullPath: '/hrms'
+      preLoaderRoute: typeof AuthenticatedHrmsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/follow-ups': {
       id: '/_authenticated/follow-ups'
       path: '/follow-ups'
@@ -724,6 +753,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedLeadsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/hrms/': {
+      id: '/_authenticated/hrms/'
+      path: '/'
+      fullPath: '/hrms/'
+      preLoaderRoute: typeof AuthenticatedHrmsIndexRouteImport
+      parentRoute: typeof AuthenticatedHrmsRoute
+    }
     '/_authenticated/renewals/pipeline': {
       id: '/_authenticated/renewals/pipeline'
       path: '/renewals/pipeline'
@@ -768,24 +804,24 @@ declare module '@tanstack/react-router' {
     }
     '/_authenticated/hrms/settings': {
       id: '/_authenticated/hrms/settings'
-      path: '/hrms/settings'
+      path: '/settings'
       fullPath: '/hrms/settings'
       preLoaderRoute: typeof AuthenticatedHrmsSettingsRouteImport
-      parentRoute: typeof AuthenticatedRoute
+      parentRoute: typeof AuthenticatedHrmsRoute
     }
     '/_authenticated/hrms/employees': {
       id: '/_authenticated/hrms/employees'
-      path: '/hrms/employees'
+      path: '/employees'
       fullPath: '/hrms/employees'
       preLoaderRoute: typeof AuthenticatedHrmsEmployeesRouteImport
-      parentRoute: typeof AuthenticatedRoute
+      parentRoute: typeof AuthenticatedHrmsRoute
     }
     '/_authenticated/hrms/attendance': {
       id: '/_authenticated/hrms/attendance'
-      path: '/hrms/attendance'
+      path: '/attendance'
       fullPath: '/hrms/attendance'
       preLoaderRoute: typeof AuthenticatedHrmsAttendanceRouteImport
-      parentRoute: typeof AuthenticatedRoute
+      parentRoute: typeof AuthenticatedHrmsRoute
     }
     '/_authenticated/admin/users': {
       id: '/_authenticated/admin/users'
@@ -832,6 +868,23 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthenticatedHrmsRouteChildren {
+  AuthenticatedHrmsAttendanceRoute: typeof AuthenticatedHrmsAttendanceRoute
+  AuthenticatedHrmsEmployeesRoute: typeof AuthenticatedHrmsEmployeesRoute
+  AuthenticatedHrmsSettingsRoute: typeof AuthenticatedHrmsSettingsRoute
+  AuthenticatedHrmsIndexRoute: typeof AuthenticatedHrmsIndexRoute
+}
+
+const AuthenticatedHrmsRouteChildren: AuthenticatedHrmsRouteChildren = {
+  AuthenticatedHrmsAttendanceRoute: AuthenticatedHrmsAttendanceRoute,
+  AuthenticatedHrmsEmployeesRoute: AuthenticatedHrmsEmployeesRoute,
+  AuthenticatedHrmsSettingsRoute: AuthenticatedHrmsSettingsRoute,
+  AuthenticatedHrmsIndexRoute: AuthenticatedHrmsIndexRoute,
+}
+
+const AuthenticatedHrmsRouteWithChildren =
+  AuthenticatedHrmsRoute._addFileChildren(AuthenticatedHrmsRouteChildren)
+
 interface AuthenticatedRouteChildren {
   AuthenticatedActivityRoute: typeof AuthenticatedActivityRoute
   AuthenticatedAttendanceRoute: typeof AuthenticatedAttendanceRoute
@@ -842,6 +895,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDocumentationRoute: typeof AuthenticatedDocumentationRoute
   AuthenticatedFollowUpsRoute: typeof AuthenticatedFollowUpsRoute
+  AuthenticatedHrmsRoute: typeof AuthenticatedHrmsRouteWithChildren
   AuthenticatedInboxRoute: typeof AuthenticatedInboxRoute
   AuthenticatedInvoicesRoute: typeof AuthenticatedInvoicesRoute
   AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
@@ -855,9 +909,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminKpiReportRoute: typeof AuthenticatedAdminKpiReportRoute
   AuthenticatedAdminSalesPerformanceRoute: typeof AuthenticatedAdminSalesPerformanceRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
-  AuthenticatedHrmsAttendanceRoute: typeof AuthenticatedHrmsAttendanceRoute
-  AuthenticatedHrmsEmployeesRoute: typeof AuthenticatedHrmsEmployeesRoute
-  AuthenticatedHrmsSettingsRoute: typeof AuthenticatedHrmsSettingsRoute
   AuthenticatedLeadsIdRoute: typeof AuthenticatedLeadsIdRoute
   AuthenticatedLeadsImportRoute: typeof AuthenticatedLeadsImportRoute
   AuthenticatedLeadsNewRoute: typeof AuthenticatedLeadsNewRoute
@@ -878,6 +929,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDocumentationRoute: AuthenticatedDocumentationRoute,
   AuthenticatedFollowUpsRoute: AuthenticatedFollowUpsRoute,
+  AuthenticatedHrmsRoute: AuthenticatedHrmsRouteWithChildren,
   AuthenticatedInboxRoute: AuthenticatedInboxRoute,
   AuthenticatedInvoicesRoute: AuthenticatedInvoicesRoute,
   AuthenticatedNotificationsRoute: AuthenticatedNotificationsRoute,
@@ -893,9 +945,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminSalesPerformanceRoute:
     AuthenticatedAdminSalesPerformanceRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
-  AuthenticatedHrmsAttendanceRoute: AuthenticatedHrmsAttendanceRoute,
-  AuthenticatedHrmsEmployeesRoute: AuthenticatedHrmsEmployeesRoute,
-  AuthenticatedHrmsSettingsRoute: AuthenticatedHrmsSettingsRoute,
   AuthenticatedLeadsIdRoute: AuthenticatedLeadsIdRoute,
   AuthenticatedLeadsImportRoute: AuthenticatedLeadsImportRoute,
   AuthenticatedLeadsNewRoute: AuthenticatedLeadsNewRoute,
