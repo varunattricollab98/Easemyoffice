@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { QuickPunch } from "@/components/hrms/quick-punch";
 import { Plus, LayoutDashboard, RotateCcw, Volume2, VolumeX, Check } from "lucide-react";
 import { KpiStrip, resetWidgetLayout } from "@/components/dashboard/widget-grid";
 // Imported eagerly, not lazily: it now sits above the fold as the dashboard's
@@ -234,13 +235,20 @@ function DashboardPage() {
           </div>
         )}
         {/* Personalized header — makes the salesperson feel ownership */}
-        <div className="lift-in flex flex-col gap-1" style={{ "--i": 0 } as React.CSSProperties}>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-            {profile?.full_name?.split(" ")[0] ?? "Your"}'s Dashboard
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {dateLabel} · Your sales performance at a glance
-          </p>
+        <div
+          className="lift-in flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+          style={{ "--i": 0 } as React.CSSProperties}
+        >
+          <div className="flex flex-col gap-1">
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
+              {profile?.full_name?.split(" ")[0] ?? "Your"}'s Dashboard
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {dateLabel} · Your sales performance at a glance
+            </p>
+          </div>
+          {/* Attendance LOGIN / LOGOUT right on Home, top right. */}
+          <QuickPunch />
         </div>
 
         {/* Actions bar */}
