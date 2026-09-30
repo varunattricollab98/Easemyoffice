@@ -1,19 +1,25 @@
 {
+  "id": "/",
   "name": "EaseMyOffice CRM",
   "short_name": "EMO CRM",
-  "description": "Action-driven CRM for EaseMyOffice — leads, follow-ups, pipeline, renewals.",
+  "description": "EaseMyOffice CRM — leads, follow-ups, bookings, attendance and leave.",
   "start_url": "/dashboard",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#1a6dd4",
-  "orientation": "portrait-primary",
+  "orientation": "portrait",
   "icons": [
-    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" },
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "Attendance", "short_name": "Attendance", "url": "/attendance", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Leads", "short_name": "Leads", "url": "/leads", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Follow-ups", "short_name": "Follow-ups", "url": "/follow-ups", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
   ],
   "categories": ["business", "productivity"],
-  "screenshots": [],
-  "scope": "/",
   "lang": "en"
 }

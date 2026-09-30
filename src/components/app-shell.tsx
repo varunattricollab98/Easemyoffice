@@ -14,7 +14,10 @@ import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { usePwaInstall } from "@/lib/pwa";
+import { Download, MoreHorizontal, Share } from "lucide-react";
 
 // roles: undefined = visible to all authenticated users
 type NavItem = { to: string; label: string; icon: typeof Users; roles?: AppRole[] };
@@ -174,18 +177,35 @@ export function AppSidebar() {
 
 export function MobileTabBar() {
   const loc = useLocation();
-  const { roles, isAdmin, user } = useAuth();
+  const { roles, isAdmin, user, profile, signOut } = useAuth();
+  const search = useGlobalSearch();
+  const pwa = usePwaInstall();
+  const [moreOpen, setMoreOpen] = useState(false);
 
-  // Role-specific mobile nav — show the 5 most important items for each role
-  const mobileItems = useMemo(() => {
-    const isRenewal = !isAdmin && roles.includes("renewals") && !roles.includes("sales") && !roles.includes("bd");
-    if (isRenewal) {
-      return NAV.filter((i) => ["/renewals", "/renewals/leads", "/renewals/pipeline", "/follow-ups", "/tasks"].includes(i.to));
-    }
-    // Sales/BD/Admin: Dashboard, Leads, Pipeline, Follow-ups, Tasks
-    const priority = ["/dashboard", "/leads", "/pipeline", "/follow-ups", "/tasks"];
-    return priority.map((to) => NAV.find((i) => i.to === to)).filter(Boolean) as NavItem[];
-  }, [roles, isAdmin]);
+  // Everything this user may open, in sidebar order.
+  const all = useMemo(
+    () => [...visibleFor(NAV, roles, isAdmin), ...visibleFor(ADMIN_NAV, roles, isAdmin)],
+    [roles, isAdmin],
+  );
+
+  // Four direct tabs + "More". Attendance is always a tab: most punches happen
+  // on a phone. The work tab depends on the role.
+  const tabs = useMemo(() => {
+    const isRenewal =
+      !isAdmin && roles.includes("renewals") && !roles.includes("sales") && !roles.includes("bd");
+    const priority = isRenewal
+      ? ["/dashboard", "/attendance", "/renewals/leads", "/follow-ups"]
+      : ["/dashboard", "/attendance", "/leads", "/follow-ups", "/tasks", "/notifications"];
+    const picked = priority
+      .map((to) => all.find((i) => i.to === to))
+      .filter(Boolean) as NavItem[];
+    for (const i of all) if (picked.length < 4 && !picked.includes(i)) picked.push(i);
+    return picked.slice(0, 4);
+  }, [all, roles, isAdmin]);
+  const rest = all.filter((i) => !tabs.includes(i));
+
+  // Close the sheet whenever the route changes (a link inside it was tapped).
+  useEffect(() => setMoreOpen(false), [loc.pathname]);
 
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ["notif-unread-count-mobile"],
@@ -201,36 +221,153 @@ export function MobileTabBar() {
     },
   });
 
+  const isActive = (to: string) => loc.pathname === to || loc.pathname.startsWith(to + "/");
+  const moreActive = rest.some((i) => isActive(i.to));
+  const shortLabel = (label: string) =>
+    label.replace("Renewal ", "").replace("Dashboard", "Home").replace("My Attendance", "Attendance");
+
+  const tabClass = (active: boolean) =>
+    cn(
+      "relative flex flex-col items-center gap-0.5 py-2.5 text-[10px] font-medium transition-colors active:scale-95",
+      active ? "text-primary" : "text-muted-foreground",
+    );
+
   return (
-    <nav className="lg:hidden fixed bottom-0 inset-x-0 z-30 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 pb-[env(safe-area-inset-bottom)]">
-      <div className="grid grid-cols-5 max-w-lg mx-auto">
-        {mobileItems.map((item) => {
-          const active = loc.pathname === item.to || loc.pathname.startsWith(item.to + "/");
-          const Icon = item.icon;
-          const shortLabel = item.label.replace("Renewal ", "").replace("Dashboard", "Home");
-          return (
-            <Link
-              key={item.to}
-              to={item.to}
-              className={cn(
-                "flex flex-col items-center gap-0.5 py-2.5 text-[10px] font-medium relative transition-colors",
-                active ? "text-primary" : "text-muted-foreground"
+    <>
+      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-30 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 pb-[env(safe-area-inset-bottom)]">
+        <div className="grid grid-cols-5 max-w-lg mx-auto">
+          {tabs.map((item) => {
+            const active = isActive(item.to);
+            const Icon = item.icon;
+            return (
+              <Link key={item.to} to={item.to} className={tabClass(active)}>
+                <div className="relative">
+                  <Icon className={cn("h-5 w-5", active && "scale-110")} />
+                  {item.to === "/notifications" && unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1.5 h-4 min-w-[16px] rounded-full bg-rose-600 text-white text-[9px] font-bold grid place-items-center px-1">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  )}
+                </div>
+                {shortLabel(item.label)}
+                {active && (
+                  <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-5 h-0.5 rounded-full bg-primary" />
+                )}
+              </Link>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => setMoreOpen(true)}
+            className={tabClass(moreActive || moreOpen)}
+            aria-label="More"
+          >
+            <div className="relative">
+              <MoreHorizontal className="h-5 w-5" />
+              {unreadCount > 0 && !tabs.some((t) => t.to === "/notifications") && (
+                <span className="absolute -top-1 -right-1.5 h-2.5 w-2.5 rounded-full bg-rose-600" />
               )}
-            >
-              <div className="relative">
-                <Icon className={cn("h-5 w-5", active && "scale-110")} />
-                {item.to === "/notifications" && unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1.5 h-4 min-w-[16px] rounded-full bg-rose-600 text-white text-[9px] font-bold grid place-items-center px-1">
-                    {unreadCount > 9 ? "9+" : unreadCount}
-                  </span>
+            </div>
+            More
+            {moreActive && (
+              <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-5 h-0.5 rounded-full bg-primary" />
+            )}
+          </button>
+        </div>
+      </nav>
+
+      <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
+        <SheetContent
+          side="bottom"
+          className="max-h-[85vh] overflow-y-auto rounded-t-3xl px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3"
+        >
+          <SheetHeader className="sr-only">
+            <SheetTitle>More</SheetTitle>
+          </SheetHeader>
+          <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-muted" />
+
+          <div className="mb-3 flex items-center gap-3">
+            <Avatar className="h-10 w-10">
+              <AvatarFallback>{initials(profile?.full_name ?? user?.email)}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-semibold">
+                {profile?.full_name ?? user?.email}
+              </div>
+              <div className="truncate text-xs text-muted-foreground">
+                {isAdmin ? "Admin" : (roles[0] ?? user?.email)}
+              </div>
+            </div>
+            <ThemeToggle />
+          </div>
+
+          {(pwa.canPrompt || pwa.showIosHint) && (
+            <div className="mb-3 flex items-center gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-3">
+              <img src="/icon-192.png" alt="" className="h-10 w-10 rounded-xl border bg-white" />
+              <div className="min-w-0 flex-1 text-xs">
+                <div className="text-sm font-semibold">Install the CRM app</div>
+                {pwa.canPrompt ? (
+                  <div className="text-muted-foreground">
+                    Opens full-screen from your home screen.
+                  </div>
+                ) : (
+                  <div className="text-muted-foreground">
+                    Tap <Share className="inline h-3.5 w-3.5 -mt-0.5" /> Share, then{" "}
+                    <strong>Add to Home Screen</strong>.
+                  </div>
                 )}
               </div>
-              {shortLabel}
-              {active && <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-5 h-0.5 rounded-full bg-primary" />}
-            </Link>
-          );
-        })}
-      </div>
-    </nav>
+              {pwa.canPrompt && (
+                <Button size="sm" onClick={() => void pwa.install()}>
+                  <Download className="mr-1 h-4 w-4" /> Install
+                </Button>
+              )}
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              setMoreOpen(false);
+              search.open();
+            }}
+            className="mb-3 flex w-full items-center gap-2 rounded-xl border bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground"
+          >
+            <Search className="h-4 w-4" /> Search leads, clients, bookings…
+          </button>
+
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+            {rest.map((item) => {
+              const Icon = item.icon;
+              const active = isActive(item.to);
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className={cn(
+                    "relative flex flex-col items-center gap-1.5 rounded-2xl border p-3 text-center text-[11px] font-medium transition-all active:scale-95",
+                    active
+                      ? "border-primary/30 bg-primary/10 text-primary"
+                      : "bg-background text-foreground hover:bg-muted/50",
+                  )}
+                >
+                  <Icon className="h-5 w-5" />
+                  <span className="leading-tight">{item.label}</span>
+                  {item.to === "/notifications" && unreadCount > 0 && (
+                    <span className="absolute right-2 top-2 h-4 min-w-[16px] rounded-full bg-rose-600 px-1 text-[9px] font-bold text-white grid place-items-center">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+
+          <Button variant="outline" className="mt-4 w-full" onClick={() => signOut()}>
+            <LogOut className="mr-2 h-4 w-4" /> Sign out
+          </Button>
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }
