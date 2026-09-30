@@ -2,7 +2,7 @@
 
 > Persistent memory/handoff for the AI agent working on this repo.
 > **New session? Read this whole file first**, then `.kiro/steering/emo-crm.md`.
-> Last updated: after PR #172 (HRMS Phase 1), session of 28–29 Sep 2026.
+> Last updated: HRMS Phase 2 PR (attendance), session of 30 Sep 2026.
 
 ---
 
@@ -47,15 +47,18 @@ The npm registry is reachable, so the whole CI pipeline runs in-sandbox:
 |---|---|---|
 | Install | `bun install --frozen-lockfile` | 562 packages, ~8s |
 | Typecheck | `npx tsc --noEmit` | clean |
-| Unit tests | `bun run test` | 73 passed / 5 files |
+| Unit tests | `bun run test` | 98 passed / 6 files |
 | Build | `bun run build` | ~11s, emits `dist/server/index.js` + `wrangler.json` |
 
 **Always run typecheck + tests + build before pushing.** `node`/`npx` are often missing from a
 fresh shell's PATH — export first, otherwise `npx tsc` dies and a shell chain can still look green:
 
 ```sh
-export PATH="/root/.nvm/versions/node/v22.23.2/bin:$PATH"
+export PATH="/root/.nvm/versions/node/v22.23.3/bin:$PATH"   # check `ls /root/.nvm/versions/node` — the patch version drifts
 ```
+
+- **Edge functions can be type-checked in-sandbox:** `npx -y deno check supabase/functions/<fn>/index.ts`
+  (downloads Deno via npm; delete the `deno.lock` it leaves behind). CI does not check them.
 
 Sandbox quirks (all learned the hard way — several fail SILENTLY with empty output):
 - **`/tmp` is not writable.** Put scratch files under `/projects/sandbox/<name>` (outside the
@@ -211,8 +214,8 @@ Sandbox quirks (all learned the hard way — several fail SILENTLY with empty ou
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | employees, departments, office location, HR settings, holidays + admin pages | ✅ #172 — migration applied, owner verified all 6 tables |
-| 2 | attendance login/logout, geofence edge function, `attendance` + `attendance_events`, device registration, employee dashboard, admin attendance dashboard | ⏭ **next** |
-| 3 | leave types, balances, requests, approval, calendar | — |
+| 2 | attendance login/logout, geofence edge function, `attendance` + `attendance_events`, device registration, employee dashboard, admin attendance dashboard | 🟡 PR open — **waiting on owner to run migration `20260516000006`**, then merge |
+| 3 | leave types, balances, requests, approval, calendar | ⏭ next after Phase 2 merges |
 | 4 | attendance corrections + payroll readiness | — |
 | 5 | salary structures, incentive rules (from bookings), payroll run + lock + adjustments | — |
 
@@ -237,3 +240,27 @@ Sandbox quirks (all learned the hard way — several fail SILENTLY with empty ou
 - Late = login after `work_start + grace_minutes` (`lateAfter()` in `src/lib/hrms.ts`); half day below `half_day_minutes`; overtime beyond `required_minutes`; week-offs + holidays excluded from working days.
 - Employee screens: today card (status, login time, running working time, LOGIN / LOGOUT button), month stats, calendar (✓ present, PL, UL, A absent, L late, ⚠ action needed, H holiday, – week-off). No salary anywhere.
 - Admin screens: HR dashboard (present / on leave / absent / late today, security alerts), monthly attendance table per employee, security events list, device approvals.
+
+### Phase 2 as built (PR "HRMS Phase 2 — geo-tagged attendance")
+- Migration `20260516000006_hrms_phase2_attendance.sql`: `attendance_devices` (per employee + random
+  browser `device_key`, status pending/approved/revoked), `attendance` (UNIQUE employee+`work_date`;
+  `first_login_at`, `last_logout_at`, `open_since` = open session, accumulated `worked_minutes`, status
+  in_progress/present/half_day, `is_late`/`late_minutes`, `overtime_minutes`, login/logout coords +
+  distance), `attendance_events` (append-only audit of every attempt incl. `reason`, `client_error`,
+  IP, UA). RLS: SELECT own/admin only; **no write policies** except admin UPDATE on devices.
+- Edge fn `supabase/functions/attendance-punch` (JWT verified, service role) is the only writer.
+  Order: linked employee → active → device (auto-registered; auto-approved while
+  `require_device_approval` is off) → geofence (accuracy, then distance) → state transition with
+  conditional updates (double-tap safe). Logout closes the latest open session (can span midnight),
+  refused if older than 16h (`session_too_long` → Phase 4 correction). Re-login after logout reopens
+  the day. Always HTTP 200 `{ok,reason,message}` for verdicts.
+- Pure rules `src/lib/attendance-rules.ts` — **byte-identical** copy in
+  `supabase/functions/_shared/attendance-rules.ts`, enforced by a test. IST via fixed +05:30.
+  Late minutes count from `work_start` once past the grace. Half day = worked < `half_day_minutes`.
+  Month view: past working day with no row = absent; today never absent; past open session =
+  `action_needed`; work on week-off/holiday = all overtime; optional holidays are NOT days off.
+- Pages: `/attendance` "My Attendance" (all roles; LOGIN/LOGOUT, month stats + calendar, recent
+  punches; no salary anywhere) and admin `/hrms/attendance` (Today / Monthly / Security / Devices
+  tabs). HR Settings got a "Require device approval" toggle.
+- Not in Phase 2: leave (PL/UL markers arrive with Phase 3), corrections (Phase 4), push/cron
+  auto-logout.
