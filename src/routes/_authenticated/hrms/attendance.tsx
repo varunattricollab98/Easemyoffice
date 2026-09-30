@@ -15,6 +15,7 @@ import {
   Home,
   Coffee,
   MoonStar,
+  Download,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -54,9 +55,11 @@ import {
   normalizeSchedules,
   weekdayOf,
   windowMinutes,
+  DAY_KIND_LABELS,
   REJECTION_MESSAGES,
   type RejectionReason,
 } from "@/lib/attendance-rules";
+import { downloadCsv, hoursDecimal } from "@/lib/csv";
 import {
   buildEmployeeMonth,
   dateTimeIST,
@@ -169,6 +172,15 @@ function AttendanceAdminPage() {
 
 // ---------------------------------------------------------------------------
 
+/** Same "Download report" button on every tab — CSV that opens in Excel. */
+function DownloadButton({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) {
+  return (
+    <Button variant="outline" size="sm" className="h-9" disabled={disabled} onClick={onClick}>
+      <Download className="mr-1 h-4 w-4" /> Download report
+    </Button>
+  );
+}
+
 function Kpi({
   icon: Icon,
   label,
@@ -257,12 +269,80 @@ function TodayView({ today }: { today: string }) {
     (a, b) => rank(a) - rank(b) || employeeName(a).localeCompare(employeeName(b)),
   );
 
+  // Live figures for one employee today (an open session keeps counting).
+  const liveRow = (e: Employee) => {
+    const r = byEmployee.get(e.id);
+    const sched = r?.schedule_mode
+      ? {
+          mode: r.schedule_mode,
+          start: String(r.window_start).slice(0, 5),
+          end: String(r.window_end).slice(0, 5),
+        }
+      : schedule;
+    const completed =
+      (r?.window_minutes ?? 0) +
+      (r?.open_since ? windowMinutes(r.open_since, nowIso, r.work_date, sched) : 0);
+    const required = r?.required_minutes ?? schedule.required_minutes;
+    const idleOpen =
+      r?.open_since && r.last_activity_at ? minutesBetween(r.last_activity_at, nowIso) : 0;
+    const idleShown =
+      (r?.idle_minutes ?? 0) +
+      (idleOpen >= (settings?.idle_threshold_minutes ?? 60) ? idleOpen : 0);
+    return { r, completed, required, idleOpen, idleShown };
+  };
+
+  const exportToday = () => {
+    const statusOf = (e: Employee, r?: AttendanceRow) => {
+      if (!r) return onLeave.has(e.id) ? "On leave" : nonWorking ? "Off" : "Not logged in";
+      if (r.open_since) return "Logged in";
+      return r.status === "short" ? "Left early" : r.status === "half_day" ? "Half day" : "Present";
+    };
+    downloadCsv(`attendance-${today}.csv`, [
+      [
+        "Employee",
+        "Code",
+        "Department",
+        "Status",
+        "Mode",
+        "WFH status",
+        "Late (min)",
+        "Login",
+        "Logout",
+        "Completed (hrs)",
+        "Required (hrs)",
+        "Idle (hrs)",
+        "Distance from office (m)",
+      ],
+      ...sorted.map((e) => {
+        const { r, completed, required, idleShown } = liveRow(e);
+        return [
+          employeeName(e),
+          e.employee_code,
+          e.department_id ? (deptName.get(e.department_id) ?? "") : "",
+          statusOf(e, r),
+          r ? (r.work_mode === "remote" ? "WFH" : "Office") : "",
+          r?.remote_status ?? "",
+          r?.is_late ? r.late_minutes : 0,
+          r ? timeIST(r.first_login_at) : "",
+          r && !r.open_since ? timeIST(r.last_logout_at) : "",
+          r ? hoursDecimal(completed) : "",
+          hoursDecimal(required),
+          r ? hoursDecimal(idleShown) : "",
+          r?.login_distance_m ?? "",
+        ];
+      }),
+    ]);
+  };
+
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
-        {nonWorking
-          ? `Today is a ${offDay ? `holiday (${offDay})` : "weekly off"} — nobody is expected in.`
-          : `Today: ${describeSchedule(schedule, settings?.grace_minutes ?? 15)}`}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="min-w-0 flex-1 rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
+          {nonWorking
+            ? `Today is a ${offDay ? `holiday (${offDay})` : "weekly off"} — nobody is expected in.`
+            : `Today: ${describeSchedule(schedule, settings?.grace_minutes ?? 15)}`}
+        </div>
+        <DownloadButton onClick={exportToday} />
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
         <Kpi
@@ -312,25 +392,7 @@ function TodayView({ today }: { today: string }) {
                 </TableRow>
               )}
               {sorted.map((e) => {
-                const r = byEmployee.get(e.id);
-                const sched = r?.schedule_mode
-                  ? {
-                      mode: r.schedule_mode,
-                      start: String(r.window_start).slice(0, 5),
-                      end: String(r.window_end).slice(0, 5),
-                    }
-                  : schedule;
-                const completed =
-                  (r?.window_minutes ?? 0) +
-                  (r?.open_since ? windowMinutes(r.open_since, nowIso, r.work_date, sched) : 0);
-                const required = r?.required_minutes ?? schedule.required_minutes;
-                const idleOpen =
-                  r?.open_since && r.last_activity_at
-                    ? minutesBetween(r.last_activity_at, nowIso)
-                    : 0;
-                const idleShown =
-                  (r?.idle_minutes ?? 0) +
-                  (idleOpen >= (settings?.idle_threshold_minutes ?? 60) ? idleOpen : 0);
+                const { r, completed, required, idleOpen, idleShown } = liveRow(e);
                 return (
                   <TableRow key={e.id}>
                     <TableCell>
@@ -512,6 +574,100 @@ function MonthlyView({ today }: { today: string }) {
   }, [rows, leaves, holidays, employees, settings, ym, today, from]);
 
   const open = summaries.find((s) => s.employee.id === openId) ?? null;
+
+  // Summary per employee, then a blank line, then the day-by-day detail —
+  // one file with everything payroll needs for the month.
+  const exportMonth = () => {
+    const ym = from.slice(0, 7);
+    const fmt = (n: number) => (Number.isInteger(n) ? n : Number(n.toFixed(1)));
+    const summary = [
+      [`Attendance summary — ${ym}`],
+      [
+        "Employee",
+        "Code",
+        "Working days (so far)",
+        "Working days (month)",
+        "Present",
+        "Left early",
+        "Half days",
+        "Absent",
+        "Late",
+        "WFH (approved)",
+        "WFH pending",
+        "Paid leave",
+        "Unpaid leave",
+        "Leave pending",
+        "Logout missing",
+        "Completed (hrs)",
+        "Required (hrs)",
+        "Overtime (hrs)",
+        "Idle (hrs)",
+      ],
+      ...summaries.map(({ employee: e, stats: s }) => [
+        employeeName(e),
+        e.employee_code,
+        s.elapsedWorkingDays,
+        s.workingDays,
+        s.present,
+        s.short,
+        s.halfDays,
+        s.absent,
+        s.late,
+        s.remoteDays,
+        s.remotePending,
+        fmt(s.paidLeave),
+        fmt(s.unpaidLeave),
+        fmt(s.pendingLeave),
+        s.actionNeeded,
+        hoursDecimal(s.workedMinutes),
+        hoursDecimal(s.requiredMinutes),
+        hoursDecimal(s.overtimeMinutes),
+        hoursDecimal(s.idleMinutes),
+      ]),
+    ];
+    const detail = [
+      [`Day-by-day — ${ym}`],
+      [
+        "Employee",
+        "Code",
+        "Date",
+        "Day",
+        "Status",
+        "Mode",
+        "Late (min)",
+        "Login",
+        "Logout",
+        "Completed (hrs)",
+        "Required (hrs)",
+        "Idle (hrs)",
+        "Leave",
+      ],
+      ...summaries.flatMap(({ employee: e, days, records }) => {
+        const byDate = new Map(records.map((r) => [r.work_date, r]));
+        return days
+          .filter((d) => d.kind !== "not_employed" && d.kind !== "upcoming")
+          .map((d) => {
+            const r = byDate.get(d.date);
+            return [
+              employeeName(e),
+              e.employee_code,
+              d.date,
+              ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.weekday],
+              d.holidayName ?? DAY_KIND_LABELS[d.kind],
+              r ? (r.work_mode === "remote" ? "WFH" : "Office") : "",
+              r?.is_late ? r.late_minutes : "",
+              r ? timeIST(r.first_login_at) : "",
+              r && !r.open_since ? timeIST(r.last_logout_at) : "",
+              r ? hoursDecimal(d.creditedMinutes) : "",
+              d.nonWorking ? "" : hoursDecimal(d.requiredMinutes),
+              r ? hoursDecimal(d.idleMinutes) : "",
+              d.leave ? d.leave : "",
+            ];
+          });
+      }),
+    ];
+    downloadCsv(`attendance-${ym}.csv`, [...summary, [], ...detail]);
+  };
   const { data: openIdle = [] } = useQuery({
     queryKey: ["hrms-idle", openId, from],
     enabled: !!openId,
@@ -526,12 +682,15 @@ function MonthlyView({ today }: { today: string }) {
           <div className="text-sm text-muted-foreground">
             Click a row for the calendar, daily log and leave balance.
           </div>
-          <MonthNav
-            year={ym.year}
-            month={ym.month}
-            onChange={(year, month) => setYm({ year, month })}
-            maxYearMonth={today.slice(0, 7)}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <DownloadButton onClick={exportMonth} disabled={summaries.length === 0} />
+            <MonthNav
+              year={ym.year}
+              month={ym.month}
+              onChange={(year, month) => setYm({ year, month })}
+              maxYearMonth={today.slice(0, 7)}
+            />
+          </div>
         </div>
         <div className="overflow-x-auto">
           <Table>
@@ -710,15 +869,60 @@ function SecurityView() {
             </span>
           ))}
         </div>
-        <Select value={outcome} onValueChange={(v) => setOutcome(v as "rejected" | "all")}>
-          <SelectTrigger className="w-44">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="rejected">Rejected only</SelectItem>
-            <SelectItem value="all">All attempts</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <DownloadButton
+            disabled={events.length === 0}
+            onClick={() =>
+              downloadCsv(`attendance-security-${istParts(new Date()).date}.csv`, [
+                [
+                  "When",
+                  "Who",
+                  "Linked",
+                  "Action",
+                  "Result",
+                  "Reason",
+                  "Browser error",
+                  "Distance (m)",
+                  "Accuracy (m)",
+                  "Latitude",
+                  "Longitude",
+                  "Device",
+                  "IP",
+                  "Browser",
+                ],
+                ...events.map((e) => [
+                  dateTimeIST(e.created_at),
+                  e.employee_id
+                    ? (names.emp.get(e.employee_id) ?? "Employee")
+                    : e.profile_id
+                      ? (names.prof.get(e.profile_id) ?? "")
+                      : "",
+                  e.employee_id ? "yes" : "no",
+                  e.event_type,
+                  e.outcome,
+                  e.reason ?? "",
+                  e.client_error ?? "",
+                  e.distance_m ?? "",
+                  e.accuracy_m != null ? Math.round(Number(e.accuracy_m)) : "",
+                  e.latitude ?? "",
+                  e.longitude ?? "",
+                  e.device_key ?? "",
+                  e.ip ?? "",
+                  e.user_agent ?? "",
+                ]),
+              ])
+            }
+          />
+          <Select value={outcome} onValueChange={(v) => setOutcome(v as "rejected" | "all")}>
+            <SelectTrigger className="w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="rejected">Rejected only</SelectItem>
+              <SelectItem value="all">All attempts</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
       <Card>
         <CardContent className="p-0">
@@ -842,11 +1046,30 @@ function DevicesView() {
 
   return (
     <div className="space-y-3">
-      <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
-        A device is registered the first time someone punches from it.{" "}
-        {settings?.require_device_approval
-          ? "Device approval is ON: new devices cannot punch until approved here."
-          : "Device approval is OFF, so new devices are approved automatically. Blocking a device still stops it."}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="min-w-0 flex-1 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
+          A device is registered the first time someone punches from it.{" "}
+          {settings?.require_device_approval
+            ? "Device approval is ON: new devices cannot punch until approved here."
+            : "Device approval is OFF, so new devices are approved automatically. Blocking a device still stops it."}
+        </div>
+        <DownloadButton
+          disabled={sorted.length === 0}
+          onClick={() =>
+            downloadCsv(`attendance-devices-${istParts(new Date()).date}.csv`, [
+              ["Employee", "Device", "Device id", "Status", "First seen", "Last seen", "Browser"],
+              ...sorted.map((d) => [
+                names.emp.get(d.employee_id) ?? "Employee",
+                d.label ?? "",
+                d.device_key,
+                d.status === "revoked" ? "blocked" : d.status,
+                dateTimeIST(d.first_seen_at),
+                dateTimeIST(d.last_seen_at),
+                d.user_agent ?? "",
+              ]),
+            ])
+          }
+        />
       </div>
       <Card>
         <CardContent className="p-0">
