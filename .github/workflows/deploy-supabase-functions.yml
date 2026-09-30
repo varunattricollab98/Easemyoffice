@@ -84,6 +84,8 @@ jobs:
           failed=0
           for dir in supabase/functions/*/; do
             fn="$(basename "$dir")"
+            # Underscore folders (_shared) are imported helpers, not functions.
+            case "$fn" in _*) continue ;; esac
             code="$(curl -s -o /dev/null -w '%{http_code}' -X POST \
               "https://cfzwdlibvxksrxcrsvpp.supabase.co/functions/v1/$fn" \
               -H 'Content-Type: application/json' -d '{}')"
