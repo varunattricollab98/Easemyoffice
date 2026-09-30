@@ -67,14 +67,33 @@ jobs:
         # explicitly recommends it for CI: it is faster and avoids a race
         # condition when several functions deploy in parallel.
         #
-        # No function names = deploy all of them, which is idempotent and means
-        # a newly added function can never be forgotten again.
+        # Every folder is deployed (so a new function can never be forgotten),
+        # but ONE AT A TIME with retries: a bulk deploy fails the whole run on a
+        # single transient Supabase 500 without saying which function hit it.
+        # Folders starting with "_" are shared imports, not functions.
         #
         # per-function settings such as verify_jwt are read from config.toml.
         run: |
-          supabase functions deploy \
-            --project-ref cfzwdlibvxksrxcrsvpp \
-            --use-api
+          failed=""
+          for dir in supabase/functions/*/; do
+            fn="$(basename "$dir")"
+            case "$fn" in _*) continue ;; esac
+            ok=0
+            for attempt in 1 2 3; do
+              if supabase functions deploy "$fn" \
+                   --project-ref cfzwdlibvxksrxcrsvpp \
+                   --use-api; then
+                ok=1; break
+              fi
+              echo "::warning::$fn deploy attempt $attempt failed, retrying"
+              sleep $((attempt * 10))
+            done
+            [ "$ok" = 1 ] || failed="$failed $fn"
+          done
+          if [ -n "$failed" ]; then
+            echo "::error::Failed to deploy:$failed"
+            exit 1
+          fi
 
       - name: Verify functions respond
         # A deployed function replies 401 to an unauthenticated POST. A 404
