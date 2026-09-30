@@ -12,7 +12,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { MapPin, Clock, CalendarDays, Plus, Trash2, Settings2, Crosshair } from "lucide-react";
+import {
+  MapPin,
+  Clock,
+  CalendarDays,
+  Plus,
+  Trash2,
+  Settings2,
+  Crosshair,
+  Eye,
+  EyeOff,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -278,6 +288,10 @@ function WorkingHoursCard() {
     });
   }, [settings]);
 
+  // The day-by-day grid is long and rarely edited, so it starts collapsed
+  // behind a one-line summary.
+  const [showDays, setShowDays] = useState(false);
+
   const setDay = (i: number, patch: Partial<ScheduleDraft>) =>
     setDays((d) => d.map((x, j) => (j === i ? { ...x, ...patch } : x)));
 
@@ -345,80 +359,117 @@ function WorkingHoursCard() {
 
   return (
     <Card>
-      <CardHeader className="pb-3">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <Clock className="h-4 w-4 text-primary" /> Weekly schedule
         </CardTitle>
+        <Button
+          size="sm"
+          variant="outline"
+          aria-expanded={showDays}
+          onClick={() => setShowDays((v) => !v)}
+        >
+          {showDays ? (
+            <>
+              <EyeOff className="h-4 w-4 mr-1" /> Hide
+            </>
+          ) : (
+            <>
+              <Eye className="h-4 w-4 mr-1" /> View
+            </>
+          )}
+        </Button>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="divide-y rounded-lg border">
-          {days.map((d, i) => {
-            const s = normalizeSchedules(
-              days.map((x) => ({
-                mode: x.mode,
-                start: x.start,
-                end: x.end,
-                required_minutes: Math.round(Number(x.required) * 60),
-              })),
-            )[i];
-            return (
-              <div key={i} className="flex flex-wrap items-center gap-3 px-3 py-2.5">
-                <div className="w-10 text-sm font-medium">{WEEKDAYS[i].label}</div>
-                <Select
-                  value={d.mode}
-                  onValueChange={(v) => setDay(i, { mode: v as ScheduleMode })}
-                >
-                  <SelectTrigger className="h-8 w-32 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="flexible">Flexible</SelectItem>
-                    <SelectItem value="fixed">Fixed</SelectItem>
-                    <SelectItem value="off">Off</SelectItem>
-                  </SelectContent>
-                </Select>
-                {d.mode !== "off" && (
-                  <>
-                    <Input
-                      type="time"
-                      className="h-8 w-28 text-xs"
-                      value={d.start}
-                      onChange={(e) => setDay(i, { start: e.target.value })}
-                    />
-                    <span className="text-xs text-muted-foreground">to</span>
-                    <Input
-                      type="time"
-                      className="h-8 w-28 text-xs"
-                      value={d.end}
-                      onChange={(e) => setDay(i, { end: e.target.value })}
-                    />
-                  </>
-                )}
-                {d.mode === "flexible" && (
-                  <div className="flex items-center gap-1.5">
-                    <Input
-                      type="number"
-                      step="0.5"
-                      min={1}
-                      className="h-8 w-20 text-xs"
-                      value={d.required}
-                      onChange={(e) => setDay(i, { required: e.target.value })}
-                    />
-                    <span className="text-xs text-muted-foreground">hours</span>
+        {!showDays && (
+          <button
+            type="button"
+            onClick={() => setShowDays(true)}
+            className="flex w-full flex-wrap gap-2 rounded-lg border bg-muted/20 p-3 text-left transition-colors hover:bg-muted/40"
+          >
+            {scheduleSummary(days).map((g) => (
+              <span
+                key={g.days}
+                className="rounded-full border bg-background px-3 py-1 text-xs shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
+              >
+                <span className="font-semibold">{g.days}</span>
+                <span className="text-muted-foreground"> · {g.rule}</span>
+              </span>
+            ))}
+          </button>
+        )}
+        {showDays && (
+          <>
+            <div className="divide-y rounded-lg border">
+              {days.map((d, i) => {
+                const s = normalizeSchedules(
+                  days.map((x) => ({
+                    mode: x.mode,
+                    start: x.start,
+                    end: x.end,
+                    required_minutes: Math.round(Number(x.required) * 60),
+                  })),
+                )[i];
+                return (
+                  <div key={i} className="flex flex-wrap items-center gap-3 px-3 py-2.5">
+                    <div className="w-10 text-sm font-medium">{WEEKDAYS[i].label}</div>
+                    <Select
+                      value={d.mode}
+                      onValueChange={(v) => setDay(i, { mode: v as ScheduleMode })}
+                    >
+                      <SelectTrigger className="h-8 w-32 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="flexible">Flexible</SelectItem>
+                        <SelectItem value="fixed">Fixed</SelectItem>
+                        <SelectItem value="off">Off</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {d.mode !== "off" && (
+                      <>
+                        <Input
+                          type="time"
+                          className="h-8 w-28 text-xs"
+                          value={d.start}
+                          onChange={(e) => setDay(i, { start: e.target.value })}
+                        />
+                        <span className="text-xs text-muted-foreground">to</span>
+                        <Input
+                          type="time"
+                          className="h-8 w-28 text-xs"
+                          value={d.end}
+                          onChange={(e) => setDay(i, { end: e.target.value })}
+                        />
+                      </>
+                    )}
+                    {d.mode === "flexible" && (
+                      <div className="flex items-center gap-1.5">
+                        <Input
+                          type="number"
+                          step="0.5"
+                          min={1}
+                          className="h-8 w-20 text-xs"
+                          value={d.required}
+                          onChange={(e) => setDay(i, { required: e.target.value })}
+                        />
+                        <span className="text-xs text-muted-foreground">hours</span>
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1 text-right text-[11px] text-muted-foreground">
+                      {describeSchedule(s, Number(f.grace_minutes) || 0)}
+                    </div>
                   </div>
-                )}
-                <div className="min-w-0 flex-1 text-right text-[11px] text-muted-foreground">
-                  {describeSchedule(s, Number(f.grace_minutes) || 0)}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <p className="text-[11px] text-muted-foreground">
-          <strong>Flexible</strong>: complete the hours anywhere inside the window — only time
-          inside it counts, and a login after the last possible start is late.{" "}
-          <strong>Fixed</strong>: be there from start to end; late after start + grace.
-        </p>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              <strong>Flexible</strong>: complete the hours anywhere inside the window — only time
+              inside it counts, and a login after the last possible start is late.{" "}
+              <strong>Fixed</strong>: be there from start to end; late after start + grace.
+            </p>
+          </>
+        )}
 
         <div className="grid gap-3 md:grid-cols-3">
           <NumField
@@ -490,6 +541,34 @@ function WorkingHoursCard() {
       </CardContent>
     </Card>
   );
+}
+
+/**
+ * Consecutive days with the same rule grouped into one chip, Monday-first:
+ * "Mon–Fri · Flexible 9h, 09:00–19:30", "Sat · Fixed 10:00–17:00", "Sun · Off".
+ */
+function scheduleSummary(days: ScheduleDraft[]): { days: string; rule: string }[] {
+  const rule = (d: ScheduleDraft) =>
+    d.mode === "off"
+      ? "Off"
+      : d.mode === "fixed"
+        ? `Fixed ${d.start}–${d.end}`
+        : `Flexible ${d.required}h, ${d.start}–${d.end}`;
+  const order = [1, 2, 3, 4, 5, 6, 0];
+  const groups: { from: number; to: number; rule: string }[] = [];
+  for (const i of order) {
+    const r = rule(days[i]);
+    const last = groups[groups.length - 1];
+    if (last && last.rule === r) last.to = i;
+    else groups.push({ from: i, to: i, rule: r });
+  }
+  return groups.map((g) => ({
+    days:
+      g.from === g.to
+        ? WEEKDAYS[g.from].label
+        : `${WEEKDAYS[g.from].label}–${WEEKDAYS[g.to].label}`,
+    rule: g.rule,
+  }));
 }
 
 function toDraft(s: DaySchedule[]): ScheduleDraft[] {
