@@ -140,6 +140,57 @@ export type Holiday = {
   active: boolean;
 };
 
+// ---------------------------------------------------------------------------
+// Phase 2 — attendance. Written only by the attendance-punch edge function.
+// ---------------------------------------------------------------------------
+
+export type AttendanceRow = {
+  id: string;
+  employee_id: string;
+  work_date: string;
+  office_id: string | null;
+  first_login_at: string;
+  last_logout_at: string | null;
+  open_since: string | null;
+  worked_minutes: number;
+  status: "in_progress" | "present" | "half_day";
+  is_late: boolean;
+  late_minutes: number;
+  overtime_minutes: number;
+  login_distance_m: number | null;
+  logout_distance_m: number | null;
+};
+
+export type AttendanceEvent = {
+  id: string;
+  profile_id: string | null;
+  employee_id: string | null;
+  event_type: "login" | "logout";
+  outcome: "accepted" | "rejected";
+  reason: string | null;
+  latitude: number | string | null;
+  longitude: number | string | null;
+  accuracy_m: number | string | null;
+  distance_m: number | null;
+  device_key: string | null;
+  client_error: string | null;
+  ip: string | null;
+  user_agent: string | null;
+  created_at: string;
+};
+
+export type AttendanceDevice = {
+  id: string;
+  employee_id: string;
+  device_key: string;
+  label: string | null;
+  user_agent: string | null;
+  status: "pending" | "approved" | "revoked";
+  first_seen_at: string;
+  last_seen_at: string;
+  decided_at: string | null;
+};
+
 export const employeeName = (e: Pick<Employee, "first_name" | "last_name">) =>
   [e.first_name, e.last_name].filter(Boolean).join(" ").trim();
 

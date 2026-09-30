@@ -52,8 +52,8 @@ function HrSettingsPage() {
           <Settings2 className="h-6 w-6 text-primary" /> HR Settings
         </h1>
         <p className="text-sm text-muted-foreground">
-          Office location, working hours, weekly offs and holidays. Attendance in the next phase
-          reads all of its rules from here.
+          Office location, working hours, weekly offs and holidays. Attendance reads all of its
+          rules from here.
         </p>
       </div>
       <OfficeCard />
@@ -249,6 +249,7 @@ function WorkingHoursCard() {
     half_day_minutes: "240",
     week_offs: [0, 6] as number[],
     require_geofence: true,
+    require_device_approval: false,
   });
 
   const { data: settings } = useQuery({
@@ -269,6 +270,7 @@ function WorkingHoursCard() {
       half_day_minutes: String(settings.half_day_minutes ?? 240),
       week_offs: settings.week_offs ?? [0, 6],
       require_geofence: settings.require_geofence ?? true,
+      require_device_approval: settings.require_device_approval ?? false,
     });
   }, [settings]);
 
@@ -291,6 +293,7 @@ function WorkingHoursCard() {
           half_day_minutes: Number(f.half_day_minutes) || 240,
           week_offs: f.week_offs,
           require_geofence: f.require_geofence,
+          require_device_approval: f.require_device_approval,
         })
         .eq("id", true);
       if (error) throw new Error(error.message);
@@ -402,6 +405,23 @@ function WorkingHoursCard() {
             onClick={() => setF({ ...f, require_geofence: !f.require_geofence })}
           >
             {f.require_geofence ? "On" : "Off"}
+          </Button>
+        </div>
+
+        <div className="flex items-center justify-between rounded-md border p-3">
+          <div className="text-xs">
+            <div className="font-medium text-foreground">Require device approval</div>
+            <div className="text-muted-foreground">
+              When on, a phone or browser used for the first time cannot punch until HR approves it
+              under Attendance → Devices.
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant={f.require_device_approval ? "default" : "outline"}
+            onClick={() => setF({ ...f, require_device_approval: !f.require_device_approval })}
+          >
+            {f.require_device_approval ? "On" : "Off"}
           </Button>
         </div>
 

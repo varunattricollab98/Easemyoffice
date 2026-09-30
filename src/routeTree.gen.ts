@@ -31,6 +31,7 @@ import { Route as AuthenticatedClientsRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedCallsRouteImport } from './routes/_authenticated/calls'
 import { Route as AuthenticatedCalendarRouteImport } from './routes/_authenticated/calendar'
 import { Route as AuthenticatedBookingsRouteImport } from './routes/_authenticated/bookings'
+import { Route as AuthenticatedAttendanceRouteImport } from './routes/_authenticated/attendance'
 import { Route as AuthenticatedActivityRouteImport } from './routes/_authenticated/activity'
 import { Route as AuthenticatedRenewalsIndexRouteImport } from './routes/_authenticated/renewals/index'
 import { Route as AuthenticatedLeadsIndexRouteImport } from './routes/_authenticated/leads/index'
@@ -42,6 +43,7 @@ import { Route as AuthenticatedLeadsImportRouteImport } from './routes/_authenti
 import { Route as AuthenticatedLeadsIdRouteImport } from './routes/_authenticated/leads/$id'
 import { Route as AuthenticatedHrmsSettingsRouteImport } from './routes/_authenticated/hrms/settings'
 import { Route as AuthenticatedHrmsEmployeesRouteImport } from './routes/_authenticated/hrms/employees'
+import { Route as AuthenticatedHrmsAttendanceRouteImport } from './routes/_authenticated/hrms/attendance'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
 import { Route as AuthenticatedAdminSalesPerformanceRouteImport } from './routes/_authenticated/admin/sales-performance'
 import { Route as AuthenticatedAdminKpiReportRouteImport } from './routes/_authenticated/admin/kpi-report'
@@ -160,6 +162,11 @@ const AuthenticatedBookingsRoute = AuthenticatedBookingsRouteImport.update({
   path: '/bookings',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedAttendanceRoute = AuthenticatedAttendanceRouteImport.update({
+  id: '/attendance',
+  path: '/attendance',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedActivityRoute = AuthenticatedActivityRouteImport.update({
   id: '/activity',
   path: '/activity',
@@ -222,6 +229,12 @@ const AuthenticatedHrmsEmployeesRoute =
     path: '/hrms/employees',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedHrmsAttendanceRoute =
+  AuthenticatedHrmsAttendanceRouteImport.update({
+    id: '/hrms/attendance',
+    path: '/hrms/attendance',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   id: '/admin/users',
   path: '/admin/users',
@@ -265,6 +278,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/activity': typeof AuthenticatedActivityRoute
+  '/attendance': typeof AuthenticatedAttendanceRoute
   '/bookings': typeof AuthenticatedBookingsRoute
   '/calendar': typeof AuthenticatedCalendarRoute
   '/calls': typeof AuthenticatedCallsRoute
@@ -285,6 +299,7 @@ export interface FileRoutesByFullPath {
   '/admin/kpi-report': typeof AuthenticatedAdminKpiReportRoute
   '/admin/sales-performance': typeof AuthenticatedAdminSalesPerformanceRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/hrms/attendance': typeof AuthenticatedHrmsAttendanceRoute
   '/hrms/employees': typeof AuthenticatedHrmsEmployeesRoute
   '/hrms/settings': typeof AuthenticatedHrmsSettingsRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
@@ -305,6 +320,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/activity': typeof AuthenticatedActivityRoute
+  '/attendance': typeof AuthenticatedAttendanceRoute
   '/bookings': typeof AuthenticatedBookingsRoute
   '/calendar': typeof AuthenticatedCalendarRoute
   '/calls': typeof AuthenticatedCallsRoute
@@ -325,6 +341,7 @@ export interface FileRoutesByTo {
   '/admin/kpi-report': typeof AuthenticatedAdminKpiReportRoute
   '/admin/sales-performance': typeof AuthenticatedAdminSalesPerformanceRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/hrms/attendance': typeof AuthenticatedHrmsAttendanceRoute
   '/hrms/employees': typeof AuthenticatedHrmsEmployeesRoute
   '/hrms/settings': typeof AuthenticatedHrmsSettingsRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
@@ -347,6 +364,7 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/_authenticated/activity': typeof AuthenticatedActivityRoute
+  '/_authenticated/attendance': typeof AuthenticatedAttendanceRoute
   '/_authenticated/bookings': typeof AuthenticatedBookingsRoute
   '/_authenticated/calendar': typeof AuthenticatedCalendarRoute
   '/_authenticated/calls': typeof AuthenticatedCallsRoute
@@ -367,6 +385,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/kpi-report': typeof AuthenticatedAdminKpiReportRoute
   '/_authenticated/admin/sales-performance': typeof AuthenticatedAdminSalesPerformanceRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/_authenticated/hrms/attendance': typeof AuthenticatedHrmsAttendanceRoute
   '/_authenticated/hrms/employees': typeof AuthenticatedHrmsEmployeesRoute
   '/_authenticated/hrms/settings': typeof AuthenticatedHrmsSettingsRoute
   '/_authenticated/leads/$id': typeof AuthenticatedLeadsIdRoute
@@ -389,6 +408,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/activity'
+    | '/attendance'
     | '/bookings'
     | '/calendar'
     | '/calls'
@@ -409,6 +429,7 @@ export interface FileRouteTypes {
     | '/admin/kpi-report'
     | '/admin/sales-performance'
     | '/admin/users'
+    | '/hrms/attendance'
     | '/hrms/employees'
     | '/hrms/settings'
     | '/leads/$id'
@@ -429,6 +450,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/activity'
+    | '/attendance'
     | '/bookings'
     | '/calendar'
     | '/calls'
@@ -449,6 +471,7 @@ export interface FileRouteTypes {
     | '/admin/kpi-report'
     | '/admin/sales-performance'
     | '/admin/users'
+    | '/hrms/attendance'
     | '/hrms/employees'
     | '/hrms/settings'
     | '/leads/$id'
@@ -470,6 +493,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/_authenticated/activity'
+    | '/_authenticated/attendance'
     | '/_authenticated/bookings'
     | '/_authenticated/calendar'
     | '/_authenticated/calls'
@@ -490,6 +514,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/kpi-report'
     | '/_authenticated/admin/sales-performance'
     | '/_authenticated/admin/users'
+    | '/_authenticated/hrms/attendance'
     | '/_authenticated/hrms/employees'
     | '/_authenticated/hrms/settings'
     | '/_authenticated/leads/$id'
@@ -671,6 +696,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBookingsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/attendance': {
+      id: '/_authenticated/attendance'
+      path: '/attendance'
+      fullPath: '/attendance'
+      preLoaderRoute: typeof AuthenticatedAttendanceRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/activity': {
       id: '/_authenticated/activity'
       path: '/activity'
@@ -748,6 +780,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHrmsEmployeesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/hrms/attendance': {
+      id: '/_authenticated/hrms/attendance'
+      path: '/hrms/attendance'
+      fullPath: '/hrms/attendance'
+      preLoaderRoute: typeof AuthenticatedHrmsAttendanceRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/admin/users': {
       id: '/_authenticated/admin/users'
       path: '/admin/users'
@@ -795,6 +834,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteChildren {
   AuthenticatedActivityRoute: typeof AuthenticatedActivityRoute
+  AuthenticatedAttendanceRoute: typeof AuthenticatedAttendanceRoute
   AuthenticatedBookingsRoute: typeof AuthenticatedBookingsRoute
   AuthenticatedCalendarRoute: typeof AuthenticatedCalendarRoute
   AuthenticatedCallsRoute: typeof AuthenticatedCallsRoute
@@ -815,6 +855,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminKpiReportRoute: typeof AuthenticatedAdminKpiReportRoute
   AuthenticatedAdminSalesPerformanceRoute: typeof AuthenticatedAdminSalesPerformanceRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
+  AuthenticatedHrmsAttendanceRoute: typeof AuthenticatedHrmsAttendanceRoute
   AuthenticatedHrmsEmployeesRoute: typeof AuthenticatedHrmsEmployeesRoute
   AuthenticatedHrmsSettingsRoute: typeof AuthenticatedHrmsSettingsRoute
   AuthenticatedLeadsIdRoute: typeof AuthenticatedLeadsIdRoute
@@ -829,6 +870,7 @@ interface AuthenticatedRouteChildren {
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedActivityRoute: AuthenticatedActivityRoute,
+  AuthenticatedAttendanceRoute: AuthenticatedAttendanceRoute,
   AuthenticatedBookingsRoute: AuthenticatedBookingsRoute,
   AuthenticatedCalendarRoute: AuthenticatedCalendarRoute,
   AuthenticatedCallsRoute: AuthenticatedCallsRoute,
@@ -851,6 +893,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminSalesPerformanceRoute:
     AuthenticatedAdminSalesPerformanceRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
+  AuthenticatedHrmsAttendanceRoute: AuthenticatedHrmsAttendanceRoute,
   AuthenticatedHrmsEmployeesRoute: AuthenticatedHrmsEmployeesRoute,
   AuthenticatedHrmsSettingsRoute: AuthenticatedHrmsSettingsRoute,
   AuthenticatedLeadsIdRoute: AuthenticatedLeadsIdRoute,

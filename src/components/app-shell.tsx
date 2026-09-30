@@ -2,7 +2,7 @@ import { Link, useLocation } from "@tanstack/react-router";
 import {
   LayoutDashboard, Users, Kanban, Bell, CheckSquare, FileText, Receipt,
   RefreshCcw, Activity, BarChart3, Settings, UsersRound, LogOut, Building2, BookOpen,
-  UserCheck, FileSignature, Calendar, Inbox, Trophy, Mail, AlarmClock, Phone,
+  UserCheck, FileSignature, Calendar, Inbox, Trophy, Mail, AlarmClock, Phone, CalendarCheck,
 } from "lucide-react";
 import { useAuth, type AppRole } from "@/lib/auth";
 import { useGlobalSearch } from "@/lib/global-search-context";
@@ -35,6 +35,9 @@ const NAV: NavItem[] = [
   { to: "/reminders", label: "Reminders", icon: AlarmClock, roles: ["admin", "sales", "bd", "renewals"] },
   { to: "/calendar", label: "Calendar", icon: Calendar },
   { to: "/tasks", label: "Tasks", icon: CheckSquare },
+  // Everyone's own LOGIN / LOGOUT. The page explains itself when the login is
+  // not linked to an employee record yet.
+  { to: "/attendance", label: "My Attendance", icon: CalendarCheck },
   { to: "/notifications", label: "Notifications", icon: Inbox },
   { to: "/documentation", label: "Documentation", icon: FileText, roles: ["admin", "documentation", "sales"] },
   // "Documents" (a per-client KYC/agreement file browser) was removed — it sat
@@ -59,6 +62,7 @@ const ADMIN_NAV: NavItem[] = [
   // HRMS — admin only. RLS is the real boundary (salary lands on this schema in a
   // later phase); these entries just keep the pages out of a rep's sidebar.
   { to: "/hrms/employees", label: "Employees", icon: UsersRound, roles: ["admin"] },
+  { to: "/hrms/attendance", label: "Attendance", icon: CalendarCheck, roles: ["admin"] },
   { to: "/hrms/settings", label: "HR Settings", icon: Settings, roles: ["admin"] },
   // Analytics and Activity Log were removed: Analytics duplicated Reports and
   // Sales Performance, and Activity Log read the audit trail that Activity
