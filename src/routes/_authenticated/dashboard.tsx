@@ -208,7 +208,9 @@ function DashboardPage() {
             </div>
           </div>
         )}
-        <RenewalDashboardInline />
+        <Suspense fallback={<div className="p-8 text-sm text-muted-foreground">Loading…</div>}>
+          <RenewalDashboardInline />
+        </Suspense>
       </div>
     );
   }

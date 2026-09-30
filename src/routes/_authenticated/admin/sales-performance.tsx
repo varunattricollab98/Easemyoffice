@@ -1,6 +1,6 @@
-import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { guardRoles } from "@/lib/route-guard";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,19 +52,11 @@ export const Route = createFileRoute("/_authenticated/admin/sales-performance")(
     from: typeof s.from === "string" ? s.from : undefined,
     to: typeof s.to === "string" ? s.to : undefined,
   }),
-  beforeLoad: async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw redirect({ to: "/login" });
-    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
-    const held = ((roles ?? []) as { role: string }[]).map((r) => r.role);
-    // Widened from admin-only: a rep needs to see their own productivity. RLS
-    // does the actual containment — a sales user's queries only ever return
-    // their own leads, bookings and activities.
-    if (!held.some((r) => r === "admin" || r === "sales" || r === "bd")) {
-      throw redirect({ to: "/dashboard" });
-    }
+  // Widened from admin-only: a rep needs to see their own productivity. RLS
+  // does the actual containment — a sales user's queries only ever return
+  // their own leads, bookings and activities.
+  beforeLoad: async ({ context }) => {
+    await guardRoles(context.queryClient, ["admin", "sales", "bd"]);
   },
   component: SalesPerformancePage,
 });
