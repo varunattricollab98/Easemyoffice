@@ -5,12 +5,13 @@
 //     action: "login" | "logout",
 //     latitude?, longitude?, accuracy?,   // from navigator.geolocation
 //     client_error?,                      // geolocation error, when there is no fix
-//     device_key, device_label?
+//     device_key, device_label?,
+//     remote?: true, remote_reason?       // work-from-home login request
 //   }
 //
 // Always replies 200 with either
-//   { ok: true,  action, attendance }            — accepted
-//   { ok: false, reason, message }               — rejected (also audited)
+//   { ok: true,  action, attendance, remote? }             — accepted
+//   { ok: false, reason, message, remote_allowed? }        — rejected (also audited)
 // so the browser can show the reason; non-2xx is reserved for real faults.
 //
 // Security model: the verdict is decided here, never in the browser. The time
@@ -18,20 +19,29 @@
 // including rejections — is written to attendance_events. A browser cannot
 // prove its GPS is genuine (DevTools can fake coordinates), so this is a strong
 // deterrent with a complete audit trail, not tamper-proof location.
+//
+// Work from home: a login outside the office can be sent as a WFH request. It
+// is accepted immediately (so the hours are tracked) but the day only counts
+// once an admin approves it; admins get an email + CRM alert.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import {
   checkPunch,
-  closedDayStatus,
+  closeDay,
   istParts,
   lateMinutes,
   minutesBetween,
-  overtimeMinutes,
+  normalizeSchedules,
+  windowMinutes,
+  weekdayOf,
   MAX_SESSION_MINUTES,
   REJECTION_MESSAGES,
+  REMOTE_ELIGIBLE,
+  type DaySchedule,
   type DeviceStatus,
   type PunchKind,
   type RejectionReason,
 } from "../_shared/attendance-rules.ts";
+import { notifyAdmins } from "../_shared/hr-notify.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -63,6 +73,14 @@ const text = (v: unknown, max: number): string | null => {
   return s ? s.slice(0, max) : null;
 };
 
+const timeIST = (iso: string) =>
+  new Date(iso).toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "Asia/Kolkata",
+  });
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Use POST" }, 405);
@@ -90,6 +108,8 @@ Deno.serve(async (req) => {
     const longitude = num(body.longitude);
     const accuracy = num(body.accuracy);
     const deviceKey = text(body.device_key, 100);
+    const wantsRemote = body.remote === true;
+    const remoteReason = text(body.remote_reason, 300);
     const userAgent = text(req.headers.get("user-agent"), 400);
     const ip =
       text(req.headers.get("cf-connecting-ip"), 64) ??
@@ -111,38 +131,35 @@ Deno.serve(async (req) => {
       user_agent: userAgent,
     };
 
-    const reject = async (reason: RejectionReason) => {
+    const reject = async (reason: RejectionReason, extra: Record<string, unknown> = {}) => {
       await db.from("attendance_events").insert({ ...event, outcome: "rejected", reason });
-      return json({ ok: false, reason, message: REJECTION_MESSAGES[reason] });
+      return json({ ok: false, reason, message: REJECTION_MESSAGES[reason], ...extra });
     };
 
     // 2) Employee + policy.
     const { data: employee } = await db
       .from("employees")
-      .select("id, employment_status, office_id")
+      .select("id, first_name, last_name, employee_code, employment_status, office_id")
       .eq("profile_id", user.id)
       .maybeSingle();
     if (!employee) return reject("not_linked");
     event.employee_id = employee.id;
     if (INACTIVE_STATUSES.has(employee.employment_status)) return reject("inactive_employee");
+    const employeeName = [employee.first_name, employee.last_name].filter(Boolean).join(" ");
 
     const { data: settings } = await db
       .from("hr_settings")
       .select("*")
       .eq("id", true)
       .maybeSingle();
-    const s = settings ?? {
-      work_start: "09:30",
-      grace_minutes: 15,
-      required_minutes: 510,
-      half_day_minutes: 240,
-      default_office_id: null,
-      require_geofence: true,
-      require_device_approval: false,
-    };
+    const s = settings ?? {};
+    const schedules = normalizeSchedules(s.day_schedules);
+    const grace = Number(s.grace_minutes ?? 15);
+    const halfDay = Number(s.half_day_minutes ?? 240);
+    const idleThreshold = Number(s.idle_threshold_minutes ?? 60);
+    const allowRemote = s.allow_remote_requests !== false;
 
-    // Employee's own office, else the default, else the first active one
-    // (Phase 1 configures a single office).
+    // Employee's own office, else the default, else the first active one.
     const officeId = employee.office_id ?? s.default_office_id;
     const officeQuery = db.from("office_locations").select("*").eq("active", true);
     const { data: offices } = officeId
@@ -181,9 +198,35 @@ Deno.serve(async (req) => {
       }
     }
 
+    // The open session decides whether a logout needs the office geofence: a
+    // work-from-home session is logged out of from home.
+    const { data: open } = await db
+      .from("attendance")
+      .select("*")
+      .eq("employee_id", employee.id)
+      .not("open_since", "is", null)
+      .order("work_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const remoteLogout = action === "logout" && open?.work_mode === "remote";
+    const today = istParts(now);
+    const { data: todayRow } =
+      action === "login"
+        ? await db
+            .from("attendance")
+            .select("*")
+            .eq("employee_id", employee.id)
+            .eq("work_date", today.date)
+            .maybeSingle()
+        : { data: null };
+    // Logging in again from home on a day that is already WFH continues it
+    // without asking for a reason a second time.
+    const continuingRemote =
+      todayRow?.work_mode === "remote" && todayRow?.remote_status !== "rejected";
+
     // 4) Device + location verdict (shared pure rules).
     const verdict = checkPunch({
-      requireGeofence: !!s.require_geofence,
+      requireGeofence: !!(s.require_geofence ?? true) && !remoteLogout,
       requireDeviceApproval: !!s.require_device_approval,
       deviceStatus,
       office: office
@@ -199,30 +242,44 @@ Deno.serve(async (req) => {
       accuracy,
     });
     event.distance_m = verdict.distance_m;
-    if (!verdict.ok) return reject(verdict.reason);
 
-    const today = istParts(now);
-    const fix = {
-      latitude,
-      longitude,
-      accuracy_m: accuracy,
-      distance_m: verdict.distance_m,
-    };
+    let remote = false;
+    if (!verdict.ok) {
+      const eligible =
+        action === "login" && allowRemote && REMOTE_ELIGIBLE.includes(verdict.reason);
+      if (!eligible) return reject(verdict.reason);
+      // Outside the office: the browser offers a WFH request. A location is
+      // still required so the admin can see where it came from.
+      if (!wantsRemote && !continuingRemote)
+        return reject(verdict.reason, { remote_allowed: true });
+      if (latitude === null || longitude === null) return reject("no_location");
+      if (!continuingRemote && (!remoteReason || remoteReason.length < 3))
+        return reject("remote_reason_required", { remote_allowed: true });
+      remote = true;
+    }
+
+    const fix = { latitude, longitude, accuracy_m: accuracy, distance_m: verdict.distance_m };
 
     // 5) State transition. Each update is conditional on the state that was
     //    read, so a double-tap cannot open or close a session twice.
     let attendance: Record<string, unknown> | null = null;
+    let newRemotePending = false;
 
     if (action === "login") {
-      const { data: row } = await db
-        .from("attendance")
-        .select("*")
-        .eq("employee_id", employee.id)
-        .eq("work_date", today.date)
-        .maybeSingle();
-
+      const row = todayRow;
       if (!row) {
-        const late = lateMinutes(today.minutes, String(s.work_start), Number(s.grace_minutes));
+        // Snapshot today's rule. A company holiday behaves like a day off.
+        const { data: hol } = await db
+          .from("holidays")
+          .select("id")
+          .eq("date", today.date)
+          .eq("active", true)
+          .neq("holiday_type", "optional")
+          .limit(1);
+        const base = schedules[today.weekday];
+        const sched: DaySchedule =
+          hol && hol.length ? { ...base, mode: "off", required_minutes: 0 } : base;
+        const late = lateMinutes(today.minutes, sched, grace);
         const { data: inserted, error } = await db
           .from("attendance")
           .insert({
@@ -231,9 +288,17 @@ Deno.serve(async (req) => {
             office_id: office?.id ?? null,
             first_login_at: nowIso,
             open_since: nowIso,
+            last_activity_at: nowIso,
             status: "in_progress",
             is_late: late > 0,
             late_minutes: late,
+            schedule_mode: sched.mode,
+            window_start: sched.start,
+            window_end: sched.end,
+            required_minutes: sched.required_minutes,
+            work_mode: remote ? "remote" : "office",
+            remote_status: remote ? "pending" : null,
+            remote_reason: remote ? remoteReason : null,
             login_latitude: fix.latitude,
             login_longitude: fix.longitude,
             login_accuracy_m: fix.accuracy_m,
@@ -244,11 +309,27 @@ Deno.serve(async (req) => {
         // Unique (employee_id, work_date) violation = a concurrent login won.
         if (error || !inserted) return reject("already_logged_in");
         attendance = inserted;
+        newRemotePending = remote;
       } else {
         if (row.open_since) return reject("already_logged_in");
+        const patch: Record<string, unknown> = {
+          open_since: nowIso,
+          last_activity_at: nowIso,
+          status: "in_progress",
+        };
+        // Coming back from home turns the day into a WFH day that needs approval
+        // (unless it was already approved).
+        if (remote) {
+          patch.work_mode = "remote";
+          patch.remote_reason = [row.remote_reason, remoteReason].filter(Boolean).join(" | ");
+          if (row.remote_status !== "approved") {
+            patch.remote_status = "pending";
+            newRemotePending = row.remote_status !== "pending";
+          }
+        }
         const { data: reopened } = await db
           .from("attendance")
-          .update({ open_since: nowIso, status: "in_progress" })
+          .update(patch)
           .eq("id", row.id)
           .is("open_since", null)
           .select("*")
@@ -257,30 +338,56 @@ Deno.serve(async (req) => {
         attendance = reopened;
       }
     } else {
-      // Close the most recent open session — it may have started before
-      // midnight, so it is looked up by state rather than by today's date.
-      const { data: open } = await db
-        .from("attendance")
-        .select("*")
-        .eq("employee_id", employee.id)
-        .not("open_since", "is", null)
-        .order("work_date", { ascending: false })
-        .limit(1)
-        .maybeSingle();
       if (!open) return reject("not_logged_in");
-
-      const session = minutesBetween(String(open.open_since), nowIso);
+      const openSince = String(open.open_since);
+      const session = minutesBetween(openSince, nowIso);
       if (session > MAX_SESSION_MINUTES) return reject("session_too_long");
 
+      // Rows from before schedules existed fall back to today's rule for that weekday.
+      const sched: DaySchedule = open.schedule_mode
+        ? {
+            mode: open.schedule_mode,
+            start: String(open.window_start).slice(0, 5),
+            end: String(open.window_end).slice(0, 5),
+            required_minutes: Number(open.required_minutes ?? 0),
+          }
+        : schedules[weekdayOf(String(open.work_date))];
+
       const worked = Number(open.worked_minutes ?? 0) + session;
-      const { data: closed } = await db
+      const inWindow =
+        Number(open.window_minutes ?? 0) +
+        windowMinutes(openSince, nowIso, String(open.work_date), sched);
+      const closed = closeDay({
+        workedMinutes: worked,
+        windowMinutes: inWindow,
+        requiredMinutes: sched.required_minutes,
+        halfDayMinutes: halfDay,
+        mode: sched.mode,
+      });
+
+      // Idle up to logout: the last stretch since the previous CRM activity.
+      const lastActivity =
+        open.last_activity_at && open.last_activity_at > openSince
+          ? open.last_activity_at
+          : openSince;
+      const idleGap = minutesBetween(String(lastActivity), nowIso);
+      const idleAdd = idleGap >= idleThreshold ? idleGap : 0;
+
+      const { data: closedRow } = await db
         .from("attendance")
         .update({
           open_since: null,
           last_logout_at: nowIso,
+          last_activity_at: nowIso,
           worked_minutes: worked,
-          status: closedDayStatus(worked, Number(s.half_day_minutes)),
-          overtime_minutes: overtimeMinutes(worked, Number(s.required_minutes)),
+          window_minutes: inWindow,
+          idle_minutes: Number(open.idle_minutes ?? 0) + idleAdd,
+          status: closed.status,
+          overtime_minutes: closed.overtimeMinutes,
+          schedule_mode: sched.mode,
+          window_start: sched.start,
+          window_end: sched.end,
+          required_minutes: sched.required_minutes,
           logout_latitude: fix.latitude,
           logout_longitude: fix.longitude,
           logout_accuracy_m: fix.accuracy_m,
@@ -290,16 +397,55 @@ Deno.serve(async (req) => {
         .eq("open_since", open.open_since)
         .select("*")
         .maybeSingle();
-      if (!closed) return reject("not_logged_in");
-      attendance = closed;
+      if (!closedRow) return reject("not_logged_in");
+      if (idleAdd > 0) {
+        await db.from("attendance_idle_periods").insert({
+          attendance_id: open.id,
+          employee_id: employee.id,
+          started_at: lastActivity,
+          ended_at: nowIso,
+          minutes: idleAdd,
+          ended_by: "logout",
+        });
+      }
+      attendance = closedRow;
     }
 
     await db.from("attendance_events").insert({
       ...event,
       attendance_id: attendance?.id ?? null,
       outcome: "accepted",
+      reason: remote ? "remote_request" : null,
     });
-    return json({ ok: true, action, attendance });
+
+    if (newRemotePending) {
+      const where =
+        verdict.distance_m != null
+          ? `${(verdict.distance_m / 1000).toFixed(1)} km from the office`
+          : "unknown";
+      await notifyAdmins(db, {
+        type: "hr_remote_request",
+        title: `Work from home request — ${employeeName}`,
+        body: `${employeeName} logged in from outside the office at ${timeIST(nowIso)} and asked to work from home today.`,
+        details: [
+          ["Employee", `${employeeName} (${employee.employee_code})`],
+          ["Date", today.date],
+          ["Reason", remoteReason ?? "—"],
+          ["Location", where],
+          ["GPS accuracy", accuracy != null ? `±${Math.round(accuracy)} m` : "—"],
+          [
+            "Map",
+            latitude != null && longitude != null
+              ? `https://maps.google.com/?q=${latitude},${longitude}`
+              : "—",
+          ],
+        ],
+        path: "/hrms/approvals",
+        cta: "Review in CRM",
+      });
+    }
+
+    return json({ ok: true, action, attendance, remote });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
   }

@@ -1,5 +1,8 @@
 import { Link, Outlet, createFileRoute, redirect, useLocation } from "@tanstack/react-router";
 import { ShieldCheck } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { cn } from "@/lib/utils";
+import { hrmsDb } from "@/lib/hrms";
 import { supabase } from "@/integrations/supabase/client";
 import { GLASS_TRACK, glassTabClass } from "@/components/hrms/glass-tab-styles";
 
@@ -23,12 +26,31 @@ export const Route = createFileRoute("/_authenticated/hrms")({
 
 const SECTIONS = [
   { to: "/hrms/attendance", label: "Attendance" },
+  { to: "/hrms/approvals", label: "Approvals" },
   { to: "/hrms/employees", label: "Employees" },
   { to: "/hrms/settings", label: "Office & Hours" },
 ] as const;
 
 function HrmsLayout() {
   const { pathname } = useLocation();
+  // Pending WFH + leave requests, shown on the Approvals tab.
+  const { data: pending = 0 } = useQuery({
+    queryKey: ["hrms-approval-counts"],
+    refetchInterval: 60_000,
+    queryFn: async (): Promise<number> => {
+      const [a, b] = await Promise.all([
+        hrmsDb()
+          .from("attendance")
+          .select("id", { count: "exact", head: true })
+          .eq("remote_status", "pending"),
+        hrmsDb()
+          .from("leave_requests")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "pending"),
+      ]);
+      return (a.count ?? 0) + (b.count ?? 0);
+    },
+  });
   return (
     <div className="mx-auto max-w-7xl space-y-5 p-5 md:p-10">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -51,6 +73,16 @@ function HrmsLayout() {
                 className={glassTabClass(active)}
               >
                 {s.label}
+                {s.to === "/hrms/approvals" && pending > 0 && (
+                  <span
+                    className={cn(
+                      "rounded-full px-1.5 py-0.5 text-[11px] tabular-nums",
+                      "bg-rose-500/15 text-rose-600 ring-1 ring-rose-500/20 dark:text-rose-300",
+                    )}
+                  >
+                    {pending}
+                  </span>
+                )}
               </Link>
             );
           })}

@@ -1,11 +1,11 @@
-// Attendance rules — pure functions shared by the browser and the
-// `attendance-punch` edge function.
+// Attendance, schedule and leave rules — pure functions shared by the browser
+// and the HR edge functions.
 //
 // KEEP THIS FILE BYTE-IDENTICAL to supabase/functions/_shared/attendance-rules.ts
-// (a unit test enforces it). The edge function is the only thing that ever
-// decides whether a punch is accepted; the browser uses the same code purely to
-// display the month and explain a verdict it already received. That is also why
-// this file has no imports: it has to run unchanged under both Vite and Deno.
+// (a unit test enforces it). The edge functions are the only things that ever
+// decide whether a punch or request is accepted; the browser uses the same code
+// to display the month and explain verdicts it already received. That is also
+// why this file has no imports: it has to run unchanged under both Vite and Deno.
 
 /** India has no daylight saving, so a fixed offset is exact. */
 export const IST_OFFSET_MINUTES = 330;
@@ -24,6 +24,7 @@ export type RejectionReason =
   | "no_office"
   | "low_accuracy"
   | "outside_geofence"
+  | "remote_reason_required"
   | "already_logged_in"
   | "not_logged_in"
   | "session_too_long";
@@ -36,12 +37,16 @@ export const REJECTION_MESSAGES: Record<RejectionReason, string> = {
   no_location: "Location is required. Allow location access in the browser and try again.",
   no_office: "No office location is configured yet. Ask the admin to set it up.",
   low_accuracy: "Your GPS reading is too imprecise. Move near a window or step outside and retry.",
-  outside_geofence: "You are outside the office area. Attendance can only be marked at the office.",
+  outside_geofence: "You are outside the office area.",
+  remote_reason_required: "Add a short reason for working from home.",
   already_logged_in: "You are already logged in.",
   not_logged_in: "You are not logged in, so there is nothing to log out of.",
   session_too_long:
     "Your last login is too old to close automatically. Ask the admin for a correction.",
 };
+
+/** Rejections that can be turned into a work-from-home request instead. */
+export const REMOTE_ELIGIBLE: RejectionReason[] = ["outside_geofence", "low_accuracy"];
 
 export type IstParts = {
   /** Calendar date in India, YYYY-MM-DD. */
@@ -78,6 +83,25 @@ export function timeToMinutes(t: string): number {
   return hh * 60 + mm;
 }
 
+/** 570 -> "09:30". */
+export function minutesToTime(m: number): string {
+  const v = ((Math.round(m) % 1440) + 1440) % 1440;
+  return `${pad2(Math.floor(v / 60))}:${pad2(v % 60)}`;
+}
+
+/** 0 = Sunday for a YYYY-MM-DD date. */
+export function weekdayOf(date: string): number {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
+
+/** YYYY-MM-DD + n days. */
+export function addDays(date: string, n: number): string {
+  const [y, m, d] = date.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d + n));
+  return `${t.getUTCFullYear()}-${pad2(t.getUTCMonth() + 1)}-${pad2(t.getUTCDate())}`;
+}
+
 /** Great-circle distance in metres. */
 export function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6_371_000;
@@ -89,6 +113,150 @@ export function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: 
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
 }
+
+// ---------------------------------------------------------------------------
+// Weekly schedule
+// ---------------------------------------------------------------------------
+
+/**
+ * off       — not a working day.
+ * flexible  — complete `required_minutes` anywhere between start and end
+ *             (Mon–Fri: 9h between 09:00 and 19:30).
+ * fixed     — be there from start to end (Saturday: 10:00–17:00).
+ */
+export type ScheduleMode = "off" | "flexible" | "fixed";
+
+export type DaySchedule = {
+  mode: ScheduleMode;
+  start: string;
+  end: string;
+  required_minutes: number;
+};
+
+const FLEX: DaySchedule = { mode: "flexible", start: "09:00", end: "19:30", required_minutes: 540 };
+
+/** Index = weekday, 0 = Sunday. The company policy as of Oct 2026. */
+export const DEFAULT_SCHEDULES: DaySchedule[] = [
+  { mode: "off", start: "10:00", end: "17:00", required_minutes: 0 },
+  FLEX,
+  FLEX,
+  FLEX,
+  FLEX,
+  FLEX,
+  { mode: "fixed", start: "10:00", end: "17:00", required_minutes: 420 },
+];
+
+/**
+ * Validates the stored jsonb schedule, falling back per day to the default.
+ * A fixed day's requirement is always its full span, whatever was stored.
+ */
+export function normalizeSchedules(raw: unknown): DaySchedule[] {
+  const arr = Array.isArray(raw) ? raw : [];
+  return DEFAULT_SCHEDULES.map((fallback, i) => {
+    const r = arr[i] as Partial<DaySchedule> | undefined;
+    if (!r || (r.mode !== "off" && r.mode !== "flexible" && r.mode !== "fixed")) return fallback;
+    const start = typeof r.start === "string" ? r.start.slice(0, 5) : fallback.start;
+    const end = typeof r.end === "string" ? r.end.slice(0, 5) : fallback.end;
+    const span = Math.max(0, timeToMinutes(end) - timeToMinutes(start));
+    if (r.mode === "off") return { mode: "off", start, end, required_minutes: 0 };
+    if (r.mode === "fixed") return { mode: "fixed", start, end, required_minutes: span };
+    const req = Math.round(Number(r.required_minutes));
+    return {
+      mode: "flexible",
+      start,
+      end,
+      required_minutes: Number.isFinite(req) && req > 0 ? Math.min(req, span) : Math.min(540, span),
+    };
+  });
+}
+
+/** Latest clock time (minutes) at which a login is still on time. */
+export function latestOnTimeStart(s: DaySchedule, graceMinutes: number): number {
+  if (s.mode === "fixed") return timeToMinutes(s.start) + (Number(graceMinutes) || 0);
+  if (s.mode === "flexible") return timeToMinutes(s.end) - s.required_minutes;
+  return 24 * 60;
+}
+
+/**
+ * Minutes late.
+ * - fixed: measured from the start time, once past the grace period (10:16 with
+ *   a 10:00 start and 15 min grace is 16 minutes late, not 1).
+ * - flexible: late only when the required hours no longer fit inside the window
+ *   (after 10:30 for 9h between 09:00 and 19:30); measured from that point.
+ * - off: never late.
+ */
+export function lateMinutes(loginMinutes: number, s: DaySchedule, graceMinutes: number): number {
+  if (s.mode === "fixed") {
+    const after = loginMinutes - timeToMinutes(s.start);
+    return after > (Number(graceMinutes) || 0) ? after : 0;
+  }
+  if (s.mode === "flexible") return Math.max(0, loginMinutes - latestOnTimeStart(s, 0));
+  return 0;
+}
+
+/** Epoch ms of midnight IST on a date. */
+export function istMidnightMs(date: string): number {
+  return Date.parse(`${date}T00:00:00+05:30`);
+}
+
+/**
+ * Minutes of a session that fall inside the day's window. Only these count
+ * toward the requirement — logging in at 08:30 on a flexible day starts the
+ * clock at 09:00.
+ */
+export function windowMinutes(
+  startIso: string,
+  endIso: string,
+  workDate: string,
+  s: Pick<DaySchedule, "mode" | "start" | "end">,
+): number {
+  if (s.mode === "off") return 0;
+  const base = istMidnightMs(workDate);
+  const ws = base + timeToMinutes(s.start) * 60_000;
+  const we = base + timeToMinutes(s.end) * 60_000;
+  const a = Math.max(Date.parse(startIso), ws);
+  const b = Math.min(Date.parse(endIso), we);
+  return b > a ? Math.floor((b - a) / 60_000) : 0;
+}
+
+export type DayStatus = "in_progress" | "present" | "short" | "half_day";
+
+/**
+ * Status of a closed day.
+ * - present: in-window time met the requirement. Everything logged beyond the
+ *   requirement (including outside the window) is overtime.
+ * - short: logged out early — at least the half-day threshold, below required.
+ * - half_day: below the half-day threshold.
+ * On an off day any work is present and all of it is overtime.
+ */
+export function closeDay(input: {
+  workedMinutes: number;
+  windowMinutes: number;
+  requiredMinutes: number;
+  halfDayMinutes: number;
+  mode: ScheduleMode;
+}): { status: DayStatus; overtimeMinutes: number } {
+  if (input.mode === "off" || input.requiredMinutes <= 0)
+    return { status: "present", overtimeMinutes: Math.round(input.workedMinutes) };
+  if (input.windowMinutes >= input.requiredMinutes)
+    return {
+      status: "present",
+      overtimeMinutes: Math.max(0, Math.round(input.workedMinutes - input.requiredMinutes)),
+    };
+  return {
+    status: input.windowMinutes >= input.halfDayMinutes ? "short" : "half_day",
+    overtimeMinutes: 0,
+  };
+}
+
+/** Whole minutes between two ISO instants, never negative. */
+export function minutesBetween(fromIso: string, toIso: string): number {
+  return Math.max(0, Math.floor((Date.parse(toIso) - Date.parse(fromIso)) / 60_000));
+}
+
+// ---------------------------------------------------------------------------
+// Punch checks
+// ---------------------------------------------------------------------------
 
 export type DeviceStatus = "new" | "pending" | "approved" | "revoked";
 
@@ -126,7 +294,7 @@ export function checkPunch(input: PunchCheckInput): PunchCheckResult {
   const { office } = input;
   const hasFix = isNum(input.latitude) && isNum(input.longitude);
   // Distance is worth recording even when the geofence is switched off, so an
-  // admin can see where people actually punched from during a trial rollout.
+  // admin can see where people actually punched from.
   const distance_m =
     hasFix && office
       ? Math.round(
@@ -154,31 +322,133 @@ export function checkPunch(input: PunchCheckInput): PunchCheckResult {
   return { ok: true, distance_m };
 }
 
+// ---------------------------------------------------------------------------
+// Leave
+// ---------------------------------------------------------------------------
+
+export type LeavePolicy = {
+  /** Paid leaves granted each month. */
+  monthlyQuota: number;
+  /** Max unused leave carried into the next month. */
+  carryCap: number;
+  /** First date the policy applies, YYYY-MM-DD. */
+  policyStart: string;
+};
+
+export const DEFAULT_LEAVE_POLICY: LeavePolicy = {
+  monthlyQuota: 2,
+  carryCap: 1,
+  policyStart: "2026-10-01",
+};
+
 /**
- * Minutes late, measured from the office start time. Zero while inside the
- * grace period: 09:44 with a 09:30 start and 15 min grace is on time, 09:46 is
- * 16 minutes late (not 1) — the grace is a tolerance, not a new start time.
+ * Working days a leave request covers — week-offs and holidays inside the
+ * range cost nothing. A half-day request is only valid for a single date.
  */
-export function lateMinutes(loginMinutes: number, workStart: string, graceMinutes: number): number {
-  const start = timeToMinutes(workStart);
-  const after = loginMinutes - start;
-  return after > (Number(graceMinutes) || 0) ? after : 0;
+export function expandLeave(
+  from: string,
+  to: string,
+  halfDay: boolean,
+  schedules: DaySchedule[],
+  holidayDates: Set<string> | string[],
+): { date: string; amount: number }[] {
+  const holidays = holidayDates instanceof Set ? holidayDates : new Set(holidayDates);
+  const out: { date: string; amount: number }[] = [];
+  if (!from || !to || to < from) return out;
+  const amount = halfDay && from === to ? 0.5 : 1;
+  for (let d = from, i = 0; d <= to && i < 366; d = addDays(d, 1), i++) {
+    if (schedules[weekdayOf(d)]?.mode === "off" || holidays.has(d)) continue;
+    out.push({ date: d, amount });
+  }
+  return out;
 }
 
-export type DayStatus = "in_progress" | "present" | "half_day";
+export type LedgerMonth = {
+  /** YYYY-MM. */
+  month: string;
+  carriedIn: number;
+  quota: number;
+  available: number;
+  /** Approved leave days dated in this month. */
+  taken: number;
+  paid: number;
+  unpaid: number;
+  carryOut: number;
+};
 
-/** Status of a closed day: below the half-day threshold it is a half day. */
-export function closedDayStatus(workedMinutes: number, halfDayMinutes: number): DayStatus {
-  return workedMinutes < halfDayMinutes ? "half_day" : "present";
+const monthOf = (date: string) => date.slice(0, 7);
+
+function nextMonth(ym: string): string {
+  const [y, m] = ym.split("-").map(Number);
+  return m === 12 ? `${y + 1}-01` : `${y}-${pad2(m + 1)}`;
 }
 
-export function overtimeMinutes(workedMinutes: number, requiredMinutes: number): number {
-  return Math.max(0, Math.round(workedMinutes - requiredMinutes));
+/**
+ * Month-by-month leave balance. Each month grants the quota; whatever is left
+ * unused carries into the next month up to the cap (2 a month, 1 carried → at
+ * most 3 available). Leave beyond the balance is unpaid (loss of pay).
+ * Months before the policy start (or joining) get the quota with no carry.
+ */
+export function leaveLedger(input: {
+  policy: LeavePolicy;
+  joiningDate?: string | null;
+  /** Approved leave, expanded to dates. */
+  approved: { date: string; amount: number }[];
+  /** Last month to compute, YYYY-MM. */
+  untilMonth: string;
+}): Map<string, LedgerMonth> {
+  const { policy } = input;
+  const taken = new Map<string, number>();
+  for (const l of input.approved)
+    taken.set(monthOf(l.date), (taken.get(monthOf(l.date)) ?? 0) + l.amount);
+  let start = monthOf(policy.policyStart);
+  if (input.joiningDate && monthOf(input.joiningDate) > start) start = monthOf(input.joiningDate);
+
+  const out = new Map<string, LedgerMonth>();
+  const row = (month: string, carriedIn: number): LedgerMonth => {
+    const available = policy.monthlyQuota + carriedIn;
+    const t = taken.get(month) ?? 0;
+    const paid = Math.min(t, available);
+    return {
+      month,
+      carriedIn,
+      quota: policy.monthlyQuota,
+      available,
+      taken: t,
+      paid,
+      unpaid: t - paid,
+      carryOut: Math.min(policy.carryCap, available - paid),
+    };
+  };
+  // Months with leave before the start: quota only.
+  for (const m of taken.keys()) if (m < start && m <= input.untilMonth) out.set(m, row(m, 0));
+  let carry = 0;
+  for (let m = start, i = 0; m <= input.untilMonth && i < 600; m = nextMonth(m), i++) {
+    const r = row(m, carry);
+    out.set(m, r);
+    carry = r.carryOut;
+  }
+  return out;
 }
 
-/** Whole minutes between two ISO instants, never negative. */
-export function minutesBetween(fromIso: string, toIso: string): number {
-  return Math.max(0, Math.floor((Date.parse(toIso) - Date.parse(fromIso)) / 60_000));
+/** Ledger entry for a month, or a fresh-quota entry when the month is not covered. */
+export function ledgerFor(
+  ledger: Map<string, LedgerMonth>,
+  month: string,
+  policy: LeavePolicy,
+): LedgerMonth {
+  return (
+    ledger.get(month) ?? {
+      month,
+      carriedIn: 0,
+      quota: policy.monthlyQuota,
+      available: policy.monthlyQuota,
+      taken: 0,
+      paid: 0,
+      unpaid: 0,
+      carryOut: 0,
+    }
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -190,15 +460,26 @@ export type AttendanceDayRecord = {
   status: DayStatus;
   is_late: boolean;
   worked_minutes: number;
+  window_minutes: number;
+  required_minutes: number | null;
+  idle_minutes: number;
   open_since: string | null;
+  work_mode: "office" | "remote";
+  remote_status: "pending" | "approved" | "rejected" | null;
 };
 
 export type DayKind =
   | "present"
+  | "short"
   | "half_day"
   | "absent"
   | "in_progress"
   | "action_needed"
+  | "remote_pending"
+  | "remote_rejected"
+  | "paid_leave"
+  | "unpaid_leave"
+  | "leave_pending"
   | "holiday"
   | "week_off"
   | "today"
@@ -211,7 +492,13 @@ export type DayCell = {
   weekday: number;
   kind: DayKind;
   late: boolean;
-  workedMinutes: number;
+  remote: boolean;
+  /** Minutes that count toward the requirement (all worked time on an off day). */
+  creditedMinutes: number;
+  requiredMinutes: number;
+  idleMinutes: number;
+  /** Approved leave on this date: 0, 0.5 or 1. */
+  leave: number;
   /** Week-off or holiday — worked time on it is all overtime. */
   nonWorking: boolean;
   holidayName: string | null;
@@ -221,13 +508,21 @@ export type MonthStats = {
   workingDays: number;
   elapsedWorkingDays: number;
   present: number;
+  short: number;
   halfDays: number;
   absent: number;
   late: number;
   actionNeeded: number;
+  remoteDays: number;
+  remotePending: number;
+  paidLeave: number;
+  unpaidLeave: number;
+  pendingLeave: number;
+  /** Credited minutes, i.e. hours completed. */
   workedMinutes: number;
   requiredMinutes: number;
   overtimeMinutes: number;
+  idleMinutes: number;
 };
 
 export type MonthInput = {
@@ -238,8 +533,12 @@ export type MonthInput = {
   today: string;
   records: AttendanceDayRecord[];
   holidays: { date: string; name: string }[];
-  weekOffs: number[];
-  requiredMinutes: number;
+  schedules: DaySchedule[];
+  halfDayMinutes: number;
+  /** Leave expanded to dates, approved and pending. */
+  leaves?: { date: string; amount: number; status: "approved" | "pending" }[];
+  /** Paid leave available this month (from the ledger). */
+  paidLeaveAvailable?: number;
   joiningDate?: string | null;
   exitDate?: string | null;
 };
@@ -251,45 +550,73 @@ export function daysInMonth(year: number, month: number): number {
 /**
  * Day-by-day picture of one employee's month plus the totals shown to them.
  *
- * Absent means "a past working day with no attendance at all". Today is never
- * absent — the day is not over. A past day that was logged into but never
- * logged out of is `action_needed`: its hours are unknown until the admin corrects it.
+ * - Absent: a past working day with no attendance and no leave (loss of pay).
+ *   Today is never absent — the day is not over.
+ * - A past day that was logged into but never logged out of is action_needed:
+ *   its hours are unknown until the admin corrects it.
+ * - Work-from-home days count only once the admin approves them; a rejected
+ *   one is treated as absent.
+ * - Approved leave draws on the month's paid balance in date order; anything
+ *   beyond it is unpaid. A half-day leave halves that day's requirement.
  */
 export function summarizeMonth(input: MonthInput): { days: DayCell[]; stats: MonthStats } {
   const byDate = new Map(input.records.map((r) => [r.work_date, r]));
   const holidayByDate = new Map(input.holidays.map((h) => [h.date, h.name]));
-  const offs = new Set(input.weekOffs);
+  const approvedLeave = new Map<string, number>();
+  const pendingLeave = new Map<string, number>();
+  for (const l of input.leaves ?? []) {
+    const m = l.status === "approved" ? approvedLeave : pendingLeave;
+    m.set(l.date, Math.min(1, (m.get(l.date) ?? 0) + l.amount));
+  }
+  let budget = Math.max(0, input.paidLeaveAvailable ?? 0);
+
   const stats: MonthStats = {
     workingDays: 0,
     elapsedWorkingDays: 0,
     present: 0,
+    short: 0,
     halfDays: 0,
     absent: 0,
     late: 0,
     actionNeeded: 0,
+    remoteDays: 0,
+    remotePending: 0,
+    paidLeave: 0,
+    unpaidLeave: 0,
+    pendingLeave: 0,
     workedMinutes: 0,
     requiredMinutes: 0,
     overtimeMinutes: 0,
+    idleMinutes: 0,
   };
   const days: DayCell[] = [];
   const total = daysInMonth(input.year, input.month);
 
   for (let d = 1; d <= total; d++) {
     const date = `${input.year}-${pad2(input.month)}-${pad2(d)}`;
-    const weekday = new Date(Date.UTC(input.year, input.month - 1, d)).getUTCDay();
+    const weekday = weekdayOf(date);
+    const sched = input.schedules[weekday] ?? DEFAULT_SCHEDULES[weekday];
     const holidayName = holidayByDate.get(date) ?? null;
-    const nonWorking = holidayName !== null || offs.has(weekday);
+    const nonWorking = holidayName !== null || sched.mode === "off";
     const employed =
       (!input.joiningDate || date >= input.joiningDate) &&
       (!input.exitDate || date <= input.exitDate);
     const rec = byDate.get(date);
+    const leave = nonWorking ? 0 : (approvedLeave.get(date) ?? 0);
+    const pending = nonWorking ? 0 : (pendingLeave.get(date) ?? 0);
+    const baseRequired = nonWorking ? 0 : (rec?.required_minutes ?? sched.required_minutes);
+    const required = Math.round(baseRequired * (1 - leave));
     const cell: DayCell = {
       date,
       day: d,
       weekday,
       kind: "upcoming",
       late: false,
-      workedMinutes: 0,
+      remote: false,
+      creditedMinutes: 0,
+      requiredMinutes: required,
+      idleMinutes: 0,
+      leave,
       nonWorking,
       holidayName,
     };
@@ -300,37 +627,87 @@ export function summarizeMonth(input: MonthInput): { days: DayCell[]; stats: Mon
       continue;
     }
 
-    if (!nonWorking) stats.workingDays++;
     const isPast = date < input.today;
     const isToday = date === input.today;
+    if (!nonWorking) stats.workingDays++;
+
+    // Leave accounting happens whatever else the day holds, so the balance
+    // always matches the ledger.
+    let leaveKind: DayKind | null = null;
+    if (leave > 0) {
+      const paid = Math.min(leave, budget);
+      budget -= paid;
+      stats.paidLeave += paid;
+      stats.unpaidLeave += leave - paid;
+      leaveKind = paid >= leave ? "paid_leave" : "unpaid_leave";
+    }
+    if (pending > 0) stats.pendingLeave += pending;
+
+    if (!nonWorking && (isPast || isToday || rec)) {
+      if (isPast || rec) {
+        stats.elapsedWorkingDays++;
+        stats.requiredMinutes += required;
+      }
+    }
 
     if (rec) {
-      cell.late = rec.is_late;
-      cell.workedMinutes = rec.worked_minutes;
-      stats.workedMinutes += rec.worked_minutes;
-      if (rec.status === "in_progress") {
+      cell.remote = rec.work_mode === "remote";
+      cell.idleMinutes = rec.idle_minutes ?? 0;
+      stats.idleMinutes += cell.idleMinutes;
+      const credited = nonWorking ? rec.worked_minutes : (rec.window_minutes ?? 0);
+
+      if (cell.remote && rec.remote_status === "rejected") {
+        cell.kind = leaveKind ?? "remote_rejected";
+        if (!leaveKind && !nonWorking) stats.absent++;
+      } else if (cell.remote && rec.remote_status === "pending" && rec.status !== "in_progress") {
+        cell.kind = "remote_pending";
+        cell.creditedMinutes = credited;
+        stats.remotePending++;
+      } else if (rec.status === "in_progress") {
         cell.kind = isPast ? "action_needed" : "in_progress";
+        cell.creditedMinutes = credited;
         if (isPast) stats.actionNeeded++;
       } else {
-        cell.kind = rec.status;
-        stats.overtimeMinutes += nonWorking
-          ? rec.worked_minutes
-          : overtimeMinutes(rec.worked_minutes, input.requiredMinutes);
-      }
-      if (!nonWorking) {
-        stats.elapsedWorkingDays++;
-        stats.requiredMinutes += input.requiredMinutes;
-        if (rec.status === "present") stats.present++;
-        if (rec.status === "half_day") stats.halfDays++;
-        if (rec.is_late) stats.late++;
+        cell.creditedMinutes = credited;
+        cell.late = rec.is_late;
+        stats.workedMinutes += credited;
+        if (cell.remote) stats.remoteDays++;
+        if (nonWorking) {
+          cell.kind = "present";
+          stats.overtimeMinutes += rec.worked_minutes;
+        } else {
+          // A half-day leave lowers the bar, so the status is re-derived here
+          // rather than trusting the one stored at logout.
+          const closed =
+            leave > 0
+              ? closeDay({
+                  workedMinutes: rec.worked_minutes,
+                  windowMinutes: credited,
+                  requiredMinutes: required,
+                  halfDayMinutes: Math.min(input.halfDayMinutes, required),
+                  mode: sched.mode,
+                })
+              : null;
+          const status = closed ? closed.status : rec.status;
+          cell.kind = status === "in_progress" ? "present" : status;
+          if (status === "present") {
+            stats.present++;
+            stats.overtimeMinutes += Math.max(0, rec.worked_minutes - required);
+          }
+          if (status === "short") stats.short++;
+          if (status === "half_day") stats.halfDays++;
+          if (rec.is_late) stats.late++;
+        }
       }
     } else if (nonWorking) {
       cell.kind = holidayName !== null ? "holiday" : "week_off";
+    } else if (leaveKind) {
+      cell.kind = leaveKind;
+    } else if (pending > 0) {
+      cell.kind = "leave_pending";
     } else if (isPast) {
       cell.kind = "absent";
       stats.absent++;
-      stats.elapsedWorkingDays++;
-      stats.requiredMinutes += input.requiredMinutes;
     } else if (isToday) {
       cell.kind = "today";
     }

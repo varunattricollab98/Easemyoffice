@@ -129,6 +129,13 @@ export type HrSettings = {
   default_office_id: string | null;
   require_geofence: boolean;
   require_device_approval: boolean;
+  /** Index = weekday (0 = Sunday); read through normalizeSchedules(). */
+  day_schedules: unknown;
+  idle_threshold_minutes: number;
+  monthly_leave_quota: number | string;
+  leave_carry_cap: number | string;
+  leave_policy_start: string;
+  allow_remote_requests: boolean;
 };
 
 export type Holiday = {
@@ -153,12 +160,50 @@ export type AttendanceRow = {
   last_logout_at: string | null;
   open_since: string | null;
   worked_minutes: number;
-  status: "in_progress" | "present" | "half_day";
+  status: "in_progress" | "present" | "short" | "half_day";
   is_late: boolean;
   late_minutes: number;
   overtime_minutes: number;
   login_distance_m: number | null;
   logout_distance_m: number | null;
+  schedule_mode: "off" | "flexible" | "fixed" | null;
+  window_start: string | null;
+  window_end: string | null;
+  required_minutes: number | null;
+  window_minutes: number;
+  work_mode: "office" | "remote";
+  remote_status: "pending" | "approved" | "rejected" | null;
+  remote_reason: string | null;
+  remote_note: string | null;
+  remote_decided_at: string | null;
+  idle_minutes: number;
+  last_activity_at: string | null;
+  login_latitude: number | string | null;
+  login_longitude: number | string | null;
+};
+
+export type LeaveRequest = {
+  id: string;
+  employee_id: string;
+  from_date: string;
+  to_date: string;
+  half_day: boolean;
+  days: number | string;
+  reason: string | null;
+  status: "pending" | "approved" | "rejected" | "cancelled";
+  decided_at: string | null;
+  admin_note: string | null;
+  created_at: string;
+};
+
+export type IdlePeriod = {
+  id: string;
+  attendance_id: string;
+  employee_id: string;
+  started_at: string;
+  ended_at: string;
+  minutes: number;
+  ended_by: "activity" | "logout";
 };
 
 export type AttendanceEvent = {

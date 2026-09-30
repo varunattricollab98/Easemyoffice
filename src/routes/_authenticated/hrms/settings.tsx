@@ -20,13 +20,20 @@ import { getErrorMessage } from "@/lib/utils";
 import {
   hrmsDb,
   formatMinutes,
-  lateAfter,
   WEEKDAYS,
   HOLIDAY_TYPES,
   type HrSettings,
   type Holiday,
   type OfficeLocation,
 } from "@/lib/hrms";
+import {
+  normalizeSchedules,
+  timeToMinutes,
+  DEFAULT_SCHEDULES,
+  type DaySchedule,
+  type ScheduleMode,
+} from "@/lib/attendance-rules";
+import { describeSchedule } from "@/lib/attendance-queries";
 
 export const Route = createFileRoute("/_authenticated/hrms/settings")({
   head: () => ({ meta: [{ title: "Office & Hours — EaseMyOffice CRM" }] }),
@@ -42,7 +49,7 @@ function HrSettingsPage() {
           <Settings2 className="h-5 w-5 text-primary" /> Office &amp; Hours
         </h2>
         <p className="text-sm text-muted-foreground">
-          Office location, working hours, weekly offs and holidays. Attendance reads all of its
+          Office location, weekly schedule, leave policy and holidays. Attendance reads all of its
           rules from here.
         </p>
       </div>
@@ -230,16 +237,21 @@ function OfficeCard() {
 
 // ---------------------------------------------------------------------------
 
+type ScheduleDraft = { mode: ScheduleMode; start: string; end: string; required: string };
+
 function WorkingHoursCard() {
   const qc = useQueryClient();
+  const [days, setDays] = useState<ScheduleDraft[]>(() => toDraft(DEFAULT_SCHEDULES));
   const [f, setF] = useState({
-    work_start: "09:30",
     grace_minutes: "15",
-    required_minutes: "510",
     half_day_minutes: "240",
-    week_offs: [0, 6] as number[],
+    idle_threshold_minutes: "60",
+    monthly_leave_quota: "2",
+    leave_carry_cap: "1",
+    leave_policy_start: "2026-10-01",
     require_geofence: true,
     require_device_approval: false,
+    allow_remote_requests: true,
   });
 
   const { data: settings } = useQuery({
@@ -252,176 +264,262 @@ function WorkingHoursCard() {
 
   useEffect(() => {
     if (!settings) return;
+    setDays(toDraft(normalizeSchedules(settings.day_schedules)));
     setF({
-      // Postgres returns time as "09:30:00"; the input wants "09:30".
-      work_start: String(settings.work_start ?? "09:30").slice(0, 5),
       grace_minutes: String(settings.grace_minutes ?? 15),
-      required_minutes: String(settings.required_minutes ?? 510),
       half_day_minutes: String(settings.half_day_minutes ?? 240),
-      week_offs: settings.week_offs ?? [0, 6],
+      idle_threshold_minutes: String(settings.idle_threshold_minutes ?? 60),
+      monthly_leave_quota: String(settings.monthly_leave_quota ?? 2),
+      leave_carry_cap: String(settings.leave_carry_cap ?? 1),
+      leave_policy_start: String(settings.leave_policy_start ?? "2026-10-01").slice(0, 10),
       require_geofence: settings.require_geofence ?? true,
       require_device_approval: settings.require_device_approval ?? false,
+      allow_remote_requests: settings.allow_remote_requests ?? true,
     });
   }, [settings]);
 
-  const toggleDay = (d: number) =>
-    setF((s) => ({
-      ...s,
-      week_offs: s.week_offs.includes(d)
-        ? s.week_offs.filter((x) => x !== d)
-        : [...s.week_offs, d].sort(),
-    }));
+  const setDay = (i: number, patch: Partial<ScheduleDraft>) =>
+    setDays((d) => d.map((x, j) => (j === i ? { ...x, ...patch } : x)));
 
   const save = useMutation({
     mutationFn: async () => {
+      const schedules = normalizeSchedules(
+        days.map((d) => ({
+          mode: d.mode,
+          start: d.start,
+          end: d.end,
+          required_minutes: Math.round(Number(d.required) * 60),
+        })),
+      );
+      for (const [i, d] of schedules.entries()) {
+        if (d.mode !== "off" && timeToMinutes(d.end) <= timeToMinutes(d.start))
+          throw new Error(`${WEEKDAYS[i].label}: end time must be after start time`);
+      }
       const { error } = await hrmsDb()
         .from("hr_settings")
         .update({
-          work_start: f.work_start,
-          grace_minutes: Number(f.grace_minutes) || 0,
-          required_minutes: Number(f.required_minutes) || 510,
-          half_day_minutes: Number(f.half_day_minutes) || 240,
-          week_offs: f.week_offs,
+          day_schedules: schedules,
+          // Legacy column kept in sync for anything still reading it.
+          week_offs: schedules.flatMap((d, i) => (d.mode === "off" ? [i] : [])),
+          grace_minutes: Math.max(0, Number(f.grace_minutes) || 0),
+          half_day_minutes: Math.max(30, Number(f.half_day_minutes) || 240),
+          idle_threshold_minutes: Math.max(10, Number(f.idle_threshold_minutes) || 60),
+          monthly_leave_quota: Math.max(0, Number(f.monthly_leave_quota) || 0),
+          leave_carry_cap: Math.max(0, Number(f.leave_carry_cap) || 0),
+          leave_policy_start: f.leave_policy_start || "2026-10-01",
           require_geofence: f.require_geofence,
           require_device_approval: f.require_device_approval,
+          allow_remote_requests: f.allow_remote_requests,
         })
         .eq("id", true);
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
-      toast.success("Working hours saved");
+      toast.success("Working hours and policy saved");
       qc.invalidateQueries({ queryKey: ["hrms-settings"] });
     },
     onError: (e: unknown) => toast.error(getErrorMessage(e)),
   });
 
+  const toggles: {
+    key: "require_geofence" | "require_device_approval" | "allow_remote_requests";
+    title: string;
+    hint: string;
+  }[] = [
+    {
+      key: "require_geofence",
+      title: "Require office geofence",
+      hint: "When off, attendance is accepted from anywhere. Useful while testing the rollout.",
+    },
+    {
+      key: "allow_remote_requests",
+      title: "Allow work-from-home requests",
+      hint: "Outside the office, employees can log in as work from home. You get an email and approve the day under Approvals.",
+    },
+    {
+      key: "require_device_approval",
+      title: "Require device approval",
+      hint: "When on, a phone or browser used for the first time cannot punch until you approve it under Attendance → Devices.",
+    },
+  ];
+
   return (
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
-          <Clock className="h-4 w-4 text-primary" /> Working hours
+          <Clock className="h-4 w-4 text-primary" /> Weekly schedule
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="grid gap-3 md:grid-cols-4">
-          <div>
-            <Label className="text-xs">Office start</Label>
-            <Input
-              type="time"
-              value={f.work_start}
-              onChange={(e) => setF({ ...f, work_start: e.target.value })}
-            />
-          </div>
-          <div>
-            <Label className="text-xs">Grace period (minutes)</Label>
-            <Input
-              type="number"
-              min={0}
-              value={f.grace_minutes}
-              onChange={(e) => setF({ ...f, grace_minutes: e.target.value })}
-            />
-          </div>
-          <div>
-            <Label className="text-xs">Full day (minutes)</Label>
-            <Input
-              type="number"
-              min={60}
-              value={f.required_minutes}
-              onChange={(e) => setF({ ...f, required_minutes: e.target.value })}
-            />
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {formatMinutes(Number(f.required_minutes) || 0)}
-            </p>
-          </div>
-          <div>
-            <Label className="text-xs">Half day after (minutes)</Label>
-            <Input
-              type="number"
-              min={30}
-              value={f.half_day_minutes}
-              onChange={(e) => setF({ ...f, half_day_minutes: e.target.value })}
-            />
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {formatMinutes(Number(f.half_day_minutes) || 0)}
-            </p>
-          </div>
-        </div>
-
-        <div className="rounded-md border bg-muted/20 p-3 text-xs">
-          Anyone logging in after{" "}
-          <strong className="text-foreground">
-            {lateAfter(f.work_start, Number(f.grace_minutes) || 0)}
-          </strong>{" "}
-          is marked present <em>and</em> late.
-        </div>
-
-        <div>
-          <Label className="text-xs">Weekly offs</Label>
-          <div className="mt-1.5 flex flex-wrap gap-2">
-            {WEEKDAYS.map((d) => {
-              const off = f.week_offs.includes(d.id);
-              return (
-                <button
-                  key={d.id}
-                  type="button"
-                  onClick={() => toggleDay(d.id)}
-                  aria-pressed={off}
-                  className={`rounded-full border px-3 py-1 text-xs transition-all duration-200 ${
-                    off
-                      ? "border-primary/30 bg-primary/10 font-medium text-primary"
-                      : "border-border text-muted-foreground hover:bg-muted"
-                  }`}
+      <CardContent className="space-y-4">
+        <div className="divide-y rounded-lg border">
+          {days.map((d, i) => {
+            const s = normalizeSchedules(
+              days.map((x) => ({
+                mode: x.mode,
+                start: x.start,
+                end: x.end,
+                required_minutes: Math.round(Number(x.required) * 60),
+              })),
+            )[i];
+            return (
+              <div key={i} className="flex flex-wrap items-center gap-3 px-3 py-2.5">
+                <div className="w-10 text-sm font-medium">{WEEKDAYS[i].label}</div>
+                <Select
+                  value={d.mode}
+                  onValueChange={(v) => setDay(i, { mode: v as ScheduleMode })}
                 >
-                  {d.label}
-                </button>
-              );
-            })}
-          </div>
-          <p className="mt-1.5 text-[11px] text-muted-foreground">
-            Highlighted days are non-working and are excluded from the working-day count.
-          </p>
+                  <SelectTrigger className="h-8 w-32 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="flexible">Flexible</SelectItem>
+                    <SelectItem value="fixed">Fixed</SelectItem>
+                    <SelectItem value="off">Off</SelectItem>
+                  </SelectContent>
+                </Select>
+                {d.mode !== "off" && (
+                  <>
+                    <Input
+                      type="time"
+                      className="h-8 w-28 text-xs"
+                      value={d.start}
+                      onChange={(e) => setDay(i, { start: e.target.value })}
+                    />
+                    <span className="text-xs text-muted-foreground">to</span>
+                    <Input
+                      type="time"
+                      className="h-8 w-28 text-xs"
+                      value={d.end}
+                      onChange={(e) => setDay(i, { end: e.target.value })}
+                    />
+                  </>
+                )}
+                {d.mode === "flexible" && (
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      type="number"
+                      step="0.5"
+                      min={1}
+                      className="h-8 w-20 text-xs"
+                      value={d.required}
+                      onChange={(e) => setDay(i, { required: e.target.value })}
+                    />
+                    <span className="text-xs text-muted-foreground">hours</span>
+                  </div>
+                )}
+                <div className="min-w-0 flex-1 text-right text-[11px] text-muted-foreground">
+                  {describeSchedule(s, Number(f.grace_minutes) || 0)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          <strong>Flexible</strong>: complete the hours anywhere inside the window — only time
+          inside it counts, and a login after the last possible start is late.{" "}
+          <strong>Fixed</strong>: be there from start to end; late after start + grace.
+        </p>
+
+        <div className="grid gap-3 md:grid-cols-3">
+          <NumField
+            label="Grace on fixed days (min)"
+            value={f.grace_minutes}
+            onChange={(v) => setF({ ...f, grace_minutes: v })}
+          />
+          <NumField
+            label="Half day below (min)"
+            value={f.half_day_minutes}
+            hint={`${formatMinutes(Number(f.half_day_minutes) || 0)} — between this and the full requirement is "left early"`}
+            onChange={(v) => setF({ ...f, half_day_minutes: v })}
+          />
+          <NumField
+            label="Idle after (min without CRM activity)"
+            value={f.idle_threshold_minutes}
+            onChange={(v) => setF({ ...f, idle_threshold_minutes: v })}
+          />
         </div>
 
-        <div className="flex items-center justify-between rounded-md border p-3">
-          <div className="text-xs">
-            <div className="font-medium text-foreground">Require office geofence</div>
-            <div className="text-muted-foreground">
-              When off, attendance is accepted from anywhere. Useful while testing the rollout.
+        <div className="rounded-lg border p-3">
+          <div className="mb-2 text-xs font-medium text-foreground">Leave policy</div>
+          <div className="grid gap-3 md:grid-cols-3">
+            <NumField
+              label="Leaves per month"
+              value={f.monthly_leave_quota}
+              onChange={(v) => setF({ ...f, monthly_leave_quota: v })}
+            />
+            <NumField
+              label="Max carried to next month"
+              value={f.leave_carry_cap}
+              onChange={(v) => setF({ ...f, leave_carry_cap: v })}
+            />
+            <div>
+              <Label className="text-xs">Policy starts</Label>
+              <Input
+                type="date"
+                value={f.leave_policy_start}
+                onChange={(e) => setF({ ...f, leave_policy_start: e.target.value })}
+              />
             </div>
           </div>
-          <Button
-            size="sm"
-            variant={f.require_geofence ? "default" : "outline"}
-            onClick={() => setF({ ...f, require_geofence: !f.require_geofence })}
-          >
-            {f.require_geofence ? "On" : "Off"}
-          </Button>
         </div>
 
-        <div className="flex items-center justify-between rounded-md border p-3">
-          <div className="text-xs">
-            <div className="font-medium text-foreground">Require device approval</div>
-            <div className="text-muted-foreground">
-              When on, a phone or browser used for the first time cannot punch until the admin
-              approves it under Attendance → Devices.
-            </div>
-          </div>
-          <Button
-            size="sm"
-            variant={f.require_device_approval ? "default" : "outline"}
-            onClick={() => setF({ ...f, require_device_approval: !f.require_device_approval })}
+        {toggles.map((t) => (
+          <div
+            key={t.key}
+            className="flex items-center justify-between gap-3 rounded-md border p-3"
           >
-            {f.require_device_approval ? "On" : "Off"}
-          </Button>
-        </div>
+            <div className="text-xs">
+              <div className="font-medium text-foreground">{t.title}</div>
+              <div className="text-muted-foreground">{t.hint}</div>
+            </div>
+            <Button
+              size="sm"
+              variant={f[t.key] ? "default" : "outline"}
+              onClick={() => setF({ ...f, [t.key]: !f[t.key] })}
+            >
+              {f[t.key] ? "On" : "Off"}
+            </Button>
+          </div>
+        ))}
 
         <div className="flex justify-end">
           <Button disabled={save.isPending} onClick={() => save.mutate()}>
-            {save.isPending ? "Saving…" : "Save working hours"}
+            {save.isPending ? "Saving…" : "Save schedule & policy"}
           </Button>
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function toDraft(s: DaySchedule[]): ScheduleDraft[] {
+  return s.map((d) => ({
+    mode: d.mode,
+    start: d.start,
+    end: d.end,
+    required: String(
+      Math.round(((d.mode === "flexible" ? d.required_minutes : 540) / 60) * 100) / 100,
+    ),
+  }));
+}
+
+function NumField({
+  label,
+  value,
+  onChange,
+  hint,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  hint?: string;
+}) {
+  return (
+    <div>
+      <Label className="text-xs">{label}</Label>
+      <Input type="number" min={0} value={value} onChange={(e) => onChange(e.target.value)} />
+      {hint && <p className="mt-1 text-[11px] text-muted-foreground">{hint}</p>}
+    </div>
   );
 }
 
