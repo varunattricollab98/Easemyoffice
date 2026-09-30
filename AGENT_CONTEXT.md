@@ -304,3 +304,16 @@ Sandbox quirks (all learned the hard way — several fail SILENTLY with empty ou
   print/PDF via `src/lib/salary-slip-html.ts`, finalise one/all, reopen) and Salary structure.
   Default month = previous month during the first 10 days. Employees still see no salary.
 - Not yet: incentive rules fed from bookings (incentive is entered manually per slip).
+
+### Mobile / installable app (PWA)
+- `public/manifest.json` (PNG icons 192/512 + maskable, shortcuts Attendance/Leads/Follow-ups),
+  `public/apple-touch-icon.png` (iOS ignores SVG), `public/sw.js` — **caches nothing on purpose**
+  (stale-build risk); exists for installability and future push. Registered in `src/lib/pwa.ts`
+  (imported for side effects in `__root.tsx`, prod only), which also captures `beforeinstallprompt`.
+  Icons were generated from `favicon.svg` with sharp (node_modules).
+- iOS status bar style is `default` (not black-translucent): pages don't pad for the notch.
+- Phone nav (`MobileTabBar` in app-shell): Home · Attendance · Leads (Renewal Leads for renewals-only)
+  · Follow-ups · **More** (bottom sheet with every page the user may open, search, install card,
+  theme, sign out). Before this, phones could only reach 5 pages.
+- Sandbox cannot run a dev server (tool refuses long-running processes), so mobile layouts are not
+  visually verified here.

@@ -15,6 +15,8 @@ import { DefaultCatchBoundary } from "@/components/default-catch-boundary";
 import { useEffect } from "react";
 import { bootstrapSim } from "@/lib/demo";
 import appCss from "../styles.css?url";
+// Side effects: registers the service worker and captures the install prompt.
+import "@/lib/pwa";
 
 function NotFoundComponent() {
   return (
@@ -46,14 +48,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "EaseMyOffice CRM" },
       { name: "description", content: "Action-driven CRM for EaseMyOffice — leads, follow-ups, and pipeline." },
       { name: "apple-mobile-web-app-capable", content: "yes" },
-      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "default" },
       { name: "apple-mobile-web-app-title", content: "EMO CRM" },
       { name: "theme-color", content: "#1a6dd4" },
       { name: "mobile-web-app-capable", content: "yes" },
     ],
     links: [
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
-      { rel: "apple-touch-icon", href: "/favicon.svg" },
+      // iOS ignores SVG touch icons; it needs a PNG.
+      { rel: "apple-touch-icon", sizes: "180x180", href: "/apple-touch-icon.png" },
       { rel: "manifest", href: "/manifest.json" },
       { rel: "stylesheet", href: appCss },
       // DNS prefetch + preconnect for Google Fonts (preconnect for fast browsers,

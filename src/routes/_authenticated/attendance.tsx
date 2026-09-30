@@ -340,7 +340,7 @@ function TodayCard({ employee, now, today }: { employee: Employee; now: Date; to
           disabled={act.isPending}
           onClick={() => act.mutate({})}
           className={cn(
-            "h-14 min-w-[11rem] rounded-2xl text-base font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.08),0_10px_24px_-10px_rgba(0,0,0,0.35)] transition-all duration-300 active:scale-[0.97]",
+            "h-14 w-full rounded-2xl md:w-auto md:min-w-[11rem] text-base font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.08),0_10px_24px_-10px_rgba(0,0,0,0.35)] transition-all duration-300 active:scale-[0.97]",
             isIn
               ? "bg-gradient-to-b from-rose-500 to-rose-600 text-white hover:from-rose-500 hover:to-rose-700"
               : "bg-gradient-to-b from-emerald-500 to-emerald-600 text-white hover:from-emerald-500 hover:to-emerald-700",
