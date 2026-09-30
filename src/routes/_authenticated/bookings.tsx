@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { isRenewalBooking } from "@/lib/booking-kind";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -57,7 +58,6 @@ type BookingRow = Tables<"bookings">;
 // A booking is a renewal when the renewal flow stamped it. Matches the query the
 // old /renewals/bookings page used, so the merged list classifies rows exactly as
 // that page did.
-const RENEWAL_STATUSES = new Set(["renewed", "pending_payment"]);
 
 // Lazy-load the self-contained New Booking dialog (renders its own trigger).
 // Mirrors the dashboard pattern so the bookings route bundle stays lean.
@@ -210,9 +210,8 @@ function BookingsPage() {
   const initialQ = Route.useSearch().q ?? "";
   const [q, setQ] = useState(initialQ);
   const [agentFilter, setAgentFilter] = useState("all");
-  // Fresh vs renewal. A renewal is identified by renewal_status — booking_source
-  // is not a reliable marker, since the renewal form lets the agent pick "Email",
-  // "Referral" and so on just like a fresh booking.
+  // Fresh vs renewal — see isRenewalBooking: a Booking ID ending in R1/R2…,
+  // source "Renewal", or a renewal-form booking.
   const [typeFilter, setTypeFilter] = useState<"all" | "fresh" | "renewal">("all");
   const [renewalOpen, setRenewalOpen] = useState(false);
   const [selected, setSelected] = useState<BookingRow | null>(null);
@@ -313,7 +312,7 @@ function BookingsPage() {
         return false;
       }
       if (typeFilter !== "all") {
-        const isRenewal = RENEWAL_STATUSES.has(String((b as BookingRow).renewal_status ?? ""));
+        const isRenewal = isRenewalBooking(b as BookingRow);
         if (typeFilter === "renewal" && !isRenewal) return false;
         if (typeFilter === "fresh" && isRenewal) return false;
       }
@@ -393,7 +392,7 @@ function BookingsPage() {
           .includes(s),
       );
     });
-    const renewal = base.filter((b) => RENEWAL_STATUSES.has(String(b.renewal_status ?? ""))).length;
+    const renewal = base.filter((b) => isRenewalBooking(b)).length;
     return { all: base.length, renewal, fresh: base.length - renewal };
   }, [all, q, agentFilter]);
 

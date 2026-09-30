@@ -109,3 +109,32 @@ export async function notifyUser(
   const email = (p?.email ?? "").trim();
   return email.includes("@") ? sendEmail([email], a) : null;
 }
+
+/**
+ * Plain email with attachments (base64 `content`), e.g. a salary slip PDF.
+ * Unlike the alerts above this throws, so the caller can tell the admin the
+ * slip did NOT go out.
+ */
+export async function sendEmailWithAttachments(input: {
+  to: string;
+  subject: string;
+  html: string;
+  attachments: { filename: string; content: string }[];
+}): Promise<void> {
+  if (!RESEND_API_KEY) throw new Error("Email is not configured (RESEND_API_KEY missing).");
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from: FROM_EMAIL,
+      to: [input.to],
+      subject: input.subject,
+      html: input.html,
+      attachments: input.attachments,
+    }),
+  });
+  if (!res.ok)
+    throw new Error(
+      `Email provider rejected the send (${res.status}): ${(await res.text()).slice(0, 200)}`,
+    );
+}
