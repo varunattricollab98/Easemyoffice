@@ -29,17 +29,18 @@ export type RejectionReason =
   | "session_too_long";
 
 export const REJECTION_MESSAGES: Record<RejectionReason, string> = {
-  not_linked: "Your CRM login is not linked to an employee record. Ask HR to link it.",
+  not_linked: "Your CRM login is not linked to an employee record. Ask the admin to link it.",
   inactive_employee: "Your employee record is not active, so attendance cannot be marked.",
-  device_revoked: "This device has been blocked for attendance. Contact HR.",
-  device_not_approved: "This device is waiting for HR approval. Try again once it is approved.",
+  device_revoked: "This device has been blocked for attendance. Contact the admin.",
+  device_not_approved: "This device is waiting for admin approval. Try again once it is approved.",
   no_location: "Location is required. Allow location access in the browser and try again.",
-  no_office: "No office location is configured yet. Ask HR to set it up.",
+  no_office: "No office location is configured yet. Ask the admin to set it up.",
   low_accuracy: "Your GPS reading is too imprecise. Move near a window or step outside and retry.",
   outside_geofence: "You are outside the office area. Attendance can only be marked at the office.",
   already_logged_in: "You are already logged in.",
   not_logged_in: "You are not logged in, so there is nothing to log out of.",
-  session_too_long: "Your last login is too old to close automatically. Ask HR for a correction.",
+  session_too_long:
+    "Your last login is too old to close automatically. Ask the admin for a correction.",
 };
 
 export type IstParts = {
@@ -252,7 +253,7 @@ export function daysInMonth(year: number, month: number): number {
  *
  * Absent means "a past working day with no attendance at all". Today is never
  * absent — the day is not over. A past day that was logged into but never
- * logged out of is `action_needed`: its hours are unknown until HR corrects it.
+ * logged out of is `action_needed`: its hours are unknown until the admin corrects it.
  */
 export function summarizeMonth(input: MonthInput): { days: DayCell[]; stats: MonthStats } {
   const byDate = new Map(input.records.map((r) => [r.work_date, r]));

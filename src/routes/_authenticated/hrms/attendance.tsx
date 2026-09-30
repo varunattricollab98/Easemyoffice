@@ -1,4 +1,4 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -65,18 +65,7 @@ import { GlassTabs } from "@/components/hrms/glass-tabs";
 
 export const Route = createFileRoute("/_authenticated/hrms/attendance")({
   head: () => ({ meta: [{ title: "Attendance — EaseMyOffice CRM" }] }),
-  // Admin only. RLS also limits every query below to the caller's own rows for
-  // non-admins, so this guard only avoids rendering an empty dashboard.
-  beforeLoad: async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw redirect({ to: "/login" });
-    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
-    if (!((roles ?? []) as { role: string }[]).some((r) => r.role === "admin")) {
-      throw redirect({ to: "/dashboard" });
-    }
-  },
+  // Admin guard lives on the /hrms layout route.
   component: AttendanceAdminPage,
 });
 
@@ -132,11 +121,11 @@ function AttendanceAdminPage() {
   });
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4 p-5 md:p-10">
+    <div className="space-y-4">
       <div>
-        <h1 className="flex items-center gap-2 text-2xl font-bold md:text-3xl">
-          <CalendarCheck className="h-6 w-6 text-primary" /> Attendance
-        </h1>
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <CalendarCheck className="h-5 w-5 text-primary" /> Attendance
+        </h2>
         <p className="text-sm text-muted-foreground">
           Geo-tagged logins and logouts. Every attempt is recorded, including rejected ones.
         </p>

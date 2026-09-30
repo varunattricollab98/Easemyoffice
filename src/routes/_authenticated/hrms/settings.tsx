@@ -1,6 +1,5 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,27 +29,18 @@ import {
 } from "@/lib/hrms";
 
 export const Route = createFileRoute("/_authenticated/hrms/settings")({
-  head: () => ({ meta: [{ title: "HR Settings — EaseMyOffice CRM" }] }),
-  beforeLoad: async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw redirect({ to: "/login" });
-    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
-    if (!((roles ?? []) as { role: string }[]).some((r) => r.role === "admin")) {
-      throw redirect({ to: "/dashboard" });
-    }
-  },
+  head: () => ({ meta: [{ title: "Office & Hours — EaseMyOffice CRM" }] }),
+  // Admin guard lives on the /hrms layout route.
   component: HrSettingsPage,
 });
 
 function HrSettingsPage() {
   return (
-    <div className="p-5 md:p-10 max-w-5xl mx-auto space-y-4">
+    <div className="max-w-5xl space-y-4">
       <div>
-        <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
-          <Settings2 className="h-6 w-6 text-primary" /> HR Settings
-        </h1>
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <Settings2 className="h-5 w-5 text-primary" /> Office &amp; Hours
+        </h2>
         <p className="text-sm text-muted-foreground">
           Office location, working hours, weekly offs and holidays. Attendance reads all of its
           rules from here.
@@ -412,8 +402,8 @@ function WorkingHoursCard() {
           <div className="text-xs">
             <div className="font-medium text-foreground">Require device approval</div>
             <div className="text-muted-foreground">
-              When on, a phone or browser used for the first time cannot punch until HR approves it
-              under Attendance → Devices.
+              When on, a phone or browser used for the first time cannot punch until the admin
+              approves it under Attendance → Devices.
             </div>
           </div>
           <Button
