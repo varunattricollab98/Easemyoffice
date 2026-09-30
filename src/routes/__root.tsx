@@ -112,7 +112,9 @@ function RootComponent() {
           <TooltipProvider delayDuration={150}>
             <Outlet />
             <Toaster richColors position="top-right" />
-            <PerfPanel />
+            {/* Developer speed meter ("1599ms" pill). Local dev only — it was
+                showing to the team on the live site, over the phone tab bar. */}
+            {import.meta.env.DEV && <PerfPanel />}
           </TooltipProvider>
         </AuthProvider>
       </ThemeProvider>
