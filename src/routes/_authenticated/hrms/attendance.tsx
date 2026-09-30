@@ -12,6 +12,9 @@ import {
   LogIn,
   Check,
   Ban,
+  Home,
+  Coffee,
+  MoonStar,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -43,24 +46,39 @@ import {
   type AttendanceRow,
   type Department,
   type Employee,
+  type LeaveRequest,
 } from "@/lib/hrms";
 import {
   istParts,
   minutesBetween,
-  summarizeMonth,
+  normalizeSchedules,
+  weekdayOf,
+  windowMinutes,
   REJECTION_MESSAGES,
   type RejectionReason,
 } from "@/lib/attendance-rules";
 import {
+  buildEmployeeMonth,
   dateTimeIST,
+  describeSchedule,
   fetchAttendance,
   fetchHolidays,
   fetchHrSettings,
+  fetchIdlePeriods,
+  fetchLeaves,
+  leavePolicyOf,
   monthRange,
   offDayHolidays,
   timeIST,
 } from "@/lib/attendance-queries";
-import { MonthCalendar, MonthNav, MonthStatsGrid } from "@/components/hrms/attendance-month";
+import {
+  DailyLog,
+  IdlePeriods,
+  LeaveBalance,
+  MonthCalendar,
+  MonthNav,
+  MonthStatsGrid,
+} from "@/components/hrms/attendance-month";
 import { GlassTabs } from "@/components/hrms/glass-tabs";
 
 export const Route = createFileRoute("/_authenticated/hrms/attendance")({
@@ -188,6 +206,10 @@ function TodayView({ today }: { today: string }) {
     queryFn: () => fetchAttendance(today, today),
     refetchInterval: 60_000,
   });
+  const { data: leavesToday = [] } = useQuery({
+    queryKey: ["hrms-leaves-day", today],
+    queryFn: () => fetchLeaves({ since: today, until: today }),
+  });
   const { data: rejected = 0 } = useQuery({
     queryKey: ["hrms-rejected-today", today],
     queryFn: async (): Promise<number> => {
@@ -200,25 +222,36 @@ function TodayView({ today }: { today: string }) {
     },
   });
 
-  const weekday = istParts(new Date()).weekday;
+  const schedule = normalizeSchedules(settings?.day_schedules)[weekdayOf(today)];
   const offDay = offDayHolidays(holidays)[0]?.name ?? null;
-  const isWeekOff = (settings?.week_offs ?? [0, 6]).includes(weekday);
-  const nonWorking = !!offDay || isWeekOff;
+  const nonWorking = !!offDay || schedule.mode === "off";
 
   const deptName = new Map(departments.map((d) => [d.id, d.name]));
   const byEmployee = new Map(rows.map((r) => [r.employee_id, r]));
+  const onLeave = new Map(
+    leavesToday.filter((l) => l.status === "approved").map((l) => [l.employee_id, l]),
+  );
   const active = employees.filter(
     (e) => !INACTIVE.has(e.employment_status) && (!e.joining_date || e.joining_date <= today),
   );
   const nowIso = new Date().toISOString();
-  const inOffice = rows.filter((r) => r.open_since).length;
+  const inNow = rows.filter((r) => r.open_since).length;
+  const remote = rows.filter((r) => r.work_mode === "remote").length;
   const late = rows.filter((r) => r.is_late).length;
-  const notIn = nonWorking ? 0 : active.filter((e) => !byEmployee.has(e.id)).length;
+  const idleNow = rows.filter(
+    (r) =>
+      r.open_since &&
+      r.last_activity_at &&
+      minutesBetween(r.last_activity_at, nowIso) >= (settings?.idle_threshold_minutes ?? 60),
+  ).length;
+  const notIn = nonWorking
+    ? 0
+    : active.filter((e) => !byEmployee.has(e.id) && !onLeave.has(e.id)).length;
 
-  // Logged-in first, then logged-out, then not in; alphabetical inside each.
+  // Logged-in first, then logged-out, then on leave, then not in.
   const rank = (e: Employee) => {
     const r = byEmployee.get(e.id);
-    return r ? (r.open_since ? 0 : 1) : 2;
+    return r ? (r.open_since ? 0 : 1) : onLeave.has(e.id) ? 2 : 3;
   };
   const sorted = [...active].sort(
     (a, b) => rank(a) - rank(b) || employeeName(a).localeCompare(employeeName(b)),
@@ -226,35 +259,38 @@ function TodayView({ today }: { today: string }) {
 
   return (
     <div className="space-y-4">
-      {nonWorking && (
-        <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
-          Today is a {offDay ? `holiday (${offDay})` : "weekly off"} — nobody is expected in.
-        </div>
-      )}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
+        {nonWorking
+          ? `Today is a ${offDay ? `holiday (${offDay})` : "weekly off"} — nobody is expected in.`
+          : `Today: ${describeSchedule(schedule, settings?.grace_minutes ?? 15)}`}
+      </div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
         <Kpi
           icon={UserCheck}
-          label="Present today"
+          label="Present"
           value={rows.length}
           tone="bg-emerald-500/10 text-emerald-600"
         />
-        <Kpi
-          icon={LogIn}
-          label="In office now"
-          value={inOffice}
-          tone="bg-primary/10 text-primary"
-        />
+        <Kpi icon={LogIn} label="Logged in now" value={inNow} tone="bg-primary/10 text-primary" />
+        <Kpi icon={Home} label="WFH" value={remote} tone="bg-indigo-500/10 text-indigo-600" />
         <Kpi icon={Clock} label="Late" value={late} tone="bg-amber-500/10 text-amber-600" />
-        <Kpi icon={UserX} label="Not logged in" value={notIn} tone="bg-rose-500/10 text-rose-600" />
+        <Kpi icon={Coffee} label="Idle now" value={idleNow} tone="bg-amber-500/10 text-amber-600" />
         <Kpi
-          icon={ShieldAlert}
-          label="Rejected attempts"
-          value={rejected}
-          tone="bg-rose-500/10 text-rose-600"
+          icon={MoonStar}
+          label="On leave"
+          value={onLeave.size}
+          tone="bg-teal-500/10 text-teal-600"
         />
+        <Kpi icon={UserX} label="Not logged in" value={notIn} tone="bg-rose-500/10 text-rose-600" />
       </div>
+      {rejected > 0 && (
+        <div className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 p-2.5 text-xs text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
+          <ShieldAlert className="h-4 w-4" /> {rejected} rejected punch attempt(s) today — see the
+          Security tab.
+        </div>
+      )}
       <Card>
-        <CardContent className="p-0">
+        <CardContent className="overflow-x-auto p-0">
           <Table>
             <TableHeader>
               <TableRow>
@@ -262,23 +298,39 @@ function TodayView({ today }: { today: string }) {
                 <TableHead>Status</TableHead>
                 <TableHead>Login</TableHead>
                 <TableHead>Logout</TableHead>
-                <TableHead>Worked</TableHead>
-                <TableHead>Distance</TableHead>
+                <TableHead className="text-right">Completed</TableHead>
+                <TableHead className="text-right">Idle</TableHead>
+                <TableHead className="text-right">Distance</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {sorted.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
                     No active employees yet. Add them under Employees.
                   </TableCell>
                 </TableRow>
               )}
               {sorted.map((e) => {
                 const r = byEmployee.get(e.id);
-                const worked =
-                  (r?.worked_minutes ?? 0) +
-                  (r?.open_since ? minutesBetween(r.open_since, nowIso) : 0);
+                const sched = r?.schedule_mode
+                  ? {
+                      mode: r.schedule_mode,
+                      start: String(r.window_start).slice(0, 5),
+                      end: String(r.window_end).slice(0, 5),
+                    }
+                  : schedule;
+                const completed =
+                  (r?.window_minutes ?? 0) +
+                  (r?.open_since ? windowMinutes(r.open_since, nowIso, r.work_date, sched) : 0);
+                const required = r?.required_minutes ?? schedule.required_minutes;
+                const idleOpen =
+                  r?.open_since && r.last_activity_at
+                    ? minutesBetween(r.last_activity_at, nowIso)
+                    : 0;
+                const idleShown =
+                  (r?.idle_minutes ?? 0) +
+                  (idleOpen >= (settings?.idle_threshold_minutes ?? 60) ? idleOpen : 0);
                 return (
                   <TableRow key={e.id}>
                     <TableCell>
@@ -293,17 +345,44 @@ function TodayView({ today }: { today: string }) {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <TodayStatus row={r} nonWorking={nonWorking} />
+                      <TodayStatus
+                        row={r}
+                        nonWorking={nonWorking}
+                        onLeave={onLeave.get(e.id)}
+                        idleMinutes={idleOpen}
+                        idleThreshold={settings?.idle_threshold_minutes ?? 60}
+                      />
                     </TableCell>
                     <TableCell className="tabular-nums">{timeIST(r?.first_login_at)}</TableCell>
                     <TableCell className="tabular-nums">
                       {r?.open_since ? "—" : timeIST(r?.last_logout_at)}
                     </TableCell>
-                    <TableCell className="tabular-nums">
-                      {r ? formatMinutes(worked) : "—"}
+                    <TableCell className="whitespace-nowrap text-right tabular-nums">
+                      {r ? (
+                        <>
+                          {formatMinutes(completed)}
+                          {required > 0 && (
+                            <span className="text-muted-foreground">
+                              {" "}
+                              / {formatMinutes(required)}
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        "—"
+                      )}
                     </TableCell>
-                    <TableCell className="tabular-nums text-muted-foreground">
-                      {r?.login_distance_m != null ? `${r.login_distance_m} m` : "—"}
+                    <TableCell
+                      className={cn("text-right tabular-nums", idleShown > 0 && "text-amber-600")}
+                    >
+                      {r ? formatMinutes(idleShown) : "—"}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground">
+                      {r?.login_distance_m != null
+                        ? r.login_distance_m >= 1000
+                          ? `${(r.login_distance_m / 1000).toFixed(1)} km`
+                          : `${r.login_distance_m} m`
+                        : "—"}
                     </TableCell>
                   </TableRow>
                 );
@@ -316,32 +395,62 @@ function TodayView({ today }: { today: string }) {
   );
 }
 
-function TodayStatus({ row, nonWorking }: { row?: AttendanceRow; nonWorking: boolean }) {
+function TodayStatus({
+  row,
+  nonWorking,
+  onLeave,
+  idleMinutes,
+  idleThreshold,
+}: {
+  row?: AttendanceRow;
+  nonWorking: boolean;
+  onLeave?: LeaveRequest;
+  idleMinutes: number;
+  idleThreshold: number;
+}) {
   const pill = (label: string, className: string) => (
     <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium ring-1", className)}>
       {label}
     </span>
   );
-  if (!row)
+  const green =
+    "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900";
+  const amber =
+    "bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900";
+  const rose =
+    "bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-900";
+  const indigo =
+    "bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:ring-indigo-900";
+  if (!row) {
+    if (onLeave)
+      return pill(
+        onLeave.half_day ? "Half-day leave" : "On leave",
+        "bg-teal-50 text-teal-700 ring-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:ring-teal-900",
+      );
     return nonWorking
       ? pill("Off", "bg-muted text-muted-foreground ring-border")
-      : pill(
-          "Not logged in",
-          "bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-900",
-        );
+      : pill("Not logged in", rose);
+  }
+  const statusLabel =
+    row.status === "short" ? "Left early" : row.status === "half_day" ? "Half day" : "Logged out";
   return (
     <div className="flex flex-wrap items-center gap-1">
       {row.open_since
-        ? pill("In office", "bg-primary/10 text-primary ring-primary/20")
-        : pill(
-            row.status === "half_day" ? "Half day" : "Logged out",
-            "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900",
-          )}
-      {row.is_late &&
+        ? pill("Logged in", "bg-primary/10 text-primary ring-primary/20")
+        : pill(statusLabel, row.status === "present" ? green : amber)}
+      {row.work_mode === "remote" &&
         pill(
-          `Late ${formatMinutes(row.late_minutes)}`,
-          "bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900",
+          row.remote_status === "approved"
+            ? "WFH"
+            : row.remote_status === "rejected"
+              ? "WFH rejected"
+              : "WFH pending",
+          row.remote_status === "rejected" ? rose : indigo,
         )}
+      {row.is_late && pill(`Late ${formatMinutes(row.late_minutes)}`, amber)}
+      {row.open_since &&
+        idleMinutes >= idleThreshold &&
+        pill(`Idle ${formatMinutes(idleMinutes)}`, amber)}
     </div>
   );
 }
@@ -357,52 +466,66 @@ function MonthlyView({ today }: { today: string }) {
   const { from, to } = monthRange(ym.year, ym.month);
   const { data: employees = [] } = useEmployees();
   const { data: settings } = useQuery({ queryKey: ["hrms-settings"], queryFn: fetchHrSettings });
+  const policyStart = leavePolicyOf(settings).policyStart;
+  const since = policyStart < from ? policyStart : from;
   const { data: holidays = [] } = useQuery({
-    queryKey: ["hrms-holidays-range", from, to],
-    queryFn: () => fetchHolidays(from, to),
+    queryKey: ["hrms-holidays-range", since, to],
+    queryFn: () => fetchHolidays(since, to),
   });
   const { data: rows = [] } = useQuery({
     queryKey: ["hrms-attendance-month", from],
     queryFn: () => fetchAttendance(from, to),
   });
+  const { data: leaves = [] } = useQuery({
+    queryKey: ["hrms-leaves-since", since, to],
+    queryFn: () => fetchLeaves({ since, until: to }),
+  });
 
   const summaries = useMemo(() => {
-    const byEmployee = new Map<string, AttendanceRow[]>();
-    for (const r of rows) {
-      const list = byEmployee.get(r.employee_id) ?? [];
-      list.push(r);
-      byEmployee.set(r.employee_id, list);
-    }
-    const off = offDayHolidays(holidays);
+    const group = <T extends { employee_id: string }>(list: T[]) => {
+      const m = new Map<string, T[]>();
+      for (const x of list) m.set(x.employee_id, [...(m.get(x.employee_id) ?? []), x]);
+      return m;
+    };
+    const rowsBy = group(rows);
+    const leavesBy = group(leaves);
     return employees
       .filter(
         (e) =>
           // Hide people who had left before this month and have no rows in it.
-          byEmployee.has(e.id) || !INACTIVE.has(e.employment_status) || (e.exit_date ?? "") >= from,
+          rowsBy.has(e.id) || !INACTIVE.has(e.employment_status) || (e.exit_date ?? "") >= from,
       )
       .map((e) => ({
         employee: e,
-        ...summarizeMonth({
+        records: rowsBy.get(e.id) ?? [],
+        ...buildEmployeeMonth({
+          employee: e,
           year: ym.year,
           month: ym.month,
           today,
-          records: byEmployee.get(e.id) ?? [],
-          holidays: off,
-          weekOffs: settings?.week_offs ?? [0, 6],
-          requiredMinutes: settings?.required_minutes ?? 510,
-          joiningDate: e.joining_date,
-          exitDate: e.exit_date,
+          records: rowsBy.get(e.id) ?? [],
+          holidays,
+          settings,
+          leaves: leavesBy.get(e.id) ?? [],
         }),
       }));
-  }, [rows, holidays, employees, settings, ym, today, from]);
+  }, [rows, leaves, holidays, employees, settings, ym, today, from]);
 
   const open = summaries.find((s) => s.employee.id === openId) ?? null;
+  const { data: openIdle = [] } = useQuery({
+    queryKey: ["hrms-idle", openId, from],
+    enabled: !!openId,
+    queryFn: () => fetchIdlePeriods(openId!, from, to),
+  });
+  const fmtDays = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
   return (
     <Card>
       <CardContent className="space-y-3 p-0">
         <div className="flex items-center justify-between px-4 pt-4">
-          <div className="text-sm text-muted-foreground">Click a row for the day-by-day view.</div>
+          <div className="text-sm text-muted-foreground">
+            Click a row for the calendar, daily log and leave balance.
+          </div>
           <MonthNav
             year={ym.year}
             month={ym.month}
@@ -410,71 +533,118 @@ function MonthlyView({ today }: { today: string }) {
             maxYearMonth={today.slice(0, 7)}
           />
         </div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Employee</TableHead>
-              <TableHead className="text-right">Days</TableHead>
-              <TableHead className="text-right">Present</TableHead>
-              <TableHead className="text-right">Half</TableHead>
-              <TableHead className="text-right">Absent</TableHead>
-              <TableHead className="text-right">Late</TableHead>
-              <TableHead className="text-right">⚠</TableHead>
-              <TableHead className="text-right">Worked</TableHead>
-              <TableHead className="text-right">Overtime</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {summaries.map(({ employee: e, stats }) => (
-              <TableRow key={e.id} className="cursor-pointer" onClick={() => setOpenId(e.id)}>
-                <TableCell className="font-medium">{employeeName(e)}</TableCell>
-                <TableCell className="text-right tabular-nums text-muted-foreground">
-                  {stats.elapsedWorkingDays}/{stats.workingDays}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">{stats.present}</TableCell>
-                <TableCell className="text-right tabular-nums">{stats.halfDays}</TableCell>
-                <TableCell
-                  className={cn("text-right tabular-nums", stats.absent && "text-rose-600")}
-                >
-                  {stats.absent}
-                </TableCell>
-                <TableCell
-                  className={cn("text-right tabular-nums", stats.late && "text-amber-600")}
-                >
-                  {stats.late}
-                </TableCell>
-                <TableCell
-                  className={cn("text-right tabular-nums", stats.actionNeeded && "text-amber-600")}
-                >
-                  {stats.actionNeeded}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {formatMinutes(stats.workedMinutes)}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {formatMinutes(stats.overtimeMinutes)}
-                </TableCell>
-              </TableRow>
-            ))}
-            {summaries.length === 0 && (
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
-                  No employees for this month.
-                </TableCell>
+                <TableHead>Employee</TableHead>
+                <TableHead className="text-right">Days</TableHead>
+                <TableHead className="text-right">Present</TableHead>
+                <TableHead className="text-right">Early</TableHead>
+                <TableHead className="text-right">Half</TableHead>
+                <TableHead className="text-right">Absent</TableHead>
+                <TableHead className="text-right">Late</TableHead>
+                <TableHead className="text-right">WFH</TableHead>
+                <TableHead className="text-right">PL / UL</TableHead>
+                <TableHead className="text-right">⚠</TableHead>
+                <TableHead className="text-right">Completed</TableHead>
+                <TableHead className="text-right">Idle</TableHead>
+                <TableHead className="text-right">OT</TableHead>
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {summaries.map(({ employee: e, stats }) => (
+                <TableRow key={e.id} className="cursor-pointer" onClick={() => setOpenId(e.id)}>
+                  <TableCell className="font-medium">{employeeName(e)}</TableCell>
+                  <TableCell className="text-right tabular-nums text-muted-foreground">
+                    {stats.elapsedWorkingDays}/{stats.workingDays}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{stats.present}</TableCell>
+                  <TableCell
+                    className={cn("text-right tabular-nums", stats.short && "text-orange-600")}
+                  >
+                    {stats.short}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{stats.halfDays}</TableCell>
+                  <TableCell
+                    className={cn("text-right tabular-nums", stats.absent && "text-rose-600")}
+                  >
+                    {stats.absent}
+                  </TableCell>
+                  <TableCell
+                    className={cn("text-right tabular-nums", stats.late && "text-amber-600")}
+                  >
+                    {stats.late}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {stats.remoteDays}
+                    {stats.remotePending > 0 && (
+                      <span className="text-indigo-600"> +{stats.remotePending}?</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-right tabular-nums">
+                    {fmtDays(stats.paidLeave)} /{" "}
+                    <span className={cn(stats.unpaidLeave > 0 && "text-rose-600")}>
+                      {fmtDays(stats.unpaidLeave)}
+                    </span>
+                  </TableCell>
+                  <TableCell
+                    className={cn(
+                      "text-right tabular-nums",
+                      stats.actionNeeded && "text-amber-600",
+                    )}
+                  >
+                    {stats.actionNeeded}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-right tabular-nums">
+                    {formatMinutes(stats.workedMinutes)}
+                    <span className="text-muted-foreground">
+                      {" "}
+                      / {formatMinutes(stats.requiredMinutes)}
+                    </span>
+                  </TableCell>
+                  <TableCell
+                    className={cn(
+                      "text-right tabular-nums",
+                      stats.idleMinutes > 0 && "text-amber-600",
+                    )}
+                  >
+                    {formatMinutes(stats.idleMinutes)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {formatMinutes(stats.overtimeMinutes)}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {summaries.length === 0 && (
+                <TableRow>
+                  <TableCell
+                    colSpan={13}
+                    className="py-8 text-center text-sm text-muted-foreground"
+                  >
+                    No employees for this month.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
       <Dialog open={!!open} onOpenChange={(v) => !v && setOpenId(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{open ? employeeName(open.employee) : ""}</DialogTitle>
           </DialogHeader>
           {open && (
-            <div className="space-y-4">
+            <div className="space-y-5">
               <MonthStatsGrid stats={open.stats} />
+              <LeaveBalance ledger={open.ledger} pending={open.stats.pendingLeave} />
               <MonthCalendar days={open.days} />
+              <DailyLog days={open.days} records={open.records} />
+              <div className="space-y-2">
+                <div className="text-sm font-semibold">CRM idle periods</div>
+                <IdlePeriods periods={openIdle} />
+              </div>
             </div>
           )}
         </DialogContent>

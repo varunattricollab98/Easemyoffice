@@ -46,6 +46,7 @@ import { Route as AuthenticatedLeadsIdRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedHrmsSettingsRouteImport } from './routes/_authenticated/hrms/settings'
 import { Route as AuthenticatedHrmsEmployeesRouteImport } from './routes/_authenticated/hrms/employees'
 import { Route as AuthenticatedHrmsAttendanceRouteImport } from './routes/_authenticated/hrms/attendance'
+import { Route as AuthenticatedHrmsApprovalsRouteImport } from './routes/_authenticated/hrms/approvals'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
 import { Route as AuthenticatedAdminSalesPerformanceRouteImport } from './routes/_authenticated/admin/sales-performance'
 import { Route as AuthenticatedAdminKpiReportRouteImport } from './routes/_authenticated/admin/kpi-report'
@@ -247,6 +248,12 @@ const AuthenticatedHrmsAttendanceRoute =
     path: '/attendance',
     getParentRoute: () => AuthenticatedHrmsRoute,
   } as any)
+const AuthenticatedHrmsApprovalsRoute =
+  AuthenticatedHrmsApprovalsRouteImport.update({
+    id: '/approvals',
+    path: '/approvals',
+    getParentRoute: () => AuthenticatedHrmsRoute,
+  } as any)
 const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   id: '/admin/users',
   path: '/admin/users',
@@ -312,6 +319,7 @@ export interface FileRoutesByFullPath {
   '/admin/kpi-report': typeof AuthenticatedAdminKpiReportRoute
   '/admin/sales-performance': typeof AuthenticatedAdminSalesPerformanceRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/hrms/approvals': typeof AuthenticatedHrmsApprovalsRoute
   '/hrms/attendance': typeof AuthenticatedHrmsAttendanceRoute
   '/hrms/employees': typeof AuthenticatedHrmsEmployeesRoute
   '/hrms/settings': typeof AuthenticatedHrmsSettingsRoute
@@ -355,6 +363,7 @@ export interface FileRoutesByTo {
   '/admin/kpi-report': typeof AuthenticatedAdminKpiReportRoute
   '/admin/sales-performance': typeof AuthenticatedAdminSalesPerformanceRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/hrms/approvals': typeof AuthenticatedHrmsApprovalsRoute
   '/hrms/attendance': typeof AuthenticatedHrmsAttendanceRoute
   '/hrms/employees': typeof AuthenticatedHrmsEmployeesRoute
   '/hrms/settings': typeof AuthenticatedHrmsSettingsRoute
@@ -401,6 +410,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/kpi-report': typeof AuthenticatedAdminKpiReportRoute
   '/_authenticated/admin/sales-performance': typeof AuthenticatedAdminSalesPerformanceRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/_authenticated/hrms/approvals': typeof AuthenticatedHrmsApprovalsRoute
   '/_authenticated/hrms/attendance': typeof AuthenticatedHrmsAttendanceRoute
   '/_authenticated/hrms/employees': typeof AuthenticatedHrmsEmployeesRoute
   '/_authenticated/hrms/settings': typeof AuthenticatedHrmsSettingsRoute
@@ -447,6 +457,7 @@ export interface FileRouteTypes {
     | '/admin/kpi-report'
     | '/admin/sales-performance'
     | '/admin/users'
+    | '/hrms/approvals'
     | '/hrms/attendance'
     | '/hrms/employees'
     | '/hrms/settings'
@@ -490,6 +501,7 @@ export interface FileRouteTypes {
     | '/admin/kpi-report'
     | '/admin/sales-performance'
     | '/admin/users'
+    | '/hrms/approvals'
     | '/hrms/attendance'
     | '/hrms/employees'
     | '/hrms/settings'
@@ -535,6 +547,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/kpi-report'
     | '/_authenticated/admin/sales-performance'
     | '/_authenticated/admin/users'
+    | '/_authenticated/hrms/approvals'
     | '/_authenticated/hrms/attendance'
     | '/_authenticated/hrms/employees'
     | '/_authenticated/hrms/settings'
@@ -823,6 +836,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHrmsAttendanceRouteImport
       parentRoute: typeof AuthenticatedHrmsRoute
     }
+    '/_authenticated/hrms/approvals': {
+      id: '/_authenticated/hrms/approvals'
+      path: '/approvals'
+      fullPath: '/hrms/approvals'
+      preLoaderRoute: typeof AuthenticatedHrmsApprovalsRouteImport
+      parentRoute: typeof AuthenticatedHrmsRoute
+    }
     '/_authenticated/admin/users': {
       id: '/_authenticated/admin/users'
       path: '/admin/users'
@@ -869,6 +889,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedHrmsRouteChildren {
+  AuthenticatedHrmsApprovalsRoute: typeof AuthenticatedHrmsApprovalsRoute
   AuthenticatedHrmsAttendanceRoute: typeof AuthenticatedHrmsAttendanceRoute
   AuthenticatedHrmsEmployeesRoute: typeof AuthenticatedHrmsEmployeesRoute
   AuthenticatedHrmsSettingsRoute: typeof AuthenticatedHrmsSettingsRoute
@@ -876,6 +897,7 @@ interface AuthenticatedHrmsRouteChildren {
 }
 
 const AuthenticatedHrmsRouteChildren: AuthenticatedHrmsRouteChildren = {
+  AuthenticatedHrmsApprovalsRoute: AuthenticatedHrmsApprovalsRoute,
   AuthenticatedHrmsAttendanceRoute: AuthenticatedHrmsAttendanceRoute,
   AuthenticatedHrmsEmployeesRoute: AuthenticatedHrmsEmployeesRoute,
   AuthenticatedHrmsSettingsRoute: AuthenticatedHrmsSettingsRoute,

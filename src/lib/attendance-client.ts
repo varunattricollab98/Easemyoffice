@@ -55,7 +55,7 @@ export function describeDevice(ua: string): string {
   return `${browser} on ${os}`;
 }
 
-type Fix =
+export type Fix =
   | { ok: true; latitude: number; longitude: number; accuracy: number }
   | { ok: false; error: string };
 
@@ -90,15 +90,21 @@ export function readPosition(): Promise<Fix> {
 }
 
 export type PunchResult =
-  | { ok: true; action: PunchKind; attendance: AttendanceRow }
-  | { ok: false; reason: RejectionReason; message: string };
+  | { ok: true; action: PunchKind; attendance: AttendanceRow; remote?: boolean }
+  | { ok: false; reason: RejectionReason; message: string; remote_allowed?: boolean };
 
 /**
  * Reads the location and sends the punch. A failed fix is still sent (without
  * coordinates) so the attempt and its reason land in the audit trail.
+ *
+ * For a work-from-home request pass `remote` + `reason`, and the `fix` from the
+ * attempt that was just rejected so the user does not wait for GPS twice.
  */
-export async function punch(action: PunchKind): Promise<PunchResult> {
-  const fix = await readPosition();
+export async function punch(
+  action: PunchKind,
+  opts: { remote?: boolean; reason?: string; fix?: Fix } = {},
+): Promise<PunchResult & { fix: Fix }> {
+  const fix = opts.fix ?? (await readPosition());
   const body: Record<string, unknown> = {
     action,
     device_key: getDeviceKey(),
@@ -111,8 +117,27 @@ export async function punch(action: PunchKind): Promise<PunchResult> {
   } else {
     body.client_error = fix.error;
   }
+  if (opts.remote) {
+    body.remote = true;
+    body.remote_reason = opts.reason ?? "";
+  }
   const { data, error } = await supabase.functions.invoke("attendance-punch", { body });
   if (error) throw new Error(error.message || "Attendance service is unreachable");
   if (data?.error) throw new Error(String(data.error));
-  return data as PunchResult;
+  return { ...(data as PunchResult), fix };
+}
+
+/**
+ * Leave requests and admin decisions (hr-requests edge function). Business-rule
+ * failures come back as `{ ok: false, message }` and are thrown here so callers
+ * can surface them with a toast.
+ */
+export async function hrRequest<T = Record<string, unknown>>(
+  body: Record<string, unknown>,
+): Promise<T> {
+  const { data, error } = await supabase.functions.invoke("hr-requests", { body });
+  if (error) throw new Error(error.message || "HR service is unreachable");
+  if (data?.error) throw new Error(String(data.error));
+  if (data?.ok === false) throw new Error(String(data.message ?? "Request failed"));
+  return data as T;
 }

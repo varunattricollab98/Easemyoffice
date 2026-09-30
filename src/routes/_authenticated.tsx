@@ -5,6 +5,7 @@ import { AppSidebar, MobileTabBar } from "@/components/app-shell";
 import { useGlobalShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { ShortcutsOverlay } from "@/components/shortcuts-overlay";
 import { NotificationsWatcher } from "@/components/notifications-watcher";
+import { ActivityHeartbeat } from "@/components/activity-heartbeat";
 import { GlobalSearch } from "@/components/global-search";
 import { GlobalSearchContext } from "@/lib/global-search-context";
 import { runDailyBackupIfDue } from "@/lib/backup";
@@ -56,6 +57,7 @@ function AuthenticatedLayout() {
         <MobileTabBar />
         <ShortcutsOverlay />
         <NotificationsWatcher />
+        <ActivityHeartbeat />
         <GlobalSearch open={searchOpen} onOpenChange={setSearchOpen} />
       </div>
     </GlobalSearchContext.Provider>

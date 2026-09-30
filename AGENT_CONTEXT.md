@@ -216,8 +216,8 @@ Sandbox quirks (all learned the hard way — several fail SILENTLY with empty ou
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | employees, departments, office location, HR settings, holidays + admin pages | ✅ #172 — migration applied, owner verified all 6 tables |
-| 2 | attendance login/logout, geofence edge function, `attendance` + `attendance_events`, device registration, employee dashboard, admin attendance dashboard | 🟡 PR open — **waiting on owner to run migration `20260516000006`**, then merge |
-| 3 | leave types, balances, requests, approval, calendar | ⏭ next after Phase 2 merges |
+| 2 | attendance login/logout, geofence edge function, `attendance` + `attendance_events`, device registration, employee dashboard, admin attendance dashboard | ✅ #174 (+ #175 CI fix, #176 admin hub) |
+| 3 | flexible schedules, WFH approval, leave (2/month, carry 1), CRM idle tracking | 🟡 PR open — waiting on owner to run migration `20260516000007`, then merge |
 | 4 | attendance corrections + payroll readiness | — |
 | 5 | salary structures, incentive rules (from bookings), payroll run + lock + adjustments | — |
 
@@ -266,3 +266,27 @@ Sandbox quirks (all learned the hard way — several fail SILENTLY with empty ou
   tabs). HR Settings got a "Require device approval" toggle.
 - Not in Phase 2: leave (PL/UL markers arrive with Phase 3), corrections (Phase 4), push/cron
   auto-logout.
+
+### Phase 3 as built (flex schedules, WFH, leave, idle)
+- Owner policy (Sep 30 2026): Mon–Fri **flexible** 9h anywhere between 09:00–19:30; Saturday **fixed**
+  10:00–17:00 mandatory; Sunday off. **2 leaves/month, max 1 unused carries forward.** WFH login
+  must be emailed to the admin for approval. CRM idle ≥ 60 min while logged in is recorded.
+- Migration `20260516000007_hrms_flex_leave_idle.sql`: `hr_settings.day_schedules` jsonb (index =
+  weekday; `{mode off|flexible|fixed, start, end, required_minutes}`; `work_start` / `required_minutes`
+  / `week_offs` are legacy), `idle_threshold_minutes`, `monthly_leave_quota`, `leave_carry_cap`,
+  `leave_policy_start` (2026-10-01), `allow_remote_requests`. `attendance` gains schedule snapshot,
+  `window_minutes` (only in-window time counts), `work_mode`/`remote_*`, `idle_minutes`,
+  `last_activity_at`; status adds `short` (logged out early). New `attendance_idle_periods`,
+  `leave_requests`, and SECURITY DEFINER RPC `attendance_heartbeat()`.
+- Late: fixed = after start + grace; flexible = after `end − required` (10:30). Overtime only once the
+  day is complete, then all logged time beyond required counts.
+- WFH: outside-geofence/low-accuracy login → browser offers "Log in & request WFH" (reason required,
+  fix required). Accepted immediately, `remote_status=pending`; counts only when approved; rejected =
+  absent. WFH sessions log out without geofence. Re-login from home the same day continues WFH.
+- Leave: `hr-requests` edge fn (apply/cancel by employee; decide_leave/decide_remote by admin). Paid vs
+  unpaid is **derived** (`leaveLedger` + `summarizeMonth`), never stored. Half-day leave halves the day's
+  requirement. Backdating limit 7 days.
+- Idle: `src/components/activity-heartbeat.tsx` (mounted in `_authenticated.tsx`) pings the RPC at most
+  every 2 min on real interaction; gap ≥ threshold → idle period. Idle is **recorded, not deducted**.
+- Alerts: `_shared/hr-notify.ts` → in-CRM notification + Resend email (admins = `user_roles.admin`
+  profile emails). Link target `/hrms/approvals` (new hub tab with pending count).
