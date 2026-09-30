@@ -36,7 +36,13 @@ type FollowUp = {
 type Profile = { id: string; full_name: string | null; email: string | null; department: string | null };
 type RoleRow = { user_id: string; role: AppRole };
 type LeadActivity = { actor_id: string | null; type: string; created_at: string };
-type Booking = { sales_agent_name: string; profit: number; total_amount: number; created_at: string };
+type Booking = {
+  sales_agent_name: string;
+  profit: number;
+  total_amount: number;
+  booking_date: string | null;
+  created_at: string;
+};
 
 function csvEscape(v: unknown): string {
   if (v === null || v === undefined) return "";
@@ -94,8 +100,10 @@ function ReportsPage() {
   const [individualPerson, setIndividualPerson] = useState<string>("all");
 
   // Global filters
-  const [from, setFrom] = useState<string>("");
-  const [to, setTo] = useState<string>("");
+  // Opens on the current month: all-time totals mixed every month together
+  // and hid how the team is doing now. "All time" is still one click away.
+  const [from, setFrom] = useState<string>(() => format(startOfMonth(new Date()), "yyyy-MM-dd"));
+  const [to, setTo] = useState<string>(() => format(new Date(), "yyyy-MM-dd"));
   const [stageFilter, setStageFilter] = useState<string>("all");
   const [serviceFilter, setServiceFilter] = useState<string>("all");
 
@@ -117,7 +125,7 @@ function ReportsPage() {
         supabase.from("profiles").select("id, full_name, email, department"),
         supabase.from("user_roles").select("user_id, role"),
         supabase.from("lead_activities").select("actor_id, type, created_at"),
-        supabase.from("bookings").select("sales_agent_name, profit, total_amount, created_at"),
+        supabase.from("bookings").select("sales_agent_name, profit, total_amount, booking_date, created_at"),
       ]);
       setLeads((l.data ?? []) as Lead[]);
       setFollowUps((f.data ?? []) as FollowUp[]);
@@ -159,14 +167,17 @@ function ReportsPage() {
       value: format(m, "yyyy-MM"),
       label: format(m, "MMM yyyy"),
       from: ymd(startOfMonth(m)),
-      to: ymd(endOfMonth(m)),
+      // The current month runs to today, so picking it equals "This month".
+      to: i === 0 ? ymd(new Date()) : ymd(endOfMonth(m)),
     };
   });
 
   // Derived, not stored: whichever month's bounds exactly match the current
   // From/To is the selected one. Keeps the dropdown honest when the date inputs
   // are edited by hand or another shortcut is used.
-  const selectedMonth = monthOptions.find((m) => m.from === from && m.to === to)?.value ?? "any";
+  const selectedMonth =
+    monthOptions.find((m) => m.from === from && m.to === to)?.value ??
+    (from || to ? "custom" : "any");
 
   const applyRange = (f: string, t: string) => {
     setFrom(f);
@@ -241,8 +252,18 @@ function ReportsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [leadActivities, fromTs, toTs],
   );
+  // Bookings belong to the month they were booked in (booking_date), not the
+  // day the row was created — sheet-imported bookings were all created on the
+  // import date, which would pile every old booking into one month.
   const bookingsF = useMemo(
-    () => bookings.filter((b) => inDateRange(b.created_at)),
+    () =>
+      bookings.filter((b) => {
+        const d = b.booking_date ?? b.created_at?.slice(0, 10);
+        if (!d) return true;
+        if (from && d < from) return false;
+        if (to && d > to) return false;
+        return true;
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [bookings, fromTs, toTs],
   );
@@ -419,6 +440,61 @@ function ReportsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profiles, roles, leadsF, followUpsF, empFilter, roleFilter]);
 
+  // Compact month filter repeated in the per-person panels, so the period is
+  // visible and changeable right where the numbers are. It drives the same
+  // From/To as the filter card at the top, so every section stays in sync.
+  const periodBar = (
+    <div className="flex flex-wrap items-center gap-2">
+      <Select
+        value={selectedMonth}
+        onValueChange={(v) => {
+          if (v === "any") {
+            applyRange("", "");
+            return;
+          }
+          const m = monthOptions.find((o) => o.value === v);
+          if (m) applyRange(m.from, m.to);
+        }}
+      >
+        <SelectTrigger className="h-8 w-[140px] text-xs">
+          <SelectValue placeholder="Custom range" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="any">All time</SelectItem>
+          {monthOptions.map((m) => (
+            <SelectItem key={m.value} value={m.value}>
+              {m.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {[
+        PERIOD_SHORTCUTS.find((p) => p.id === "month")!,
+        PERIOD_SHORTCUTS.find((p) => p.id === "last_month")!,
+      ].map((p) => (
+        <Button
+          key={p.id}
+          size="sm"
+          className="h-8 text-xs"
+          variant={from === p.from && to === p.to ? "default" : "outline"}
+          onClick={() => applyRange(p.from, p.to)}
+        >
+          {p.label}
+        </Button>
+      ))}
+      <Button
+        size="sm"
+        className="h-8 text-xs"
+        variant={!from && !to ? "default" : "outline"}
+        onClick={() => applyRange("", "")}
+      >
+        All time
+      </Button>
+      <span className="text-[11px] text-muted-foreground">{periodLabel}</span>
+    </div>
+  );
+  const periodSlug = from || to ? `${from || "start"}_to_${to || "today"}` : "all-time";
+
   if (loading || authLoading) {
     return (
       <div className="p-8 flex items-center justify-center">
@@ -468,7 +544,7 @@ function ReportsPage() {
                 }}
               >
                 <SelectTrigger className="w-[150px]">
-                  <SelectValue />
+                  <SelectValue placeholder="Custom range" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="any">All time</SelectItem>
@@ -602,11 +678,12 @@ function ReportsPage() {
               <Badge variant="secondary" className="rounded-full">{salesPerformance.length} salespeople</Badge>
             </CardTitle>
             <CardDescription className="text-[11px] text-muted-foreground/70">Per-salesperson activity breakdown with revenue and closing rate.</CardDescription>
+            <div className="mt-2">{periodBar}</div>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" className="transition-all duration-200 ease-out hover:shadow-sm" onClick={() => {
               const rows = salesPerformance.map(({ user_id: _, ...rest }) => rest);
-              downloadCSV(`sales-performance-full-team-${today()}.csv`, rows);
+              downloadCSV(`sales-performance-full-team-${periodSlug}.csv`, rows);
             }}>
               📥 Download Full Team
             </Button>
@@ -635,7 +712,7 @@ function ReportsPage() {
                 const person = salesPerformance.find((p) => p.user_id === individualPerson);
                 if (!person) return;
                 const { user_id: _, ...rest } = person;
-                downloadCSV(`sales-performance-${person.name.replace(/\s+/g, "_")}-${today()}.csv`, [rest]);
+                downloadCSV(`sales-performance-${person.name.replace(/\s+/g, "_")}-${periodSlug}.csv`, [rest]);
               }}
             >
               📥 Download Individual
@@ -675,15 +752,16 @@ function ReportsPage() {
               <Badge variant="secondary" className="rounded-full">{productivity.length} employees</Badge>
             </CardTitle>
             <CardDescription className="text-[11px] text-muted-foreground/70">Filter by employee or role and export the filtered set.</CardDescription>
+            <div className="mt-2">{periodBar}</div>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" className="transition-all duration-200 ease-out hover:shadow-sm" onClick={() =>
-              downloadCSV(`team-productivity-${today()}.csv`, stripIds(productivity))
+              downloadCSV(`team-productivity-${periodSlug}.csv`, stripIds(productivity))
             }>
               <Download className="h-4 w-4 mr-2" /> CSV
             </Button>
             <Button variant="outline" className="transition-all duration-200 ease-out hover:shadow-sm" onClick={() => downloadPDF(
-              `team-productivity-${today()}.pdf`,
+              `team-productivity-${periodSlug}.pdf`,
               "Department Productivity", `Period: ${periodLabel}`,
               ["Employee", "Role", "Leads", "Hot", "FU Done", "FU Overdue", "Won", "Win %"],
               productivity.map((r) => [r.employee, r.role, String(r.assigned_leads), String(r.hot_leads), String(r.followups_completed), String(r.followups_overdue), String(r.conversions_won), r.win_rate]),
