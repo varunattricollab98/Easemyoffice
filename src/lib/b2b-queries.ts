@@ -17,8 +17,10 @@ import {
   type B2BFollowup,
   type B2BImportBatch,
   type B2BLead,
+  type B2BOnboarding,
   type B2BSource,
   type CaFirm,
+  type OnboardingItemId,
   type Partnership,
   type Referral,
 } from "@/lib/b2b";
@@ -876,6 +878,92 @@ export async function completeFollowup(input: {
     });
     if (next.error) throw new Error(next.error.message);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Partner onboarding checklists (B2B Documentation)
+//
+// One b2b_onboarding row per CA firm. RLS (20260517000003) scopes which rows
+// return exactly like the other B2B tables: admin sees all; a B2B user sees
+// only checklists for firms they own / are assigned / created. The pure
+// progress / TAT maths lives in src/lib/b2b-documentation.ts.
+// ---------------------------------------------------------------------------
+
+/** An onboarding checklist joined to its firm name so the list can label rows. */
+export type OnboardingWithFirm = B2BOnboarding & {
+  firm_name: string | null;
+  firm_city: string | null;
+  firm_state: string | null;
+};
+
+export async function listOnboarding(): Promise<OnboardingWithFirm[]> {
+  const { data, error } = await b2bDb()
+    .from("b2b_onboarding")
+    .select("*, ca_firms(firm_name, city, state)")
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  type Joined = B2BOnboarding & {
+    ca_firms: { firm_name: string | null; city: string | null; state: string | null } | null;
+  };
+  return ((data ?? []) as Joined[]).map((r) => {
+    const { ca_firms, ...rest } = r;
+    return {
+      ...rest,
+      firm_name: ca_firms?.firm_name ?? null,
+      firm_city: ca_firms?.city ?? null,
+      firm_state: ca_firms?.state ?? null,
+    };
+  });
+}
+
+export async function getOnboardingForFirm(firmId: string): Promise<B2BOnboarding | null> {
+  const { data, error } = await b2bDb()
+    .from("b2b_onboarding")
+    .select("*")
+    .eq("firm_id", firmId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data as B2BOnboarding) ?? null;
+}
+
+/**
+ * Create the onboarding checklist for a firm, or return the existing one. The
+ * UNIQUE (firm_id) constraint plus RLS keep this a single checklist per firm.
+ */
+export async function ensureOnboarding(input: {
+  firmId: string;
+  actorId: string;
+}): Promise<B2BOnboarding> {
+  const existing = await getOnboardingForFirm(input.firmId);
+  if (existing) return existing;
+  const { data, error } = await b2bDb()
+    .from("b2b_onboarding")
+    .insert({ firm_id: input.firmId, created_by: input.actorId, assigned_to: input.actorId })
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  return data as B2BOnboarding;
+}
+
+export type OnboardingPatch = Partial<Record<OnboardingItemId, boolean>> & {
+  notes?: string | null;
+  assigned_to?: string | null;
+};
+
+/**
+ * Toggle checklist items / notes on an onboarding row. completed_at is stamped
+ * server-side by the b2b_onboarding_stamp_completed trigger, so the UI never
+ * has to manage it.
+ */
+export async function updateOnboarding(id: string, patch: OnboardingPatch): Promise<B2BOnboarding> {
+  const { data, error } = await b2bDb()
+    .from("b2b_onboarding")
+    .update(patch)
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  return data as B2BOnboarding;
 }
 
 // ---------------------------------------------------------------------------

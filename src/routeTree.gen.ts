@@ -22,6 +22,7 @@ import { Route as AuthenticatedRemindersRouteImport } from './routes/_authentica
 import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
 import { Route as AuthenticatedPaymentsRouteImport } from './routes/_authenticated/payments'
 import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
+import { Route as AuthenticatedMyPayrollRouteImport } from './routes/_authenticated/my-payroll'
 import { Route as AuthenticatedInvoicesRouteImport } from './routes/_authenticated/invoices'
 import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated/inbox'
 import { Route as AuthenticatedHrmsRouteImport } from './routes/_authenticated/hrms'
@@ -49,12 +50,14 @@ import { Route as AuthenticatedHrmsSalaryRouteImport } from './routes/_authentic
 import { Route as AuthenticatedHrmsEmployeesRouteImport } from './routes/_authenticated/hrms/employees'
 import { Route as AuthenticatedHrmsAttendanceRouteImport } from './routes/_authenticated/hrms/attendance'
 import { Route as AuthenticatedHrmsApprovalsRouteImport } from './routes/_authenticated/hrms/approvals'
+import { Route as AuthenticatedB2bRenewalsRouteImport } from './routes/_authenticated/b2b/renewals'
 import { Route as AuthenticatedB2bReferralsRouteImport } from './routes/_authenticated/b2b/referrals'
 import { Route as AuthenticatedB2bPipelineRouteImport } from './routes/_authenticated/b2b/pipeline'
 import { Route as AuthenticatedB2bPartnersRouteImport } from './routes/_authenticated/b2b/partners'
 import { Route as AuthenticatedB2bPartnerPerformanceRouteImport } from './routes/_authenticated/b2b/partner-performance'
 import { Route as AuthenticatedB2bImportHistoryRouteImport } from './routes/_authenticated/b2b/import-history'
 import { Route as AuthenticatedB2bImportRouteImport } from './routes/_authenticated/b2b/import'
+import { Route as AuthenticatedB2bDocumentationRouteImport } from './routes/_authenticated/b2b/documentation'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
 import { Route as AuthenticatedAdminSalesPerformanceRouteImport } from './routes/_authenticated/admin/sales-performance'
 import { Route as AuthenticatedAdminKpiReportRouteImport } from './routes/_authenticated/admin/kpi-report'
@@ -140,6 +143,11 @@ const AuthenticatedNotificationsRoute =
     path: '/notifications',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedMyPayrollRoute = AuthenticatedMyPayrollRouteImport.update({
+  id: '/my-payroll',
+  path: '/my-payroll',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedInvoicesRoute = AuthenticatedInvoicesRouteImport.update({
   id: '/invoices',
   path: '/invoices',
@@ -285,6 +293,12 @@ const AuthenticatedHrmsApprovalsRoute =
     path: '/approvals',
     getParentRoute: () => AuthenticatedHrmsRoute,
   } as any)
+const AuthenticatedB2bRenewalsRoute =
+  AuthenticatedB2bRenewalsRouteImport.update({
+    id: '/b2b/renewals',
+    path: '/b2b/renewals',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedB2bReferralsRoute =
   AuthenticatedB2bReferralsRouteImport.update({
     id: '/b2b/referrals',
@@ -320,6 +334,12 @@ const AuthenticatedB2bImportRoute = AuthenticatedB2bImportRouteImport.update({
   path: '/b2b/import',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedB2bDocumentationRoute =
+  AuthenticatedB2bDocumentationRouteImport.update({
+    id: '/b2b/documentation',
+    path: '/b2b/documentation',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   id: '/admin/users',
   path: '/admin/users',
@@ -451,6 +471,7 @@ export interface FileRoutesByFullPath {
   '/hrms': typeof AuthenticatedHrmsRouteWithChildren
   '/inbox': typeof AuthenticatedInboxRoute
   '/invoices': typeof AuthenticatedInvoicesRoute
+  '/my-payroll': typeof AuthenticatedMyPayrollRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/payments': typeof AuthenticatedPaymentsRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
@@ -462,12 +483,14 @@ export interface FileRoutesByFullPath {
   '/admin/kpi-report': typeof AuthenticatedAdminKpiReportRoute
   '/admin/sales-performance': typeof AuthenticatedAdminSalesPerformanceRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/b2b/documentation': typeof AuthenticatedB2bDocumentationRoute
   '/b2b/import': typeof AuthenticatedB2bImportRoute
   '/b2b/import-history': typeof AuthenticatedB2bImportHistoryRoute
   '/b2b/partner-performance': typeof AuthenticatedB2bPartnerPerformanceRoute
   '/b2b/partners': typeof AuthenticatedB2bPartnersRoute
   '/b2b/pipeline': typeof AuthenticatedB2bPipelineRoute
   '/b2b/referrals': typeof AuthenticatedB2bReferralsRoute
+  '/b2b/renewals': typeof AuthenticatedB2bRenewalsRoute
   '/hrms/approvals': typeof AuthenticatedHrmsApprovalsRoute
   '/hrms/attendance': typeof AuthenticatedHrmsAttendanceRoute
   '/hrms/employees': typeof AuthenticatedHrmsEmployeesRoute
@@ -516,6 +539,7 @@ export interface FileRoutesByTo {
   '/follow-ups': typeof AuthenticatedFollowUpsRoute
   '/inbox': typeof AuthenticatedInboxRoute
   '/invoices': typeof AuthenticatedInvoicesRoute
+  '/my-payroll': typeof AuthenticatedMyPayrollRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/payments': typeof AuthenticatedPaymentsRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
@@ -527,12 +551,14 @@ export interface FileRoutesByTo {
   '/admin/kpi-report': typeof AuthenticatedAdminKpiReportRoute
   '/admin/sales-performance': typeof AuthenticatedAdminSalesPerformanceRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/b2b/documentation': typeof AuthenticatedB2bDocumentationRoute
   '/b2b/import': typeof AuthenticatedB2bImportRoute
   '/b2b/import-history': typeof AuthenticatedB2bImportHistoryRoute
   '/b2b/partner-performance': typeof AuthenticatedB2bPartnerPerformanceRoute
   '/b2b/partners': typeof AuthenticatedB2bPartnersRoute
   '/b2b/pipeline': typeof AuthenticatedB2bPipelineRoute
   '/b2b/referrals': typeof AuthenticatedB2bReferralsRoute
+  '/b2b/renewals': typeof AuthenticatedB2bRenewalsRoute
   '/hrms/approvals': typeof AuthenticatedHrmsApprovalsRoute
   '/hrms/attendance': typeof AuthenticatedHrmsAttendanceRoute
   '/hrms/employees': typeof AuthenticatedHrmsEmployeesRoute
@@ -584,6 +610,7 @@ export interface FileRoutesById {
   '/_authenticated/hrms': typeof AuthenticatedHrmsRouteWithChildren
   '/_authenticated/inbox': typeof AuthenticatedInboxRoute
   '/_authenticated/invoices': typeof AuthenticatedInvoicesRoute
+  '/_authenticated/my-payroll': typeof AuthenticatedMyPayrollRoute
   '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
   '/_authenticated/payments': typeof AuthenticatedPaymentsRoute
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
@@ -595,12 +622,14 @@ export interface FileRoutesById {
   '/_authenticated/admin/kpi-report': typeof AuthenticatedAdminKpiReportRoute
   '/_authenticated/admin/sales-performance': typeof AuthenticatedAdminSalesPerformanceRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/_authenticated/b2b/documentation': typeof AuthenticatedB2bDocumentationRoute
   '/_authenticated/b2b/import': typeof AuthenticatedB2bImportRoute
   '/_authenticated/b2b/import-history': typeof AuthenticatedB2bImportHistoryRoute
   '/_authenticated/b2b/partner-performance': typeof AuthenticatedB2bPartnerPerformanceRoute
   '/_authenticated/b2b/partners': typeof AuthenticatedB2bPartnersRoute
   '/_authenticated/b2b/pipeline': typeof AuthenticatedB2bPipelineRoute
   '/_authenticated/b2b/referrals': typeof AuthenticatedB2bReferralsRoute
+  '/_authenticated/b2b/renewals': typeof AuthenticatedB2bRenewalsRoute
   '/_authenticated/hrms/approvals': typeof AuthenticatedHrmsApprovalsRoute
   '/_authenticated/hrms/attendance': typeof AuthenticatedHrmsAttendanceRoute
   '/_authenticated/hrms/employees': typeof AuthenticatedHrmsEmployeesRoute
@@ -652,6 +681,7 @@ export interface FileRouteTypes {
     | '/hrms'
     | '/inbox'
     | '/invoices'
+    | '/my-payroll'
     | '/notifications'
     | '/payments'
     | '/pipeline'
@@ -663,12 +693,14 @@ export interface FileRouteTypes {
     | '/admin/kpi-report'
     | '/admin/sales-performance'
     | '/admin/users'
+    | '/b2b/documentation'
     | '/b2b/import'
     | '/b2b/import-history'
     | '/b2b/partner-performance'
     | '/b2b/partners'
     | '/b2b/pipeline'
     | '/b2b/referrals'
+    | '/b2b/renewals'
     | '/hrms/approvals'
     | '/hrms/attendance'
     | '/hrms/employees'
@@ -717,6 +749,7 @@ export interface FileRouteTypes {
     | '/follow-ups'
     | '/inbox'
     | '/invoices'
+    | '/my-payroll'
     | '/notifications'
     | '/payments'
     | '/pipeline'
@@ -728,12 +761,14 @@ export interface FileRouteTypes {
     | '/admin/kpi-report'
     | '/admin/sales-performance'
     | '/admin/users'
+    | '/b2b/documentation'
     | '/b2b/import'
     | '/b2b/import-history'
     | '/b2b/partner-performance'
     | '/b2b/partners'
     | '/b2b/pipeline'
     | '/b2b/referrals'
+    | '/b2b/renewals'
     | '/hrms/approvals'
     | '/hrms/attendance'
     | '/hrms/employees'
@@ -784,6 +819,7 @@ export interface FileRouteTypes {
     | '/_authenticated/hrms'
     | '/_authenticated/inbox'
     | '/_authenticated/invoices'
+    | '/_authenticated/my-payroll'
     | '/_authenticated/notifications'
     | '/_authenticated/payments'
     | '/_authenticated/pipeline'
@@ -795,12 +831,14 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/kpi-report'
     | '/_authenticated/admin/sales-performance'
     | '/_authenticated/admin/users'
+    | '/_authenticated/b2b/documentation'
     | '/_authenticated/b2b/import'
     | '/_authenticated/b2b/import-history'
     | '/_authenticated/b2b/partner-performance'
     | '/_authenticated/b2b/partners'
     | '/_authenticated/b2b/pipeline'
     | '/_authenticated/b2b/referrals'
+    | '/_authenticated/b2b/renewals'
     | '/_authenticated/hrms/approvals'
     | '/_authenticated/hrms/attendance'
     | '/_authenticated/hrms/employees'
@@ -935,6 +973,13 @@ declare module '@tanstack/react-router' {
       path: '/notifications'
       fullPath: '/notifications'
       preLoaderRoute: typeof AuthenticatedNotificationsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/my-payroll': {
+      id: '/_authenticated/my-payroll'
+      path: '/my-payroll'
+      fullPath: '/my-payroll'
+      preLoaderRoute: typeof AuthenticatedMyPayrollRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/invoices': {
@@ -1126,6 +1171,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHrmsApprovalsRouteImport
       parentRoute: typeof AuthenticatedHrmsRoute
     }
+    '/_authenticated/b2b/renewals': {
+      id: '/_authenticated/b2b/renewals'
+      path: '/b2b/renewals'
+      fullPath: '/b2b/renewals'
+      preLoaderRoute: typeof AuthenticatedB2bRenewalsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/b2b/referrals': {
       id: '/_authenticated/b2b/referrals'
       path: '/b2b/referrals'
@@ -1166,6 +1218,13 @@ declare module '@tanstack/react-router' {
       path: '/b2b/import'
       fullPath: '/b2b/import'
       preLoaderRoute: typeof AuthenticatedB2bImportRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/b2b/documentation': {
+      id: '/_authenticated/b2b/documentation'
+      path: '/b2b/documentation'
+      fullPath: '/b2b/documentation'
+      preLoaderRoute: typeof AuthenticatedB2bDocumentationRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin/users': {
@@ -1338,6 +1397,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedHrmsRoute: typeof AuthenticatedHrmsRouteWithChildren
   AuthenticatedInboxRoute: typeof AuthenticatedInboxRoute
   AuthenticatedInvoicesRoute: typeof AuthenticatedInvoicesRoute
+  AuthenticatedMyPayrollRoute: typeof AuthenticatedMyPayrollRoute
   AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
   AuthenticatedPaymentsRoute: typeof AuthenticatedPaymentsRoute
   AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
@@ -1349,12 +1409,14 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminKpiReportRoute: typeof AuthenticatedAdminKpiReportRoute
   AuthenticatedAdminSalesPerformanceRoute: typeof AuthenticatedAdminSalesPerformanceRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
+  AuthenticatedB2bDocumentationRoute: typeof AuthenticatedB2bDocumentationRoute
   AuthenticatedB2bImportRoute: typeof AuthenticatedB2bImportRoute
   AuthenticatedB2bImportHistoryRoute: typeof AuthenticatedB2bImportHistoryRoute
   AuthenticatedB2bPartnerPerformanceRoute: typeof AuthenticatedB2bPartnerPerformanceRoute
   AuthenticatedB2bPartnersRoute: typeof AuthenticatedB2bPartnersRoute
   AuthenticatedB2bPipelineRoute: typeof AuthenticatedB2bPipelineRoute
   AuthenticatedB2bReferralsRoute: typeof AuthenticatedB2bReferralsRoute
+  AuthenticatedB2bRenewalsRoute: typeof AuthenticatedB2bRenewalsRoute
   AuthenticatedLeadsIdRoute: typeof AuthenticatedLeadsIdRoute
   AuthenticatedLeadsImportRoute: typeof AuthenticatedLeadsImportRoute
   AuthenticatedLeadsNewRoute: typeof AuthenticatedLeadsNewRoute
@@ -1392,6 +1454,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedHrmsRoute: AuthenticatedHrmsRouteWithChildren,
   AuthenticatedInboxRoute: AuthenticatedInboxRoute,
   AuthenticatedInvoicesRoute: AuthenticatedInvoicesRoute,
+  AuthenticatedMyPayrollRoute: AuthenticatedMyPayrollRoute,
   AuthenticatedNotificationsRoute: AuthenticatedNotificationsRoute,
   AuthenticatedPaymentsRoute: AuthenticatedPaymentsRoute,
   AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
@@ -1405,6 +1468,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminSalesPerformanceRoute:
     AuthenticatedAdminSalesPerformanceRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
+  AuthenticatedB2bDocumentationRoute: AuthenticatedB2bDocumentationRoute,
   AuthenticatedB2bImportRoute: AuthenticatedB2bImportRoute,
   AuthenticatedB2bImportHistoryRoute: AuthenticatedB2bImportHistoryRoute,
   AuthenticatedB2bPartnerPerformanceRoute:
@@ -1412,6 +1476,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedB2bPartnersRoute: AuthenticatedB2bPartnersRoute,
   AuthenticatedB2bPipelineRoute: AuthenticatedB2bPipelineRoute,
   AuthenticatedB2bReferralsRoute: AuthenticatedB2bReferralsRoute,
+  AuthenticatedB2bRenewalsRoute: AuthenticatedB2bRenewalsRoute,
   AuthenticatedLeadsIdRoute: AuthenticatedLeadsIdRoute,
   AuthenticatedLeadsImportRoute: AuthenticatedLeadsImportRoute,
   AuthenticatedLeadsNewRoute: AuthenticatedLeadsNewRoute,

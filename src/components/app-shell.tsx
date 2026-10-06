@@ -42,6 +42,10 @@ const NAV: NavItem[] = [
   // Everyone's own LOGIN / LOGOUT. The page explains itself when the login is
   // not linked to an employee record yet.
   { to: "/attendance", label: "My Attendance", icon: CalendarCheck },
+  // Everyone's own payroll readiness (working days / leave / LOP / hours), with
+  // NO salary figures — the salary slip is shared by the admin. Role-agnostic
+  // like My Attendance so B2B (and every) department staff see their own.
+  { to: "/my-payroll", label: "My Payroll", icon: Receipt },
   { to: "/notifications", label: "Notifications", icon: Inbox },
   { to: "/documentation", label: "Documentation", icon: FileText, roles: ["admin", "documentation", "sales"] },
   // "Documents" (a per-client KYC/agreement file browser) was removed — it sat
@@ -114,6 +118,12 @@ const NAV: NavItem[] = [
     roles: ["admin", "b2b"],
   },
   { to: "/b2b/analytics/revenue", label: "Revenue Analytics", icon: Receipt, roles: ["admin", "b2b"] },
+  // Partner lifecycle (FEAT-008): relationship-health renewals and the partner
+  // onboarding documentation checklist. Attendance / Payroll for B2B staff flow
+  // through the shared "My Attendance" / "My Payroll" items above (role-agnostic
+  // employee-facing pages); the HRMS admin screens stay in ADMIN_NAV.
+  { to: "/b2b/renewals", label: "B2B Renewals", icon: RefreshCcw, roles: ["admin", "b2b"] },
+  { to: "/b2b/documentation", label: "B2B Documentation", icon: FileText, roles: ["admin", "b2b"] },
 ];
 
 const ADMIN_NAV: NavItem[] = [

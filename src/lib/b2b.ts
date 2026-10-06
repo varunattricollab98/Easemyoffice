@@ -203,6 +203,30 @@ export type B2BSource = {
   created_at: string;
 };
 
+/**
+ * Partner onboarding checklist, one per CA firm (public.b2b_onboarding).
+ * Columns mirror supabase/migrations/20260517000003_b2b_documentation.sql. The
+ * 8 checklist flags are the ids in ONBOARDING_ITEMS below.
+ */
+export type B2BOnboarding = {
+  id: string;
+  firm_id: string;
+  firm_details: boolean;
+  contact_details: boolean;
+  agreement: boolean;
+  required_documents: boolean;
+  partner_terms: boolean;
+  referral_process_explained: boolean;
+  communication_setup: boolean;
+  onboarding_completed: boolean;
+  assigned_to: string | null;
+  notes: string | null;
+  completed_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 // ---------------------------------------------------------------------------
 // Lead statuses — the full set a B2B lead can sit in, including the closed /
 // disqualified outcomes. Each entry is {id,label,color} like crm.ts STAGES.
@@ -344,6 +368,26 @@ export const ACTIVITY_TYPES = [
   { id: "followup", label: "Follow-up" },
   { id: "note", label: "Note" },
 ] as const;
+
+// ---------------------------------------------------------------------------
+// Partner onboarding checklist (spec section 17) — the 8 ordered items shown on
+// the B2B Documentation page. Each `id` is a boolean column on
+// public.b2b_onboarding; the order here is the order rendered and the order the
+// progress bar fills.
+// ---------------------------------------------------------------------------
+
+export const ONBOARDING_ITEMS = [
+  { id: "firm_details", label: "Firm Details" },
+  { id: "contact_details", label: "Contact Details" },
+  { id: "agreement", label: "Agreement" },
+  { id: "required_documents", label: "Required Documents" },
+  { id: "partner_terms", label: "Partner Terms" },
+  { id: "referral_process_explained", label: "Referral Process Explained" },
+  { id: "communication_setup", label: "Communication Setup" },
+  { id: "onboarding_completed", label: "Onboarding Completed" },
+] as const;
+
+export type OnboardingItemId = (typeof ONBOARDING_ITEMS)[number]["id"];
 
 // ---------------------------------------------------------------------------
 // Helpers
