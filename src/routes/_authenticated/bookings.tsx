@@ -219,6 +219,8 @@ function BookingsPage() {
   // Fresh vs renewal — see isRenewalBooking: a Booking ID ending in R1/R2…,
   // source "Renewal", or a renewal-form booking.
   const [typeFilter, setTypeFilter] = useState<"all" | "fresh" | "renewal">("all");
+  // Date-range preset filter: narrows bookings by booking_date.
+  const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month">("all");
   const [renewalOpen, setRenewalOpen] = useState(false);
   const [selected, setSelected] = useState<BookingRow | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -296,6 +298,36 @@ function BookingsPage() {
   });
 
   const today = new Date().toISOString().slice(0, 10);
+
+  // Week boundaries (Mon-Sun) and month prefix for the date-range filter.
+  // Computed as YYYY-MM-DD strings so comparisons are pure lexicographic —
+  // no `new Date(dateString)` which would parse as UTC and drift by a day in
+  // IST. Week starts on Monday (standard for an Indian business CRM).
+  const { weekStart, weekEnd, monthPrefix } = useMemo(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth(); // 0-indexed
+    const d = now.getDate();
+    // JS getDay(): 0=Sun … 6=Sat. Convert to Mon=0 … Sun=6.
+    const jsDay = now.getDay();
+    const daysSinceMonday = (jsDay + 6) % 7; // Mon=0, Tue=1, … Sun=6
+    const pad = (n: number) => String(n).padStart(2, "0");
+
+    // Build Monday of the current week
+    const mon = new Date(y, m, d - daysSinceMonday);
+    const wStart = `${mon.getFullYear()}-${pad(mon.getMonth() + 1)}-${pad(mon.getDate())}`;
+    // Sunday = Monday + 6
+    const sun = new Date(y, m, d - daysSinceMonday + 6);
+    const wEnd = `${sun.getFullYear()}-${pad(sun.getMonth() + 1)}-${pad(sun.getDate())}`;
+
+    return {
+      weekStart: wStart,
+      weekEnd: wEnd,
+      // "YYYY-MM" prefix — a booking_date like "2026-08-19" starts with "2026-08".
+      monthPrefix: `${y}-${pad(m + 1)}`,
+    };
+  }, [today]); // recalculates only when the calendar date changes
+
   // A bare `data?.bookings ?? []` hands back a brand new array on every render,
   // which would change the deps of the memos below every time and defeat them.
   const all = useMemo(() => data?.bookings ?? [], [data]);
@@ -330,6 +362,15 @@ function BookingsPage() {
         if (typeFilter === "renewal" && !isRenewal) return false;
         if (typeFilter === "fresh" && isRenewal) return false;
       }
+      // Date-range preset filter on booking_date (plain YYYY-MM-DD strings, so
+      // string comparison is chronological). "all" skips the check entirely.
+      if (dateFilter !== "all") {
+        const bd = String(b.booking_date ?? "");
+        if (!bd) return false;
+        if (dateFilter === "today" && bd !== today) return false;
+        if (dateFilter === "week" && (bd < weekStart || bd > weekEnd)) return false;
+        if (dateFilter === "month" && !bd.startsWith(monthPrefix)) return false;
+      }
       if (!q) return true;
       return [
         b.booking_code,
@@ -345,7 +386,7 @@ function BookingsPage() {
           .includes(s),
       );
     });
-  }, [all, q, agentFilter, typeFilter, sourceParam]);
+  }, [all, q, agentFilter, typeFilter, dateFilter, today, weekStart, weekEnd, monthPrefix, sourceParam]);
 
   const rows = useMemo(() => {
     const mult = sort.dir === "asc" ? 1 : -1;
@@ -437,10 +478,18 @@ function BookingsPage() {
                 {" · "}
                 <span className="font-medium text-foreground">{rows.length}</span>
                 {rows.length === 1 ? " booking" : " bookings"}
-                {(q || agentFilter !== "all" || typeFilter !== "all") && all.length !== rows.length
+                {(q || agentFilter !== "all" || typeFilter !== "all" || dateFilter !== "all") &&
+                all.length !== rows.length
                   ? ` of ${all.length}`
                   : ""}
                 {typeFilter !== "all" ? (typeFilter === "fresh" ? " · fresh" : " · renewals") : ""}
+                {dateFilter !== "all"
+                  ? dateFilter === "today"
+                    ? " · today"
+                    : dateFilter === "week"
+                      ? " · this week"
+                      : " · this month"
+                  : ""}
                 {agentFilter !== "all" ? ` · ${agentFilter}` : ""}
               </>
             )}
@@ -466,6 +515,20 @@ function BookingsPage() {
           >
             <Plus className="h-4 w-4 mr-1" /> New Renewal Booking
           </Button>
+          <Select
+            value={dateFilter}
+            onValueChange={(v) => setDateFilter(v as typeof dateFilter)}
+          >
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="All time" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All time</SelectItem>
+              <SelectItem value="today">Today</SelectItem>
+              <SelectItem value="week">This week</SelectItem>
+              <SelectItem value="month">This month</SelectItem>
+            </SelectContent>
+          </Select>
           {isAdmin && agents.length > 0 && (
             <Select value={agentFilter} onValueChange={setAgentFilter}>
               <SelectTrigger className="w-48">
@@ -607,6 +670,8 @@ function BookingsPage() {
                         Clear search
                       </button>
                     </>
+                  ) : agentFilter !== "all" || typeFilter !== "all" || dateFilter !== "all" ? (
+                    "No bookings match the current filters."
                   ) : (
                     "No bookings yet. Add one from the dashboard."
                   )}
@@ -727,7 +792,9 @@ function BookingsPage() {
             <TableFooter>
               <TableRow className="hover:bg-transparent bg-muted/30 border-t-2 border-border font-semibold">
                 <TableCell colSpan={5} className="text-xs text-muted-foreground">
-                  {q ? "Filtered total" : "Total"}
+                  {q || agentFilter !== "all" || typeFilter !== "all" || dateFilter !== "all"
+                    ? "Filtered total"
+                    : "Total"}
                 </TableCell>
                 <TableCell className="text-right tabular-nums whitespace-nowrap">
                   {fmtINR(totals.total)}
