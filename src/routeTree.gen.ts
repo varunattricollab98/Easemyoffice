@@ -49,6 +49,8 @@ import { Route as AuthenticatedHrmsSalaryRouteImport } from './routes/_authentic
 import { Route as AuthenticatedHrmsEmployeesRouteImport } from './routes/_authenticated/hrms/employees'
 import { Route as AuthenticatedHrmsAttendanceRouteImport } from './routes/_authenticated/hrms/attendance'
 import { Route as AuthenticatedHrmsApprovalsRouteImport } from './routes/_authenticated/hrms/approvals'
+import { Route as AuthenticatedB2bImportHistoryRouteImport } from './routes/_authenticated/b2b/import-history'
+import { Route as AuthenticatedB2bImportRouteImport } from './routes/_authenticated/b2b/import'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
 import { Route as AuthenticatedAdminSalesPerformanceRouteImport } from './routes/_authenticated/admin/sales-performance'
 import { Route as AuthenticatedAdminKpiReportRouteImport } from './routes/_authenticated/admin/kpi-report'
@@ -270,6 +272,17 @@ const AuthenticatedHrmsApprovalsRoute =
     path: '/approvals',
     getParentRoute: () => AuthenticatedHrmsRoute,
   } as any)
+const AuthenticatedB2bImportHistoryRoute =
+  AuthenticatedB2bImportHistoryRouteImport.update({
+    id: '/b2b/import-history',
+    path: '/b2b/import-history',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedB2bImportRoute = AuthenticatedB2bImportRouteImport.update({
+  id: '/b2b/import',
+  path: '/b2b/import',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   id: '/admin/users',
   path: '/admin/users',
@@ -358,6 +371,8 @@ export interface FileRoutesByFullPath {
   '/admin/kpi-report': typeof AuthenticatedAdminKpiReportRoute
   '/admin/sales-performance': typeof AuthenticatedAdminSalesPerformanceRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/b2b/import': typeof AuthenticatedB2bImportRoute
+  '/b2b/import-history': typeof AuthenticatedB2bImportHistoryRoute
   '/hrms/approvals': typeof AuthenticatedHrmsApprovalsRoute
   '/hrms/attendance': typeof AuthenticatedHrmsAttendanceRoute
   '/hrms/employees': typeof AuthenticatedHrmsEmployeesRoute
@@ -408,6 +423,8 @@ export interface FileRoutesByTo {
   '/admin/kpi-report': typeof AuthenticatedAdminKpiReportRoute
   '/admin/sales-performance': typeof AuthenticatedAdminSalesPerformanceRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/b2b/import': typeof AuthenticatedB2bImportRoute
+  '/b2b/import-history': typeof AuthenticatedB2bImportHistoryRoute
   '/hrms/approvals': typeof AuthenticatedHrmsApprovalsRoute
   '/hrms/attendance': typeof AuthenticatedHrmsAttendanceRoute
   '/hrms/employees': typeof AuthenticatedHrmsEmployeesRoute
@@ -461,6 +478,8 @@ export interface FileRoutesById {
   '/_authenticated/admin/kpi-report': typeof AuthenticatedAdminKpiReportRoute
   '/_authenticated/admin/sales-performance': typeof AuthenticatedAdminSalesPerformanceRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/_authenticated/b2b/import': typeof AuthenticatedB2bImportRoute
+  '/_authenticated/b2b/import-history': typeof AuthenticatedB2bImportHistoryRoute
   '/_authenticated/hrms/approvals': typeof AuthenticatedHrmsApprovalsRoute
   '/_authenticated/hrms/attendance': typeof AuthenticatedHrmsAttendanceRoute
   '/_authenticated/hrms/employees': typeof AuthenticatedHrmsEmployeesRoute
@@ -514,6 +533,8 @@ export interface FileRouteTypes {
     | '/admin/kpi-report'
     | '/admin/sales-performance'
     | '/admin/users'
+    | '/b2b/import'
+    | '/b2b/import-history'
     | '/hrms/approvals'
     | '/hrms/attendance'
     | '/hrms/employees'
@@ -564,6 +585,8 @@ export interface FileRouteTypes {
     | '/admin/kpi-report'
     | '/admin/sales-performance'
     | '/admin/users'
+    | '/b2b/import'
+    | '/b2b/import-history'
     | '/hrms/approvals'
     | '/hrms/attendance'
     | '/hrms/employees'
@@ -616,6 +639,8 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/kpi-report'
     | '/_authenticated/admin/sales-performance'
     | '/_authenticated/admin/users'
+    | '/_authenticated/b2b/import'
+    | '/_authenticated/b2b/import-history'
     | '/_authenticated/hrms/approvals'
     | '/_authenticated/hrms/attendance'
     | '/_authenticated/hrms/employees'
@@ -932,6 +957,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHrmsApprovalsRouteImport
       parentRoute: typeof AuthenticatedHrmsRoute
     }
+    '/_authenticated/b2b/import-history': {
+      id: '/_authenticated/b2b/import-history'
+      path: '/b2b/import-history'
+      fullPath: '/b2b/import-history'
+      preLoaderRoute: typeof AuthenticatedB2bImportHistoryRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/b2b/import': {
+      id: '/_authenticated/b2b/import'
+      path: '/b2b/import'
+      fullPath: '/b2b/import'
+      preLoaderRoute: typeof AuthenticatedB2bImportRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/admin/users': {
       id: '/_authenticated/admin/users'
       path: '/admin/users'
@@ -1050,6 +1089,8 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminKpiReportRoute: typeof AuthenticatedAdminKpiReportRoute
   AuthenticatedAdminSalesPerformanceRoute: typeof AuthenticatedAdminSalesPerformanceRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
+  AuthenticatedB2bImportRoute: typeof AuthenticatedB2bImportRoute
+  AuthenticatedB2bImportHistoryRoute: typeof AuthenticatedB2bImportHistoryRoute
   AuthenticatedLeadsIdRoute: typeof AuthenticatedLeadsIdRoute
   AuthenticatedLeadsImportRoute: typeof AuthenticatedLeadsImportRoute
   AuthenticatedLeadsNewRoute: typeof AuthenticatedLeadsNewRoute
@@ -1091,6 +1132,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminSalesPerformanceRoute:
     AuthenticatedAdminSalesPerformanceRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
+  AuthenticatedB2bImportRoute: AuthenticatedB2bImportRoute,
+  AuthenticatedB2bImportHistoryRoute: AuthenticatedB2bImportHistoryRoute,
   AuthenticatedLeadsIdRoute: AuthenticatedLeadsIdRoute,
   AuthenticatedLeadsImportRoute: AuthenticatedLeadsImportRoute,
   AuthenticatedLeadsNewRoute: AuthenticatedLeadsNewRoute,

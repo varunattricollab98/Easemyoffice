@@ -234,6 +234,7 @@ export type B2BLeadFilters = {
   firmId?: string;
   source?: string;
   priority?: string;
+  importBatchId?: string;
   search?: string;
   sortByFollowUp?: boolean;
 };
@@ -245,6 +246,7 @@ export async function listB2BLeads(filters: B2BLeadFilters = {}): Promise<B2BLea
   if (filters.firmId) q = q.eq("firm_id", filters.firmId);
   if (filters.source) q = q.eq("lead_source", filters.source);
   if (filters.priority) q = q.eq("priority", filters.priority);
+  if (filters.importBatchId) q = q.eq("import_batch_id", filters.importBatchId);
   if (filters.search) q = q.ilike("contact_person", `%${filters.search}%`);
   q = filters.sortByFollowUp
     ? q.order("next_follow_up_at", { ascending: true, nullsFirst: false })
@@ -416,6 +418,98 @@ export async function listImportBatches(): Promise<B2BImportBatch[]> {
     .select("*")
     .order("created_at", { ascending: false });
   return unwrap<B2BImportBatch>(data, error);
+}
+
+export async function getImportBatch(id: string): Promise<B2BImportBatch | null> {
+  const { data, error } = await b2bDb()
+    .from("b2b_import_batches")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data as B2BImportBatch) ?? null;
+}
+
+export type NewImportBatch = {
+  source?: string | null;
+  file_name?: string | null;
+  uploaded_by: string;
+  total_records: number;
+  new_records: number;
+  duplicate_records: number;
+  invalid_records: number;
+  assigned_records: number;
+};
+
+export async function createImportBatch(input: NewImportBatch): Promise<B2BImportBatch> {
+  const { data, error } = await b2bDb()
+    .from("b2b_import_batches")
+    .insert(input)
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  return data as B2BImportBatch;
+}
+
+// ---------------------------------------------------------------------------
+// Bulk import writers (used by the CSV import flow). Rows are inserted in
+// chunks by the caller; these helpers do a single insert each.
+// ---------------------------------------------------------------------------
+
+/**
+ * The firm/lead identity columns needed to detect duplicates against existing
+ * data. Pulled once up front and fed to the pure dedupe logic in b2b-import.ts.
+ */
+export type DedupeRow = {
+  firm_name?: string | null;
+  phone?: string | null;
+  alt_phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  city?: string | null;
+};
+
+/** Existing ca_firms identity rows for duplicate detection. */
+export async function listFirmDedupeRows(): Promise<DedupeRow[]> {
+  const { data, error } = await b2bDb()
+    .from("ca_firms")
+    .select("firm_name, phone, alt_phone, email, website, city");
+  return unwrap<DedupeRow>(data, error);
+}
+
+/**
+ * Existing b2b_leads identity rows for duplicate detection. b2b_leads has no
+ * firm_name column (that lives on ca_firms), so leads only contribute the
+ * phone / alt_phone / email / website / city dedupe keys.
+ */
+export async function listLeadDedupeRows(): Promise<DedupeRow[]> {
+  const { data, error } = await b2bDb()
+    .from("b2b_leads")
+    .select("phone, alt_phone, email, website, city");
+  return unwrap<DedupeRow>(data, error);
+}
+
+/** Insert a chunk of ca_firms, returning the created rows. */
+export async function bulkInsertFirms(rows: NewFirm[]): Promise<CaFirm[]> {
+  if (rows.length === 0) return [];
+  const { data, error } = await b2bDb().from("ca_firms").insert(rows).select("*");
+  return unwrap<CaFirm>(data, error);
+}
+
+/** Insert a chunk of b2b_contacts. */
+export async function bulkInsertContacts(rows: NewContact[]): Promise<B2BContact[]> {
+  if (rows.length === 0) return [];
+  const { data, error } = await b2bDb().from("b2b_contacts").insert(rows).select("*");
+  return unwrap<B2BContact>(data, error);
+}
+
+export type NewB2BLeadRow = NewB2BLead & { import_batch_id?: string | null };
+
+/** Insert a chunk of b2b_leads. */
+export async function bulkInsertLeads(rows: NewB2BLeadRow[]): Promise<void> {
+  if (rows.length === 0) return;
+  const { error } = await b2bDb().from("b2b_leads").insert(rows);
+  if (error) throw new Error(error.message);
 }
 
 // ---------------------------------------------------------------------------

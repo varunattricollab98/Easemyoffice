@@ -2,7 +2,7 @@ import { Link, useLocation } from "@tanstack/react-router";
 import {
   LayoutDashboard, Users, Kanban, Bell, CheckSquare, FileText, Receipt,
   RefreshCcw, Activity, BarChart3, Settings, UsersRound, LogOut, Building2, BookOpen,
-  UserCheck, FileSignature, Calendar, Inbox, Trophy, Mail, AlarmClock, Phone, CalendarCheck, ShieldCheck,
+  UserCheck, FileSignature, Calendar, Inbox, Trophy, Mail, AlarmClock, Phone, CalendarCheck, ShieldCheck, Upload, History,
   Handshake,
 } from "lucide-react";
 import { useAuth, type AppRole } from "@/lib/auth";
@@ -72,6 +72,8 @@ const NAV: NavItem[] = [
   { to: "/b2b/leads", label: "B2B Leads", icon: Users, roles: ["admin", "b2b"] },
   { to: "/b2b/firms", label: "CA Firms", icon: Building2, roles: ["admin", "b2b"] },
   { to: "/b2b/contacts", label: "Contacts", icon: UserCheck, roles: ["admin", "b2b"] },
+  { to: "/b2b/import", label: "Import Leads", icon: Upload, roles: ["admin", "b2b"] },
+  { to: "/b2b/import-history", label: "Import History", icon: History, roles: ["admin", "b2b"] },
 ];
 
 const ADMIN_NAV: NavItem[] = [
