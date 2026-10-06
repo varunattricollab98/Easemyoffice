@@ -26,8 +26,20 @@ import { logAudit } from "@/lib/audit";
 import { bucketFollowups } from "@/lib/b2b-followups";
 import { completeFollowup, listFollowupsWithRefs, type FollowupWithRefs } from "@/lib/b2b-queries";
 
+// Optional ?bucket= (overdue | today | upcoming) narrows the list to one bucket
+// — used by the admin command-center "Overdue Follow-ups" drill-down
+// (?bucket=overdue). Optional with a sane default (all buckets) so direct
+// navigation to the follow-ups page is unchanged.
+type FollowupsSearch = { bucket?: "overdue" | "today" | "upcoming" };
+
 export const Route = createFileRoute("/_authenticated/b2b/activities/followups")({
   head: () => ({ meta: [{ title: "Follow-ups — EaseMyOffice CRM" }] }),
+  validateSearch: (s: Record<string, unknown>): FollowupsSearch => ({
+    bucket:
+      s.bucket === "overdue" || s.bucket === "today" || s.bucket === "upcoming"
+        ? s.bucket
+        : undefined,
+  }),
   beforeLoad: async ({ context }) => {
     await guardRoles(context.queryClient, ["admin", "b2b"]);
   },
@@ -36,6 +48,7 @@ export const Route = createFileRoute("/_authenticated/b2b/activities/followups")
 
 function FollowupsPage() {
   const qc = useQueryClient();
+  const { bucket } = Route.useSearch();
   const [active, setActive] = useState<FollowupWithRefs | null>(null);
 
   // Pending follow-ups only — done/missed drop off the working list. RLS scopes
@@ -69,27 +82,33 @@ function FollowupsPage() {
         <p className="text-sm text-muted-foreground py-10 text-center">Loading…</p>
       ) : (
         <>
-          <Bucket
-            title="Overdue"
-            icon={AlertTriangle}
-            tone="text-destructive"
-            items={buckets.overdue}
-            onUpdate={setActive}
-          />
-          <Bucket
-            title="Today's Follow-ups"
-            icon={Clock}
-            tone="text-amber-600"
-            items={buckets.today}
-            onUpdate={setActive}
-          />
-          <Bucket
-            title="Upcoming"
-            icon={CalendarClock}
-            tone="text-muted-foreground"
-            items={buckets.upcoming}
-            onUpdate={setActive}
-          />
+          {(!bucket || bucket === "overdue") && (
+            <Bucket
+              title="Overdue"
+              icon={AlertTriangle}
+              tone="text-destructive"
+              items={buckets.overdue}
+              onUpdate={setActive}
+            />
+          )}
+          {(!bucket || bucket === "today") && (
+            <Bucket
+              title="Today's Follow-ups"
+              icon={Clock}
+              tone="text-amber-600"
+              items={buckets.today}
+              onUpdate={setActive}
+            />
+          )}
+          {(!bucket || bucket === "upcoming") && (
+            <Bucket
+              title="Upcoming"
+              icon={CalendarClock}
+              tone="text-muted-foreground"
+              items={buckets.upcoming}
+              onUpdate={setActive}
+            />
+          )}
         </>
       )}
 

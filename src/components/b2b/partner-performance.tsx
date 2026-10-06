@@ -127,9 +127,15 @@ function SortHeader({
  * Shared table. `activeOnly` filters to onboarded/active partners (Active
  * Partners page); otherwise every firm shows (Partner Performance page).
  */
-function PerformanceTable({ activeOnly }: { activeOnly: boolean }) {
+function PerformanceTable({
+  activeOnly,
+  initialHealth = "all",
+}: {
+  activeOnly: boolean;
+  initialHealth?: string;
+}) {
   const [search, setSearch] = useState("");
-  const [healthFilter, setHealthFilter] = useState("all");
+  const [healthFilter, setHealthFilter] = useState(initialHealth);
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({
     key: "score",
     dir: "desc",
@@ -342,10 +348,10 @@ function PerformanceTable({ activeOnly }: { activeOnly: boolean }) {
   );
 }
 
-export function PartnerPerformancePage() {
-  return <PerformanceTable activeOnly={false} />;
+export function PartnerPerformancePage({ initialHealth }: { initialHealth?: string } = {}) {
+  return <PerformanceTable activeOnly={false} initialHealth={initialHealth} />;
 }
 
-export function ActivePartnersPage() {
-  return <PerformanceTable activeOnly={true} />;
+export function ActivePartnersPage({ initialHealth }: { initialHealth?: string } = {}) {
+  return <PerformanceTable activeOnly={true} initialHealth={initialHealth} />;
 }

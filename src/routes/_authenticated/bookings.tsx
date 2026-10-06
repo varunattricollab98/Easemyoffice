@@ -74,8 +74,14 @@ const NewRenewalBookingDialog = lazy(() =>
 );
 
 export const Route = createFileRoute("/_authenticated/bookings")({
-  // Optional ?q= to pre-fill the search box (used by global search).
-  validateSearch: (s: Record<string, unknown>): { q?: string } => ({ q: typeof s.q === "string" ? s.q : undefined }),
+  // Optional ?q= to pre-fill the search box (used by global search). Optional
+  // ?source= filters by booking_source (used by the admin command-center "B2B
+  // Bookings" drill-down, ?source=b2b). Both are optional so direct navigation
+  // to /bookings is unchanged.
+  validateSearch: (s: Record<string, unknown>): { q?: string; source?: string } => ({
+    q: typeof s.q === "string" ? s.q : undefined,
+    source: typeof s.source === "string" ? s.source : undefined,
+  }),
   component: BookingsPage,
 });
 
@@ -207,7 +213,7 @@ function SortHeader({
 function BookingsPage() {
   const { isAdmin, user } = useAuth();
   const qc = useQueryClient();
-  const initialQ = Route.useSearch().q ?? "";
+  const { q: initialQ = "", source: sourceParam } = Route.useSearch();
   const [q, setQ] = useState(initialQ);
   const [agentFilter, setAgentFilter] = useState("all");
   // Fresh vs renewal — see isRenewalBooking: a Booking ID ending in R1/R2…,
@@ -306,7 +312,15 @@ function BookingsPage() {
 
   const filtered = useMemo(() => {
     const s = q.toLowerCase();
+    const sourceNeedle = (sourceParam ?? "").toLowerCase();
     return all.filter((b) => {
+      // Source filter from the ?source= param (e.g. B2B-sourced bookings drilled
+      // in from the admin command center). Matches booking_source as a substring
+      // so "b2b" catches "B2B Referral" etc.
+      if (sourceNeedle) {
+        const src = String((b as { booking_source?: string | null }).booking_source ?? "").toLowerCase();
+        if (!src.includes(sourceNeedle)) return false;
+      }
       // Sales-agent filter (admin only; "all" = no filter).
       if (agentFilter !== "all" && String(b.sales_agent_name ?? "").trim() !== agentFilter) {
         return false;
@@ -331,7 +345,7 @@ function BookingsPage() {
           .includes(s),
       );
     });
-  }, [all, q, agentFilter, typeFilter]);
+  }, [all, q, agentFilter, typeFilter, sourceParam]);
 
   const rows = useMemo(() => {
     const mult = sort.dir === "asc" ? 1 : -1;
