@@ -53,8 +53,12 @@ import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminSalesPerformanceRouteImport } from './routes/_authenticated/admin/sales-performance'
 import { Route as AuthenticatedAdminKpiReportRouteImport } from './routes/_authenticated/admin/kpi-report'
 import { Route as AuthenticatedAdminEmailAutomationRouteImport } from './routes/_authenticated/admin/email-automation'
+import { Route as AuthenticatedB2bLeadsIndexRouteImport } from './routes/_authenticated/b2b/leads/index'
+import { Route as AuthenticatedB2bFirmsIndexRouteImport } from './routes/_authenticated/b2b/firms/index'
+import { Route as AuthenticatedB2bContactsIndexRouteImport } from './routes/_authenticated/b2b/contacts/index'
 import { Route as ApiPublicHooksLeadIntakeRouteImport } from './routes/api/public/hooks/lead-intake'
 import { Route as ApiPublicHooksBalanceRemindersRouteImport } from './routes/api/public/hooks/balance-reminders'
+import { Route as AuthenticatedB2bFirmsIdRouteImport } from './routes/_authenticated/b2b/firms/$id'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -289,6 +293,24 @@ const AuthenticatedAdminEmailAutomationRoute =
     path: '/admin/email-automation',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedB2bLeadsIndexRoute =
+  AuthenticatedB2bLeadsIndexRouteImport.update({
+    id: '/b2b/leads/',
+    path: '/b2b/leads/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedB2bFirmsIndexRoute =
+  AuthenticatedB2bFirmsIndexRouteImport.update({
+    id: '/b2b/firms/',
+    path: '/b2b/firms/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedB2bContactsIndexRoute =
+  AuthenticatedB2bContactsIndexRouteImport.update({
+    id: '/b2b/contacts/',
+    path: '/b2b/contacts/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const ApiPublicHooksLeadIntakeRoute =
   ApiPublicHooksLeadIntakeRouteImport.update({
     id: '/api/public/hooks/lead-intake',
@@ -301,6 +323,11 @@ const ApiPublicHooksBalanceRemindersRoute =
     path: '/api/public/hooks/balance-reminders',
     getParentRoute: () => rootRouteImport,
   } as any)
+const AuthenticatedB2bFirmsIdRoute = AuthenticatedB2bFirmsIdRouteImport.update({
+  id: '/b2b/firms/$id',
+  path: '/b2b/firms/$id',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -346,8 +373,12 @@ export interface FileRoutesByFullPath {
   '/hrms/': typeof AuthenticatedHrmsIndexRoute
   '/leads/': typeof AuthenticatedLeadsIndexRoute
   '/renewals/': typeof AuthenticatedRenewalsIndexRoute
+  '/b2b/firms/$id': typeof AuthenticatedB2bFirmsIdRoute
   '/api/public/hooks/balance-reminders': typeof ApiPublicHooksBalanceRemindersRoute
   '/api/public/hooks/lead-intake': typeof ApiPublicHooksLeadIntakeRoute
+  '/b2b/contacts/': typeof AuthenticatedB2bContactsIndexRoute
+  '/b2b/firms/': typeof AuthenticatedB2bFirmsIndexRoute
+  '/b2b/leads/': typeof AuthenticatedB2bLeadsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -392,8 +423,12 @@ export interface FileRoutesByTo {
   '/hrms': typeof AuthenticatedHrmsIndexRoute
   '/leads': typeof AuthenticatedLeadsIndexRoute
   '/renewals': typeof AuthenticatedRenewalsIndexRoute
+  '/b2b/firms/$id': typeof AuthenticatedB2bFirmsIdRoute
   '/api/public/hooks/balance-reminders': typeof ApiPublicHooksBalanceRemindersRoute
   '/api/public/hooks/lead-intake': typeof ApiPublicHooksLeadIntakeRoute
+  '/b2b/contacts': typeof AuthenticatedB2bContactsIndexRoute
+  '/b2b/firms': typeof AuthenticatedB2bFirmsIndexRoute
+  '/b2b/leads': typeof AuthenticatedB2bLeadsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -441,8 +476,12 @@ export interface FileRoutesById {
   '/_authenticated/hrms/': typeof AuthenticatedHrmsIndexRoute
   '/_authenticated/leads/': typeof AuthenticatedLeadsIndexRoute
   '/_authenticated/renewals/': typeof AuthenticatedRenewalsIndexRoute
+  '/_authenticated/b2b/firms/$id': typeof AuthenticatedB2bFirmsIdRoute
   '/api/public/hooks/balance-reminders': typeof ApiPublicHooksBalanceRemindersRoute
   '/api/public/hooks/lead-intake': typeof ApiPublicHooksLeadIntakeRoute
+  '/_authenticated/b2b/contacts/': typeof AuthenticatedB2bContactsIndexRoute
+  '/_authenticated/b2b/firms/': typeof AuthenticatedB2bFirmsIndexRoute
+  '/_authenticated/b2b/leads/': typeof AuthenticatedB2bLeadsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -490,8 +529,12 @@ export interface FileRouteTypes {
     | '/hrms/'
     | '/leads/'
     | '/renewals/'
+    | '/b2b/firms/$id'
     | '/api/public/hooks/balance-reminders'
     | '/api/public/hooks/lead-intake'
+    | '/b2b/contacts/'
+    | '/b2b/firms/'
+    | '/b2b/leads/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -536,8 +579,12 @@ export interface FileRouteTypes {
     | '/hrms'
     | '/leads'
     | '/renewals'
+    | '/b2b/firms/$id'
     | '/api/public/hooks/balance-reminders'
     | '/api/public/hooks/lead-intake'
+    | '/b2b/contacts'
+    | '/b2b/firms'
+    | '/b2b/leads'
   id:
     | '__root__'
     | '/'
@@ -584,8 +631,12 @@ export interface FileRouteTypes {
     | '/_authenticated/hrms/'
     | '/_authenticated/leads/'
     | '/_authenticated/renewals/'
+    | '/_authenticated/b2b/firms/$id'
     | '/api/public/hooks/balance-reminders'
     | '/api/public/hooks/lead-intake'
+    | '/_authenticated/b2b/contacts/'
+    | '/_authenticated/b2b/firms/'
+    | '/_authenticated/b2b/leads/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -909,6 +960,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminEmailAutomationRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/b2b/leads/': {
+      id: '/_authenticated/b2b/leads/'
+      path: '/b2b/leads'
+      fullPath: '/b2b/leads/'
+      preLoaderRoute: typeof AuthenticatedB2bLeadsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/b2b/firms/': {
+      id: '/_authenticated/b2b/firms/'
+      path: '/b2b/firms'
+      fullPath: '/b2b/firms/'
+      preLoaderRoute: typeof AuthenticatedB2bFirmsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/b2b/contacts/': {
+      id: '/_authenticated/b2b/contacts/'
+      path: '/b2b/contacts'
+      fullPath: '/b2b/contacts/'
+      preLoaderRoute: typeof AuthenticatedB2bContactsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/api/public/hooks/lead-intake': {
       id: '/api/public/hooks/lead-intake'
       path: '/api/public/hooks/lead-intake'
@@ -922,6 +994,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/public/hooks/balance-reminders'
       preLoaderRoute: typeof ApiPublicHooksBalanceRemindersRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/b2b/firms/$id': {
+      id: '/_authenticated/b2b/firms/$id'
+      path: '/b2b/firms/$id'
+      fullPath: '/b2b/firms/$id'
+      preLoaderRoute: typeof AuthenticatedB2bFirmsIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
   }
 }
@@ -980,6 +1059,10 @@ interface AuthenticatedRouteChildren {
   AuthenticatedB2bIndexRoute: typeof AuthenticatedB2bIndexRoute
   AuthenticatedLeadsIndexRoute: typeof AuthenticatedLeadsIndexRoute
   AuthenticatedRenewalsIndexRoute: typeof AuthenticatedRenewalsIndexRoute
+  AuthenticatedB2bFirmsIdRoute: typeof AuthenticatedB2bFirmsIdRoute
+  AuthenticatedB2bContactsIndexRoute: typeof AuthenticatedB2bContactsIndexRoute
+  AuthenticatedB2bFirmsIndexRoute: typeof AuthenticatedB2bFirmsIndexRoute
+  AuthenticatedB2bLeadsIndexRoute: typeof AuthenticatedB2bLeadsIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -1017,6 +1100,10 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedB2bIndexRoute: AuthenticatedB2bIndexRoute,
   AuthenticatedLeadsIndexRoute: AuthenticatedLeadsIndexRoute,
   AuthenticatedRenewalsIndexRoute: AuthenticatedRenewalsIndexRoute,
+  AuthenticatedB2bFirmsIdRoute: AuthenticatedB2bFirmsIdRoute,
+  AuthenticatedB2bContactsIndexRoute: AuthenticatedB2bContactsIndexRoute,
+  AuthenticatedB2bFirmsIndexRoute: AuthenticatedB2bFirmsIndexRoute,
+  AuthenticatedB2bLeadsIndexRoute: AuthenticatedB2bLeadsIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

@@ -53,6 +53,47 @@ export async function getFirm(id: string): Promise<CaFirm | null> {
   return (data as CaFirm) ?? null;
 }
 
+export type NewFirm = {
+  firm_name: string;
+  firm_type?: string | null;
+  firm_size?: string | null;
+  website?: string | null;
+  phone?: string | null;
+  alt_phone?: string | null;
+  email?: string | null;
+  city?: string | null;
+  state?: string | null;
+  full_address?: string | null;
+  lead_source?: string | null;
+  source_url?: string | null;
+  partner_status?: string | null;
+  partner_since?: string | null;
+  owner?: string | null;
+  assigned_to?: string | null;
+  created_by: string;
+};
+
+export async function createFirm(input: NewFirm): Promise<CaFirm> {
+  const { data, error } = await b2bDb().from("ca_firms").insert(input).select("*").single();
+  if (error) throw new Error(error.message);
+  return data as CaFirm;
+}
+
+export type FirmPatch = Partial<Omit<NewFirm, "created_by">> & {
+  primary_contact_id?: string | null;
+};
+
+export async function updateFirm(id: string, patch: FirmPatch): Promise<CaFirm> {
+  const { data, error } = await b2bDb()
+    .from("ca_firms")
+    .update(patch)
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  return data as CaFirm;
+}
+
 /**
  * The firm 360 view: the firm plus every related record (contacts, activities,
  * partnerships, referrals) and a few rolled-up totals. Each related list is
@@ -118,6 +159,71 @@ export async function listFirmContacts(firmId: string): Promise<B2BContact[]> {
   return unwrap<B2BContact>(data, error);
 }
 
+/**
+ * All contacts across every firm the caller can see (RLS still scopes rows).
+ * Returns the firm name alongside each contact so the Contacts list can link
+ * back to the firm 360 page without a second query per row.
+ */
+export type ContactWithFirm = B2BContact & { firm_name: string | null };
+
+export async function listAllContacts(search?: string): Promise<ContactWithFirm[]> {
+  let q = b2bDb().from("b2b_contacts").select("*, ca_firms(firm_name)").order("name");
+  if (search) q = q.ilike("name", `%${search}%`);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  type Joined = B2BContact & { ca_firms: { firm_name: string | null } | null };
+  return ((data ?? []) as Joined[]).map((row) => {
+    const { ca_firms, ...rest } = row;
+    return { ...rest, firm_name: ca_firms?.firm_name ?? null };
+  });
+}
+
+export type NewContact = {
+  firm_id: string;
+  name: string;
+  designation?: string | null;
+  phone?: string | null;
+  alt_phone?: string | null;
+  email?: string | null;
+  is_primary?: boolean;
+  created_by: string;
+};
+
+export async function createContact(input: NewContact): Promise<B2BContact> {
+  const { data, error } = await b2bDb().from("b2b_contacts").insert(input).select("*").single();
+  if (error) throw new Error(error.message);
+  return data as B2BContact;
+}
+
+export type ContactPatch = Partial<Omit<NewContact, "firm_id" | "created_by">>;
+
+export async function updateContact(id: string, patch: ContactPatch): Promise<B2BContact> {
+  const { data, error } = await b2bDb()
+    .from("b2b_contacts")
+    .update(patch)
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  return data as B2BContact;
+}
+
+/**
+ * Mark a single contact as the firm's primary: clear is_primary on every other
+ * contact of the firm, set it on this one, and point ca_firms.primary_contact_id
+ * at it. Three small writes rather than a transaction (no RPC available), which
+ * is fine because RLS already scopes the rows to the owner.
+ */
+export async function setPrimaryContact(firmId: string, contactId: string): Promise<void> {
+  const db = b2bDb();
+  const clear = await db.from("b2b_contacts").update({ is_primary: false }).eq("firm_id", firmId);
+  if (clear.error) throw new Error(clear.error.message);
+  const mark = await db.from("b2b_contacts").update({ is_primary: true }).eq("id", contactId);
+  if (mark.error) throw new Error(mark.error.message);
+  const link = await db.from("ca_firms").update({ primary_contact_id: contactId }).eq("id", firmId);
+  if (link.error) throw new Error(link.error.message);
+}
+
 // ---------------------------------------------------------------------------
 // Leads
 // ---------------------------------------------------------------------------
@@ -126,7 +232,10 @@ export type B2BLeadFilters = {
   assignedTo?: string;
   status?: string;
   firmId?: string;
+  source?: string;
+  priority?: string;
   search?: string;
+  sortByFollowUp?: boolean;
 };
 
 export async function listB2BLeads(filters: B2BLeadFilters = {}): Promise<B2BLead[]> {
@@ -134,9 +243,56 @@ export async function listB2BLeads(filters: B2BLeadFilters = {}): Promise<B2BLea
   if (filters.assignedTo) q = q.eq("assigned_to", filters.assignedTo);
   if (filters.status) q = q.eq("lead_status", filters.status);
   if (filters.firmId) q = q.eq("firm_id", filters.firmId);
+  if (filters.source) q = q.eq("lead_source", filters.source);
+  if (filters.priority) q = q.eq("priority", filters.priority);
   if (filters.search) q = q.ilike("contact_person", `%${filters.search}%`);
-  const { data, error } = await q.order("created_at", { ascending: false });
+  q = filters.sortByFollowUp
+    ? q.order("next_follow_up_at", { ascending: true, nullsFirst: false })
+    : q.order("created_at", { ascending: false });
+  const { data, error } = await q;
   return unwrap<B2BLead>(data, error);
+}
+
+export type NewB2BLead = {
+  contact_person?: string | null;
+  firm_id?: string | null;
+  designation?: string | null;
+  phone?: string | null;
+  alt_phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  city?: string | null;
+  state?: string | null;
+  full_address?: string | null;
+  firm_type?: string | null;
+  firm_size?: string | null;
+  lead_source?: string | null;
+  source_url?: string | null;
+  assigned_to?: string | null;
+  lead_status?: string;
+  priority?: string | null;
+  next_follow_up_at?: string | null;
+  latest_remark?: string | null;
+  created_by: string;
+};
+
+export async function createB2BLead(input: NewB2BLead): Promise<B2BLead> {
+  const { data, error } = await b2bDb().from("b2b_leads").insert(input).select("*").single();
+  if (error) throw new Error(error.message);
+  return data as B2BLead;
+}
+
+export type B2BLeadPatch = Partial<Omit<NewB2BLead, "created_by">>;
+
+export async function updateB2BLead(id: string, patch: B2BLeadPatch): Promise<B2BLead> {
+  const { data, error } = await b2bDb()
+    .from("b2b_leads")
+    .update(patch)
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  return data as B2BLead;
 }
 
 // ---------------------------------------------------------------------------
@@ -260,4 +416,18 @@ export async function listImportBatches(): Promise<B2BImportBatch[]> {
     .select("*")
     .order("created_at", { ascending: false });
   return unwrap<B2BImportBatch>(data, error);
+}
+
+// ---------------------------------------------------------------------------
+// Profiles (for owner / assigned-to selectors and name lookups)
+// ---------------------------------------------------------------------------
+
+export type AssignableUser = { id: string; full_name: string | null; email: string | null };
+
+export async function listAssignableUsers(): Promise<AssignableUser[]> {
+  const { data, error } = await b2bDb()
+    .from("profiles")
+    .select("id, full_name, email")
+    .order("full_name");
+  return unwrap<AssignableUser>(data, error);
 }

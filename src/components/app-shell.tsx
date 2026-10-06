@@ -67,6 +67,11 @@ const NAV: NavItem[] = [
   // admin + b2b so it stays out of every other role's sidebar; admins still
   // see everything via visibleFor().
   { to: "/b2b", label: "B2B Dashboard", icon: Handshake, roles: ["admin", "b2b"] },
+  // Prospecting group — the CA firm accounts, their contacts and the
+  // prospecting leads that feed partnerships. Import Leads lands in FEAT-004.
+  { to: "/b2b/leads", label: "B2B Leads", icon: Users, roles: ["admin", "b2b"] },
+  { to: "/b2b/firms", label: "CA Firms", icon: Building2, roles: ["admin", "b2b"] },
+  { to: "/b2b/contacts", label: "Contacts", icon: UserCheck, roles: ["admin", "b2b"] },
 ];
 
 const ADMIN_NAV: NavItem[] = [
