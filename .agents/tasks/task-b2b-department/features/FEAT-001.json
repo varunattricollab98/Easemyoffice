@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "chore",
   "description": "Environment setup + baseline verification + B2B role/department foundation. Confirm the toolchain builds green, then wire the new 'b2b' department/category into the existing auth/role architecture WITHOUT touching any existing module behaviour. This is the foundation every later phase depends on: the b2b AppRole, the enum migration, nav scaffolding gate, and the shared src/lib/b2b.ts constants module. No new business tables yet.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Set up and confirm baseline: export PATH=\"/root/.nvm/versions/node/v22.23.3/bin:$PATH\"; cd /projects/sandbox/Easemyoffice; bun install --frozen-lockfile; npx tsc --noEmit (expect clean); bun run test (expect 131 passed / 10 files); bun run build (expect success emitting dist/server). Record the baseline numbers.",
     "Create migration supabase/migrations/20260517000001_b2b_role.sql containing ONLY `ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'b2b';` with a comment explaining Postgres requires a new enum value to be committed in its own transaction before any later migration/policy can reference it. This migration MUST have the earliest B2B timestamp so it is applied first.",
