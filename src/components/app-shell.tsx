@@ -2,7 +2,8 @@ import { Link, useLocation } from "@tanstack/react-router";
 import {
   LayoutDashboard, Users, Kanban, Bell, CheckSquare, FileText, Receipt,
   RefreshCcw, Activity, BarChart3, Settings, UsersRound, LogOut, Building2, BookOpen,
-  UserCheck, FileSignature, Calendar, Inbox, Trophy, Mail, AlarmClock, Phone, CalendarCheck, ShieldCheck,
+  UserCheck, FileSignature, Calendar, Inbox, Trophy, Mail, AlarmClock, Phone, CalendarCheck, ShieldCheck, Upload, History,
+  Handshake, Share2,
 } from "lucide-react";
 import { useAuth, type AppRole } from "@/lib/auth";
 import { useGlobalSearch } from "@/lib/global-search-context";
@@ -41,6 +42,10 @@ const NAV: NavItem[] = [
   // Everyone's own LOGIN / LOGOUT. The page explains itself when the login is
   // not linked to an employee record yet.
   { to: "/attendance", label: "My Attendance", icon: CalendarCheck },
+  // Everyone's own payroll readiness (working days / leave / LOP / hours), with
+  // NO salary figures — the salary slip is shared by the admin. Role-agnostic
+  // like My Attendance so B2B (and every) department staff see their own.
+  { to: "/my-payroll", label: "My Payroll", icon: Receipt },
   { to: "/notifications", label: "Notifications", icon: Inbox },
   { to: "/documentation", label: "Documentation", icon: FileText, roles: ["admin", "documentation", "sales"] },
   // "Documents" (a per-client KYC/agreement file browser) was removed — it sat
@@ -59,6 +64,66 @@ const NAV: NavItem[] = [
     icon: Trophy,
     roles: ["admin", "sales", "bd"],
   },
+  // --- B2B department -----------------------------------------------------
+  // Scaffold for the new B2B (CA firm partnerships) department. Only the top
+  // level "B2B Dashboard" entry exists this phase; the nested nav (accounts,
+  // leads, pipeline, referrals, analytics) is added in later phases. Gated to
+  // admin + b2b so it stays out of every other role's sidebar; admins still
+  // see everything via visibleFor().
+  { to: "/b2b", label: "B2B Dashboard", icon: Handshake, roles: ["admin", "b2b"] },
+  // Prospecting group — the CA firm accounts, their contacts and the
+  // prospecting leads that feed partnerships. Import Leads lands in FEAT-004.
+  { to: "/b2b/leads", label: "B2B Leads", icon: Users, roles: ["admin", "b2b"] },
+  { to: "/b2b/firms", label: "CA Firms", icon: Building2, roles: ["admin", "b2b"] },
+  { to: "/b2b/contacts", label: "Contacts", icon: UserCheck, roles: ["admin", "b2b"] },
+  { to: "/b2b/import", label: "Import Leads", icon: Upload, roles: ["admin", "b2b"] },
+  { to: "/b2b/import-history", label: "Import History", icon: History, roles: ["admin", "b2b"] },
+  // Activities group: the day-to-day work queue (tasks + follow-ups) and the
+  // call/meeting/history timelines. Added in FEAT-005.
+  { to: "/b2b/activities", label: "My Tasks", icon: CheckSquare, roles: ["admin", "b2b"] },
+  { to: "/b2b/activities/followups", label: "Follow-ups", icon: Bell, roles: ["admin", "b2b"] },
+  { to: "/b2b/activities/calls", label: "B2B Calls", icon: Phone, roles: ["admin", "b2b"] },
+  {
+    to: "/b2b/activities/meetings",
+    label: "Meetings",
+    icon: CalendarCheck,
+    roles: ["admin", "b2b"],
+  },
+  {
+    to: "/b2b/activities/history",
+    label: "Activity History",
+    icon: Activity,
+    roles: ["admin", "b2b"],
+  },
+  // Partnerships group: the drag-and-drop pipeline over the 10 B2B stages, the
+  // referrals handed into Sales, and the partner health / performance views.
+  { to: "/b2b/pipeline", label: "Partnership Pipeline", icon: Kanban, roles: ["admin", "b2b"] },
+  { to: "/b2b/referrals", label: "Referrals", icon: Share2, roles: ["admin", "b2b"] },
+  { to: "/b2b/partners", label: "Active Partners", icon: Handshake, roles: ["admin", "b2b"] },
+  {
+    to: "/b2b/partner-performance",
+    label: "Partner Performance",
+    icon: Trophy,
+    roles: ["admin", "b2b"],
+  },
+  // Analytics group (FEAT-007): the B2B dashboard + the four analytics screens.
+  // The dashboard entry above (/b2b) is the home; these are the deep-dive
+  // reports. recharts lives in their route chunks, out of the entry bundle.
+  { to: "/b2b/analytics/performance", label: "B2B Performance", icon: BarChart3, roles: ["admin", "b2b"] },
+  { to: "/b2b/analytics/source", label: "Source Analytics", icon: Share2, roles: ["admin", "b2b"] },
+  {
+    to: "/b2b/analytics/employee",
+    label: "Employee Performance",
+    icon: UsersRound,
+    roles: ["admin", "b2b"],
+  },
+  { to: "/b2b/analytics/revenue", label: "Revenue Analytics", icon: Receipt, roles: ["admin", "b2b"] },
+  // Partner lifecycle (FEAT-008): relationship-health renewals and the partner
+  // onboarding documentation checklist. Attendance / Payroll for B2B staff flow
+  // through the shared "My Attendance" / "My Payroll" items above (role-agnostic
+  // employee-facing pages); the HRMS admin screens stay in ADMIN_NAV.
+  { to: "/b2b/renewals", label: "B2B Renewals", icon: RefreshCcw, roles: ["admin", "b2b"] },
+  { to: "/b2b/documentation", label: "B2B Documentation", icon: FileText, roles: ["admin", "b2b"] },
 ];
 
 const ADMIN_NAV: NavItem[] = [

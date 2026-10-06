@@ -34,6 +34,14 @@ import { subscribeRealtime } from "@/lib/realtime-manager";
 import { usePagePerf } from "@/lib/perf";
 import { RenewalDashboardInline } from "@/components/dashboard/renewal-dashboard-inline";
 import { DocumentationDashboardInline } from "@/components/dashboard/documentation-dashboard-inline";
+
+// Admin-only cross-module command center (spec section 23). Lazy so it (and its
+// cross-module query bundle) never ships to non-admins.
+const AdminCommandCenter = lazy(() =>
+  import("@/components/dashboard/admin-command-center").then((m) => ({
+    default: m.AdminCommandCenter,
+  })),
+);
 import {
   affectedKeysFor,
   resolveScope,
@@ -106,13 +114,15 @@ function DashboardPage() {
     !roles.includes("sales") &&
     !roles.includes("bd") &&
     !roles.includes("renewals");
-  const [dashView, setDashView] = useState<"fresh" | "renewals">(
+  const [dashView, setDashView] = useState<"fresh" | "renewals" | "command">(
     isRenewalOnly ? "renewals" : "fresh",
   );
 
-  // Available views based on role
+  // Available views based on role. The admin command center (cross-module KPIs)
+  // is admin-only and leads the list for them.
   const availableViews = useMemo(() => {
-    const views: { id: "fresh" | "renewals"; label: string }[] = [];
+    const views: { id: "fresh" | "renewals" | "command"; label: string }[] = [];
+    if (isAdmin) views.push({ id: "command", label: "Command Center" });
     if (isAdmin || roles.includes("sales") || roles.includes("bd"))
       views.push({ id: "fresh", label: "Fresh Sales" });
     if (isAdmin || roles.includes("renewals")) views.push({ id: "renewals", label: "Renewals" });
@@ -181,6 +191,40 @@ function DashboardPage() {
     return (
       <div className="min-h-full">
         <DocumentationDashboardInline />
+      </div>
+    );
+  }
+
+  // Admin command center — cross-module KPIs. Admin-only: the view is only
+  // offered to admins (availableViews) and this render is additionally gated on
+  // isAdmin so a non-admin can never reach it even by forcing the state.
+  if (dashView === "command" && isAdmin) {
+    return (
+      <div className="min-h-full">
+        {availableViews.length > 1 && (
+          <div className="px-5 md:px-10 pt-4 max-w-[1400px] mx-auto">
+            <div className="inline-flex rounded-lg border bg-muted/40 p-1 gap-1">
+              {availableViews.map((view) => (
+                <button
+                  key={view.id}
+                  onClick={() => setDashView(view.id)}
+                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ease-out ${
+                    dashView === view.id
+                      ? "bg-background shadow-sm text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {view.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="p-5 md:p-10 max-w-[1400px] mx-auto">
+          <Suspense fallback={<div className="p-8 text-sm text-muted-foreground">Loading…</div>}>
+            <AdminCommandCenter />
+          </Suspense>
+        </div>
       </div>
     );
   }

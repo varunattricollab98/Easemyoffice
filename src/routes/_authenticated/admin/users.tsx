@@ -17,7 +17,15 @@ export const Route = createFileRoute("/_authenticated/admin/users")({
   component: AdminUsersPage,
 });
 
-const ROLE_OPTIONS = ["sales", "bd", "documentation", "accounts", "renewals", "admin"] as const;
+const ROLE_OPTIONS = [
+  "sales",
+  "bd",
+  "documentation",
+  "accounts",
+  "renewals",
+  "b2b",
+  "admin",
+] as const;
 type Role = (typeof ROLE_OPTIONS)[number];
 
 // Protected super-admin account — role cannot be changed or removed from UI.
@@ -96,7 +104,7 @@ function AdminUsersPage() {
       }
       if (form.role !== "sales") {
         await supabase.from("user_roles").delete().eq("user_id", uid);
-        const { error: rErr } = await supabase.from("user_roles").insert({ user_id: uid, role: form.role });
+        const { error: rErr } = await supabase.from("user_roles").insert({ user_id: uid, role: form.role as never });
         if (rErr) throw new Error(rErr.message);
       }
       if (form.department.trim()) {
@@ -118,7 +126,7 @@ function AdminUsersPage() {
       const targetUser = (usersQ.data ?? []).find((u: any) => u.id === v.user_id);
       if (targetUser?.email === PROTECTED_EMAIL) throw new Error("This account's role is fixed and cannot be changed.");
       await supabase.from("user_roles").delete().eq("user_id", v.user_id);
-      const { error } = await supabase.from("user_roles").insert({ user_id: v.user_id, role: v.role });
+      const { error } = await supabase.from("user_roles").insert({ user_id: v.user_id, role: v.role as never });
       if (error) throw new Error(error.message);
     },
     onSuccess: () => { toast.success("Role updated"); qc.invalidateQueries({ queryKey: ["admin-team-users"] }); },

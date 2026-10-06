@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 // the actual create/edit/delete the user performed.
 
 export type AuditAction = "create" | "edit" | "delete" | "stage_change" | "assign";
-export type AuditEntity = "lead" | "booking";
+export type AuditEntity = "lead" | "booking" | "ca_firm" | "b2b_lead" | "referral";
 
 export function logAudit(input: {
   actorId: string | null | undefined;
