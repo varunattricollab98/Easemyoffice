@@ -308,6 +308,97 @@ export async function listPartnerships(firmId?: string): Promise<Partnership[]> 
   return unwrap<Partnership>(data, error);
 }
 
+/**
+ * A partnership joined to its firm so the pipeline board can render the firm
+ * name, location and owner on each card. RLS scopes which rows return.
+ */
+export type PartnershipWithFirm = Partnership & {
+  firm_name: string | null;
+  firm_city: string | null;
+  firm_state: string | null;
+};
+
+export async function listPartnershipsWithFirm(): Promise<PartnershipWithFirm[]> {
+  const { data, error } = await b2bDb()
+    .from("partnerships")
+    .select("*, ca_firms(firm_name, city, state)")
+    .order("opened_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  type Joined = Partnership & {
+    ca_firms: { firm_name: string | null; city: string | null; state: string | null } | null;
+  };
+  return ((data ?? []) as Joined[]).map((r) => {
+    const { ca_firms, ...rest } = r;
+    return {
+      ...rest,
+      firm_name: ca_firms?.firm_name ?? null,
+      firm_city: ca_firms?.city ?? null,
+      firm_state: ca_firms?.state ?? null,
+    };
+  });
+}
+
+export type NewPartnership = {
+  firm_id: string;
+  stage?: string | null;
+  status?: Partnership["status"];
+  value?: number | null;
+  assigned_to?: string | null;
+  created_by: string;
+};
+
+export async function createPartnership(input: NewPartnership): Promise<Partnership> {
+  const { data, error } = await b2bDb()
+    .from("partnerships")
+    .insert({ status: "open", ...input })
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  return data as Partnership;
+}
+
+/**
+ * Move a partnership to a new pipeline stage or a closed outcome. For a forward
+ * stage move only partnerships.stage changes; for a lost/closed outcome the
+ * caller passes status 'lost' (or 'won') plus a mandatory reason, which stamps
+ * closed_at and outcome_reason. When the firm reaches a partnered stage the
+ * caller may also pass firmPartnerStatus to refresh ca_firms.partner_status.
+ * logAudit + the timeline activity are written by the caller.
+ */
+export async function updatePartnershipStage(input: {
+  id: string;
+  firmId: string;
+  stage: string;
+  status?: Partnership["status"];
+  outcomeReason?: string | null;
+  firmPartnerStatus?: string | null;
+  closedAt?: string;
+}): Promise<void> {
+  const db = b2bDb();
+  const patch: Record<string, unknown> = { stage: input.stage };
+  if (input.status) {
+    patch.status = input.status;
+    if (input.status === "lost" || input.status === "won") {
+      patch.closed_at = input.closedAt ?? new Date().toISOString();
+      patch.outcome_reason = input.outcomeReason ?? null;
+    } else {
+      // Reopened into a forward stage.
+      patch.closed_at = null;
+      patch.outcome_reason = null;
+    }
+  }
+  const upd = await db.from("partnerships").update(patch).eq("id", input.id);
+  if (upd.error) throw new Error(upd.error.message);
+
+  if (input.firmPartnerStatus !== undefined && input.firmPartnerStatus !== null) {
+    const firmUpd = await db
+      .from("ca_firms")
+      .update({ partner_status: input.firmPartnerStatus })
+      .eq("id", input.firmId);
+    if (firmUpd.error) throw new Error(firmUpd.error.message);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Referrals
 // ---------------------------------------------------------------------------
@@ -365,6 +456,62 @@ export async function createActivity(input: NewActivity): Promise<B2BActivity> {
   return data as B2BActivity;
 }
 
+/**
+ * Activity row joined to the firm name and lead contact, so the Calls /
+ * Meetings / Activity History feeds can label and link each row back to its
+ * firm or lead without a per-row query. RLS still scopes which rows return.
+ */
+export type ActivityWithRefs = B2BActivity & {
+  firm_name: string | null;
+  lead_contact: string | null;
+};
+
+export type ActivityFeedFilters = {
+  type?: B2BActivity["type"];
+  firmId?: string;
+  leadId?: string;
+  createdBy?: string;
+  /** Inclusive lower bound on happened_at (ISO string). */
+  from?: string;
+  /** Exclusive upper bound on happened_at (ISO string). */
+  to?: string;
+  limit?: number;
+};
+
+/**
+ * Chronological activity feed across firms/leads (most recent first), filtered
+ * by type / firm / lead / creator / date range. Used by the Calls, Meetings and
+ * Activity History screens.
+ */
+export async function listActivityFeed(
+  filters: ActivityFeedFilters = {},
+): Promise<ActivityWithRefs[]> {
+  let q = b2bDb()
+    .from("b2b_activities")
+    .select("*, ca_firms(firm_name), b2b_leads(contact_person)");
+  if (filters.type) q = q.eq("type", filters.type);
+  if (filters.firmId) q = q.eq("firm_id", filters.firmId);
+  if (filters.leadId) q = q.eq("lead_id", filters.leadId);
+  if (filters.createdBy) q = q.eq("created_by", filters.createdBy);
+  if (filters.from) q = q.gte("happened_at", filters.from);
+  if (filters.to) q = q.lt("happened_at", filters.to);
+  q = q.order("happened_at", { ascending: false }).limit(filters.limit ?? 500);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  type Joined = B2BActivity & {
+    ca_firms: { firm_name: string | null } | null;
+    b2b_leads: { contact_person: string | null } | null;
+  };
+  return ((data ?? []) as Joined[]).map((r) => {
+    const { ca_firms, b2b_leads, ...rest } = r;
+    return {
+      ...rest,
+      firm_name: ca_firms?.firm_name ?? null,
+      lead_contact: b2b_leads?.contact_person ?? null,
+    };
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Follow-ups
 // ---------------------------------------------------------------------------
@@ -399,6 +546,142 @@ export async function updateFollowup(id: string, patch: FollowupPatch): Promise<
     .single();
   if (error) throw new Error(error.message);
   return data as B2BFollowup;
+}
+
+/**
+ * A follow-up joined to its firm name and lead contact so the Follow-ups page
+ * and My Tasks can label and link each row without a per-row lookup.
+ */
+export type FollowupWithRefs = B2BFollowup & {
+  firm_name: string | null;
+  lead_contact: string | null;
+};
+
+export async function listFollowupsWithRefs(
+  scope: FollowupScope = {},
+): Promise<FollowupWithRefs[]> {
+  let q = b2bDb().from("b2b_followups").select("*, ca_firms(firm_name), b2b_leads(contact_person)");
+  if (scope.assignedTo) q = q.eq("assigned_to", scope.assignedTo);
+  if (scope.leadId) q = q.eq("lead_id", scope.leadId);
+  if (scope.firmId) q = q.eq("firm_id", scope.firmId);
+  if (scope.status) q = q.eq("status", scope.status);
+  const { data, error } = await q.order("due_at");
+  if (error) throw new Error(error.message);
+  type Joined = B2BFollowup & {
+    ca_firms: { firm_name: string | null } | null;
+    b2b_leads: { contact_person: string | null } | null;
+  };
+  return ((data ?? []) as Joined[]).map((r) => {
+    const { ca_firms, b2b_leads, ...rest } = r;
+    return {
+      ...rest,
+      firm_name: ca_firms?.firm_name ?? null,
+      lead_contact: b2b_leads?.contact_person ?? null,
+    };
+  });
+}
+
+export type NewFollowup = {
+  lead_id?: string | null;
+  firm_id?: string | null;
+  due_at: string;
+  remark?: string | null;
+  assigned_to?: string | null;
+  created_by: string;
+};
+
+export async function createFollowup(input: NewFollowup): Promise<B2BFollowup> {
+  const { data, error } = await b2bDb()
+    .from("b2b_followups")
+    .insert({ ...input, status: "pending" })
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  return data as B2BFollowup;
+}
+
+/**
+ * Complete a follow-up inline from the list and (optionally) schedule the next
+ * one, without opening the firm page. This performs the full workflow from spec
+ * section 10 as a sequence of small writes (no RPC available; RLS scopes every
+ * row to the owner):
+ *   1. mark THIS follow-up done + stamp completed_at + save its remark;
+ *   2. bump the related lead's follow_up_count and refresh
+ *      last_contacted_at / next_follow_up_at / latest_remark;
+ *   3. write a b2b_activities row of type 'followup' for the timeline;
+ *   4. if a next date is given, create the next pending follow-up.
+ * logAudit is left to the caller (it needs the actor and is fire-and-forget).
+ */
+export async function completeFollowup(input: {
+  followup: B2BFollowup;
+  remark: string | null;
+  nextDueAt: string | null;
+  outcome?: string | null;
+  actorId: string;
+  completedAt?: string;
+}): Promise<void> {
+  const db = b2bDb();
+  const now = input.completedAt ?? new Date().toISOString();
+  const { followup } = input;
+
+  const done = await db
+    .from("b2b_followups")
+    .update({ status: "done", completed_at: now, remark: input.remark })
+    .eq("id", followup.id);
+  if (done.error) throw new Error(done.error.message);
+
+  // Refresh the related lead's follow-up fields and increment the counter.
+  if (followup.lead_id) {
+    const existing = await db
+      .from("b2b_leads")
+      .select("follow_up_count")
+      .eq("id", followup.lead_id)
+      .maybeSingle();
+    const current = Number(
+      (existing.data as { follow_up_count?: number } | null)?.follow_up_count ?? 0,
+    );
+    const leadPatch: Record<string, unknown> = {
+      last_contacted_at: now,
+      next_follow_up_at: input.nextDueAt,
+      follow_up_count: current + 1,
+    };
+    if (input.remark) leadPatch.latest_remark = input.remark;
+    const upd = await db.from("b2b_leads").update(leadPatch).eq("id", followup.lead_id);
+    if (upd.error) throw new Error(upd.error.message);
+  }
+
+  // Keep the firm's last-contact fresh too (firms carry no follow_up_count).
+  if (followup.firm_id) {
+    const upd = await db.from("ca_firms").update({ updated_at: now }).eq("id", followup.firm_id);
+    if (upd.error) throw new Error(upd.error.message);
+  }
+
+  // Timeline entry.
+  const act = await db.from("b2b_activities").insert({
+    type: "followup",
+    firm_id: followup.firm_id,
+    lead_id: followup.lead_id,
+    subject: "Follow-up completed",
+    notes: input.remark,
+    outcome: input.outcome ?? null,
+    happened_at: now,
+    created_by: input.actorId,
+  });
+  if (act.error) throw new Error(act.error.message);
+
+  // Schedule the next follow-up if the user picked a date.
+  if (input.nextDueAt) {
+    const next = await db.from("b2b_followups").insert({
+      lead_id: followup.lead_id,
+      firm_id: followup.firm_id,
+      due_at: input.nextDueAt,
+      status: "pending",
+      remark: input.remark,
+      assigned_to: followup.assigned_to ?? input.actorId,
+      created_by: input.actorId,
+    });
+    if (next.error) throw new Error(next.error.message);
+  }
 }
 
 // ---------------------------------------------------------------------------

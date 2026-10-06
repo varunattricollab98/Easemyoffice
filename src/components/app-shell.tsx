@@ -74,6 +74,25 @@ const NAV: NavItem[] = [
   { to: "/b2b/contacts", label: "Contacts", icon: UserCheck, roles: ["admin", "b2b"] },
   { to: "/b2b/import", label: "Import Leads", icon: Upload, roles: ["admin", "b2b"] },
   { to: "/b2b/import-history", label: "Import History", icon: History, roles: ["admin", "b2b"] },
+  // Activities group: the day-to-day work queue (tasks + follow-ups) and the
+  // call/meeting/history timelines. Added in FEAT-005.
+  { to: "/b2b/activities", label: "My Tasks", icon: CheckSquare, roles: ["admin", "b2b"] },
+  { to: "/b2b/activities/followups", label: "Follow-ups", icon: Bell, roles: ["admin", "b2b"] },
+  { to: "/b2b/activities/calls", label: "B2B Calls", icon: Phone, roles: ["admin", "b2b"] },
+  {
+    to: "/b2b/activities/meetings",
+    label: "Meetings",
+    icon: CalendarCheck,
+    roles: ["admin", "b2b"],
+  },
+  {
+    to: "/b2b/activities/history",
+    label: "Activity History",
+    icon: Activity,
+    roles: ["admin", "b2b"],
+  },
+  // Partnerships group: the drag-and-drop pipeline over the 10 B2B stages.
+  { to: "/b2b/pipeline", label: "Partnership Pipeline", icon: Kanban, roles: ["admin", "b2b"] },
 ];
 
 const ADMIN_NAV: NavItem[] = [
