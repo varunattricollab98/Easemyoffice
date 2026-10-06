@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { QuickPunch } from "@/components/hrms/quick-punch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -140,13 +141,17 @@ export function DocumentationDashboardInline() {
   return (
     <div className="p-5 md:p-10 max-w-[1400px] mx-auto space-y-5">
       {/* Header */}
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-          {profile?.full_name?.split(" ")[0] ?? "Your"}&apos;s Documentation Dashboard
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {dateLabel} &middot; Your documentation tasks at a glance
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
+            {profile?.full_name?.split(" ")[0] ?? "Your"}&apos;s Documentation Dashboard
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {dateLabel} &middot; Your documentation tasks at a glance
+          </p>
+        </div>
+        {/* Attendance LOGIN / LOGOUT, top right. */}
+        <QuickPunch />
       </div>
 
       {/* Period filter */}

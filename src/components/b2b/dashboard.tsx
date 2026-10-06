@@ -38,6 +38,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { KpiTile } from "@/components/dashboard/widgets/kpi-tile";
+import { QuickPunch } from "@/components/hrms/quick-punch";
 import { formatINR } from "@/lib/utils";
 import { b2bAnalyticsQuery } from "@/lib/b2b-analytics-queries";
 import { listAssignableUsers, type AssignableUser } from "@/lib/b2b-queries";
@@ -177,7 +178,7 @@ export function B2BDashboard() {
 
   return (
     <div className="space-y-6">
-      <header className="flex items-center gap-3">
+      <header className="flex flex-wrap items-center gap-3">
         <div className="grid size-10 place-items-center rounded-lg bg-gradient-to-br from-primary to-primary/70 text-primary-foreground">
           <Building2 className="h-5 w-5" />
         </div>
@@ -186,6 +187,10 @@ export function B2BDashboard() {
           <p className="text-sm text-muted-foreground">
             CA firm partnerships, referrals and prospecting at a glance
           </p>
+        </div>
+        {/* Attendance LOGIN / LOGOUT, top right. */}
+        <div className="ml-auto">
+          <QuickPunch />
         </div>
       </header>
 
