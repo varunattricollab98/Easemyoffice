@@ -1,0 +1,12 @@
+-- B2B department foundation — add the 'b2b' value to the app_role enum.
+--
+-- This MUST be the earliest B2B migration (timestamp 20260517000001) so the
+-- value exists before any later B2B migration or RLS policy references it.
+--
+-- Postgres forbids using a newly added enum value in the SAME transaction that
+-- adds it (ERROR: unsafe use of new value ... of enum type). So this one
+-- statement lives alone in its own migration/transaction; the value is
+-- committed here and only referenced by migrations applied afterwards.
+--
+-- Idempotent: ADD VALUE IF NOT EXISTS is a no-op if 'b2b' is already present.
+ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'b2b';

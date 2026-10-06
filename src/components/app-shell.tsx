@@ -3,6 +3,7 @@ import {
   LayoutDashboard, Users, Kanban, Bell, CheckSquare, FileText, Receipt,
   RefreshCcw, Activity, BarChart3, Settings, UsersRound, LogOut, Building2, BookOpen,
   UserCheck, FileSignature, Calendar, Inbox, Trophy, Mail, AlarmClock, Phone, CalendarCheck, ShieldCheck,
+  Handshake,
 } from "lucide-react";
 import { useAuth, type AppRole } from "@/lib/auth";
 import { useGlobalSearch } from "@/lib/global-search-context";
@@ -59,6 +60,13 @@ const NAV: NavItem[] = [
     icon: Trophy,
     roles: ["admin", "sales", "bd"],
   },
+  // --- B2B department -----------------------------------------------------
+  // Scaffold for the new B2B (CA firm partnerships) department. Only the top
+  // level "B2B Dashboard" entry exists this phase; the nested nav (accounts,
+  // leads, pipeline, referrals, analytics) is added in later phases. Gated to
+  // admin + b2b so it stays out of every other role's sidebar; admins still
+  // see everything via visibleFor().
+  { to: "/b2b", label: "B2B Dashboard", icon: Handshake, roles: ["admin", "b2b"] },
 ];
 
 const ADMIN_NAV: NavItem[] = [

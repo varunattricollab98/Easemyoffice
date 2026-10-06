@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-005",
+  "type": "feat",
+  "description": "B2B Activities + Follow-up system + Partnership Pipeline board. Builds the activity screens (My Tasks, Follow-ups, Calls, Meetings, Activity History), the follow-up workflow (today/upcoming/overdue with inline update from the list), and the drag-and-drop Partnership Pipeline modeled on the existing pipeline.tsx. Depends on FEAT-002 (b2b_activities, b2b_followups, partnerships) and FEAT-003 (firm/lead screens).",
+  "status": "pending",
+  "steps": [
+    "Activities routes under src/routes/_authenticated/b2b/activities/: index.tsx 'My Tasks' (tasks + followups assigned to the current user, admin sees all), calls.tsx (b2b_activities type='call'), meetings.tsx (type='meeting'), history.tsx 'Activity History' (full chronological feed, filterable by firm/lead/type/date). Reuse the activity logging/display pattern from leads/$id.tsx and the Calls section pattern. Each activity row links to its firm/lead/contact.",
+    "Follow-ups route src/routes/_authenticated/b2b/activities/followups.tsx (and surface the same data on the dashboard in FEAT-006): three buckets — Today's Follow-ups, Upcoming, Overdue — computed from b2b_followups.due_at vs now. Support inline update directly from the list (mark done, set next follow-up date + remark) WITHOUT opening the firm page, mirroring spec section 10. Each update: set status, stamp completed_at, increment b2b_leads.follow_up_count, update last_contacted_at/next_follow_up_at/latest_remark on the related lead/firm, write a b2b_activities followup row, and logAudit. Put the bucketing (today/upcoming/overdue) in a pure helper in src/lib/b2b-followups.ts with tests in b2b-followups.test.ts.",
+    "Partnership Pipeline route src/routes/_authenticated/b2b/pipeline.tsx — a drag-and-drop board over the 10 B2B_PIPELINE_STAGES (New Prospect -> Active Partner) from src/lib/b2b.ts, with lost/closed outcomes handled separately (a column or a move-to-closed action requiring a reason, like the Sales pipeline's Lost/Not-Interested reason dialog). Model directly on src/routes/_authenticated/pipeline.tsx (same @dnd-kit usage, card layout, optimistic stage update + rollback). Moving a card updates partnerships.stage (and ca_firms.partner_status where appropriate) and logs an activity + audit entry. Admin sees all; b2b users see their assigned firms/partnerships (RLS enforces).",
+    "Add 'Pipeline' plus the Activities subgroup (My Tasks, Follow-ups, Calls, Meetings, Activity History) to the B2B sidebar section. guardRoles(['admin','b2b']) on all new routes.",
+    "Follow the performance rule: do NOT export the pipeline board component from the route file (TanStack code-splitter leaves it unsplit) — if the board is heavy, put it in src/components/b2b/partnership-pipeline.tsx and lazy-load, matching how renewal-dashboard.tsx was extracted.",
+    "Rebuild to regenerate routeTree.gen.ts and commit. Prettier new files; no new eslint errors on touched files."
+  ],
+  "acceptance_criteria": [
+    "Activity screens (My Tasks, Calls, Meetings, Activity History) render B2B activities with a chronological timeline and link back to firm/lead/contact.",
+    "Follow-ups page shows Today/Upcoming/Overdue buckets and allows marking done + setting the next follow-up with a remark inline from the list, updating the lead's follow-up fields and writing an activity + audit row.",
+    "A drag-and-drop Partnership Pipeline over the 10 stages works like the Sales pipeline, with separate lost/closed handling requiring a reason, updating partnerships/firm status.",
+    "Bucketing logic is pure and tested in b2b-followups.test.ts.",
+    "`npx tsc --noEmit` clean, `bun run test` green, `bun run build` succeeds; no component is exported from a route file into the entry chunk."
+  ],
+  "verification": [
+    "export PATH=\"/root/.nvm/versions/node/v22.23.3/bin:$PATH\" && cd /projects/sandbox/Easemyoffice && npx tsc --noEmit",
+    "bun run test",
+    "bun run build",
+    "Confirm the pipeline board is defined in a component file (not exported from the route) so it stays out of the entry chunk."
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

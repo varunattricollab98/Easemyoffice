@@ -1,0 +1,32 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "B2B Prospecting module UI: CA Firms list, B2B Leads list, Contacts, the CA Firm 360-degree profile page, and the full nested B2B sidebar section. This turns the FEAT-002 schema into usable screens using the existing design system (Card/Table/Tabs/Badge/Select/Dialog) and the leads module as the pattern. Firms are first-class accounts; a firm has many contacts; leads/prospects reference a firm.",
+  "status": "pending",
+  "steps": [
+    "Expand the B2B sidebar section in src/components/app-shell.tsx to the full structure from spec section 2, gated to roles ['admin','b2b'] (admin sees all via visibleFor). Group under a B2B heading: Dashboard, Prospecting (B2B Leads, CA Firms, Contacts, Import Leads), Activities (My Tasks, Follow-ups, Calls, Meetings, Activity History), Partnerships (Pipeline, Active Partners, Referrals, Partner Performance), Analytics (B2B Performance, Source Analytics, Employee Performance, Revenue Analytics), Renewals, Documentation, Attendance, Payroll. Follow the existing NAV item shape; only add links to routes that exist after each phase, but you MAY create the section now and point not-yet-built items at a 'coming soon' placeholder OR add them incrementally — prefer adding the Prospecting group fully here and the rest in their phases. Keep MobileTabBar working (it derives from the same arrays).",
+    "Create route src/routes/_authenticated/b2b/firms/index.tsx — CA Firms list. Columns: Firm Name, Partner Status (badge), City/State, Owner (assigned_to -> profile full_name), Primary Contact, Total Referrals, Total Revenue, Last Contact, Next Follow-up. Use the existing Table primitive, filters (search box, status select, assigned-to select, city/state) modeled on leads/index.tsx. Row click navigates to the firm 360 page. Add a 'New CA Firm' dialog (reuse Dialog + form patterns). RLS already scopes rows; admin sees all. guardRoles(['admin','b2b']).",
+    "Create route src/routes/_authenticated/b2b/firms/$id.tsx — the CA Firm 360-degree profile (spec sections 5 & 6). Layout with Tabs or sections: Firm Information header (name, partner status, owner, location, partner since, primary contact); Performance strip (Total Referrals, Total Bookings, Total Revenue, Last Referral, Last Booking, Last Contact) via b2b-queries getFirm360; Contacts tab (list + add/edit contact dialog, mark primary); Activity Timeline tab (chronological b2b_activities: calls/whatsapp/emails/meetings/notes/followups with icons, plus a 'log activity' action); Partnerships/Opportunities tab (open partnerships for this firm); Referrals tab (referrals from this firm with convert/link status); Documents + Notes section; Next action / follow-up panel with inline update. Reuse clients/client-detail-dialog.tsx and leads/$id.tsx as patterns for timeline + logging.",
+    "Create route src/routes/_authenticated/b2b/leads/index.tsx — B2B Leads/Prospects list with the fields from spec section 4 and the full B2B_LEAD_STATUSES as the status filter/badges (from src/lib/b2b.ts). Include search, status filter, assigned-to filter, source filter, priority, next-follow-up sort. 'New B2B Lead' dialog. Each row links to the firm (or a lead detail). Model closely on src/routes/_authenticated/leads/index.tsx including mobile card fallback for responsiveness.",
+    "Create route src/routes/_authenticated/b2b/contacts/index.tsx — Contacts list across firms (name, designation, firm, phone, email), searchable, each links to its firm 360. Reuse Table.",
+    "Wire activity logging: when a user logs a call/whatsapp/email/meeting/note from the firm 360 or a lead, insert a b2b_activities row via b2b-queries.createActivity and refresh the timeline (TanStack Query invalidation). Also call logAudit for create/edit/status/assignment on firms and leads (extend AuditEntity in src/lib/audit.ts to include 'ca_firm' | 'b2b_lead' | 'referral').",
+    "Ensure every new route uses guardRoles(queryClient, ['admin','b2b']) in beforeLoad. Rebuild to regenerate routeTree.gen.ts and commit it. Prettier new files; no new eslint errors on touched files.",
+    "Responsiveness: tables must degrade to cards or horizontal scroll on mobile like leads/index.tsx; verify classes, since the sandbox cannot run a dev server."
+  ],
+  "acceptance_criteria": [
+    "CA Firms list, B2B Leads list, and Contacts list render with existing design-system components, filters, and role-guarded routes; data reads through b2bDb()/b2b-queries with RLS scoping.",
+    "A CA Firm has a working 360 profile page showing firm info, performance totals, contacts (add/edit, mark primary), chronological activity timeline, partnerships, referrals, documents/notes, and an inline next-follow-up update.",
+    "Multiple contacts can belong to one firm and are shown under that firm.",
+    "B2B sidebar Prospecting group is present and visible only to admin + b2b users; existing nav unaffected.",
+    "logAudit is invoked for B2B create/edit/status/assignment; AuditEntity extended.",
+    "`npx tsc --noEmit` clean, `bun run test` green, `bun run build` succeeds and regenerates routeTree.gen.ts."
+  ],
+  "verification": [
+    "export PATH=\"/root/.nvm/versions/node/v22.23.3/bin:$PATH\" && cd /projects/sandbox/Easemyoffice && npx tsc --noEmit",
+    "bun run test",
+    "bun run build",
+    "Confirm new /b2b/firms, /b2b/firms/$id, /b2b/leads, /b2b/contacts routes are registered in routeTree.gen.ts and all use guardRoles(['admin','b2b'])."
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

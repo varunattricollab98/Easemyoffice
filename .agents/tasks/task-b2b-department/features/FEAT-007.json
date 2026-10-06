@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-007",
+  "type": "feat",
+  "description": "B2B Dashboard + B2B Analytics + Source Analytics + Employee/Revenue analytics. Builds the dedicated B2B dashboard (KPI cards, funnel, activity section, employee leaderboard, partner health, source performance) and the Analytics screens, reusing the existing dashboard widgets/KPI tiles, recharts chart components, and the report-metrics/report-period analytics maths pattern. Depends on all prior data phases.",
+  "status": "pending",
+  "steps": [
+    "Replace the FEAT-001 stub at src/routes/_authenticated/b2b/index.tsx with the real B2B Dashboard (spec section 3). Top KPI cards (reuse src/components/dashboard/widgets/kpi-tile.tsx and count-up): Total Prospects, Contacted, Interested, Active Partners, Follow-ups Due, Meetings This Week, Referrals This Month, B2B Bookings This Month, B2B Revenue This Month. Show period-over-period change where the existing KPI tile supports it.",
+    "B2B Funnel: a visual funnel over New Prospect -> Data Verified -> First Contact -> Contacted -> Interested -> Meeting/Discussion -> Partnership Discussion -> Partner Onboarded -> First Referral -> Active Partner, showing count and conversion percentage per stage. Put the funnel count/conversion computation in a pure tested helper in src/lib/b2b-analytics.ts (b2b-analytics.test.ts).",
+    "Activity section (Calls Made, WhatsApp/Communication, Emails, Meetings, Follow-ups Completed, Overdue Follow-ups), Employee leaderboard (Employee, Prospects Assigned, Prospects Contacted, Calls, Follow-ups, Meetings, Partners Onboarded, Referrals, Bookings, Revenue — sortable/filterable), Partner health distribution (Active & Referring, Active but No Recent Referral, Potential, Dormant, Lost), and Source performance table (Source, Prospects, Contacted, Interested, Meetings, Partners, Referrals, Bookings, Revenue). Reuse the leaderboard/table styling from admin/sales-performance.tsx.",
+    "Analytics routes under src/routes/_authenticated/b2b/analytics/: performance.tsx 'B2B Performance', source.tsx 'Source Analytics', employee.tsx 'Employee Performance', revenue.tsx 'Revenue Analytics'. Filters (spec section 14): Date Range, Month, Employee, City, State, Source, Firm Type, Partner Status, Lead Status — follow report-period.ts for the period controls. Charts/reports (reuse recharts via src/components/ui/chart.tsx and the recharts usage in sales-performance.tsx): Prospects Added by Month, Contact Rate, Response Rate, Meetings, Partnerships, Referrals, Bookings, Revenue, Revenue per Partner, Employee Performance, Source Performance. Source Analytics must read the configurable b2b_sources table (not a hardcoded list) and report the per-source funnel through to Bookings/Revenue.",
+    "All analytics aggregation maths that is pure goes into src/lib/b2b-analytics.ts with unit tests (funnel conversion, contact/response rate, per-source rollups, leaderboard aggregation, revenue-per-partner). Keep heavy chart components out of route-file exports (lazy-load from src/components/b2b/* if large) per the entry-chunk performance rule.",
+    "Add Dashboard + the Analytics subgroup to the B2B sidebar. guardRoles(['admin','b2b']) (b2b users see their own-scoped data via RLS; admin sees all). Rebuild/commit routeTree.gen.ts. Prettier new files."
+  ],
+  "acceptance_criteria": [
+    "B2B Dashboard shows all 9 KPI cards, the 10-stage funnel with counts + conversion %, the activity section, a sortable/filterable employee leaderboard, partner-health distribution, and source performance.",
+    "Analytics screens (B2B Performance, Source Analytics, Employee Performance, Revenue Analytics) render the listed charts/reports with the full filter set; Source Analytics uses the configurable b2b_sources table.",
+    "All funnel/rate/rollup maths lives in tested src/lib/b2b-analytics.ts and tests pass.",
+    "Reuses existing KPI tile, chart, and leaderboard components; no heavy component exported from a route file.",
+    "`npx tsc --noEmit` clean, `bun run test` green, `bun run build` succeeds."
+  ],
+  "verification": [
+    "export PATH=\"/root/.nvm/versions/node/v22.23.3/bin:$PATH\" && cd /projects/sandbox/Easemyoffice && npx tsc --noEmit",
+    "bun run test",
+    "bun run build",
+    "Confirm b2b-analytics.test.ts covers funnel conversion and per-source rollups and would fail if the maths were reverted."
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

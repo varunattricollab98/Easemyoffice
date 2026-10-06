@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "B2B CSV Import system (upload -> preview -> column map -> validate -> duplicate detection -> assignment -> import) plus Import History. Reuses the proven CSV parsing + synonym auto-map + preview flow from src/routes/_authenticated/leads/import.tsx, adapted to the CA-firm/B2B-lead data model and writing a b2b_import_batches record that stamps every imported row's import_batch_id.",
+  "status": "pending",
+  "steps": [
+    "Create route src/routes/_authenticated/b2b/import.tsx. Copy the robust parseCSV + normalizeHeader + synonym-based auto-map + preview approach from leads/import.tsx (do NOT reinvent; csv.ts has only export helpers). Map B2B fields: Firm Name, Contact Person, Designation, Phone, Alternate Phone, Email, Website, City, State, Full Address, Firm Type, Firm Size, Lead Source, Source URL (spec section 7 step 3). Required: Firm Name + at least one of Phone/Email.",
+    "Step 4 Validate: flag rows missing required fields or with malformed phone/email as Invalid, with per-row reasons (follow the skippedReasons pattern).",
+    "Step 5 Duplicate detection: detect possible duplicates against existing ca_firms/b2b_leads AND within the uploaded file using combinations: exact phone (last-10-digit normalized), email, firm_name+city, website. Compute and display the summary tiles: Total Records, New Records, Possible Duplicates, Invalid Records. Let the user review flagged duplicates and choose per-batch whether to skip duplicates or import anyway (checkbox/toggle), mirroring the leads duplicate UX.",
+    "Step 6 Assignment: provide three modes — assign all to a specific B2B user (profile select), assign to the B2B team (leave unassigned / assigned_to null for pool pickup), or round-robin across selected B2B users (deterministic cycling in a pure helper). Put the round-robin + validation + dedupe logic in src/lib/b2b-import.ts as PURE functions and cover them in src/lib/b2b-import.test.ts (round-robin distribution, phone-normalized dedupe, firm_name+city dedupe, invalid detection).",
+    "Step 7 Import: in one flow, (a) insert a b2b_import_batches row capturing source, file name, uploaded_by, and the counts (total/new/duplicate/invalid/assigned); (b) create/dedupe ca_firms (one firm per unique firm identity) and attach contacts; (c) insert b2b_leads rows stamped with import_batch_id and the chosen assigned_to. Chunk inserts (~200) like leads/import.tsx. Show a completion summary with counts and a link to the batch.",
+    "Create route src/routes/_authenticated/b2b/import/history.tsx (or b2b/import-history.tsx) — Import History list (spec section 8): Import ID, Date, Uploaded By, Source, File Name, Total, New, Duplicate, Invalid, Assigned. Clicking a batch opens the records for that import_batch_id (filter the B2B Leads list by batch, or a detail view).",
+    "Add 'Import Leads' under the Prospecting nav group and 'Import History' reachable from it. guardRoles(['admin','b2b']) on both routes. RLS already allows b2b users to insert their own batches/leads; admin sees all.",
+    "Rebuild to regenerate routeTree.gen.ts and commit. Prettier new files."
+  ],
+  "acceptance_criteria": [
+    "The import page supports the full 7-step flow: upload, preview, column mapping, validation, duplicate detection with Total/New/Duplicate/Invalid counts and review, assignment (specific user / team / round-robin), and import.",
+    "Imported rows create/dedupe CA Firms + contacts and B2B leads, all stamped with the batch's import_batch_id.",
+    "A b2b_import_batches row is written per import with correct counts; Import History lists batches and drills into their records.",
+    "Pure validate/dedupe/round-robin logic lives in src/lib/b2b-import.ts and is covered by b2b-import.test.ts (all tests pass).",
+    "`npx tsc --noEmit` clean, `bun run test` green, `bun run build` succeeds."
+  ],
+  "verification": [
+    "export PATH=\"/root/.nvm/versions/node/v22.23.3/bin:$PATH\" && cd /projects/sandbox/Easemyoffice && npx tsc --noEmit",
+    "bun run test",
+    "bun run build",
+    "Confirm b2b-import.test.ts exercises round-robin distribution and the four dedupe key combinations and would fail if the logic were reverted."
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

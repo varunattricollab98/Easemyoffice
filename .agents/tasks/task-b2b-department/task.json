@@ -1,0 +1,17 @@
+{
+  "task_id": "task-b2b-department",
+  "task_description": "Add a complete, additive B2B department/category to the existing EaseMyOffice CRM: a new 'b2b' role/department wired into the existing auth architecture; a relational data model (CA Firms as accounts, Contacts, B2B Leads, Import Batches, Activities, Follow-ups, Partnerships, Referrals, configurable Sources) with server-side RLS; CSV import with mapping/validation/dedupe/assignment + import history; CA Firm 360 profile; partnership pipeline; referral management linked to Sales Leads/Bookings; partner performance + scoring; a B2B dashboard, analytics and source analytics; B2B renewals (partner health) and B2B documentation (onboarding checklist); B2B employees flowing through the EXISTING shared Attendance (geofenced, server-side), Leave and Payroll (HRMS) with strict owner-only salary visibility; an admin command-center dashboard with cross-module KPIs and drill-down; and B2B entities indexed in global search. Reuses the existing design system, components, auth, permissions and DB patterns throughout. Strictly additive and backward-compatible: Sales/Renewals/Documentation/Accounts/HRMS keep working unchanged. All migrations are authored idempotent and applied by the owner (no Supabase creds in sandbox).",
+  "status": "in_progress",
+  "feature_order": [
+    "FEAT-001",
+    "FEAT-002",
+    "FEAT-003",
+    "FEAT-004",
+    "FEAT-005",
+    "FEAT-006",
+    "FEAT-007",
+    "FEAT-008",
+    "FEAT-009"
+  ],
+  "blocked_reason": null
+}

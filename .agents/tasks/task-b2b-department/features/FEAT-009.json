@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-009",
+  "type": "feat",
+  "description": "Admin command-center dashboard with cross-module KPIs and click-through drill-down, plus global-search indexing of B2B entities and a final backward-compatibility + permissions hardening pass. This completes the admin visibility requirement (spec section 23/24), the search requirement (section 29), and verifies the whole module is additive, server-side-permissioned, and non-breaking.",
+  "status": "pending",
+  "steps": [
+    "Extend the Admin dashboard (src/routes/_authenticated/dashboard.tsx + src/components/dashboard/*, admin-only sections) into the central command center from spec section 23. Add grouped KPI blocks: Business Overview (Total Sales Leads, Total B2B Prospects, Active CA Partners, Total Referrals, Total Bookings, Total Revenue); Sales Performance (team performance, conversion, revenue, pipeline — reuse existing sales widgets); B2B Performance (Prospects, Contact Rate, Meetings, Partners, Referrals, B2B Bookings, B2B Revenue, Top B2B Employees, Top CA Partners); Renewals (due/pending/completed, dormant); Documentation (pending/delayed/completed, TAT breaches); Attendance (present/absent/late/on-leave/missing-checkout/working-hours); Payroll (pending/processed/total cost/department-wise/LOP). Reuse existing dashboard-kpis.ts / dashboard-queries.ts and the HRMS/renewals/documentation query helpers; add b2b rollups via b2b-analytics. Keep this admin-only (do not expose to non-admins).",
+    "Make KPIs drill-down: clicking a KPI navigates to the underlying record list with the matching filter applied via route search params (spec examples: 'Active CA Partners' -> /b2b/partners filtered to active; 'B2B Bookings' -> bookings filtered to B2B-sourced; 'Overdue Follow-ups' -> /b2b/activities/followups filtered to overdue). Use TanStack Router search params / Link `search` so the destination list reads and applies the filter. Ensure each target list route accepts those params.",
+    "Global search: extend src/components/global-search.tsx (and its data sources) to index CA Firms, B2B Leads, Contacts, and Referrals in addition to existing entities, matching on firm name, contact name, phone, email, lead code/ID, referral id. Reuse the existing command-palette UI and the global-search-context. Keep result queries RLS-scoped (users only find what they may see; admin finds all).",
+    "Admin filters: ensure the admin can filter B2B lists by Department, Employee, Date, Status, Source, Location where those lists exist (spec section 24) — add any missing filter controls, reusing existing filter UI.",
+    "Backward-compatibility + permissions audit pass: (a) verify no existing migration/table/edge-function was modified; (b) verify existing Sales/Renewals/Documentation/Accounts/HRMS routes still build and are untouched in behaviour; (c) spot-check that every new B2B table has RLS enabled with admin-full + owner-scoped policies and that nothing grants a non-admin access to other users' salary or other departments' confidential data; (d) confirm the b2b role sees only assigned B2B records and own attendance/payroll per spec section 25. Record findings.",
+    "Final full gate: export node PATH; bun install --frozen-lockfile; npx tsc --noEmit; bun run test; bun run build; confirm routeTree.gen.ts committed. Prettier new files; no new eslint errors on touched files."
+  ],
+  "acceptance_criteria": [
+    "Admin dashboard shows the Business Overview + Sales + B2B + Renewals + Documentation + Attendance + Payroll KPI groups in one place, admin-only.",
+    "Clicking a KPI drills down into the underlying filtered record list (verified for at least the three spec examples: Active CA Partners, B2B Bookings, Overdue Follow-ups).",
+    "Global search finds CA Firms, Contacts, B2B Leads, Referrals by name/phone/email/ID, RLS-scoped.",
+    "A documented backward-compatibility + permissions audit confirms: no existing migration/table/edge-function changed; every new B2B table has RLS with admin-full + owner-scoped policies; no non-admin can read other employees' salary or other departments' confidential data.",
+    "`npx tsc --noEmit` clean, `bun run test` green, `bun run build` succeeds."
+  ],
+  "verification": [
+    "export PATH=\"/root/.nvm/versions/node/v22.23.3/bin:$PATH\" && cd /projects/sandbox/Easemyoffice && npx tsc --noEmit",
+    "bun run test",
+    "bun run build",
+    "git diff --stat against the task base branch to confirm only additive files (new routes, new migrations, new lib modules) plus the intended edits to auth.tsx, app-shell.tsx, users.tsx, audit.ts, dashboard, global-search; no existing migration file modified.",
+    "grep the new migrations to confirm every CREATE TABLE is followed by ENABLE ROW LEVEL SECURITY and policies."
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

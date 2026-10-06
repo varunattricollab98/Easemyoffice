@@ -3,7 +3,7 @@ import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { setAnalyticsActor } from "@/lib/analytics";
 
-export type AppRole = "admin" | "sales" | "documentation" | "accounts" | "renewals" | "bd";
+export type AppRole = "admin" | "sales" | "documentation" | "accounts" | "renewals" | "bd" | "b2b";
 
 export interface Profile {
   id: string;

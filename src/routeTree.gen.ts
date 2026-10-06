@@ -37,6 +37,7 @@ import { Route as AuthenticatedActivityRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedRenewalsIndexRouteImport } from './routes/_authenticated/renewals/index'
 import { Route as AuthenticatedLeadsIndexRouteImport } from './routes/_authenticated/leads/index'
 import { Route as AuthenticatedHrmsIndexRouteImport } from './routes/_authenticated/hrms/index'
+import { Route as AuthenticatedB2bIndexRouteImport } from './routes/_authenticated/b2b/index'
 import { Route as AuthenticatedRenewalsPipelineRouteImport } from './routes/_authenticated/renewals/pipeline'
 import { Route as AuthenticatedRenewalsLeadsRouteImport } from './routes/_authenticated/renewals/leads'
 import { Route as AuthenticatedRenewalsInboxRouteImport } from './routes/_authenticated/renewals/inbox'
@@ -197,6 +198,11 @@ const AuthenticatedHrmsIndexRoute = AuthenticatedHrmsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedHrmsRoute,
 } as any)
+const AuthenticatedB2bIndexRoute = AuthenticatedB2bIndexRouteImport.update({
+  id: '/b2b/',
+  path: '/b2b/',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedRenewalsPipelineRoute =
   AuthenticatedRenewalsPipelineRouteImport.update({
     id: '/renewals/pipeline',
@@ -336,6 +342,7 @@ export interface FileRoutesByFullPath {
   '/renewals/inbox': typeof AuthenticatedRenewalsInboxRoute
   '/renewals/leads': typeof AuthenticatedRenewalsLeadsRoute
   '/renewals/pipeline': typeof AuthenticatedRenewalsPipelineRoute
+  '/b2b/': typeof AuthenticatedB2bIndexRoute
   '/hrms/': typeof AuthenticatedHrmsIndexRoute
   '/leads/': typeof AuthenticatedLeadsIndexRoute
   '/renewals/': typeof AuthenticatedRenewalsIndexRoute
@@ -381,6 +388,7 @@ export interface FileRoutesByTo {
   '/renewals/inbox': typeof AuthenticatedRenewalsInboxRoute
   '/renewals/leads': typeof AuthenticatedRenewalsLeadsRoute
   '/renewals/pipeline': typeof AuthenticatedRenewalsPipelineRoute
+  '/b2b': typeof AuthenticatedB2bIndexRoute
   '/hrms': typeof AuthenticatedHrmsIndexRoute
   '/leads': typeof AuthenticatedLeadsIndexRoute
   '/renewals': typeof AuthenticatedRenewalsIndexRoute
@@ -429,6 +437,7 @@ export interface FileRoutesById {
   '/_authenticated/renewals/inbox': typeof AuthenticatedRenewalsInboxRoute
   '/_authenticated/renewals/leads': typeof AuthenticatedRenewalsLeadsRoute
   '/_authenticated/renewals/pipeline': typeof AuthenticatedRenewalsPipelineRoute
+  '/_authenticated/b2b/': typeof AuthenticatedB2bIndexRoute
   '/_authenticated/hrms/': typeof AuthenticatedHrmsIndexRoute
   '/_authenticated/leads/': typeof AuthenticatedLeadsIndexRoute
   '/_authenticated/renewals/': typeof AuthenticatedRenewalsIndexRoute
@@ -477,6 +486,7 @@ export interface FileRouteTypes {
     | '/renewals/inbox'
     | '/renewals/leads'
     | '/renewals/pipeline'
+    | '/b2b/'
     | '/hrms/'
     | '/leads/'
     | '/renewals/'
@@ -522,6 +532,7 @@ export interface FileRouteTypes {
     | '/renewals/inbox'
     | '/renewals/leads'
     | '/renewals/pipeline'
+    | '/b2b'
     | '/hrms'
     | '/leads'
     | '/renewals'
@@ -569,6 +580,7 @@ export interface FileRouteTypes {
     | '/_authenticated/renewals/inbox'
     | '/_authenticated/renewals/leads'
     | '/_authenticated/renewals/pipeline'
+    | '/_authenticated/b2b/'
     | '/_authenticated/hrms/'
     | '/_authenticated/leads/'
     | '/_authenticated/renewals/'
@@ -785,6 +797,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHrmsIndexRouteImport
       parentRoute: typeof AuthenticatedHrmsRoute
     }
+    '/_authenticated/b2b/': {
+      id: '/_authenticated/b2b/'
+      path: '/b2b'
+      fullPath: '/b2b/'
+      preLoaderRoute: typeof AuthenticatedB2bIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/renewals/pipeline': {
       id: '/_authenticated/renewals/pipeline'
       path: '/renewals/pipeline'
@@ -958,6 +977,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedRenewalsInboxRoute: typeof AuthenticatedRenewalsInboxRoute
   AuthenticatedRenewalsLeadsRoute: typeof AuthenticatedRenewalsLeadsRoute
   AuthenticatedRenewalsPipelineRoute: typeof AuthenticatedRenewalsPipelineRoute
+  AuthenticatedB2bIndexRoute: typeof AuthenticatedB2bIndexRoute
   AuthenticatedLeadsIndexRoute: typeof AuthenticatedLeadsIndexRoute
   AuthenticatedRenewalsIndexRoute: typeof AuthenticatedRenewalsIndexRoute
 }
@@ -994,6 +1014,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedRenewalsInboxRoute: AuthenticatedRenewalsInboxRoute,
   AuthenticatedRenewalsLeadsRoute: AuthenticatedRenewalsLeadsRoute,
   AuthenticatedRenewalsPipelineRoute: AuthenticatedRenewalsPipelineRoute,
+  AuthenticatedB2bIndexRoute: AuthenticatedB2bIndexRoute,
   AuthenticatedLeadsIndexRoute: AuthenticatedLeadsIndexRoute,
   AuthenticatedRenewalsIndexRoute: AuthenticatedRenewalsIndexRoute,
 }

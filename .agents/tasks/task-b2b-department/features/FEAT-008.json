@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-008",
+  "type": "feat",
+  "description": "B2B Renewals (partner relationship health) + B2B Documentation (partner onboarding checklist) + wiring B2B employees into the shared Attendance/Leave/Payroll (HRMS) modules. Renewals and Documentation reuse the existing renewals and documentation designs. Attendance/Leave/Payroll are EXTENDED (not rebuilt) so B2B department employees flow through the existing HRMS exactly like other departments, preserving strict owner-only salary visibility.",
+  "status": "pending",
+  "steps": [
+    "B2B Renewals route src/routes/_authenticated/b2b/renewals.tsx (spec section 16) — partner-relationship-health focus, modeled on src/routes/_authenticated/renewals/index.tsx. Show: Active Partners, Partners with No Recent Referral, Dormant Partners, Partners Due for Follow-up, and per-partner Last Referral, Last Booking, Total Referrals, Total Revenue, Next Follow-up. Drive it off ca_firms + referrals + b2b_followups aggregates (reuse b2b-analytics/b2b-scoring). Allow setting/advancing a follow-up inline. guardRoles(['admin','b2b']).",
+    "B2B Documentation route src/routes/_authenticated/b2b/documentation.tsx (spec section 17) — partner onboarding checklist reusing the existing Documentation design/components (src/routes/_authenticated/documentation.tsx pattern + its migration 20260514000001). Checklist items: Firm Details, Contact Details, Agreement, Required Documents, Partner Terms, Referral Process Explained, Communication Setup, Onboarding Completed, with a progress percentage, plus Pending Documents, Completed Documents, TAT, Delayed Documents. Add a migration supabase/migrations/20260517000003_b2b_documentation.sql for a b2b_onboarding_tasks/checklist table (idempotent, RLS admin-full + assigned/created b2b-user-scoped) OR reuse the documentation_tasks table with a b2b type flag if that integrates cleanly — prefer a dedicated b2b table to avoid disturbing existing Documentation. Tie each checklist to a ca_firm.",
+    "Attendance: add 'Attendance' to the B2B sidebar pointing at the EXISTING /attendance route (My Attendance is already role-agnostic / visible to all). Confirm a user with the b2b role + a linked employees row flows through the existing attendance-punch edge function and HRMS admin screens with NO code change to the punch/geofence logic. If the HRMS employee/department wiring needs the 'B2B' department to exist, ensure a 'B2B' row exists in public.departments (idempotent INSERT ... ON CONFLICT DO NOTHING in a small migration if not already present) so admins can assign B2B employees to it. Do NOT modify attendance-punch, hr-requests, or the geofence/server-side validation.",
+    "Leave: confirm the existing leave flow (hr-requests edge fn, leave_requests, approvals hub) covers B2B employees unchanged; add the 'Attendance'/leave visibility to B2B users only via the existing shared routes (no new leave system). Admins approve/reject as today.",
+    "Payroll: add 'Payroll' to the B2B sidebar. Employees (incl. B2B) must see ONLY their own payroll — reuse the EXISTING HRMS payroll/salary screens and their owner-only RLS (salary_slips/employee_salary are admin-only for reads today; the employee-facing payroll-readiness view shows working days/present/paid-unpaid leave/LOP/hours/status WITHOUT salary figures). If no employee-facing 'My Payroll' summary route exists yet, add a read-only one that surfaces ONLY the current user's own working-days/present/leave/LOP/hours/payroll-status derived from their own attendance (never salary, never other employees), strictly RLS-scoped to self. Admin keeps the full /hrms/salary payroll view. Under NO circumstances expose other employees' salary to a normal/B2B user — mirror the existing salary RLS exactly.",
+    "Verify the strict salary isolation: re-read the existing salary RLS (migration 20260516000008) and ensure any new employee-facing payroll view selects only auth.uid()'s own data and does not read salary_slips/employee_salary unless admin. Add a note in the feature findings describing exactly which tables the employee view reads.",
+    "Rebuild/commit routeTree.gen.ts. Prettier new files; no new eslint errors on touched files."
+  ],
+  "acceptance_criteria": [
+    "B2B Renewals page shows partner-health buckets (active, no-recent-referral, dormant, due-for-follow-up) with per-partner last referral/booking, totals, next follow-up, and inline follow-up update.",
+    "B2B Documentation page shows the 8-item onboarding checklist per CA firm with progress %, pending/completed counts, TAT and delayed indicators, reusing the Documentation design.",
+    "B2B department employees flow through the EXISTING attendance (geofenced, server-side), leave, and payroll modules with no modification to attendance-punch/hr-requests/geofence logic; 'Attendance' and 'Payroll' appear in the B2B sidebar.",
+    "A normal/B2B employee can see only their OWN payroll/working-days/leave/LOP info and NEVER any salary figure of another employee; admin sees all payroll. Salary RLS unchanged and strictly owner-only.",
+    "Any new migration (b2b documentation, B2B department row) is additive and idempotent.",
+    "`npx tsc --noEmit` clean, `bun run test` green, `bun run build` succeeds."
+  ],
+  "verification": [
+    "export PATH=\"/root/.nvm/versions/node/v22.23.3/bin:$PATH\" && cd /projects/sandbox/Easemyoffice && npx tsc --noEmit",
+    "bun run test",
+    "bun run build",
+    "Re-read the employee-facing payroll view and confirm it reads only auth.uid()'s own rows and never selects another user's salary; confirm attendance-punch/hr-requests edge functions are byte-unchanged."
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
