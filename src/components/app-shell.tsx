@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, Kanban, Bell, CheckSquare, FileText, Receipt,
   RefreshCcw, Activity, BarChart3, Settings, UsersRound, LogOut, Building2, BookOpen,
   UserCheck, FileSignature, Calendar, Inbox, Trophy, Mail, AlarmClock, Phone, CalendarCheck, ShieldCheck, Upload, History,
-  Handshake, Share2,
+  Handshake, Share2, ChevronDown, ChevronRight,
 } from "lucide-react";
 import { useAuth, type AppRole } from "@/lib/auth";
 import { useGlobalSearch } from "@/lib/global-search-context";
@@ -23,125 +23,203 @@ import { Download, MoreHorizontal, Share } from "lucide-react";
 // roles: undefined = visible to all authenticated users
 type NavItem = { to: string; label: string; icon: typeof Users; roles?: AppRole[] };
 
-const NAV: NavItem[] = [
+/** A sidebar node is either a plain leaf link or a collapsible group header. */
+type NavGroup = {
+  label: string;
+  icon: typeof Users;
+  roles?: AppRole[];
+  children: NavItem[];
+};
+type NavNode = NavItem | NavGroup;
+
+function isNavGroup(n: NavNode): n is NavGroup {
+  return "children" in n;
+}
+
+// ---------------------------------------------------------------------------
+// Sales section (flat items, grouped for visual clarity)
+// ---------------------------------------------------------------------------
+const SALES_NAV: NavNode[] = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/pipeline", label: "Pipeline", icon: Kanban, roles: ["admin", "sales", "bd"] },
-  { to: "/inbox", label: "Lead Inbox", icon: Mail, roles: ["admin", "sales", "bd"] },
-  { to: "/calls", label: "Calls", icon: Phone, roles: ["admin", "sales", "bd"] },
-  { to: "/leads", label: "Leads", icon: Users, roles: ["admin", "sales", "bd"] },
-  { to: "/renewals/inbox", label: "Renewal Inbox", icon: Mail, roles: ["admin", "renewals"] },
-  { to: "/renewals/leads", label: "Renewal Leads", icon: Users, roles: ["admin", "renewals"] },
-  { to: "/renewals/pipeline", label: "Renewal Pipeline", icon: Kanban, roles: ["admin", "renewals"] },
-  // "Renewal Bookings" was merged into Bookings, which now carries a
-  // Fresh / Renewal filter and the renewal creation form.
+  {
+    label: "Sales",
+    icon: Users,
+    roles: ["admin", "sales", "bd"],
+    children: [
+      { to: "/pipeline", label: "Pipeline", icon: Kanban, roles: ["admin", "sales", "bd"] },
+      { to: "/inbox", label: "Lead Inbox", icon: Mail, roles: ["admin", "sales", "bd"] },
+      { to: "/calls", label: "Calls", icon: Phone, roles: ["admin", "sales", "bd"] },
+      { to: "/leads", label: "Leads", icon: Users, roles: ["admin", "sales", "bd"] },
+      { to: "/activity", label: "Activity", icon: Activity, roles: ["admin", "sales", "bd"] },
+      {
+        to: "/admin/sales-performance",
+        label: "Sales Performance",
+        icon: Trophy,
+        roles: ["admin", "sales", "bd"],
+      },
+    ],
+  },
+  {
+    label: "Renewals",
+    icon: RefreshCcw,
+    roles: ["admin", "renewals"],
+    children: [
+      { to: "/renewals/inbox", label: "Renewal Inbox", icon: Mail, roles: ["admin", "renewals"] },
+      { to: "/renewals/leads", label: "Renewal Leads", icon: Users, roles: ["admin", "renewals"] },
+      { to: "/renewals/pipeline", label: "Renewal Pipeline", icon: Kanban, roles: ["admin", "renewals"] },
+    ],
+  },
   { to: "/clients", label: "Clients", icon: UserCheck, roles: ["admin", "sales", "bd", "renewals", "accounts"] },
   { to: "/follow-ups", label: "Follow-ups", icon: Bell, roles: ["admin", "sales", "bd", "renewals"] },
   { to: "/reminders", label: "Reminders", icon: AlarmClock, roles: ["admin", "sales", "bd", "renewals"] },
   { to: "/calendar", label: "Calendar", icon: Calendar },
   { to: "/tasks", label: "Tasks", icon: CheckSquare },
-  // Everyone's own LOGIN / LOGOUT. The page explains itself when the login is
-  // not linked to an employee record yet.
   { to: "/attendance", label: "My Attendance", icon: CalendarCheck },
-  // Everyone's own payroll readiness (working days / leave / LOP / hours), with
-  // NO salary figures — the salary slip is shared by the admin. Role-agnostic
-  // like My Attendance so B2B (and every) department staff see their own.
   { to: "/my-payroll", label: "My Payroll", icon: Receipt },
   { to: "/notifications", label: "Notifications", icon: Inbox },
   { to: "/documentation", label: "Documentation", icon: FileText, roles: ["admin", "documentation", "sales"] },
-  // "Documents" (a per-client KYC/agreement file browser) was removed — it sat
-  // next to Documentation, which is the workflow the team actually uses.
   { to: "/bookings", label: "Bookings", icon: BookOpen, roles: ["admin", "sales", "bd", "accounts", "renewals"] },
   { to: "/invoices", label: "Invoices", icon: FileSignature, roles: ["admin", "accounts"] },
   { to: "/payments", label: "Payments", icon: Receipt, roles: ["admin", "accounts", "sales"] },
-  { to: "/activity", label: "Activity", icon: Activity, roles: ["admin", "sales", "bd"] },
   { to: "/reports", label: "Reports", icon: BarChart3, roles: ["admin"] },
-  // Rep-facing now, not an admin tool: the page scopes itself so a sales user
-  // sees their own closures, activity and productivity index. Moved out of
-  // ADMIN_NAV so it sits with the day-to-day items rather than after Settings.
-  {
-    to: "/admin/sales-performance",
-    label: "Sales Performance",
-    icon: Trophy,
-    roles: ["admin", "sales", "bd"],
-  },
-  // --- B2B department -----------------------------------------------------
-  // Scaffold for the new B2B (CA firm partnerships) department. Only the top
-  // level "B2B Dashboard" entry exists this phase; the nested nav (accounts,
-  // leads, pipeline, referrals, analytics) is added in later phases. Gated to
-  // admin + b2b so it stays out of every other role's sidebar; admins still
-  // see everything via visibleFor().
+];
+
+// ---------------------------------------------------------------------------
+// B2B department: collapsible groups per user spec
+// ---------------------------------------------------------------------------
+const B2B_NAV: NavNode[] = [
   { to: "/b2b", label: "B2B Dashboard", icon: Handshake, roles: ["admin", "b2b"] },
-  // Prospecting group — the CA firm accounts, their contacts and the
-  // prospecting leads that feed partnerships. Import Leads lands in FEAT-004.
-  { to: "/b2b/leads", label: "B2B Leads", icon: Users, roles: ["admin", "b2b"] },
-  { to: "/b2b/firms", label: "CA Firms", icon: Building2, roles: ["admin", "b2b"] },
-  { to: "/b2b/contacts", label: "Contacts", icon: UserCheck, roles: ["admin", "b2b"] },
-  { to: "/b2b/import", label: "Import Leads", icon: Upload, roles: ["admin", "b2b"] },
-  { to: "/b2b/import-history", label: "Import History", icon: History, roles: ["admin", "b2b"] },
-  // Activities group: the day-to-day work queue (tasks + follow-ups) and the
-  // call/meeting/history timelines. Added in FEAT-005.
-  { to: "/b2b/activities", label: "My Tasks", icon: CheckSquare, roles: ["admin", "b2b"] },
-  { to: "/b2b/activities/followups", label: "Follow-ups", icon: Bell, roles: ["admin", "b2b"] },
-  { to: "/b2b/activities/calls", label: "B2B Calls", icon: Phone, roles: ["admin", "b2b"] },
   {
-    to: "/b2b/activities/meetings",
-    label: "Meetings",
-    icon: CalendarCheck,
+    label: "Prospecting",
+    icon: Users,
     roles: ["admin", "b2b"],
+    children: [
+      { to: "/b2b/leads", label: "B2B Leads", icon: Users, roles: ["admin", "b2b"] },
+      { to: "/b2b/firms", label: "CA Firms", icon: Building2, roles: ["admin", "b2b"] },
+      { to: "/b2b/contacts", label: "Contacts", icon: UserCheck, roles: ["admin", "b2b"] },
+      { to: "/b2b/import", label: "Import Leads", icon: Upload, roles: ["admin", "b2b"] },
+      {
+        to: "/b2b/import-history",
+        label: "Import History",
+        icon: History,
+        roles: ["admin", "b2b"],
+      },
+    ],
   },
   {
-    to: "/b2b/activities/history",
-    label: "Activity History",
+    label: "Activities",
     icon: Activity,
     roles: ["admin", "b2b"],
+    children: [
+      { to: "/b2b/activities", label: "My Tasks", icon: CheckSquare, roles: ["admin", "b2b"] },
+      { to: "/b2b/activities/followups", label: "Follow-ups", icon: Bell, roles: ["admin", "b2b"] },
+      { to: "/b2b/activities/calls", label: "B2B Calls", icon: Phone, roles: ["admin", "b2b"] },
+      {
+        to: "/b2b/activities/meetings",
+        label: "Meetings",
+        icon: CalendarCheck,
+        roles: ["admin", "b2b"],
+      },
+      {
+        to: "/b2b/activities/history",
+        label: "Activity History",
+        icon: Activity,
+        roles: ["admin", "b2b"],
+      },
+    ],
   },
-  // Partnerships group: the drag-and-drop pipeline over the 10 B2B stages, the
-  // referrals handed into Sales, and the partner health / performance views.
-  { to: "/b2b/pipeline", label: "Partnership Pipeline", icon: Kanban, roles: ["admin", "b2b"] },
-  { to: "/b2b/referrals", label: "Referrals", icon: Share2, roles: ["admin", "b2b"] },
-  { to: "/b2b/partners", label: "Active Partners", icon: Handshake, roles: ["admin", "b2b"] },
   {
-    to: "/b2b/partner-performance",
-    label: "Partner Performance",
-    icon: Trophy,
+    label: "Partnerships",
+    icon: Handshake,
     roles: ["admin", "b2b"],
+    children: [
+      { to: "/b2b/pipeline", label: "Partnership Pipeline", icon: Kanban, roles: ["admin", "b2b"] },
+      { to: "/b2b/partners", label: "Active Partners", icon: Handshake, roles: ["admin", "b2b"] },
+      { to: "/b2b/referrals", label: "Referrals", icon: Share2, roles: ["admin", "b2b"] },
+      {
+        to: "/b2b/partner-performance",
+        label: "Partner Performance",
+        icon: Trophy,
+        roles: ["admin", "b2b"],
+      },
+    ],
   },
-  // Analytics group (FEAT-007): the B2B dashboard + the four analytics screens.
-  // The dashboard entry above (/b2b) is the home; these are the deep-dive
-  // reports. recharts lives in their route chunks, out of the entry bundle.
-  { to: "/b2b/analytics/performance", label: "B2B Performance", icon: BarChart3, roles: ["admin", "b2b"] },
-  { to: "/b2b/analytics/source", label: "Source Analytics", icon: Share2, roles: ["admin", "b2b"] },
   {
-    to: "/b2b/analytics/employee",
-    label: "Employee Performance",
-    icon: UsersRound,
+    label: "Analytics",
+    icon: BarChart3,
     roles: ["admin", "b2b"],
+    children: [
+      {
+        to: "/b2b/analytics/performance",
+        label: "B2B Performance",
+        icon: BarChart3,
+        roles: ["admin", "b2b"],
+      },
+      {
+        to: "/b2b/analytics/source",
+        label: "Source Analytics",
+        icon: Share2,
+        roles: ["admin", "b2b"],
+      },
+      {
+        to: "/b2b/analytics/employee",
+        label: "Employee Performance",
+        icon: UsersRound,
+        roles: ["admin", "b2b"],
+      },
+      {
+        to: "/b2b/analytics/revenue",
+        label: "Revenue Analytics",
+        icon: Receipt,
+        roles: ["admin", "b2b"],
+      },
+    ],
   },
-  { to: "/b2b/analytics/revenue", label: "Revenue Analytics", icon: Receipt, roles: ["admin", "b2b"] },
-  // Partner lifecycle (FEAT-008): relationship-health renewals and the partner
-  // onboarding documentation checklist. Attendance / Payroll for B2B staff flow
-  // through the shared "My Attendance" / "My Payroll" items above (role-agnostic
-  // employee-facing pages); the HRMS admin screens stay in ADMIN_NAV.
   { to: "/b2b/renewals", label: "B2B Renewals", icon: RefreshCcw, roles: ["admin", "b2b"] },
   { to: "/b2b/documentation", label: "B2B Documentation", icon: FileText, roles: ["admin", "b2b"] },
 ];
 
-const ADMIN_NAV: NavItem[] = [
-  // HRMS — one admin hub (Attendance / Employees / Office & Hours tabs): there
-  // is no separate HR person, the admin runs all of it. RLS is the real
-  // boundary; this entry just keeps the pages out of a rep's sidebar.
+// ---------------------------------------------------------------------------
+// Admin section
+// ---------------------------------------------------------------------------
+const ADMIN_NAV: NavNode[] = [
   { to: "/hrms", label: "Staff & Attendance", icon: ShieldCheck, roles: ["admin"] },
-  // Analytics and Activity Log were removed: Analytics duplicated Reports and
-  // Sales Performance, and Activity Log read the audit trail that Activity
-  // already sits next to in the nav. The audit_log table keeps being written,
-  // so a viewer can be brought back without any data loss.
   { to: "/admin/email-automation", label: "Email Automation", icon: Mail, roles: ["admin"] },
-  // The old read-only /team page was removed and this one took its label: it is
-  // the same list plus the role/department editing and user create/delete that
-  // /team said was "coming next phase".
   { to: "/admin/users", label: "Team", icon: UsersRound, roles: ["admin"] },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
+
+/** The full ordered nav tree. */
+const NAV_TREE: NavNode[] = [...SALES_NAV, ...B2B_NAV, ...ADMIN_NAV];
+
+/** Flatten every NavNode to its leaf NavItems (used by MobileTabBar). */
+function flattenNodes(nodes: NavNode[]): NavItem[] {
+  const out: NavItem[] = [];
+  for (const n of nodes) {
+    if (isNavGroup(n)) {
+      out.push(...n.children);
+    } else {
+      out.push(n);
+    }
+  }
+  return out;
+}
+
+/** Filter a NavNode tree by role, dropping groups whose visible children are empty. */
+function visibleNodes(nodes: NavNode[], roles: AppRole[], isAdmin: boolean): NavNode[] {
+  if (isAdmin) return nodes;
+  return nodes
+    .map((n) => {
+      if (isNavGroup(n)) {
+        const kids = n.children.filter((c) => !c.roles || c.roles.some((r) => roles.includes(r)));
+        if (kids.length === 0) return null;
+        return { ...n, children: kids } as NavGroup;
+      }
+      if (n.roles && !n.roles.some((r) => roles.includes(r))) return null;
+      return n;
+    })
+    .filter(Boolean) as NavNode[];
+}
 
 /**
  * Unread notifications badge. One shared query for the sidebar and the phone
@@ -166,16 +244,83 @@ function useUnreadCount(userId: string | undefined) {
   return data;
 }
 
-function visibleFor(items: NavItem[], roles: AppRole[], isAdmin: boolean) {
-  if (isAdmin) return items;
-  return items.filter((i) => !i.roles || i.roles.some((r) => roles.includes(r)));
+/** Collapsible nav group in the sidebar. */
+function SidebarGroup({
+  group,
+  pathname,
+  unreadCount,
+}: {
+  group: NavGroup;
+  pathname: string;
+  unreadCount: number;
+}) {
+  // Auto-expand when any child route is active.
+  const childActive = group.children.some(
+    (c) => pathname === c.to || pathname.startsWith(c.to + "/"),
+  );
+  const [open, setOpen] = useState(childActive);
+
+  // Keep group open if user navigates into it from another route.
+  useEffect(() => {
+    if (childActive) setOpen(true);
+  }, [childActive]);
+
+  const Icon = group.icon;
+  const Chevron = open ? ChevronDown : ChevronRight;
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+          childActive
+            ? "text-sidebar-accent-foreground font-medium"
+            : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
+        )}
+      >
+        <Icon className="h-4 w-4" />
+        <span className="flex-1 text-left">{group.label}</span>
+        <Chevron className="h-3.5 w-3.5 opacity-50" />
+      </button>
+      {open && (
+        <div className="ml-3 border-l border-sidebar-accent/40 pl-1 space-y-0.5">
+          {group.children.map((item) => {
+            const active = pathname === item.to || pathname.startsWith(item.to + "/");
+            const ChildIcon = item.icon;
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={cn(
+                  "flex items-center gap-3 rounded-md px-3 py-1.5 text-sm transition-colors",
+                  active
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                    : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
+                )}
+              >
+                <ChildIcon className="h-3.5 w-3.5" />
+                <span className="flex-1">{item.label}</span>
+                {item.to === "/notifications" && unreadCount > 0 && (
+                  <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-rose-600 text-white text-[11px] font-semibold">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function AppSidebar() {
   const { profile, isAdmin, signOut, user, roles } = useAuth();
   const loc = useLocation();
   const search = useGlobalSearch();
-  const items = [...visibleFor(NAV, roles, isAdmin), ...visibleFor(ADMIN_NAV, roles, isAdmin)];
+  const nodes = visibleNodes(NAV_TREE, roles, isAdmin);
 
   const unreadCount = useUnreadCount(user?.id);
 
@@ -207,8 +352,23 @@ export function AppSidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
-        {items.map((item) => {
-          const active = loc.pathname === item.to || loc.pathname.startsWith(item.to + "/");
+        {nodes.map((node) => {
+          if (isNavGroup(node)) {
+            return (
+              <SidebarGroup
+                key={node.label}
+                group={node}
+                pathname={loc.pathname}
+                unreadCount={unreadCount}
+              />
+            );
+          }
+          const item = node;
+          // B2B Dashboard uses exact match to avoid being active on every /b2b/* page.
+          const active =
+            item.to === "/b2b"
+              ? loc.pathname === "/b2b"
+              : loc.pathname === item.to || loc.pathname.startsWith(item.to + "/");
           const Icon = item.icon;
           return (
             <Link
@@ -258,11 +418,11 @@ export function MobileTabBar() {
   const pwa = usePwaInstall();
   const [moreOpen, setMoreOpen] = useState(false);
 
-  // Everything this user may open, in sidebar order.
-  const all = useMemo(
-    () => [...visibleFor(NAV, roles, isAdmin), ...visibleFor(ADMIN_NAV, roles, isAdmin)],
-    [roles, isAdmin],
-  );
+  // Everything this user may open, in sidebar order (flattened from the tree).
+  const all = useMemo(() => {
+    const visible = visibleNodes(NAV_TREE, roles, isAdmin);
+    return flattenNodes(visible);
+  }, [roles, isAdmin]);
 
   // Four direct tabs + "More". Attendance is always a tab: most punches happen
   // on a phone. The work tab depends on the role.
