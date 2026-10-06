@@ -28,12 +28,180 @@ export const b2bDb = () => supabase as any;
 // ---------------------------------------------------------------------------
 // Hand-written B2B row types.
 //
-// Placeholder for now — the concrete table shapes (CA firms, contacts, B2B
-// leads, import batches, activities, follow-ups, partnerships, referrals,
-// sources) are added here as each table's migration lands in later phases.
+// These mirror the columns in supabase/migrations/20260517000002_b2b_core.sql
+// exactly and are the contract for every B2B query, because the generated
+// src/integrations/supabase/types.ts cannot be regenerated in the sandbox (no
+// Supabase credentials) and therefore does not contain these tables. `numeric`
+// columns can come back from PostgREST as either number or string, so they are
+// typed `number | string` like the HRMS row types.
 // ---------------------------------------------------------------------------
 
-// (B2B row types are added in FEAT-002+ as their tables are created.)
+/** CA firm — the partner account (public.ca_firms). */
+export type CaFirm = {
+  id: string;
+  firm_name: string;
+  firm_type: string | null;
+  firm_size: string | null;
+  website: string | null;
+  phone: string | null;
+  alt_phone: string | null;
+  email: string | null;
+  city: string | null;
+  state: string | null;
+  full_address: string | null;
+  lead_source: string | null;
+  source_url: string | null;
+  partner_status: string | null;
+  partner_since: string | null;
+  owner: string | null;
+  assigned_to: string | null;
+  primary_contact_id: string | null;
+  import_batch_id: string | null;
+  partner_score: number | string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Contact at a firm (public.b2b_contacts). */
+export type B2BContact = {
+  id: string;
+  firm_id: string;
+  name: string;
+  designation: string | null;
+  phone: string | null;
+  alt_phone: string | null;
+  email: string | null;
+  is_primary: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Prospecting lead (public.b2b_leads). */
+export type B2BLead = {
+  id: string;
+  b2b_lead_code: string | null;
+  firm_id: string | null;
+  contact_person: string | null;
+  designation: string | null;
+  phone: string | null;
+  alt_phone: string | null;
+  email: string | null;
+  website: string | null;
+  city: string | null;
+  state: string | null;
+  full_address: string | null;
+  firm_type: string | null;
+  firm_size: string | null;
+  lead_source: string | null;
+  source_url: string | null;
+  assigned_to: string | null;
+  lead_status: string;
+  priority: string | null;
+  last_contacted_at: string | null;
+  next_follow_up_at: string | null;
+  latest_remark: string | null;
+  follow_up_count: number;
+  created_by: string | null;
+  import_batch_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Import batch summary (public.b2b_import_batches). */
+export type B2BImportBatch = {
+  id: string;
+  source: string | null;
+  file_name: string | null;
+  uploaded_by: string | null;
+  total_records: number;
+  new_records: number;
+  duplicate_records: number;
+  invalid_records: number;
+  assigned_records: number;
+  created_at: string;
+};
+
+/** Timeline activity (public.b2b_activities). */
+export type B2BActivity = {
+  id: string;
+  firm_id: string | null;
+  contact_id: string | null;
+  lead_id: string | null;
+  type: (typeof ACTIVITY_TYPES)[number]["id"];
+  subject: string | null;
+  notes: string | null;
+  outcome: string | null;
+  duration_minutes: number | null;
+  happened_at: string;
+  created_by: string | null;
+  created_at: string;
+};
+
+/** Scheduled follow-up (public.b2b_followups). */
+export type B2BFollowup = {
+  id: string;
+  lead_id: string | null;
+  firm_id: string | null;
+  due_at: string;
+  status: "pending" | "done" | "missed";
+  remark: string | null;
+  completed_at: string | null;
+  assigned_to: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Partnership deal / pipeline record (public.partnerships). */
+export type Partnership = {
+  id: string;
+  firm_id: string;
+  stage: string | null;
+  status: "open" | "won" | "lost";
+  outcome_reason: string | null;
+  value: number | string | null;
+  assigned_to: string | null;
+  created_by: string | null;
+  opened_at: string;
+  closed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Referral handed into the Sales funnel (public.referrals). */
+export type Referral = {
+  id: string;
+  referral_code: string | null;
+  firm_id: string | null;
+  referring_contact_id: string | null;
+  referred_client_name: string | null;
+  client_phone: string | null;
+  date_received: string | null;
+  assigned_salesperson: string | null;
+  service_required: string | null;
+  referral_status: (typeof REFERRAL_STATUSES)[number]["id"];
+  converted: boolean;
+  lead_id: string | null;
+  booking_id: string | null;
+  booking_value: number | string | null;
+  revenue: number | string | null;
+  referral_date: string | null;
+  converted_date: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Configurable source (public.b2b_sources). */
+export type B2BSource = {
+  id: string;
+  name: string;
+  active: boolean;
+  created_at: string;
+};
 
 // ---------------------------------------------------------------------------
 // Lead statuses — the full set a B2B lead can sit in, including the closed /
