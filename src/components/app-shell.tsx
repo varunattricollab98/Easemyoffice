@@ -102,6 +102,18 @@ const NAV: NavItem[] = [
     icon: Trophy,
     roles: ["admin", "b2b"],
   },
+  // Analytics group (FEAT-007): the B2B dashboard + the four analytics screens.
+  // The dashboard entry above (/b2b) is the home; these are the deep-dive
+  // reports. recharts lives in their route chunks, out of the entry bundle.
+  { to: "/b2b/analytics/performance", label: "B2B Performance", icon: BarChart3, roles: ["admin", "b2b"] },
+  { to: "/b2b/analytics/source", label: "Source Analytics", icon: Share2, roles: ["admin", "b2b"] },
+  {
+    to: "/b2b/analytics/employee",
+    label: "Employee Performance",
+    icon: UsersRound,
+    roles: ["admin", "b2b"],
+  },
+  { to: "/b2b/analytics/revenue", label: "Revenue Analytics", icon: Receipt, roles: ["admin", "b2b"] },
 ];
 
 const ADMIN_NAV: NavItem[] = [

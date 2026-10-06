@@ -66,6 +66,10 @@ import { Route as AuthenticatedB2bActivitiesIndexRouteImport } from './routes/_a
 import { Route as ApiPublicHooksLeadIntakeRouteImport } from './routes/api/public/hooks/lead-intake'
 import { Route as ApiPublicHooksBalanceRemindersRouteImport } from './routes/api/public/hooks/balance-reminders'
 import { Route as AuthenticatedB2bFirmsIdRouteImport } from './routes/_authenticated/b2b/firms/$id'
+import { Route as AuthenticatedB2bAnalyticsSourceRouteImport } from './routes/_authenticated/b2b/analytics/source'
+import { Route as AuthenticatedB2bAnalyticsRevenueRouteImport } from './routes/_authenticated/b2b/analytics/revenue'
+import { Route as AuthenticatedB2bAnalyticsPerformanceRouteImport } from './routes/_authenticated/b2b/analytics/performance'
+import { Route as AuthenticatedB2bAnalyticsEmployeeRouteImport } from './routes/_authenticated/b2b/analytics/employee'
 import { Route as AuthenticatedB2bActivitiesMeetingsRouteImport } from './routes/_authenticated/b2b/activities/meetings'
 import { Route as AuthenticatedB2bActivitiesHistoryRouteImport } from './routes/_authenticated/b2b/activities/history'
 import { Route as AuthenticatedB2bActivitiesFollowupsRouteImport } from './routes/_authenticated/b2b/activities/followups'
@@ -380,6 +384,30 @@ const AuthenticatedB2bFirmsIdRoute = AuthenticatedB2bFirmsIdRouteImport.update({
   path: '/b2b/firms/$id',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedB2bAnalyticsSourceRoute =
+  AuthenticatedB2bAnalyticsSourceRouteImport.update({
+    id: '/b2b/analytics/source',
+    path: '/b2b/analytics/source',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedB2bAnalyticsRevenueRoute =
+  AuthenticatedB2bAnalyticsRevenueRouteImport.update({
+    id: '/b2b/analytics/revenue',
+    path: '/b2b/analytics/revenue',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedB2bAnalyticsPerformanceRoute =
+  AuthenticatedB2bAnalyticsPerformanceRouteImport.update({
+    id: '/b2b/analytics/performance',
+    path: '/b2b/analytics/performance',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedB2bAnalyticsEmployeeRoute =
+  AuthenticatedB2bAnalyticsEmployeeRouteImport.update({
+    id: '/b2b/analytics/employee',
+    path: '/b2b/analytics/employee',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedB2bActivitiesMeetingsRoute =
   AuthenticatedB2bActivitiesMeetingsRouteImport.update({
     id: '/b2b/activities/meetings',
@@ -459,6 +487,10 @@ export interface FileRoutesByFullPath {
   '/b2b/activities/followups': typeof AuthenticatedB2bActivitiesFollowupsRoute
   '/b2b/activities/history': typeof AuthenticatedB2bActivitiesHistoryRoute
   '/b2b/activities/meetings': typeof AuthenticatedB2bActivitiesMeetingsRoute
+  '/b2b/analytics/employee': typeof AuthenticatedB2bAnalyticsEmployeeRoute
+  '/b2b/analytics/performance': typeof AuthenticatedB2bAnalyticsPerformanceRoute
+  '/b2b/analytics/revenue': typeof AuthenticatedB2bAnalyticsRevenueRoute
+  '/b2b/analytics/source': typeof AuthenticatedB2bAnalyticsSourceRoute
   '/b2b/firms/$id': typeof AuthenticatedB2bFirmsIdRoute
   '/api/public/hooks/balance-reminders': typeof ApiPublicHooksBalanceRemindersRoute
   '/api/public/hooks/lead-intake': typeof ApiPublicHooksLeadIntakeRoute
@@ -520,6 +552,10 @@ export interface FileRoutesByTo {
   '/b2b/activities/followups': typeof AuthenticatedB2bActivitiesFollowupsRoute
   '/b2b/activities/history': typeof AuthenticatedB2bActivitiesHistoryRoute
   '/b2b/activities/meetings': typeof AuthenticatedB2bActivitiesMeetingsRoute
+  '/b2b/analytics/employee': typeof AuthenticatedB2bAnalyticsEmployeeRoute
+  '/b2b/analytics/performance': typeof AuthenticatedB2bAnalyticsPerformanceRoute
+  '/b2b/analytics/revenue': typeof AuthenticatedB2bAnalyticsRevenueRoute
+  '/b2b/analytics/source': typeof AuthenticatedB2bAnalyticsSourceRoute
   '/b2b/firms/$id': typeof AuthenticatedB2bFirmsIdRoute
   '/api/public/hooks/balance-reminders': typeof ApiPublicHooksBalanceRemindersRoute
   '/api/public/hooks/lead-intake': typeof ApiPublicHooksLeadIntakeRoute
@@ -584,6 +620,10 @@ export interface FileRoutesById {
   '/_authenticated/b2b/activities/followups': typeof AuthenticatedB2bActivitiesFollowupsRoute
   '/_authenticated/b2b/activities/history': typeof AuthenticatedB2bActivitiesHistoryRoute
   '/_authenticated/b2b/activities/meetings': typeof AuthenticatedB2bActivitiesMeetingsRoute
+  '/_authenticated/b2b/analytics/employee': typeof AuthenticatedB2bAnalyticsEmployeeRoute
+  '/_authenticated/b2b/analytics/performance': typeof AuthenticatedB2bAnalyticsPerformanceRoute
+  '/_authenticated/b2b/analytics/revenue': typeof AuthenticatedB2bAnalyticsRevenueRoute
+  '/_authenticated/b2b/analytics/source': typeof AuthenticatedB2bAnalyticsSourceRoute
   '/_authenticated/b2b/firms/$id': typeof AuthenticatedB2bFirmsIdRoute
   '/api/public/hooks/balance-reminders': typeof ApiPublicHooksBalanceRemindersRoute
   '/api/public/hooks/lead-intake': typeof ApiPublicHooksLeadIntakeRoute
@@ -648,6 +688,10 @@ export interface FileRouteTypes {
     | '/b2b/activities/followups'
     | '/b2b/activities/history'
     | '/b2b/activities/meetings'
+    | '/b2b/analytics/employee'
+    | '/b2b/analytics/performance'
+    | '/b2b/analytics/revenue'
+    | '/b2b/analytics/source'
     | '/b2b/firms/$id'
     | '/api/public/hooks/balance-reminders'
     | '/api/public/hooks/lead-intake'
@@ -709,6 +753,10 @@ export interface FileRouteTypes {
     | '/b2b/activities/followups'
     | '/b2b/activities/history'
     | '/b2b/activities/meetings'
+    | '/b2b/analytics/employee'
+    | '/b2b/analytics/performance'
+    | '/b2b/analytics/revenue'
+    | '/b2b/analytics/source'
     | '/b2b/firms/$id'
     | '/api/public/hooks/balance-reminders'
     | '/api/public/hooks/lead-intake'
@@ -772,6 +820,10 @@ export interface FileRouteTypes {
     | '/_authenticated/b2b/activities/followups'
     | '/_authenticated/b2b/activities/history'
     | '/_authenticated/b2b/activities/meetings'
+    | '/_authenticated/b2b/analytics/employee'
+    | '/_authenticated/b2b/analytics/performance'
+    | '/_authenticated/b2b/analytics/revenue'
+    | '/_authenticated/b2b/analytics/source'
     | '/_authenticated/b2b/firms/$id'
     | '/api/public/hooks/balance-reminders'
     | '/api/public/hooks/lead-intake'
@@ -1193,6 +1245,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedB2bFirmsIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/b2b/analytics/source': {
+      id: '/_authenticated/b2b/analytics/source'
+      path: '/b2b/analytics/source'
+      fullPath: '/b2b/analytics/source'
+      preLoaderRoute: typeof AuthenticatedB2bAnalyticsSourceRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/b2b/analytics/revenue': {
+      id: '/_authenticated/b2b/analytics/revenue'
+      path: '/b2b/analytics/revenue'
+      fullPath: '/b2b/analytics/revenue'
+      preLoaderRoute: typeof AuthenticatedB2bAnalyticsRevenueRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/b2b/analytics/performance': {
+      id: '/_authenticated/b2b/analytics/performance'
+      path: '/b2b/analytics/performance'
+      fullPath: '/b2b/analytics/performance'
+      preLoaderRoute: typeof AuthenticatedB2bAnalyticsPerformanceRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/b2b/analytics/employee': {
+      id: '/_authenticated/b2b/analytics/employee'
+      path: '/b2b/analytics/employee'
+      fullPath: '/b2b/analytics/employee'
+      preLoaderRoute: typeof AuthenticatedB2bAnalyticsEmployeeRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/b2b/activities/meetings': {
       id: '/_authenticated/b2b/activities/meetings'
       path: '/b2b/activities/meetings'
@@ -1288,6 +1368,10 @@ interface AuthenticatedRouteChildren {
   AuthenticatedB2bActivitiesFollowupsRoute: typeof AuthenticatedB2bActivitiesFollowupsRoute
   AuthenticatedB2bActivitiesHistoryRoute: typeof AuthenticatedB2bActivitiesHistoryRoute
   AuthenticatedB2bActivitiesMeetingsRoute: typeof AuthenticatedB2bActivitiesMeetingsRoute
+  AuthenticatedB2bAnalyticsEmployeeRoute: typeof AuthenticatedB2bAnalyticsEmployeeRoute
+  AuthenticatedB2bAnalyticsPerformanceRoute: typeof AuthenticatedB2bAnalyticsPerformanceRoute
+  AuthenticatedB2bAnalyticsRevenueRoute: typeof AuthenticatedB2bAnalyticsRevenueRoute
+  AuthenticatedB2bAnalyticsSourceRoute: typeof AuthenticatedB2bAnalyticsSourceRoute
   AuthenticatedB2bFirmsIdRoute: typeof AuthenticatedB2bFirmsIdRoute
   AuthenticatedB2bActivitiesIndexRoute: typeof AuthenticatedB2bActivitiesIndexRoute
   AuthenticatedB2bContactsIndexRoute: typeof AuthenticatedB2bContactsIndexRoute
@@ -1344,6 +1428,12 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
     AuthenticatedB2bActivitiesHistoryRoute,
   AuthenticatedB2bActivitiesMeetingsRoute:
     AuthenticatedB2bActivitiesMeetingsRoute,
+  AuthenticatedB2bAnalyticsEmployeeRoute:
+    AuthenticatedB2bAnalyticsEmployeeRoute,
+  AuthenticatedB2bAnalyticsPerformanceRoute:
+    AuthenticatedB2bAnalyticsPerformanceRoute,
+  AuthenticatedB2bAnalyticsRevenueRoute: AuthenticatedB2bAnalyticsRevenueRoute,
+  AuthenticatedB2bAnalyticsSourceRoute: AuthenticatedB2bAnalyticsSourceRoute,
   AuthenticatedB2bFirmsIdRoute: AuthenticatedB2bFirmsIdRoute,
   AuthenticatedB2bActivitiesIndexRoute: AuthenticatedB2bActivitiesIndexRoute,
   AuthenticatedB2bContactsIndexRoute: AuthenticatedB2bContactsIndexRoute,
