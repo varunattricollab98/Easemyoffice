@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, Kanban, Bell, CheckSquare, FileText, Receipt,
   RefreshCcw, Activity, BarChart3, Settings, UsersRound, LogOut, Building2, BookOpen,
   UserCheck, FileSignature, Calendar, Inbox, Trophy, Mail, AlarmClock, Phone, CalendarCheck, ShieldCheck, Upload, History,
-  Handshake,
+  Handshake, Share2,
 } from "lucide-react";
 import { useAuth, type AppRole } from "@/lib/auth";
 import { useGlobalSearch } from "@/lib/global-search-context";
@@ -91,8 +91,17 @@ const NAV: NavItem[] = [
     icon: Activity,
     roles: ["admin", "b2b"],
   },
-  // Partnerships group: the drag-and-drop pipeline over the 10 B2B stages.
+  // Partnerships group: the drag-and-drop pipeline over the 10 B2B stages, the
+  // referrals handed into Sales, and the partner health / performance views.
   { to: "/b2b/pipeline", label: "Partnership Pipeline", icon: Kanban, roles: ["admin", "b2b"] },
+  { to: "/b2b/referrals", label: "Referrals", icon: Share2, roles: ["admin", "b2b"] },
+  { to: "/b2b/partners", label: "Active Partners", icon: Handshake, roles: ["admin", "b2b"] },
+  {
+    to: "/b2b/partner-performance",
+    label: "Partner Performance",
+    icon: Trophy,
+    roles: ["admin", "b2b"],
+  },
 ];
 
 const ADMIN_NAV: NavItem[] = [

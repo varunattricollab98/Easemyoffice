@@ -22,6 +22,13 @@ import {
   type Partnership,
   type Referral,
 } from "@/lib/b2b";
+import { bookingRevenue } from "@/lib/report-metrics";
+import {
+  partnerPerformanceRows,
+  type PartnerPerformanceRow,
+  type PerfActivity,
+  type PerfReferral,
+} from "@/lib/b2b-performance";
 
 function unwrap<T>(data: T[] | null, error: { message: string } | null): T[] {
   if (error) throw new Error(error.message);
@@ -418,6 +425,193 @@ export async function listReferrals(filters: ReferralFilters = {}): Promise<Refe
   return unwrap<Referral>(data, error);
 }
 
+/**
+ * A referral joined to its firm name and referring contact name so the
+ * Referrals list can label and link each row back to the firm 360 and the
+ * contact without a per-row query. RLS still scopes which rows return.
+ */
+export type ReferralWithRefs = Referral & {
+  firm_name: string | null;
+  referring_contact_name: string | null;
+};
+
+export async function listReferralsWithRefs(
+  filters: ReferralFilters = {},
+): Promise<ReferralWithRefs[]> {
+  let q = b2bDb().from("referrals").select("*, ca_firms(firm_name), b2b_contacts(name)");
+  if (filters.firmId) q = q.eq("firm_id", filters.firmId);
+  if (filters.status) q = q.eq("referral_status", filters.status);
+  if (filters.assignedSalesperson) q = q.eq("assigned_salesperson", filters.assignedSalesperson);
+  const { data, error } = await q.order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  type Joined = Referral & {
+    ca_firms: { firm_name: string | null } | null;
+    b2b_contacts: { name: string | null } | null;
+  };
+  return ((data ?? []) as Joined[]).map((r) => {
+    const { ca_firms, b2b_contacts, ...rest } = r;
+    return {
+      ...rest,
+      firm_name: ca_firms?.firm_name ?? null,
+      referring_contact_name: b2b_contacts?.name ?? null,
+    };
+  });
+}
+
+export type NewReferral = {
+  firm_id?: string | null;
+  referring_contact_id?: string | null;
+  referred_client_name?: string | null;
+  client_phone?: string | null;
+  date_received?: string | null;
+  assigned_salesperson?: string | null;
+  service_required?: string | null;
+  referral_status?: Referral["referral_status"];
+  referral_date?: string | null;
+  notes?: string | null;
+  created_by: string;
+};
+
+export async function createReferral(input: NewReferral): Promise<Referral> {
+  const { data, error } = await b2bDb()
+    .from("referrals")
+    .insert({ referral_status: "new", ...input })
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  return data as Referral;
+}
+
+export type ReferralPatch = Partial<Omit<NewReferral, "created_by">> & {
+  converted?: boolean;
+  converted_date?: string | null;
+  lead_id?: string | null;
+  booking_id?: string | null;
+  booking_value?: number | null;
+  revenue?: number | null;
+};
+
+export async function updateReferral(id: string, patch: ReferralPatch): Promise<Referral> {
+  const { data, error } = await b2bDb()
+    .from("referrals")
+    .update(patch)
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  return data as Referral;
+}
+
+/**
+ * Push a referral into the existing Sales Leads system. This is additive
+ * linking only — it inserts a brand new public.leads row (it never touches
+ * existing leads or their RLS) carrying the referral's client name / phone /
+ * service, stamps source = 'referral', and writes the new lead_id back onto the
+ * referral along with referral_status = 'converted'. The leads insert reuses
+ * the exact required column names the Sales import/forms use (client_name,
+ * mobile, source, service_required) so it satisfies the live schema + RLS.
+ * logAudit is left to the caller.
+ */
+export async function convertReferralToLead(input: {
+  referral: Referral;
+  clientName: string;
+  mobile: string;
+  serviceRequired: string;
+  source: string;
+  actorId: string;
+}): Promise<{ leadId: string }> {
+  const db = b2bDb();
+  const { referral } = input;
+
+  const leadInsert = await db
+    .from("leads")
+    .insert({
+      client_name: input.clientName,
+      mobile: input.mobile,
+      source: input.source,
+      service_required: input.serviceRequired,
+      notes: `Referred by B2B partner${referral.referral_code ? ` (${referral.referral_code})` : ""}.`,
+      created_by: input.actorId,
+    })
+    .select("id")
+    .single();
+  if (leadInsert.error) throw new Error(leadInsert.error.message);
+  const leadId = (leadInsert.data as { id: string }).id;
+
+  const now = new Date().toISOString().slice(0, 10);
+  const upd = await db
+    .from("referrals")
+    .update({
+      lead_id: leadId,
+      referral_status: "converted",
+      converted: true,
+      converted_date: referral.converted_date ?? now,
+    })
+    .eq("id", referral.id);
+  if (upd.error) throw new Error(upd.error.message);
+
+  return { leadId };
+}
+
+/**
+ * The minimal booking fields the referral "link booking" picker needs: enough
+ * to list and search bookings and to read the revenue (amount_after_tds, with
+ * total_amount as the fallback — see src/lib/report-metrics.ts bookingRevenue).
+ */
+export type LinkableBooking = {
+  id: string;
+  booking_code: string | null;
+  client_name: string | null;
+  booking_date: string | null;
+  amount_after_tds: number | string | null;
+  total_amount: number | string | null;
+};
+
+/**
+ * Recent bookings for the "link to booking" picker. Reads only — this never
+ * mutates a booking, so existing Sales/booking behaviour is untouched. RLS on
+ * public.bookings scopes which rows return.
+ */
+export async function listLinkableBookings(search?: string): Promise<LinkableBooking[]> {
+  let q = b2bDb()
+    .from("bookings")
+    .select("id, booking_code, client_name, booking_date, amount_after_tds, total_amount");
+  if (search) q = q.ilike("client_name", `%${search}%`);
+  const { data, error } = await q.order("booking_date", { ascending: false }).limit(50);
+  return unwrap<LinkableBooking>(data, error);
+}
+
+/**
+ * Attach a booking to a referral and capture its value + revenue. Additive: it
+ * only writes booking_id / booking_value / revenue (and flips converted) on the
+ * referral row; the booking itself is never modified. The caller passes the
+ * revenue it read via bookingRevenue() so the money math stays in one place.
+ */
+export async function linkReferralBooking(input: {
+  referralId: string;
+  bookingId: string;
+  bookingValue: number;
+  revenue: number;
+  convertedDate?: string | null;
+}): Promise<Referral> {
+  const now = new Date().toISOString().slice(0, 10);
+  const { data, error } = await b2bDb()
+    .from("referrals")
+    .update({
+      booking_id: input.bookingId,
+      booking_value: input.bookingValue,
+      revenue: input.revenue,
+      converted: true,
+      referral_status: "converted",
+      converted_date: input.convertedDate ?? now,
+    })
+    .eq("id", input.referralId)
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  return data as Referral;
+}
+
 // ---------------------------------------------------------------------------
 // Activities (append-friendly timeline)
 // ---------------------------------------------------------------------------
@@ -808,3 +1002,56 @@ export async function listAssignableUsers(): Promise<AssignableUser[]> {
     .order("full_name");
   return unwrap<AssignableUser>(data, error);
 }
+
+// ---------------------------------------------------------------------------
+// Partner performance — the live roll-up behind the Partner Performance and
+// Active Partners pages. The pure aggregation (totals, last-activity dates,
+// score, health) lives in src/lib/b2b-performance.ts and is unit-tested; this
+// helper only fetches the raw firms / referrals / activities / booking dates
+// and feeds them in.
+// ---------------------------------------------------------------------------
+
+export async function listPartnerPerformance(): Promise<PartnerPerformanceRow[]> {
+  const db = b2bDb();
+  const [firmsRes, referralsRes, activitiesRes] = await Promise.all([
+    db.from("ca_firms").select("id, firm_name, partner_status, assigned_to, city, state"),
+    db
+      .from("referrals")
+      .select("firm_id, converted, booking_id, revenue, date_received, referral_date, created_at"),
+    db.from("b2b_activities").select("firm_id, happened_at"),
+  ]);
+  if (firmsRes.error) throw new Error(firmsRes.error.message);
+  if (referralsRes.error) throw new Error(referralsRes.error.message);
+  if (activitiesRes.error) throw new Error(activitiesRes.error.message);
+
+  const firms = (firmsRes.data ?? []) as {
+    id: string;
+    firm_name: string;
+    partner_status: string | null;
+    assigned_to: string | null;
+    city: string | null;
+    state: string | null;
+  }[];
+  const referrals = (referralsRes.data ?? []) as PerfReferral[];
+  const activities = (activitiesRes.data ?? []) as PerfActivity[];
+
+  // Fetch the dates of only the bookings that referrals actually link to, so a
+  // converted referral contributes to the firm's "last booking".
+  const bookingIds = Array.from(
+    new Set(referrals.map((r) => r.booking_id).filter((id): id is string => !!id)),
+  );
+  const bookingDates = new Map<string, string | null>();
+  if (bookingIds.length > 0) {
+    const bk = await db.from("bookings").select("id, booking_date").in("id", bookingIds);
+    if (bk.error) throw new Error(bk.error.message);
+    for (const b of (bk.data ?? []) as { id: string; booking_date: string | null }[]) {
+      bookingDates.set(b.id, b.booking_date);
+    }
+  }
+
+  return partnerPerformanceRows({ firms, referrals, activities, bookingDates });
+}
+
+// Re-exported so callers can read a booking's revenue with the single source of
+// truth (amount_after_tds, falling back to total_amount) when linking.
+export { bookingRevenue };

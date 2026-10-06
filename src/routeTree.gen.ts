@@ -49,7 +49,10 @@ import { Route as AuthenticatedHrmsSalaryRouteImport } from './routes/_authentic
 import { Route as AuthenticatedHrmsEmployeesRouteImport } from './routes/_authenticated/hrms/employees'
 import { Route as AuthenticatedHrmsAttendanceRouteImport } from './routes/_authenticated/hrms/attendance'
 import { Route as AuthenticatedHrmsApprovalsRouteImport } from './routes/_authenticated/hrms/approvals'
+import { Route as AuthenticatedB2bReferralsRouteImport } from './routes/_authenticated/b2b/referrals'
 import { Route as AuthenticatedB2bPipelineRouteImport } from './routes/_authenticated/b2b/pipeline'
+import { Route as AuthenticatedB2bPartnersRouteImport } from './routes/_authenticated/b2b/partners'
+import { Route as AuthenticatedB2bPartnerPerformanceRouteImport } from './routes/_authenticated/b2b/partner-performance'
 import { Route as AuthenticatedB2bImportHistoryRouteImport } from './routes/_authenticated/b2b/import-history'
 import { Route as AuthenticatedB2bImportRouteImport } from './routes/_authenticated/b2b/import'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
@@ -278,10 +281,28 @@ const AuthenticatedHrmsApprovalsRoute =
     path: '/approvals',
     getParentRoute: () => AuthenticatedHrmsRoute,
   } as any)
+const AuthenticatedB2bReferralsRoute =
+  AuthenticatedB2bReferralsRouteImport.update({
+    id: '/b2b/referrals',
+    path: '/b2b/referrals',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedB2bPipelineRoute =
   AuthenticatedB2bPipelineRouteImport.update({
     id: '/b2b/pipeline',
     path: '/b2b/pipeline',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedB2bPartnersRoute =
+  AuthenticatedB2bPartnersRouteImport.update({
+    id: '/b2b/partners',
+    path: '/b2b/partners',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedB2bPartnerPerformanceRoute =
+  AuthenticatedB2bPartnerPerformanceRouteImport.update({
+    id: '/b2b/partner-performance',
+    path: '/b2b/partner-performance',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedB2bImportHistoryRoute =
@@ -415,7 +436,10 @@ export interface FileRoutesByFullPath {
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/b2b/import': typeof AuthenticatedB2bImportRoute
   '/b2b/import-history': typeof AuthenticatedB2bImportHistoryRoute
+  '/b2b/partner-performance': typeof AuthenticatedB2bPartnerPerformanceRoute
+  '/b2b/partners': typeof AuthenticatedB2bPartnersRoute
   '/b2b/pipeline': typeof AuthenticatedB2bPipelineRoute
+  '/b2b/referrals': typeof AuthenticatedB2bReferralsRoute
   '/hrms/approvals': typeof AuthenticatedHrmsApprovalsRoute
   '/hrms/attendance': typeof AuthenticatedHrmsAttendanceRoute
   '/hrms/employees': typeof AuthenticatedHrmsEmployeesRoute
@@ -473,7 +497,10 @@ export interface FileRoutesByTo {
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/b2b/import': typeof AuthenticatedB2bImportRoute
   '/b2b/import-history': typeof AuthenticatedB2bImportHistoryRoute
+  '/b2b/partner-performance': typeof AuthenticatedB2bPartnerPerformanceRoute
+  '/b2b/partners': typeof AuthenticatedB2bPartnersRoute
   '/b2b/pipeline': typeof AuthenticatedB2bPipelineRoute
+  '/b2b/referrals': typeof AuthenticatedB2bReferralsRoute
   '/hrms/approvals': typeof AuthenticatedHrmsApprovalsRoute
   '/hrms/attendance': typeof AuthenticatedHrmsAttendanceRoute
   '/hrms/employees': typeof AuthenticatedHrmsEmployeesRoute
@@ -534,7 +561,10 @@ export interface FileRoutesById {
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/b2b/import': typeof AuthenticatedB2bImportRoute
   '/_authenticated/b2b/import-history': typeof AuthenticatedB2bImportHistoryRoute
+  '/_authenticated/b2b/partner-performance': typeof AuthenticatedB2bPartnerPerformanceRoute
+  '/_authenticated/b2b/partners': typeof AuthenticatedB2bPartnersRoute
   '/_authenticated/b2b/pipeline': typeof AuthenticatedB2bPipelineRoute
+  '/_authenticated/b2b/referrals': typeof AuthenticatedB2bReferralsRoute
   '/_authenticated/hrms/approvals': typeof AuthenticatedHrmsApprovalsRoute
   '/_authenticated/hrms/attendance': typeof AuthenticatedHrmsAttendanceRoute
   '/_authenticated/hrms/employees': typeof AuthenticatedHrmsEmployeesRoute
@@ -595,7 +625,10 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/b2b/import'
     | '/b2b/import-history'
+    | '/b2b/partner-performance'
+    | '/b2b/partners'
     | '/b2b/pipeline'
+    | '/b2b/referrals'
     | '/hrms/approvals'
     | '/hrms/attendance'
     | '/hrms/employees'
@@ -653,7 +686,10 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/b2b/import'
     | '/b2b/import-history'
+    | '/b2b/partner-performance'
+    | '/b2b/partners'
     | '/b2b/pipeline'
+    | '/b2b/referrals'
     | '/hrms/approvals'
     | '/hrms/attendance'
     | '/hrms/employees'
@@ -713,7 +749,10 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/users'
     | '/_authenticated/b2b/import'
     | '/_authenticated/b2b/import-history'
+    | '/_authenticated/b2b/partner-performance'
+    | '/_authenticated/b2b/partners'
     | '/_authenticated/b2b/pipeline'
+    | '/_authenticated/b2b/referrals'
     | '/_authenticated/hrms/approvals'
     | '/_authenticated/hrms/attendance'
     | '/_authenticated/hrms/employees'
@@ -1035,11 +1074,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHrmsApprovalsRouteImport
       parentRoute: typeof AuthenticatedHrmsRoute
     }
+    '/_authenticated/b2b/referrals': {
+      id: '/_authenticated/b2b/referrals'
+      path: '/b2b/referrals'
+      fullPath: '/b2b/referrals'
+      preLoaderRoute: typeof AuthenticatedB2bReferralsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/b2b/pipeline': {
       id: '/_authenticated/b2b/pipeline'
       path: '/b2b/pipeline'
       fullPath: '/b2b/pipeline'
       preLoaderRoute: typeof AuthenticatedB2bPipelineRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/b2b/partners': {
+      id: '/_authenticated/b2b/partners'
+      path: '/b2b/partners'
+      fullPath: '/b2b/partners'
+      preLoaderRoute: typeof AuthenticatedB2bPartnersRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/b2b/partner-performance': {
+      id: '/_authenticated/b2b/partner-performance'
+      path: '/b2b/partner-performance'
+      fullPath: '/b2b/partner-performance'
+      preLoaderRoute: typeof AuthenticatedB2bPartnerPerformanceRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/b2b/import-history': {
@@ -1211,7 +1271,10 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedB2bImportRoute: typeof AuthenticatedB2bImportRoute
   AuthenticatedB2bImportHistoryRoute: typeof AuthenticatedB2bImportHistoryRoute
+  AuthenticatedB2bPartnerPerformanceRoute: typeof AuthenticatedB2bPartnerPerformanceRoute
+  AuthenticatedB2bPartnersRoute: typeof AuthenticatedB2bPartnersRoute
   AuthenticatedB2bPipelineRoute: typeof AuthenticatedB2bPipelineRoute
+  AuthenticatedB2bReferralsRoute: typeof AuthenticatedB2bReferralsRoute
   AuthenticatedLeadsIdRoute: typeof AuthenticatedLeadsIdRoute
   AuthenticatedLeadsImportRoute: typeof AuthenticatedLeadsImportRoute
   AuthenticatedLeadsNewRoute: typeof AuthenticatedLeadsNewRoute
@@ -1260,7 +1323,11 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedB2bImportRoute: AuthenticatedB2bImportRoute,
   AuthenticatedB2bImportHistoryRoute: AuthenticatedB2bImportHistoryRoute,
+  AuthenticatedB2bPartnerPerformanceRoute:
+    AuthenticatedB2bPartnerPerformanceRoute,
+  AuthenticatedB2bPartnersRoute: AuthenticatedB2bPartnersRoute,
   AuthenticatedB2bPipelineRoute: AuthenticatedB2bPipelineRoute,
+  AuthenticatedB2bReferralsRoute: AuthenticatedB2bReferralsRoute,
   AuthenticatedLeadsIdRoute: AuthenticatedLeadsIdRoute,
   AuthenticatedLeadsImportRoute: AuthenticatedLeadsImportRoute,
   AuthenticatedLeadsNewRoute: AuthenticatedLeadsNewRoute,
