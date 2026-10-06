@@ -1,7 +1,7 @@
 {
   "task_id": "task-b2b-department",
   "task_description": "Add a complete, additive B2B department/category to the existing EaseMyOffice CRM: a new 'b2b' role/department wired into the existing auth architecture; a relational data model (CA Firms as accounts, Contacts, B2B Leads, Import Batches, Activities, Follow-ups, Partnerships, Referrals, configurable Sources) with server-side RLS; CSV import with mapping/validation/dedupe/assignment + import history; CA Firm 360 profile; partnership pipeline; referral management linked to Sales Leads/Bookings; partner performance + scoring; a B2B dashboard, analytics and source analytics; B2B renewals (partner health) and B2B documentation (onboarding checklist); B2B employees flowing through the EXISTING shared Attendance (geofenced, server-side), Leave and Payroll (HRMS) with strict owner-only salary visibility; an admin command-center dashboard with cross-module KPIs and drill-down; and B2B entities indexed in global search. Reuses the existing design system, components, auth, permissions and DB patterns throughout. Strictly additive and backward-compatible: Sales/Renewals/Documentation/Accounts/HRMS keep working unchanged. All migrations are authored idempotent and applied by the owner (no Supabase creds in sandbox).",
-  "status": "in_progress",
+  "status": "completed",
   "feature_order": [
     "FEAT-001",
     "FEAT-002",
@@ -13,5 +13,19 @@
     "FEAT-008",
     "FEAT-009"
   ],
+  "review": {
+    "verdict": "APPROVED",
+    "pass": "v1",
+    "file": ".agents/tasks/task-b2b-department/2026-10-06-080731-review.md",
+    "summary": "v1 semantic review APPROVED with no blocking issues. Confirmed: all 10 new tables ENABLE RLS with admin-full + owner-scoped policies (child tables inherit via EXISTS on parent firm ownership); salary isolation intact (/my-payroll reads only caller's own non-salary data; salary_slips/employee_salary stay admin-only; the only new salary read is the admin-double-gated command center); strictly additive (0 existing migrations changed, 0 edge-function diffs, attendance-punch/hr-requests byte-unchanged); referral->lead linkage inserts a valid public.leads row without mutating Sales flows; CSV import/dedupe/round-robin and pure maths are real and meaningfully tested. Three non-blocking notes: (1) CSV import is non-atomic across firms/contacts/leads (inherent to Supabase REST; batch counts may overstate on mid-import failure) - suggest a server-side RPC or post-insert reconcile; (2) command-center salary KPI depends on the isAdmin gate being kept (defence-in-depth over an already admin-only RLS boundary); (3) b2b_activities/partnerships UPDATE/DELETE narrow to created_by while SELECT inherits firm ownership - likely intentional 'author owns their note', worth a product decision."
+  },
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "Full gate green after all 9 features: npx tsc --noEmit clean; bun run test = 243 passed / 18 files (up from 131 baseline, +112 new B2B unit tests across b2b, b2b-import, b2b-scoring, b2b-performance, b2b-analytics, b2b-followups, b2b-documentation, command-center); bun run build succeeds (~12s). Test-quality spot-check: the new tests exercise pure implementation logic with concrete input/output assertions (phone/email/website dedupe normalizers, round-robin distribution, funnel conversion %, partner scoring thresholds, follow-up bucketing boundaries, cross-module command-center summaries) and would fail if the logic were reverted. Additivity verified: only 3 new migrations (20260517000001/2/3), zero existing migrations modified, zero edge-function changes (attendance-punch/hr-requests byte-unchanged). Salary isolation confirmed: employee-facing /my-payroll reads only auth.uid()'s own non-salary attendance/leave data; salary_slips/employee_salary stay admin-only. No Dockerfile build gate relevant (Cloudflare Workers app; no docker build in CI). Migrations are owner-applied (no Supabase creds in sandbox), so DB-level RLS is validated by SQL review, not live execution.",
+    "blocked_reason": null
+  },
   "blocked_reason": null
 }
