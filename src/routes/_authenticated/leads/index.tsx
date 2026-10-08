@@ -153,6 +153,8 @@ function LeadsListPage() {
     navigate({ to: "/leads", search: { ...search, interest: v === "all" ? undefined : v, page: undefined } });
   const setService = (v: string) =>
     navigate({ to: "/leads", search: { ...search, service: v === "all" ? undefined : v, page: undefined } });
+  const setOwner = (v: string) =>
+    navigate({ to: "/leads", search: { ...search, owner: v === "all" ? undefined : v, page: undefined } });
   const setDateRange = (v: string) =>
     navigate({ to: "/leads", search: { ...search, dateRange: v === "all" ? undefined : v, page: undefined } });
   const setSortDir = (v: string) =>
@@ -522,6 +524,13 @@ function LeadsListPage() {
             <SelectContent>
               <SelectItem value="all">All services</SelectItem>
               {SERVICES.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={owner ?? "all"} onValueChange={setOwner}>
+            <SelectTrigger className="w-[180px]"><SelectValue placeholder="All owners" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All owners</SelectItem>
+              {assignableUsers.map((u) => <SelectItem key={u.id} value={u.id}>{u.full_name || u.email || "User"}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={dateRange} onValueChange={setDateRange}>
