@@ -20,6 +20,7 @@ import {
 import {
   formatMinutes,
   hrmsDb,
+  type AttendanceRequest,
   type AttendanceRow,
   type Employee,
   type Holiday,
@@ -119,6 +120,23 @@ export async function fetchLeaves(opts: {
     .lte("from_date", opts.until);
   if (opts.employeeId) q = q.eq("employee_id", opts.employeeId);
   const { data, error } = await q.order("from_date");
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+/**
+ * Attendance requests for the UI (My Attendance and admin Approvals). RLS
+ * already scopes an employee to their own rows; the admin screen passes a
+ * status filter to list the pending queue. Mirrors fetchLeaves.
+ */
+export async function fetchAttendanceRequests(opts: {
+  employeeId?: string;
+  status?: AttendanceRequest["status"];
+}): Promise<AttendanceRequest[]> {
+  let q = hrmsDb().from("attendance_requests").select("*");
+  if (opts.employeeId) q = q.eq("employee_id", opts.employeeId);
+  if (opts.status) q = q.eq("status", opts.status);
+  const { data, error } = await q.order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
   return data ?? [];
 }

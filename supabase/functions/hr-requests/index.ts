@@ -1,18 +1,33 @@
-// Leave requests and work-from-home decisions — the only writer of
-// leave_requests and of the WFH decision on attendance.
+// Leave requests, attendance requests and work-from-home decisions — the only
+// writer of leave_requests, attendance_requests and of the attendance-row
+// effects they produce.
 //
 // POST body (browser, via supabase.functions.invoke("hr-requests")):
 //   employee: { action: "apply_leave", from, to, half_day?, reason }
 //             { action: "cancel_leave", id }                 (own, pending only)
+//             { action: "apply_attendance_request", type, work_date, to_date?,
+//               reason, login?, logout? }                    (login/logout = "HH:MM")
+//             { action: "cancel_attendance_request", id }    (own, pending only)
 //   admin:    { action: "decide_leave", id, approve, note? }
 //             { action: "decide_remote", attendance_id, approve, note? }
+//             { action: "decide_attendance_request", id, approve, note? }
 //             { action: "email_salary_slip", employee_id, month, pdf_base64, filename }
 //
 // Replies 200 { ok: true, ... } or 200 { ok: false, message } for business
 // rule failures; non-2xx only for faults. Every new request emails + alerts the
 // admins; every decision alerts the employee.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { expandLeave, istParts, addDays, normalizeSchedules } from "../_shared/attendance-rules.ts";
+import {
+  expandLeave,
+  istParts,
+  addDays,
+  normalizeSchedules,
+  regularizedAttendance,
+  validateAttendanceRequest,
+  weekdayOf,
+  type AttendanceRequestType,
+  type DaySchedule,
+} from "../_shared/attendance-rules.ts";
 import { esc, notifyAdmins, notifyUser, sendEmailWithAttachments } from "../_shared/hr-notify.ts";
 
 const corsHeaders = {
@@ -27,6 +42,13 @@ const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 /** How far back a leave can be applied for (e.g. a sick day reported late). */
 const BACKDATE_DAYS = 7;
+
+/** Human labels for the three attendance-request kinds (used in notifications). */
+const ATTENDANCE_REQUEST_LABELS: Record<AttendanceRequestType, string> = {
+  work_from_home: "Work from home",
+  absence_clarification: "Absence clarification",
+  missed_login_regularization: "Missed login regularization",
+};
 
 function json(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
@@ -68,6 +90,184 @@ const rangeLabel = (from: string, to: string, half: boolean) =>
     ? `${fmtDate(from)}${half ? " (half day)" : ""}`
     : `${fmtDate(from)} – ${fmtDate(to)}`;
 
+/** "09:30" / "09:30:00" -> minutes since midnight, or null when absent/invalid. */
+const parseHHMM = (v: unknown): number | null => {
+  if (typeof v !== "string") return null;
+  const m = v.trim().match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  const mins = Number(m[1]) * 60 + Number(m[2]);
+  return Number.isFinite(mins) && mins >= 0 && mins <= 24 * 60 ? mins : null;
+};
+
+/** Minutes since IST midnight on a date -> an ISO instant (fixed +05:30). */
+const istInstant = (date: string, minutes: number): string =>
+  new Date(Date.parse(`${date}T00:00:00+05:30`) + minutes * 60_000).toISOString();
+
+/** Minutes since IST midnight on a date for a stored instant, or null. */
+const minutesSinceIstMidnight = (date: string, iso: string | null | undefined): number | null => {
+  if (!iso) return null;
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return null;
+  return Math.round((t - Date.parse(`${date}T00:00:00+05:30`)) / 60_000);
+};
+
+/** "3 Oct 2026" short-date for notification bodies. */
+const requestRangeLabel = (from: string, to: string) =>
+  from === to ? fmtDate(from) : `${fmtDate(from)} – ${fmtDate(to)}`;
+
+/** "09:30 AM" from minutes since midnight, for notification detail rows. */
+const clockLabel = (minutes: number | null): string => {
+  if (minutes === null) return "—";
+  const h = Math.floor(minutes / 60) % 24;
+  const m = minutes % 60;
+  const am = h < 12;
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${am ? "AM" : "PM"}`;
+};
+
+// A loose Supabase client type — the service-role client used by the handlers.
+// deno-lint-ignore no-explicit-any
+type Db = ReturnType<typeof createClient<any, any, any>>;
+
+/** The day's schedule, snapshotted from the attendance row if present else the
+ *  configured weekday schedule — exactly how attendance-punch picks it. */
+async function scheduleFor(
+  db: Db,
+  workDate: string,
+  row: {
+    schedule_mode?: string | null;
+    window_start?: string | null;
+    window_end?: string | null;
+    required_minutes?: number | null;
+  } | null,
+): Promise<DaySchedule> {
+  if (row?.schedule_mode) {
+    return {
+      mode: row.schedule_mode as DaySchedule["mode"],
+      start: String(row.window_start).slice(0, 5),
+      end: String(row.window_end).slice(0, 5),
+      required_minutes: Number(row.required_minutes ?? 0),
+    };
+  }
+  const { data: settings } = await db
+    .from("hr_settings")
+    .select("day_schedules")
+    .eq("id", true)
+    .maybeSingle();
+  return normalizeSchedules(settings?.day_schedules)[weekdayOf(workDate)];
+}
+
+/**
+ * Mark one day as an approved work-from-home day, reusing the attendance
+ * remote_* columns. Updates an existing row (so a reactive-WFH day converges)
+ * or creates a minimal remote-approved row for a future/absent day.
+ */
+async function approveRemoteDay(
+  db: Db,
+  employeeId: string,
+  workDate: string,
+  reason: string,
+  decidedBy: string,
+  decidedAt: string,
+) {
+  const { data: existing } = await db
+    .from("attendance")
+    .select("id")
+    .eq("employee_id", employeeId)
+    .eq("work_date", workDate)
+    .maybeSingle();
+  const patch = {
+    work_mode: "remote",
+    remote_status: "approved",
+    remote_reason: reason,
+    remote_decided_by: decidedBy,
+    remote_decided_at: decidedAt,
+  };
+  if (existing) {
+    await db.from("attendance").update(patch).eq("id", existing.id);
+  } else {
+    // A planned/absent WFH day has no real punch; first_login_at is NOT NULL,
+    // so anchor it at IST midnight. The row exists only to carry the approval,
+    // so it counts as a present remote day in the month view.
+    await db.from("attendance").insert({
+      employee_id: employeeId,
+      work_date: workDate,
+      first_login_at: istInstant(workDate, 0),
+      status: "present",
+      ...patch,
+    });
+  }
+}
+
+/**
+ * Correct a missed-login day: recompute the attendance row through the shared
+ * regularizedAttendance helper (closeDay / lateMinutes / windowMinutes) so a
+ * corrected day matches a normally-punched one. Needs both a login and logout;
+ * with only a login there is nothing to score, so it is skipped.
+ */
+async function regularizeDay(
+  db: Db,
+  input: {
+    employeeId: string;
+    workDate: string;
+    loginMinutes: number | null;
+    logoutMinutes: number | null;
+  },
+) {
+  if (input.loginMinutes === null || input.logoutMinutes === null) return;
+
+  const { data: existing } = await db
+    .from("attendance")
+    .select("*")
+    .eq("employee_id", input.employeeId)
+    .eq("work_date", input.workDate)
+    .maybeSingle();
+
+  const { data: settings } = await db
+    .from("hr_settings")
+    .select("day_schedules, grace_minutes, half_day_minutes")
+    .eq("id", true)
+    .maybeSingle();
+  const schedule = await scheduleFor(db, input.workDate, existing);
+  const graceMinutes = Number(settings?.grace_minutes ?? 15);
+  const halfDayMinutes = Number(settings?.half_day_minutes ?? 240);
+
+  const r = regularizedAttendance({
+    schedule,
+    graceMinutes,
+    halfDayMinutes,
+    work_date: input.workDate,
+    requested_login_minutes: input.loginMinutes,
+    requested_logout_minutes: input.logoutMinutes,
+  });
+
+  const patch = {
+    first_login_at: r.first_login_at,
+    last_logout_at: r.last_logout_at,
+    open_since: null,
+    worked_minutes: r.worked_minutes,
+    window_minutes: r.window_minutes,
+    is_late: r.is_late,
+    late_minutes: r.late_minutes,
+    status: r.status,
+    overtime_minutes: r.overtime_minutes,
+    schedule_mode: schedule.mode,
+    window_start: schedule.start,
+    window_end: schedule.end,
+    required_minutes: schedule.required_minutes,
+  };
+  if (existing) {
+    await db.from("attendance").update(patch).eq("id", existing.id);
+  } else {
+    await db.from("attendance").insert({
+      employee_id: input.employeeId,
+      work_date: input.workDate,
+      work_mode: "office",
+      ...patch,
+    });
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Use POST" }, 405);
@@ -92,7 +292,12 @@ Deno.serve(async (req) => {
       [e.first_name, e.last_name].filter(Boolean).join(" ");
 
     // ---------------------------------------------------------------- employee
-    if (action === "apply_leave" || action === "cancel_leave") {
+    if (
+      action === "apply_leave" ||
+      action === "cancel_leave" ||
+      action === "apply_attendance_request" ||
+      action === "cancel_attendance_request"
+    ) {
       const { data: employee } = await db
         .from("employees")
         .select("id, first_name, last_name, employee_code, employment_status")
@@ -112,6 +317,125 @@ Deno.serve(async (req) => {
         return done
           ? json({ ok: true })
           : fail("Only a pending request of yours can be cancelled.");
+      }
+
+      if (action === "cancel_attendance_request") {
+        const { data: done } = await db
+          .from("attendance_requests")
+          .update({ status: "cancelled" })
+          .eq("id", String(body.id ?? ""))
+          .eq("employee_id", employee.id)
+          .eq("status", "pending")
+          .select("id")
+          .maybeSingle();
+        return done
+          ? json({ ok: true })
+          : fail("Only a pending request of yours can be cancelled.");
+      }
+
+      if (action === "apply_attendance_request") {
+        const type = String(body.type ?? "") as AttendanceRequestType;
+        if (!(type in ATTENDANCE_REQUEST_LABELS)) return fail("Pick a valid request type.");
+        const today = istParts(new Date()).date;
+        const check = validateAttendanceRequest({
+          type,
+          work_date: String(body.work_date ?? ""),
+          to_date: typeof body.to_date === "string" ? body.to_date : undefined,
+          reason: text(body.reason, 500) ?? "",
+          requested_login_minutes: parseHHMM(body.login),
+          requested_logout_minutes: parseHHMM(body.logout),
+          today,
+        });
+        if (!check.ok) return fail(check.message);
+        const n = check.normalized;
+
+        // Duplicate / overlap guard: a pending or approved request of the same
+        // type already covering any of these dates. WFH is a range; the other
+        // two are single-day.
+        const { data: clash } = await db
+          .from("attendance_requests")
+          .select("id")
+          .eq("employee_id", employee.id)
+          .eq("type", type)
+          .in("status", ["pending", "approved"])
+          .lte("from_date", n.to_date)
+          .gte("to_date", n.from_date)
+          .limit(1);
+        if (clash && clash.length)
+          return fail("You already have a request of this type covering these dates.");
+
+        // Lenient sanity checks against actual attendance — only block when the
+        // data clearly contradicts the request, so edge cases are not stuck.
+        if (type === "missed_login_regularization" || type === "absence_clarification") {
+          const { data: existing } = await db
+            .from("attendance")
+            .select("status, open_since, first_login_at")
+            .eq("employee_id", employee.id)
+            .eq("work_date", n.from_date)
+            .maybeSingle();
+          if (existing) {
+            if (type === "missed_login_regularization") {
+              // A completed day (logged out) needs no missed-login fix.
+              const settled =
+                !existing.open_since &&
+                existing.first_login_at &&
+                existing.status !== "in_progress";
+              if (settled)
+                return fail("That day already has a completed attendance record — nothing to fix.");
+            } else if (existing.first_login_at) {
+              // absence_clarification is for a day with no present attendance.
+              return fail("That day already has an attendance record, so it is not an absence.");
+            }
+          }
+        }
+
+        const row: Record<string, unknown> = {
+          employee_id: employee.id,
+          type,
+          work_date: n.from_date,
+          from_date: n.from_date,
+          to_date: n.to_date,
+          reason: n.reason,
+          requested_login_at:
+            n.requested_login_minutes === null
+              ? null
+              : istInstant(n.from_date, n.requested_login_minutes),
+          requested_logout_at:
+            n.requested_logout_minutes === null
+              ? null
+              : istInstant(n.from_date, n.requested_logout_minutes),
+        };
+        const { data: created, error } = await db
+          .from("attendance_requests")
+          .insert(row)
+          .select("*")
+          .single();
+        if (error) throw new Error(error.message);
+
+        const name = nameOf(employee);
+        const label = ATTENDANCE_REQUEST_LABELS[type];
+        const details: [string, string][] = [
+          ["Employee", `${name} (${employee.employee_code})`],
+          ["Type", label],
+          [type === "work_from_home" ? "Dates" : "Date", requestRangeLabel(n.from_date, n.to_date)],
+          ["Reason", n.reason],
+        ];
+        if (type === "missed_login_regularization") {
+          details.push(["Login", clockLabel(n.requested_login_minutes)]);
+          details.push(["Logout", clockLabel(n.requested_logout_minutes)]);
+        }
+        await notifyAdmins(db, {
+          type: "hr_attendance_request",
+          title: `${label} request — ${name}`,
+          body: `${name} raised a ${label.toLowerCase()} request for ${requestRangeLabel(
+            n.from_date,
+            n.to_date,
+          )}.`,
+          details,
+          path: "/hrms/approvals",
+          cta: "Review in CRM",
+        });
+        return json({ ok: true, request: created });
       }
 
       const from = body.from;
@@ -191,6 +515,79 @@ Deno.serve(async (req) => {
     }
 
     // ------------------------------------------------------------------- admin
+    if (action === "decide_attendance_request") {
+      if (!isAdmin) return json({ error: "Admins only." }, 403);
+      const approve = body.approve === true;
+      const note = text(body.note, 500);
+      const decidedAt = new Date().toISOString();
+
+      const { data: request } = await db
+        .from("attendance_requests")
+        .select("*, employees(profile_id, first_name, last_name, employee_code)")
+        .eq("id", String(body.id ?? ""))
+        .eq("status", "pending")
+        .maybeSingle();
+      if (!request) return fail("That request is no longer pending.");
+
+      const { data: decided } = await db
+        .from("attendance_requests")
+        .update({
+          status: approve ? "approved" : "rejected",
+          admin_note: note,
+          decided_by: user.id,
+          decided_at: decidedAt,
+        })
+        .eq("id", request.id)
+        .eq("status", "pending")
+        .select("id")
+        .maybeSingle();
+      if (!decided) return fail("That request is no longer pending.");
+
+      const type = request.type as AttendanceRequestType;
+      const label = ATTENDANCE_REQUEST_LABELS[type];
+
+      // On approval, apply the per-type effect on the attendance row through the
+      // shared pure rules, reusing the existing remote_* columns for WFH so the
+      // reactive flow and command center stay consistent.
+      if (approve) {
+        if (type === "work_from_home") {
+          for (
+            let d = request.from_date, i = 0;
+            d <= request.to_date && i < 366;
+            d = addDays(d, 1), i++
+          ) {
+            await approveRemoteDay(db, request.employee_id, d, request.reason, user.id, decidedAt);
+          }
+        } else if (type === "missed_login_regularization") {
+          await regularizeDay(db, {
+            employeeId: request.employee_id,
+            workDate: request.from_date,
+            loginMinutes: minutesSinceIstMidnight(request.from_date, request.requested_login_at),
+            logoutMinutes: minutesSinceIstMidnight(request.from_date, request.requested_logout_at),
+          });
+        }
+        // absence_clarification: the approved request itself is the record; no
+        // attendance mutation.
+      }
+
+      await notifyUser(db, profileOf(request.employees), {
+        type: "hr_attendance_decision",
+        title: `${label} ${approve ? "approved" : "rejected"} — ${requestRangeLabel(
+          request.from_date,
+          request.to_date,
+        )}`,
+        body: note
+          ? `Admin note: ${note}`
+          : `Your ${label.toLowerCase()} request for ${requestRangeLabel(
+              request.from_date,
+              request.to_date,
+            )} was ${approve ? "approved" : "rejected"}.`,
+        path: "/attendance",
+        cta: "Open My Attendance",
+      });
+      return json({ ok: true });
+    }
+
     if (action === "decide_leave" || action === "decide_remote") {
       if (!isAdmin) return json({ error: "Admins only." }, 403);
       const approve = body.approve === true;
