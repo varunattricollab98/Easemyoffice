@@ -2,7 +2,7 @@
   "id": "FEAT-004",
   "type": "feat",
   "description": "Add the filter controls to the Command Center UI and wire them to the filter-aware query. Deliver the user-requested Date filter (period presets + custom range) and Day filter (specific calendar date for Attendance), reusing the shadcn Select + Popover + Calendar pattern from bookings/leads. Label point-in-time tiles so an admin is never misled. Keep drill-downs working and the view admin-only. Depends on FEAT-003.",
-  "status": "pending",
+  "status": "completed",
   "steps": [
     "In src/components/dashboard/admin-command-center.tsx, add local filter state: const [period, setPeriod] = useState<PeriodId>('all'); plus customFrom/customTo (YYYY-MM-DD strings) for the custom range, and const [day, setDay] = useState<string>('') for the Attendance Day filter. Default period 'all' preserves the current all-time view on first render.",
     "Build a CommandCenterFilter from state (period, from: customFrom||null, to: customTo||null, day: day||null) and pass it to useQuery(commandCenterQuery(filter)). Because the queryKey now includes the filter (FEAT-003), changing a control refetches automatically.",
@@ -30,5 +30,5 @@
     "bun run test"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Edited only src/components/dashboard/admin-command-center.tsx. Added local filter state (period default 'all', customFrom/customTo for the custom range, day for Attendance), built a CommandCenterFilter via useMemo and passed it to useQuery(commandCenterQuery(filter)) so the FEAT-003 filter-aware queryKey refetches on change. Added a header filter bar: shadcn Select rendering PERIOD_OPTIONS (Today/This week/This month/This quarter/This year/All time/Custom range); when period==='custom' a Popover+Calendar (mode='range', numberOfMonths={2}) mirroring leads/index.tsx custom_range (format(date,'yyyy-MM-dd'), reversed picks tolerated, formatted trigger label); a separate 'Attendance day' Popover+Calendar (mode='single', empty=today, with a 'Reset to today' action). Captions use data.meta: 'Showing: <periodLabel> (<from> → <to>)' (bounds hidden for All time), dynamic Attendance section title ('Attendance (Today)' vs 'Attendance (12 May 2026)') from meta.attendanceDay vs local today, and Payroll title shows the resolved month from meta.toDate. Added hint='current' + tooltip (CURRENT_STATE_TOOLTIP) to the point-in-time tiles: Active CA Partners, Partners, Open Pipeline, all four Renewals tiles, and Overdue Follow-ups; plus a one-line header note. MoneyTile untouched (does not accept hint). All existing drill-down to+search props preserved; no new search params invented. Loading v() pattern unchanged. Removed no code; dashboard.tsx admin gating untouched. Note: pre-existing unused import RefreshCcw left as-is (not flagged by tsc). Verification: ./node_modules/.bin/tsc --noEmit (clean), bun run build (ok), bun run test (261 passed, 18 files)."
 }

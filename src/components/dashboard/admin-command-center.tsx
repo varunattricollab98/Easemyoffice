@@ -12,6 +12,8 @@
 // Router `to` + `search` so clicking one opens the underlying filtered list.
 
 import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { format } from "date-fns";
 import {
   Users,
   Building2,
@@ -34,11 +36,38 @@ import {
   CalendarClock,
   Wallet,
   Trophy,
+  CalendarIcon,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { KpiTile } from "@/components/dashboard/widgets/kpi-tile";
 import { formatINR } from "@/lib/utils";
 import { commandCenterQuery } from "@/lib/command-center-queries";
+import { PERIOD_OPTIONS, type PeriodId } from "@/lib/report-period";
+import type { CommandCenterFilter } from "@/lib/command-center";
+
+/** Today's local calendar date as YYYY-MM-DD (never the UTC date, which drifts
+ * a day in non-UTC timezones — the same convention the query layer uses). */
+function localToday(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+}
+
+/** A current-state footnote shared by the point-in-time tiles. */
+const CURRENT_STATE_TOOLTIP =
+  "Current-state snapshot — always reflects live data regardless of the selected date filter.";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -86,8 +115,40 @@ function MoneyTile({
 }
 
 export function AdminCommandCenter() {
-  const { data, isLoading } = useQuery(commandCenterQuery());
+  // Local filter state. Default period 'all' preserves the pre-filter all-time
+  // view on first render. customFrom/customTo back the custom range picker and
+  // `day` scopes the day-level Attendance block (empty = today).
+  const [period, setPeriod] = useState<PeriodId>("all");
+  const [customFrom, setCustomFrom] = useState<string>("");
+  const [customTo, setCustomTo] = useState<string>("");
+  const [day, setDay] = useState<string>("");
+
+  const filter: CommandCenterFilter = useMemo(
+    () => ({
+      period,
+      from: customFrom || null,
+      to: customTo || null,
+      day: day || null,
+    }),
+    [period, customFrom, customTo, day],
+  );
+
+  const { data, isLoading } = useQuery(commandCenterQuery(filter));
   const v = <T,>(x: T): T | undefined => (isLoading ? undefined : x);
+
+  // Accurate captions straight from the resolved window the query reported.
+  const meta = data?.meta;
+  const today = localToday();
+  const attendanceTitle = (() => {
+    const d = meta?.attendanceDay;
+    if (!d || d === today) return "Attendance (Today)";
+    return `Attendance (${format(new Date(d + "T00:00:00"), "d MMM yyyy")})`;
+  })();
+  const payrollTitle = (() => {
+    const d = meta?.toDate;
+    if (!d) return "Payroll (This Month)";
+    return `Payroll (${format(new Date(d + "T00:00:00"), "MMMM yyyy")})`;
+  })();
 
   const bo = data?.businessOverview;
   const sales = data?.sales;
@@ -99,15 +160,126 @@ export function AdminCommandCenter() {
 
   return (
     <div className="space-y-7">
-      <header className="flex items-center gap-3">
-        <div className="grid size-10 place-items-center rounded-lg bg-gradient-to-br from-primary to-primary/70 text-primary-foreground">
-          <GitBranch className="h-5 w-5" />
+      <header className="space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="grid size-10 place-items-center rounded-lg bg-gradient-to-br from-primary to-primary/70 text-primary-foreground">
+            <GitBranch className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Command Center</h1>
+            <p className="text-sm text-muted-foreground">
+              Cross-module KPIs across Sales, B2B, Renewals, Documentation and HR. Click any tile to
+              drill into the records behind it.
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Command Center</h1>
-          <p className="text-sm text-muted-foreground">
-            Cross-module KPIs across Sales, B2B, Renewals, Documentation and HR. Click any tile to
-            drill into the records behind it.
+
+        {/* Filter bar: a Date period Select (+ custom range picker) scopes the
+            range-aware modules, and an Attendance-day picker drives the
+            day-level Attendance block. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Date
+            </span>
+            <Select value={period} onValueChange={(val) => setPeriod(val as PeriodId)}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Date" />
+              </SelectTrigger>
+              <SelectContent>
+                {PERIOD_OPTIONS.map((o) => (
+                  <SelectItem key={o.id} value={o.id}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {period === "custom" && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-[220px] justify-start text-left font-normal text-sm transition-all duration-200 ease-out"
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4 text-muted-foreground" />
+                    {customFrom && customTo
+                      ? `${format(new Date(customFrom + "T00:00:00"), "MMM d")} – ${format(new Date(customTo + "T00:00:00"), "MMM d, yyyy")}`
+                      : customFrom
+                        ? `${format(new Date(customFrom + "T00:00:00"), "MMM d, yyyy")} – …`
+                        : "Pick a range"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="range"
+                    numberOfMonths={2}
+                    selected={{
+                      from: customFrom ? new Date(customFrom + "T00:00:00") : undefined,
+                      to: customTo ? new Date(customTo + "T00:00:00") : undefined,
+                    }}
+                    onSelect={(range) => {
+                      setCustomFrom(range?.from ? format(range.from, "yyyy-MM-dd") : "");
+                      setCustomTo(range?.to ? format(range.to, "yyyy-MM-dd") : "");
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Attendance day
+            </span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-[170px] justify-start text-left font-normal text-sm transition-all duration-200 ease-out"
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4 text-muted-foreground" />
+                  {day ? format(new Date(day + "T00:00:00"), "MMM d, yyyy") : "Today"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={day ? new Date(day + "T00:00:00") : undefined}
+                  onSelect={(date) => setDay(date ? format(date, "yyyy-MM-dd") : "")}
+                />
+                {day && (
+                  <div className="border-t p-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full text-xs"
+                      onClick={() => setDay("")}
+                    >
+                      Reset to today
+                    </Button>
+                  </div>
+                )}
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
+
+        <div className="space-y-1 text-xs text-muted-foreground">
+          <p>
+            Showing:{" "}
+            <span className="font-medium text-foreground">
+              {meta ? meta.periodLabel : "—"}
+            </span>
+            {meta && meta.periodLabel !== "All time" && (
+              <span>
+                {" "}
+                ({meta.fromDate} → {meta.toDate})
+              </span>
+            )}
+          </p>
+          <p>
+            Some tiles (partners, pipeline, renewals) always reflect current state, regardless of
+            the date filter.
           </p>
         </div>
       </header>
@@ -134,6 +306,8 @@ export function AdminCommandCenter() {
           accent="success"
           to="/b2b/partners"
           search={{ status: "active" }}
+          hint="current"
+          tooltip={CURRENT_STATE_TOOLTIP}
         />
         <KpiTile
           label="Total Referrals"
@@ -175,6 +349,8 @@ export function AdminCommandCenter() {
           icon={GitBranch}
           accent="warning"
           to="/pipeline"
+          hint="current"
+          tooltip={CURRENT_STATE_TOOLTIP}
         />
         <KpiTile
           label="Bookings"
@@ -212,6 +388,8 @@ export function AdminCommandCenter() {
           accent="success"
           to="/b2b/partners"
           search={{ status: "active" }}
+          hint="current"
+          tooltip={CURRENT_STATE_TOOLTIP}
         />
         <KpiTile
           label="Referrals"
@@ -236,6 +414,8 @@ export function AdminCommandCenter() {
           accent="destructive"
           to="/b2b/activities/followups"
           search={{ bucket: "overdue" }}
+          hint="current"
+          tooltip={CURRENT_STATE_TOOLTIP}
         />
       </Section>
 
@@ -306,6 +486,8 @@ export function AdminCommandCenter() {
           icon={CalendarClock}
           accent="warning"
           to="/renewals"
+          hint="current"
+          tooltip={CURRENT_STATE_TOOLTIP}
         />
         <KpiTile
           label="Pending"
@@ -313,6 +495,8 @@ export function AdminCommandCenter() {
           icon={Clock}
           accent="info"
           to="/renewals"
+          hint="current"
+          tooltip={CURRENT_STATE_TOOLTIP}
         />
         <KpiTile
           label="Completed"
@@ -320,6 +504,8 @@ export function AdminCommandCenter() {
           icon={CheckCircle2}
           accent="success"
           to="/renewals"
+          hint="current"
+          tooltip={CURRENT_STATE_TOOLTIP}
         />
         <KpiTile
           label="Dormant"
@@ -327,6 +513,8 @@ export function AdminCommandCenter() {
           icon={AlertTriangle}
           accent="destructive"
           to="/renewals"
+          hint="current"
+          tooltip={CURRENT_STATE_TOOLTIP}
         />
       </Section>
 
@@ -362,8 +550,8 @@ export function AdminCommandCenter() {
         />
       </Section>
 
-      {/* Attendance (today) */}
-      <Section title="Attendance (Today)">
+      {/* Attendance (driven by the Attendance-day picker) */}
+      <Section title={attendanceTitle}>
         <KpiTile
           label="Present"
           value={v(att?.present ?? 0)}
@@ -402,8 +590,8 @@ export function AdminCommandCenter() {
         />
       </Section>
 
-      {/* Payroll (this month) */}
-      <Section title="Payroll (This Month)">
+      {/* Payroll (monthly salary slips; reflects the resolved period's month) */}
+      <Section title={payrollTitle}>
         <KpiTile
           label="Pending"
           value={v(pay?.pending ?? 0)}
