@@ -125,16 +125,42 @@ function dayRange(day?: string | null): string {
   return `${y}-${m}-${dd}`;
 }
 
+// Conditionally apply an inclusive window to a Supabase query builder. When
+// `unbounded` is true (period 'all') NO bounds are applied, so the read is a
+// true all-time read that matches every row — including future-dated business
+// dates such as a forward-dated bookings.booking_date — reproducing the
+// pre-change dashboard numbers exactly. resolvePeriod's 'all' window still caps
+// its upper bound at end-of-today (correct for the sales-reports / b2b-analytics
+// captions that render period.toDate), so we deliberately skip the bounds HERE
+// rather than widen resolvePeriod and risk misleading those shared callers.
+function withWindow<Q extends { gte: (c: string, v: string) => Q; lte: (c: string, v: string) => Q }>(
+  q: Q,
+  column: string,
+  from: string,
+  to: string,
+  unbounded: boolean,
+): Q {
+  if (unbounded) return q;
+  return q.gte(column, from).lte(column, to);
+}
+
 async function fetchCommandCenter(
   filter: CommandCenterFilter = { period: "all" },
 ): Promise<CommandCenterData> {
   const now = Date.now();
 
   // Resolve the selected window ONCE. fromISO/toISO filter timestamptz columns;
-  // fromDate/toDate filter plain `date` columns. For period 'all' the lower
-  // bounds are the epoch / 1970-01-01 so the ranged queries reproduce the
-  // pre-change all-time numbers (backward compatible).
+  // fromDate/toDate filter plain `date` columns.
   const period = resolvePeriod(filter.period, { from: filter.from, to: filter.to });
+
+  // Period 'all' means a truly unbounded, all-time read on BOTH ends. We skip
+  // the ranged bounds entirely here (rather than relying on resolvePeriod's
+  // epoch→end-of-today window) so that a legitimately future-dated row — e.g. a
+  // forward-dated bookings.booking_date contract — is counted exactly as the
+  // pre-change unbounded dashboard counted it. resolvePeriod stays untouched so
+  // the sales-reports / b2b-analytics pages that render period.toDate are not
+  // affected.
+  const isAll = filter.period === "all";
 
   // --- Sales + Business Overview (leads + bookings) -----------------------
   // leads.created_at is timestamptz -> fromISO/toISO. bookings.booking_date is
@@ -142,24 +168,26 @@ async function fetchCommandCenter(
   // filter) -> fromDate/toDate.
   const [leadRows, bookingRows] = await Promise.all([
     safeSelect<{ stage: string | null; created_at: string | null }>(() =>
-      supabase
-        .from("leads")
-        .select("stage, created_at")
-        .gte("created_at", period.fromISO)
-        .lte("created_at", period.toISO)
-        .limit(ROW_LIMIT),
+      withWindow(
+        supabase.from("leads").select("stage, created_at"),
+        "created_at",
+        period.fromISO,
+        period.toISO,
+        isAll,
+      ).limit(ROW_LIMIT),
     ),
     safeSelect<{
       amount_after_tds: number | string | null;
       total_amount: number | string | null;
       booking_source: string | null;
     }>(() =>
-      supabase
-        .from("bookings")
-        .select("amount_after_tds, total_amount, booking_source")
-        .gte("booking_date", period.fromDate)
-        .lte("booking_date", period.toDate)
-        .limit(ROW_LIMIT),
+      withWindow(
+        supabase.from("bookings").select("amount_after_tds, total_amount, booking_source"),
+        "booking_date",
+        period.fromDate,
+        period.toDate,
+        isAll,
+      ).limit(ROW_LIMIT),
     ),
   ]);
   const sales = salesSummary(leadRows, bookingRows);
@@ -178,23 +206,27 @@ async function fetchCommandCenter(
   const [b2bLeads, b2bActivities, b2bReferralsRaw, b2bFirms, b2bFollowups] = await Promise.all([
     // b2b_leads.created_at is timestamptz.
     safeSelect<AnalyticsLead>(() =>
-      db
-        .from("b2b_leads")
-        .select(
-          "id, firm_id, assigned_to, lead_status, lead_source, city, state, firm_type, created_at, last_contacted_at",
-        )
-        .gte("created_at", period.fromISO)
-        .lte("created_at", period.toISO)
-        .limit(ROW_LIMIT),
+      withWindow(
+        db
+          .from("b2b_leads")
+          .select(
+            "id, firm_id, assigned_to, lead_status, lead_source, city, state, firm_type, created_at, last_contacted_at",
+          ),
+        "created_at",
+        period.fromISO,
+        period.toISO,
+        isAll,
+      ).limit(ROW_LIMIT),
     ),
     // b2b_activities.happened_at is timestamptz.
     safeSelect<AnalyticsActivity>(() =>
-      db
-        .from("b2b_activities")
-        .select("firm_id, lead_id, type, created_by, happened_at")
-        .gte("happened_at", period.fromISO)
-        .lte("happened_at", period.toISO)
-        .limit(ROW_LIMIT),
+      withWindow(
+        db.from("b2b_activities").select("firm_id, lead_id, type, created_by, happened_at"),
+        "happened_at",
+        period.fromISO,
+        period.toISO,
+        isAll,
+      ).limit(ROW_LIMIT),
     ),
     // referrals carry referral_date / date_received / created_at. Fetch
     // leniently on the primary referral_date column but also pull rows whose
@@ -222,21 +254,26 @@ async function fetchCommandCenter(
     // overdue computation inside activityBreakdown still measures against real
     // `now` (see the POINT-IN-TIME note at the activity breakdown below).
     safeSelect<AnalyticsFollowup>(() =>
-      db
-        .from("b2b_followups")
-        .select("assigned_to, status, due_at, completed_at")
-        .gte("due_at", period.fromISO)
-        .lte("due_at", period.toISO)
-        .limit(ROW_LIMIT),
+      withWindow(
+        db.from("b2b_followups").select("assigned_to, status, due_at, completed_at"),
+        "due_at",
+        period.fromISO,
+        period.toISO,
+        isAll,
+      ).limit(ROW_LIMIT),
     ),
   ]);
 
   // Authoritative referral range filter on the best available date so rows
   // that only carry date_received / created_at are not lost (referral_date is
-  // a plain `date`, so compare on fromDate/toDate).
-  const b2bReferrals = b2bReferralsRaw.filter((r) =>
-    inRangeDate(bestReferralDate(r), period.fromDate, period.toDate),
-  );
+  // a plain `date`, so compare on fromDate/toDate). Under 'all' the window is
+  // unbounded, so keep every referral (including any future-dated one) to match
+  // the pre-change all-time count.
+  const b2bReferrals = isAll
+    ? b2bReferralsRaw
+    : b2bReferralsRaw.filter((r) =>
+        inRangeDate(bestReferralDate(r), period.fromDate, period.toDate),
+      );
 
   // Revenue of the bookings the referrals actually link to (single source of
   // truth: amount_after_tds || total_amount).
@@ -387,12 +424,13 @@ async function fetchCommandCenter(
     created_at: string | null;
     updated_at: string | null;
   }>(() =>
-    supabase
-      .from("documentation_tasks")
-      .select("stage, escalated, created_at, updated_at")
-      .gte("created_at", period.fromISO)
-      .lte("created_at", period.toISO)
-      .limit(ROW_LIMIT),
+    withWindow(
+      supabase.from("documentation_tasks").select("stage, escalated, created_at, updated_at"),
+      "created_at",
+      period.fromISO,
+      period.toISO,
+      isAll,
+    ).limit(ROW_LIMIT),
   );
   const documentation = docSummary(docRows, now);
 

@@ -86,6 +86,13 @@ describe("resolvePeriod", () => {
     expect(p.toDate).toBe("2026-05-15");
     expect(p.fromISO).toBe(new Date(0).toISOString());
     expect(p.bucket).toBe("day");
+    // NOTE: 'all' deliberately keeps toDate capped at end-of-today here so the
+    // shared sales-reports / b2b-analytics captions that render period.toDate
+    // stay sensible. The command center makes 'all' a TRULY unbounded window by
+    // skipping the ranged .gte/.lte bounds in command-center-queries.ts
+    // (withWindow(..., isAll)) rather than widening this shared sentinel, so a
+    // future-dated bookings.booking_date row is counted exactly as the
+    // pre-change unbounded dashboard counted it.
   });
 });
 
