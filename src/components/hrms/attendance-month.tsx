@@ -2,6 +2,7 @@
 // by the employee's own attendance page and the admin's per-employee view, so
 // both sides see exactly the same picture. No salary figures, by design.
 
+import type { KeyboardEvent } from "react";
 import { ChevronLeft, ChevronRight, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -241,7 +242,23 @@ export function LeaveBalance({ ledger, pending }: { ledger: LedgerMonth; pending
   );
 }
 
-export function MonthCalendar({ days }: { days: DayCell[] }) {
+/**
+ * Day kinds where raising an attendance request makes sense: the explicit ask
+ * is "absent", and a day stuck needing attention (login without logout). Only
+ * used when `onDayClick` is supplied — i.e. the employee's own page. The admin
+ * per-employee view passes no handler, so the grid stays read-only.
+ */
+const ACTIONABLE_DAY_KINDS: ReadonlySet<DayKind> = new Set<DayKind>(["absent", "action_needed"]);
+
+export function MonthCalendar({
+  days,
+  onDayClick,
+}: {
+  days: DayCell[];
+  /** When set, actionable day cells become clickable and call this with the
+   * cell's date (YYYY-MM-DD) so the page can open a pre-filled request. */
+  onDayClick?: (date: string) => void;
+}) {
   // Monday-first grid: JS weekday 1 (Mon) -> column 0, Sunday -> column 6.
   const lead = days.length ? (days[0].weekday + 6) % 7 : 0;
   return (
@@ -267,12 +284,29 @@ export function MonthCalendar({ days }: { days: DayCell[] }) {
           ]
             .filter(Boolean)
             .join(" · ");
+          const clickable = !!onDayClick && ACTIONABLE_DAY_KINDS.has(d.kind);
           return (
             <div
               key={d.date}
               title={title}
+              {...(clickable
+                ? {
+                    role: "button" as const,
+                    tabIndex: 0,
+                    "aria-label": `Raise a request for ${d.date}`,
+                    onClick: () => onDayClick(d.date),
+                    onKeyDown: (e: KeyboardEvent) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onDayClick(d.date);
+                      }
+                    },
+                  }
+                : {})}
               className={cn(
                 "relative flex aspect-square flex-col items-center justify-center rounded-lg text-xs ring-1 transition-shadow hover:shadow-[0_4px_12px_-4px_rgba(0,0,0,0.18)]",
+                clickable &&
+                  "cursor-pointer hover:ring-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                 meta.className,
               )}
             >

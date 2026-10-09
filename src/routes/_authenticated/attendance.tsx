@@ -1,6 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+} from "react";
 import { toast } from "sonner";
 import {
   CalendarCheck,
@@ -437,6 +444,15 @@ function MonthSection({
   today: string;
   onMonth: (year: number, month: number) => void;
 }) {
+  // The attendance-request dialog's open + form state live here so clicking an
+  // actionable calendar day (absent / action-needed) can pre-fill its date.
+  const [requestOpen, setRequestOpen] = useState(false);
+  const [requestForm, setRequestForm] = useState(EMPTY_REQUEST_FORM);
+  const openRequestForDate = (date: string) => {
+    setRequestForm({ ...EMPTY_REQUEST_FORM, work_date: date });
+    setRequestOpen(true);
+  };
+
   const { from, to } = monthRange(year, month);
   const { data: settings } = useQuery({ queryKey: ["hrms-settings"], queryFn: fetchHrSettings });
   // Holidays since the policy start too: the leave balance carries forward
@@ -491,7 +507,7 @@ function MonthSection({
               counted. Tell the admin so they can be corrected before month-end.
             </div>
           )}
-          <MonthCalendar days={view.days} />
+          <MonthCalendar days={view.days} onDayClick={openRequestForDate} />
         </CardContent>
       </Card>
 
@@ -501,7 +517,14 @@ function MonthSection({
         month={`${year}-${String(month).padStart(2, "0")}`}
       />
 
-      <AttendanceRequestsCard employee={employee} today={today} />
+      <AttendanceRequestsCard
+        employee={employee}
+        today={today}
+        open={requestOpen}
+        onOpenChange={setRequestOpen}
+        form={requestForm}
+        onFormChange={setRequestForm}
+      />
 
       <Card>
         <CardHeader className="pb-2">
@@ -788,10 +811,23 @@ function requestDateRange(r: AttendanceRequest) {
  * from home, explaining an absence, or regularizing a day they forgot to log in
  * — and track/cancel them. Mirrors LeaveCard's structure exactly.
  */
-function AttendanceRequestsCard({ employee, today }: { employee: Employee; today: string }) {
+function AttendanceRequestsCard({
+  employee,
+  today,
+  open,
+  onOpenChange,
+  form: f,
+  onFormChange: setF,
+}: {
+  employee: Employee;
+  today: string;
+  /** Dialog open state is owned by MonthSection so the calendar can trigger it. */
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  form: typeof EMPTY_REQUEST_FORM;
+  onFormChange: Dispatch<SetStateAction<typeof EMPTY_REQUEST_FORM>>;
+}) {
   const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
-  const [f, setF] = useState(EMPTY_REQUEST_FORM);
 
   const { data: history = [] } = useQuery({
     queryKey: ["my-attendance-requests", employee.id],
@@ -803,9 +839,11 @@ function AttendanceRequestsCard({ employee, today }: { employee: Employee; today
     qc.invalidateQueries({ queryKey: ["hrms-approval-counts"] });
   };
 
+  // The "Raise a request" button defaults to today; the calendar passes a
+  // specific absent/action-needed day via onDayClick in MonthSection.
   const openDialog = () => {
     setF({ ...EMPTY_REQUEST_FORM, work_date: today });
-    setOpen(true);
+    onOpenChange(true);
   };
 
   const isMissedLogin = f.type === "missed_login_regularization";
@@ -828,7 +866,7 @@ function AttendanceRequestsCard({ employee, today }: { employee: Employee; today
       }),
     onSuccess: () => {
       toast.success("Request sent to the admin");
-      setOpen(false);
+      onOpenChange(false);
       setF(EMPTY_REQUEST_FORM);
       refresh();
     },
@@ -904,7 +942,7 @@ function AttendanceRequestsCard({ employee, today }: { employee: Employee; today
         )}
       </CardContent>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Raise a request</DialogTitle>
@@ -984,7 +1022,7 @@ function AttendanceRequestsCard({ employee, today }: { employee: Employee; today
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)}>
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button disabled={apply.isPending || !canSubmit} onClick={() => apply.mutate()}>
