@@ -243,13 +243,30 @@ async function tagEntrySource(
 ) {
   if (!entrySource) return;
   try {
-    await db
+    const { error } = await db
       .from("attendance")
       .update({ entry_source: entrySource })
       .eq("employee_id", employeeId)
       .eq("work_date", workDate);
-  } catch {
-    // Column not present on an un-migrated DB — ignore.
+    if (error) {
+      // A missing entry_source column on an un-migrated DB is expected and must
+      // never fail the request (the attendance row was already written). Any
+      // OTHER error (constraint, transient fault) is a genuine tag failure on a
+      // migrated DB — log it so an untagged admin row is not silent, but still
+      // do not throw: provenance is best-effort, the row itself is correct.
+      const undefinedColumn =
+        /entry_source/i.test(error.message) &&
+        /(column|does not exist|schema cache|could not find)/i.test(error.message);
+      if (!undefinedColumn) {
+        console.error(
+          `tagEntrySource: failed to tag ${employeeId}/${workDate} as ${entrySource}: ${error.message}`,
+        );
+      }
+    }
+  } catch (e) {
+    // Defensive: the update should surface errors on the result object, but a
+    // thrown fault must still never abort the write path.
+    console.error(`tagEntrySource: unexpected throw for ${employeeId}/${workDate}: ${String(e)}`);
   }
 }
 
@@ -340,14 +357,16 @@ async function writeManualAttendance(
   }
 
   if (existing) {
-    await db.from("attendance").update(patch).eq("id", existing.id);
+    const { error } = await db.from("attendance").update(patch).eq("id", existing.id);
+    if (error) throw new Error(error.message);
   } else {
-    await db.from("attendance").insert({
+    const { error } = await db.from("attendance").insert({
       employee_id: input.employeeId,
       work_date: input.workDate,
       work_mode: "office",
       ...patch,
     });
+    if (error) throw new Error(error.message);
   }
 
   await tagEntrySource(db, input.employeeId, input.workDate, input.entrySource);
@@ -706,7 +725,7 @@ Deno.serve(async (req) => {
       if (!employeeId) return fail("Pick an employee.");
       const { data: employee } = await db
         .from("employees")
-        .select("id, first_name, last_name, employee_code")
+        .select("id, first_name, last_name, employee_code, joining_date")
         .eq("id", employeeId)
         .maybeSingle();
       if (!employee) return fail("Employee not found.");
@@ -720,6 +739,14 @@ Deno.serve(async (req) => {
         backdateDays: MANUAL_ATTENDANCE_BACKDATE_DAYS,
       });
       if (!check.ok) return fail(check.message);
+
+      // Re-apply the client's "joined by this date" rule server-side: the picker
+      // hides anyone not yet joined, but that is cosmetic — a crafted request
+      // could otherwise write a day before the employee joined. Plain YYYY-MM-DD
+      // string comparison, matching the client filter (joining_date <= date).
+      if (employee.joining_date && check.normalized.work_date < employee.joining_date) {
+        return fail("That date is before the employee's joining date.");
+      }
 
       await writeManualAttendance(db, {
         employeeId: employee.id,
@@ -741,7 +768,7 @@ Deno.serve(async (req) => {
 
       const today = istParts(new Date()).date;
       // Cache employee lookups by id so a day-per-employee grid refetches once.
-      const employeeCache = new Map<string, { id: string } | null>();
+      const employeeCache = new Map<string, { id: string; joining_date: string | null } | null>();
       const results: {
         index: number;
         employee_id: string;
@@ -782,7 +809,7 @@ Deno.serve(async (req) => {
         if (employee === undefined) {
           const { data } = await db
             .from("employees")
-            .select("id")
+            .select("id, joining_date")
             .eq("id", employeeId)
             .maybeSingle();
           employee = data ?? null;
@@ -817,19 +844,45 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        await writeManualAttendance(db, {
-          employeeId: employee.id,
-          workDate: check.normalized.work_date,
-          loginMinutes: check.normalized.login_minutes,
-          logoutMinutes: check.normalized.logout_minutes,
-          entrySource: "admin_bulk",
-        });
-        results.push({
-          index,
-          employee_id: employeeId,
-          work_date: check.normalized.work_date,
-          ok: true,
-        });
+        // Re-apply the "joined by this date" rule server-side (same plain
+        // YYYY-MM-DD comparison as the single-day path and the client picker).
+        if (employee.joining_date && check.normalized.work_date < employee.joining_date) {
+          results.push({
+            index,
+            employee_id: employeeId,
+            work_date: check.normalized.work_date,
+            ok: false,
+            message: "That date is before the employee's joining date.",
+          });
+          continue;
+        }
+
+        // Isolate the write per row: a write-time failure (CHECK violation,
+        // transient DB error) must record a failed result and move on, never
+        // abort the batch and lose the results already accumulated.
+        try {
+          await writeManualAttendance(db, {
+            employeeId: employee.id,
+            workDate: check.normalized.work_date,
+            loginMinutes: check.normalized.login_minutes,
+            logoutMinutes: check.normalized.logout_minutes,
+            entrySource: "admin_bulk",
+          });
+          results.push({
+            index,
+            employee_id: employeeId,
+            work_date: check.normalized.work_date,
+            ok: true,
+          });
+        } catch (e) {
+          results.push({
+            index,
+            employee_id: employeeId,
+            work_date: check.normalized.work_date,
+            ok: false,
+            message: e instanceof Error ? e.message : "Could not save this day.",
+          });
+        }
       }
 
       const written = results.filter((r) => r.ok).length;

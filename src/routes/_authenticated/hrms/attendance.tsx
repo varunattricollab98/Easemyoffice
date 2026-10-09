@@ -540,11 +540,17 @@ function MonthlyView({ today }: { today: string }) {
   const [bulkOpen, setBulkOpen] = useState(false);
 
   // After any successful write, refresh everything that reads the attendance
-  // table so the Monthly grid, per-employee calendar, Today tab, My Attendance,
-  // payroll and the command center all pick up the back-filled days.
+  // table so the Monthly grid, per-employee calendar, Today tab, daily events,
+  // My Attendance, payroll and the command center all pick up the back-filled
+  // days. The hrms-attendance-month key is also what payroll/salary reads; the
+  // my-attendance-* keys back the employee-facing My Attendance screen.
   const invalidateAttendance = () => {
     queryClient.invalidateQueries({ queryKey: ["hrms-attendance-month"] });
     queryClient.invalidateQueries({ queryKey: ["hrms-attendance-day"] });
+    queryClient.invalidateQueries({ queryKey: ["hrms-attendance-events"] });
+    queryClient.invalidateQueries({ queryKey: ["my-attendance-current"] });
+    queryClient.invalidateQueries({ queryKey: ["my-attendance-month"] });
+    queryClient.invalidateQueries({ queryKey: ["my-attendance-events"] });
   };
 
   const openEntry = (prefill: { employeeId?: string; date?: string } = {}) => {
