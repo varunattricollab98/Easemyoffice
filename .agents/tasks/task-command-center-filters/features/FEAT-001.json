@@ -1,0 +1,26 @@
+{
+  "id": "FEAT-001",
+  "type": "chore",
+  "description": "Environment setup and green baseline. Confirm dependencies install and the full verification gate (type-check, build, tests) passes BEFORE any changes, so later failures are unambiguously attributable to this task. Independent prerequisite for all other features.",
+  "status": "completed",
+  "steps": [
+    "cd /projects/sandbox/Easemyoffice and run `bun install` (only if node_modules is missing or out of date).",
+    "Run `./node_modules/.bin/tsc --noEmit` and confirm it exits 0 (npx may not be on PATH; call the binary directly).",
+    "Run `bun run build` and confirm it succeeds.",
+    "Run `bun run test` and confirm the full Vitest suite passes (expected ~243 tests green across src/lib/*.test.ts).",
+    "Record the baseline test count and that all three commands pass in the feature `findings`."
+  ],
+  "acceptance_criteria": [
+    "`./node_modules/.bin/tsc --noEmit` exits 0 with no type errors.",
+    "`bun run build` completes successfully.",
+    "`bun run test` reports all tests passing with 0 failures.",
+    "The baseline (commands run + pass/fail + test count) is written to the feature findings."
+  ],
+  "verification": [
+    "./node_modules/.bin/tsc --noEmit",
+    "bun run build",
+    "bun run test"
+  ],
+  "blocked_reason": null,
+  "findings": "Green baseline confirmed on branch main @ ee7aa10 (clean working tree). node_modules already present, so `bun install` was NOT needed. Verification gate results: (1) `./node_modules/.bin/tsc --noEmit` exited 0 with no type errors. (2) `bun run build` (vite build) succeeded, built in ~12.5s with no errors. (3) `bun run test` (vitest run) passed: 18 test files, 243 tests passed, 0 failures (matches expected ~243). No source code was changed; no commit made for this baseline feature. All later failures are attributable to subsequent features."
+}

@@ -8,6 +8,10 @@ import {
   docSummary,
   attendanceSummary,
   payrollSummary,
+  inRangeDate,
+  inRangeISO,
+  bestReferralDate,
+  monthKeyFromDate,
 } from "./command-center";
 
 describe("pct", () => {
@@ -138,5 +142,94 @@ describe("payrollSummary", () => {
   it("defaults a missing department to Unassigned", () => {
     const s = payrollSummary([{ status: "pending", net_pay: 100 }]);
     expect(s.byDepartment[0].department).toBe("Unassigned");
+  });
+});
+
+describe("inRangeDate", () => {
+  const from = "2026-04-01";
+  const to = "2026-06-30";
+  it("includes a date inside the range", () => {
+    expect(inRangeDate("2026-05-15", from, to)).toBe(true);
+  });
+  it("excludes dates on either side of the range", () => {
+    expect(inRangeDate("2026-03-31", from, to)).toBe(false);
+    expect(inRangeDate("2026-07-01", from, to)).toBe(false);
+  });
+  it("is inclusive of both boundaries", () => {
+    expect(inRangeDate("2026-04-01", from, to)).toBe(true);
+    expect(inRangeDate("2026-06-30", from, to)).toBe(true);
+  });
+  it("returns false for null/empty values", () => {
+    expect(inRangeDate(null, from, to)).toBe(false);
+    expect(inRangeDate(undefined, from, to)).toBe(false);
+    expect(inRangeDate("", from, to)).toBe(false);
+  });
+  it("matches nothing for a reversed/degenerate range", () => {
+    // from > to: lexicographic compare can never satisfy both bounds.
+    expect(inRangeDate("2026-05-15", "2026-06-30", "2026-04-01")).toBe(false);
+  });
+});
+
+describe("inRangeISO", () => {
+  const from = "2026-04-01T00:00:00.000Z";
+  const to = "2026-04-01T23:59:59.999Z";
+  it("includes an instant inside the range", () => {
+    expect(inRangeISO("2026-04-01T12:00:00.000Z", from, to)).toBe(true);
+  });
+  it("excludes instants on either side of the range", () => {
+    expect(inRangeISO("2026-03-31T23:59:59.999Z", from, to)).toBe(false);
+    expect(inRangeISO("2026-04-02T00:00:00.000Z", from, to)).toBe(false);
+  });
+  it("is inclusive of both boundaries", () => {
+    expect(inRangeISO(from, from, to)).toBe(true);
+    expect(inRangeISO(to, from, to)).toBe(true);
+  });
+  it("returns false for null/empty or unparseable values", () => {
+    expect(inRangeISO(null, from, to)).toBe(false);
+    expect(inRangeISO(undefined, from, to)).toBe(false);
+    expect(inRangeISO("", from, to)).toBe(false);
+    expect(inRangeISO("not-a-date", from, to)).toBe(false);
+  });
+  it("matches nothing for a reversed range", () => {
+    expect(inRangeISO("2026-04-01T12:00:00.000Z", to, from)).toBe(false);
+  });
+});
+
+describe("bestReferralDate", () => {
+  it("prefers referral_date, then date_received, then created_at", () => {
+    expect(
+      bestReferralDate({
+        referral_date: "2026-05-01",
+        date_received: "2026-05-02",
+        created_at: "2026-05-03",
+      }),
+    ).toBe("2026-05-01");
+    expect(bestReferralDate({ date_received: "2026-05-02", created_at: "2026-05-03" })).toBe(
+      "2026-05-02",
+    );
+    expect(bestReferralDate({ created_at: "2026-05-03" })).toBe("2026-05-03");
+  });
+  it("ignores null/empty columns and returns null when none present", () => {
+    expect(
+      bestReferralDate({ referral_date: null, date_received: "", created_at: "2026-05-03" }),
+    ).toBe("2026-05-03");
+    expect(bestReferralDate({})).toBeNull();
+    expect(bestReferralDate({ referral_date: null, date_received: null, created_at: null })).toBeNull();
+  });
+});
+
+describe("monthKeyFromDate", () => {
+  it("derives the YYYY-MM-01 month key from a YYYY-MM-DD date", () => {
+    expect(monthKeyFromDate("2026-04-30")).toBe("2026-04-01");
+    expect(monthKeyFromDate("2026-12-01")).toBe("2026-12-01");
+  });
+  it("accepts an ISO timestamp prefix", () => {
+    expect(monthKeyFromDate("2026-07-15T23:59:59.999Z")).toBe("2026-07-01");
+  });
+  it("returns null for null/empty or unparseable input", () => {
+    expect(monthKeyFromDate(null)).toBeNull();
+    expect(monthKeyFromDate(undefined)).toBeNull();
+    expect(monthKeyFromDate("")).toBeNull();
+    expect(monthKeyFromDate("not-a-date")).toBeNull();
   });
 });

@@ -22,12 +22,17 @@ import {
   docSummary,
   attendanceSummary,
   payrollSummary,
+  inRangeDate,
+  bestReferralDate,
+  monthKeyFromDate,
   type SalesSummary,
   type DocSummary,
   type AttendanceSummary,
   type PayrollSummary,
   type RenewalSummary,
+  type CommandCenterFilter,
 } from "@/lib/command-center";
+import { resolvePeriod } from "@/lib/report-period";
 import {
   buildFunnel,
   activityBreakdown,
@@ -75,6 +80,17 @@ export type CommandCenterData = {
   documentation: DocSummary;
   attendance: AttendanceSummary;
   payroll: PayrollSummary;
+  /**
+   * Resolved-window labels so the UI can accurately caption the dashboard:
+   * the selected period's human label and bounds, plus the day the Attendance
+   * block actually resolved to.
+   */
+  meta: {
+    periodLabel: string;
+    fromDate: string;
+    toDate: string;
+    attendanceDay: string;
+  };
 };
 
 /** Run a Supabase select, returning [] (never throwing) if the table is unreadable. */
@@ -90,52 +106,133 @@ async function safeSelect<T>(
   }
 }
 
-function todayRange(): { start: string; end: string } {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const end = new Date();
-  end.setHours(23, 59, 59, 999);
-  return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
+/**
+ * The single YYYY-MM-DD date the Attendance block is scoped to. When a `day`
+ * filter is supplied we use it verbatim; otherwise we fall back to today.
+ *
+ * Built from LOCAL date parts (getFullYear/getMonth/getDate), NOT
+ * `new Date().toISOString().slice(0, 10)` — the latter renders the UTC date,
+ * which drifts to the previous/next calendar day in non-UTC timezones (the
+ * bug this replaces). attendance.work_date is a plain `date` so the day string
+ * must match the user's local calendar day.
+ */
+function dayRange(day?: string | null): string {
+  if (day) return day;
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
 }
 
-async function fetchCommandCenter(): Promise<CommandCenterData> {
+// Conditionally apply an inclusive window to a Supabase query builder. When
+// `unbounded` is true (period 'all') NO bounds are applied, so the read is a
+// true all-time read that matches every row — including future-dated business
+// dates such as a forward-dated bookings.booking_date — reproducing the
+// pre-change dashboard numbers exactly. resolvePeriod's 'all' window still caps
+// its upper bound at end-of-today (correct for the sales-reports / b2b-analytics
+// captions that render period.toDate), so we deliberately skip the bounds HERE
+// rather than widen resolvePeriod and risk misleading those shared callers.
+function withWindow<Q extends { gte: (c: string, v: string) => Q; lte: (c: string, v: string) => Q }>(
+  q: Q,
+  column: string,
+  from: string,
+  to: string,
+  unbounded: boolean,
+): Q {
+  if (unbounded) return q;
+  return q.gte(column, from).lte(column, to);
+}
+
+async function fetchCommandCenter(
+  filter: CommandCenterFilter = { period: "all" },
+): Promise<CommandCenterData> {
   const now = Date.now();
 
+  // Resolve the selected window ONCE. fromISO/toISO filter timestamptz columns;
+  // fromDate/toDate filter plain `date` columns.
+  const period = resolvePeriod(filter.period, { from: filter.from, to: filter.to });
+
+  // Period 'all' means a truly unbounded, all-time read on BOTH ends. We skip
+  // the ranged bounds entirely here (rather than relying on resolvePeriod's
+  // epoch→end-of-today window) so that a legitimately future-dated row — e.g. a
+  // forward-dated bookings.booking_date contract — is counted exactly as the
+  // pre-change unbounded dashboard counted it. resolvePeriod stays untouched so
+  // the sales-reports / b2b-analytics pages that render period.toDate are not
+  // affected.
+  const isAll = filter.period === "all";
+
   // --- Sales + Business Overview (leads + bookings) -----------------------
+  // leads.created_at is timestamptz -> fromISO/toISO. bookings.booking_date is
+  // the business-meaningful `date` column (consistent with the bookings page
+  // filter) -> fromDate/toDate.
   const [leadRows, bookingRows] = await Promise.all([
     safeSelect<{ stage: string | null; created_at: string | null }>(() =>
-      supabase.from("leads").select("stage, created_at").limit(ROW_LIMIT),
+      withWindow(
+        supabase.from("leads").select("stage, created_at"),
+        "created_at",
+        period.fromISO,
+        period.toISO,
+        isAll,
+      ).limit(ROW_LIMIT),
     ),
     safeSelect<{
       amount_after_tds: number | string | null;
       total_amount: number | string | null;
       booking_source: string | null;
     }>(() =>
-      supabase
-        .from("bookings")
-        .select("amount_after_tds, total_amount, booking_source")
-        .limit(ROW_LIMIT),
+      withWindow(
+        supabase.from("bookings").select("amount_after_tds, total_amount, booking_source"),
+        "booking_date",
+        period.fromDate,
+        period.toDate,
+        isAll,
+      ).limit(ROW_LIMIT),
     ),
   ]);
   const sales = salesSummary(leadRows, bookingRows);
 
+  // POINT-IN-TIME: Open Pipeline is a current-state count of leads that are
+  // still open right now, so it must NOT shift with the selected range. Read
+  // the open-lead count from an unfiltered current-state query and overwrite
+  // the range-scoped pipelineOpen that salesSummary computed above.
+  const openLeadRows = await safeSelect<{ stage: string | null }>(() =>
+    supabase.from("leads").select("stage").limit(ROW_LIMIT),
+  );
+  sales.pipelineOpen = salesSummary(openLeadRows, []).pipelineOpen;
+
   // --- B2B rollups (reuse the analytics dataset shapes) -------------------
   const db = b2bDb();
-  const [b2bLeads, b2bActivities, b2bReferrals, b2bFirms, b2bFollowups] = await Promise.all([
+  const [b2bLeads, b2bActivities, b2bReferralsRaw, b2bFirms, b2bFollowups] = await Promise.all([
+    // b2b_leads.created_at is timestamptz.
     safeSelect<AnalyticsLead>(() =>
-      db
-        .from("b2b_leads")
-        .select(
-          "id, firm_id, assigned_to, lead_status, lead_source, city, state, firm_type, created_at, last_contacted_at",
-        )
-        .limit(ROW_LIMIT),
+      withWindow(
+        db
+          .from("b2b_leads")
+          .select(
+            "id, firm_id, assigned_to, lead_status, lead_source, city, state, firm_type, created_at, last_contacted_at",
+          ),
+        "created_at",
+        period.fromISO,
+        period.toISO,
+        isAll,
+      ).limit(ROW_LIMIT),
     ),
+    // b2b_activities.happened_at is timestamptz.
     safeSelect<AnalyticsActivity>(() =>
-      db
-        .from("b2b_activities")
-        .select("firm_id, lead_id, type, created_by, happened_at")
-        .limit(ROW_LIMIT),
+      withWindow(
+        db.from("b2b_activities").select("firm_id, lead_id, type, created_by, happened_at"),
+        "happened_at",
+        period.fromISO,
+        period.toISO,
+        isAll,
+      ).limit(ROW_LIMIT),
     ),
+    // referrals carry referral_date / date_received / created_at. Fetch
+    // leniently on the primary referral_date column but also pull rows whose
+    // referral_date is null (they may still fall in range via date_received /
+    // created_at), then do the AUTHORITATIVE range check in JS below on the
+    // best available date so no referral is wrongly dropped.
     safeSelect<AnalyticsReferral & { firm_id: string | null }>(() =>
       db
         .from("referrals")
@@ -152,10 +249,31 @@ async function fetchCommandCenter(): Promise<CommandCenterData> {
         )
         .limit(ROW_LIMIT),
     ),
+    // b2b_followups.due_at is timestamptz. We scope the FETCH window to the
+    // selected range so range-aware consumers see the right rows, but the
+    // overdue computation inside activityBreakdown still measures against real
+    // `now` (see the POINT-IN-TIME note at the activity breakdown below).
     safeSelect<AnalyticsFollowup>(() =>
-      db.from("b2b_followups").select("assigned_to, status, due_at, completed_at").limit(ROW_LIMIT),
+      withWindow(
+        db.from("b2b_followups").select("assigned_to, status, due_at, completed_at"),
+        "due_at",
+        period.fromISO,
+        period.toISO,
+        isAll,
+      ).limit(ROW_LIMIT),
     ),
   ]);
+
+  // Authoritative referral range filter on the best available date so rows
+  // that only carry date_received / created_at are not lost (referral_date is
+  // a plain `date`, so compare on fromDate/toDate). Under 'all' the window is
+  // unbounded, so keep every referral (including any future-dated one) to match
+  // the pre-change all-time count.
+  const b2bReferrals = isAll
+    ? b2bReferralsRaw
+    : b2bReferralsRaw.filter((r) =>
+        inRangeDate(bestReferralDate(r), period.fromDate, period.toDate),
+      );
 
   // Revenue of the bookings the referrals actually link to (single source of
   // truth: amount_after_tds || total_amount).
@@ -176,7 +294,28 @@ async function fetchCommandCenter(): Promise<CommandCenterData> {
   const topOrder = (id: string) => funnel.find((s) => s.id === id)?.count ?? 0;
   const contacted = topOrder("contacted");
   const meetings = topOrder("meeting_discussion");
+  // The range-scoped follow-ups feed the activity rollup (calls/emails/etc.).
   const activity = activityBreakdown(b2bActivities, b2bFollowups, now);
+
+  // POINT-IN-TIME: overdue follow-ups is an operational "what's late right
+  // now" count measured against real `now`, so it must NOT shift with the
+  // selected range (a past window would hide today's overdue items). Compute
+  // it from an UNFILTERED current-state read of pending follow-ups and
+  // override the range-scoped overdue the activity rollup produced above.
+  const allFollowups = await safeSelect<AnalyticsFollowup>(() =>
+    db
+      .from("b2b_followups")
+      .select("assigned_to, status, due_at, completed_at")
+      .limit(ROW_LIMIT),
+  );
+  activity.overdueFollowups = allFollowups.filter(
+    (f) => f.status === "pending" && f.due_at && new Date(f.due_at).getTime() < now,
+  ).length;
+
+  // POINT-IN-TIME: Active CA Partners and total Partners come from
+  // ca_firms.partner_status, which is a current-state snapshot of the
+  // partnership, not an event in the window. They stay unfiltered so the tiles
+  // reflect the live partner book regardless of the selected period.
   const activePartners = b2bFirms.filter((f) =>
     ["strategic", "active"].includes(f.partner_status ?? ""),
   ).length;
@@ -242,6 +381,11 @@ async function fetchCommandCenter(): Promise<CommandCenterData> {
   };
 
   // --- Renewals (stored on bookings, same definitions as the renewal dash) -
+  // POINT-IN-TIME: the whole renewals block is a forward-looking current-state
+  // view — due/pending/completed/dormant are all defined relative to real
+  // `now`. Scoping it to an arbitrary past window would make "due" meaningless,
+  // so this stays unfiltered and is measured against `now`, independent of the
+  // selected period.
   const renewalRows = await safeSelect<{
     renewal_status: string | null;
     plan_expiry_date: string | null;
@@ -270,21 +414,32 @@ async function fetchCommandCenter(): Promise<CommandCenterData> {
   );
 
   // --- Documentation ------------------------------------------------------
+  // documentation_tasks.created_at is timestamptz -> fromISO/toISO. The counted
+  // task set respects the window (completed/pending/delayed then reflect tasks
+  // CREATED in the window), while docSummary still receives real `now` so TAT
+  // breaches are measured against the present, not the window edge.
   const docRows = await safeSelect<{
     stage: string | null;
     escalated: boolean | null;
     created_at: string | null;
     updated_at: string | null;
   }>(() =>
-    supabase
-      .from("documentation_tasks")
-      .select("stage, escalated, created_at, updated_at")
-      .limit(ROW_LIMIT),
+    withWindow(
+      supabase.from("documentation_tasks").select("stage, escalated, created_at, updated_at"),
+      "created_at",
+      period.fromISO,
+      period.toISO,
+      isAll,
+    ).limit(ROW_LIMIT),
   );
   const documentation = docSummary(docRows, now);
 
-  // --- Attendance (today) -------------------------------------------------
-  const { start, end } = todayRange();
+  // --- Attendance (driven by the Day filter, not the period range) --------
+  // Attendance is a day-level view: it is scoped by filter.day (a single
+  // YYYY-MM-DD) and falls back to today when no day is chosen. attendance.
+  // work_date is a plain `date`, so we compare a single local-date string on
+  // both bounds; the approved-leave overlap uses the same day.
+  const attendanceDay = dayRange(filter.day);
   const attendanceRows = await safeSelect<{
     status: string | null;
     first_login_at: string | null;
@@ -295,8 +450,8 @@ async function fetchCommandCenter(): Promise<CommandCenterData> {
     hrmsDb()
       .from("attendance")
       .select("status, first_login_at, last_logout_at, is_late, worked_minutes")
-      .gte("work_date", start)
-      .lte("work_date", end)
+      .gte("work_date", attendanceDay)
+      .lte("work_date", attendanceDay)
       .limit(ROW_LIMIT),
   );
   const leaveToday = await safeSelect<{ status: string | null }>(() =>
@@ -304,8 +459,8 @@ async function fetchCommandCenter(): Promise<CommandCenterData> {
       .from("leave_requests")
       .select("status")
       .eq("status", "approved")
-      .lte("from_date", end)
-      .gte("to_date", start)
+      .lte("from_date", attendanceDay)
+      .gte("to_date", attendanceDay)
       .limit(ROW_LIMIT),
   );
   // Map HRMS attendance columns into the structural shape the pure summary wants.
@@ -320,10 +475,15 @@ async function fetchCommandCenter(): Promise<CommandCenterData> {
   );
   attendance.onLeave += leaveToday.length;
 
-  // --- Payroll (current month salary slips) -------------------------------
+  // --- Payroll (monthly salary slips) -------------------------------------
+  // Payroll is intentionally a MONTHLY view. When a period is selected we show
+  // the month at the end of the window (period.toDate -> YYYY-MM-01); with no
+  // explicit period ('all' resolves toDate to the end of today) this naturally
+  // lands on the current month, preserving the pre-change behavior.
   const monthStart = new Date();
   monthStart.setDate(1);
-  const monthKey = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, "0")}-01`;
+  const currentMonthKey = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, "0")}-01`;
+  const monthKey = monthKeyFromDate(period.toDate) ?? currentMonthKey;
   const payrollRows = await safeSelect<{
     status: string | null;
     net_pay: number | string | null;
@@ -353,13 +513,31 @@ async function fetchCommandCenter(): Promise<CommandCenterData> {
     documentation,
     attendance,
     payroll,
+    meta: {
+      periodLabel: period.label,
+      fromDate: period.fromDate,
+      toDate: period.toDate,
+      attendanceDay,
+    },
   };
 }
 
-/** TanStack query for the whole admin command-center dataset. */
-export const commandCenterQuery = () =>
+/**
+ * TanStack query for the whole admin command-center dataset. The filter is part
+ * of the query key (period + custom bounds + day) so changing any filter
+ * refetches and caches independently. Defaults to period 'all' so the existing
+ * (FEAT-004-pending) call site keeps compiling and reproduces the all-time
+ * dashboard until the component threads a real filter through.
+ */
+export const commandCenterQuery = (filter: CommandCenterFilter = { period: "all" }) =>
   queryOptions({
-    queryKey: ["admin-command-center"] as const,
+    queryKey: [
+      "admin-command-center",
+      filter.period,
+      filter.from ?? null,
+      filter.to ?? null,
+      filter.day ?? null,
+    ] as const,
     staleTime: 60_000,
-    queryFn: fetchCommandCenter,
+    queryFn: () => fetchCommandCenter(filter),
   });
