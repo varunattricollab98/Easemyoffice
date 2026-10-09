@@ -1,0 +1,14 @@
+{
+  "task_id": "task-admin-attendance-entry",
+  "task_description": "Add an admin-only way to add/correct past attendance days in EaseMyOffice CRM so the owner can back-fill the current month from WhatsApp login/logout timings before going live with portal attendance on the 12th. Two modes: (1) single-day 'Add / edit attendance' dialog (employee + date + login + optional logout + note), and (2) bulk back-fill grid over a date range writing many employee-days in one submit. All writes go through an admin-gated action in the hr-requests edge function and reuse the existing regularizedAttendance pure helper so an admin-entered day scores IDENTICALLY to a real punch (worked/window/late/status/overtime). Strictly additive and backward-compatible; audited client-side; optional idempotent entry_source migration (owner-applied) marks manual days.",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "tsc --noEmit clean; bun run test 285/285 across 18 files (incl. the byte-identical 'shared copy' test and new validateManualAttendanceEntry + concrete regularizedAttendance scoring tests); bun run build OK; deno check of hr-requests clean; the two attendance-rules.ts copies are byte-identical. Test quality verified: new tests assert concrete worked/window/status/overtime values through the real scoring path and cover logout<=login, future-date, back-date-window edge, missing login, and login-only cases — they would fail if the logic were reverted. No Dockerfile build relevant to this change (skipped). Migration 20260518000001_attendance_entry_source.sql is additive/idempotent and MUST be applied by the owner; the app degrades gracefully without it."
+  }
+}

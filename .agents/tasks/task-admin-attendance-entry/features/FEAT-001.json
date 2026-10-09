@@ -1,0 +1,28 @@
+{
+  "id": "FEAT-001",
+  "type": "chore",
+  "description": "Environment setup and green baseline. Install deps, confirm the existing typecheck + unit tests + build all pass BEFORE any change, so later regressions are attributable. Independent of other features (must run first).",
+  "status": "completed",
+  "steps": [
+    "cd /projects/sandbox/Easemyoffice && run: bun install --frozen-lockfile",
+    "Make node available: ls /root/.nvm/versions/node to find the installed patch version, then export PATH=\"/root/.nvm/versions/node/<version>/bin:$PATH\" for this shell.",
+    "Run the typecheck gate: ./node_modules/.bin/tsc --noEmit — confirm it is clean.",
+    "Run the unit tests: bun run test — confirm all pass (expect ~52 tests in src/lib/attendance-rules.test.ts incl. the 'shared copy' byte-identical check, plus other suites).",
+    "Run the build: bun run build — confirm it succeeds and emits dist output.",
+    "Optionally deno-check the edge function to confirm the baseline: npx -y deno check supabase/functions/hr-requests/index.ts (skip if deno unavailable; not blocking).",
+    "Record the baseline numbers (tests passed, build ok) in this feature's findings."
+  ],
+  "acceptance_criteria": [
+    "bun install completes without error",
+    "./node_modules/.bin/tsc --noEmit reports no errors",
+    "bun run test passes with 0 failures",
+    "bun run build completes successfully"
+  ],
+  "verification": [
+    "./node_modules/.bin/tsc --noEmit",
+    "bun run test",
+    "bun run build"
+  ],
+  "blocked_reason": null,
+  "findings": "Green baseline confirmed on clean main (HEAD 1aa9964). node v22.23.3 present at /root/.nvm/versions/node/v22.23.3 — exported to PATH for all commands (node is NOT on PATH by default; must export every shell). bun install --frozen-lockfile: no changes (584 installs / 710 packages already present). Typecheck ./node_modules/.bin/tsc --noEmit: clean (exit 0). bun run test (vitest run): 276 tests passed across 18 files, 0 failures — includes src/lib/attendance-rules.test.ts with 52 tests (the 'shared copy' byte-identical check passes). bun run build: succeeded, dist/ emitted (built in ~12.7s). Optional edge-fn gate npx -y deno check supabase/functions/hr-requests/index.ts: clean (exit 0), deno IS available. No code changes made — only this feature file updated. Gotcha for later features: always `export PATH=\"/root/.nvm/versions/node/v22.23.3/bin:$PATH\"` before tsc/build; prefer ./node_modules/.bin/tsc over npx."
+}

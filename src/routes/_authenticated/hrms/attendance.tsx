@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   CalendarCheck,
@@ -16,6 +16,9 @@ import {
   Coffee,
   MoonStar,
   Download,
+  CalendarPlus,
+  CalendarRange,
+  AlertTriangle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,6 +31,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -83,6 +88,8 @@ import {
   MonthStatsGrid,
 } from "@/components/hrms/attendance-month";
 import { GlassTabs } from "@/components/hrms/glass-tabs";
+import { hrRequest } from "@/lib/attendance-client";
+import { logAudit } from "@/lib/audit";
 
 export const Route = createFileRoute("/_authenticated/hrms/attendance")({
   head: () => ({ meta: [{ title: "Attendance — EaseMyOffice CRM" }] }),
@@ -525,6 +532,31 @@ function MonthlyView({ today }: { today: string }) {
     month: Number(today.slice(5, 7)),
   }));
   const [openId, setOpenId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  // Single-day "Add / edit attendance" dialog. `prefill` seeds the employee +
+  // date (used both by the header button and by clicking a day in the calendar).
+  const [entryOpen, setEntryOpen] = useState(false);
+  const [entryPrefill, setEntryPrefill] = useState<{ employeeId?: string; date?: string }>({});
+  const [bulkOpen, setBulkOpen] = useState(false);
+
+  // After any successful write, refresh everything that reads the attendance
+  // table so the Monthly grid, per-employee calendar, Today tab, daily events,
+  // My Attendance, payroll and the command center all pick up the back-filled
+  // days. The hrms-attendance-month key is also what payroll/salary reads; the
+  // my-attendance-* keys back the employee-facing My Attendance screen.
+  const invalidateAttendance = () => {
+    queryClient.invalidateQueries({ queryKey: ["hrms-attendance-month"] });
+    queryClient.invalidateQueries({ queryKey: ["hrms-attendance-day"] });
+    queryClient.invalidateQueries({ queryKey: ["hrms-attendance-events"] });
+    queryClient.invalidateQueries({ queryKey: ["my-attendance-current"] });
+    queryClient.invalidateQueries({ queryKey: ["my-attendance-month"] });
+    queryClient.invalidateQueries({ queryKey: ["my-attendance-events"] });
+  };
+
+  const openEntry = (prefill: { employeeId?: string; date?: string } = {}) => {
+    setEntryPrefill(prefill);
+    setEntryOpen(true);
+  };
   const { from, to } = monthRange(ym.year, ym.month);
   const { data: employees = [] } = useEmployees();
   const { data: settings } = useQuery({ queryKey: ["hrms-settings"], queryFn: fetchHrSettings });
@@ -683,6 +715,12 @@ function MonthlyView({ today }: { today: string }) {
             Click a row for the calendar, daily log and leave balance.
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" className="h-9" onClick={() => openEntry()}>
+              <CalendarPlus className="mr-1 h-4 w-4" /> Add / edit attendance
+            </Button>
+            <Button variant="outline" size="sm" className="h-9" onClick={() => setBulkOpen(true)}>
+              <CalendarRange className="mr-1 h-4 w-4" /> Bulk back-fill
+            </Button>
             <DownloadButton onClick={exportMonth} disabled={summaries.length === 0} />
             <MonthNav
               year={ym.year}
@@ -798,7 +836,14 @@ function MonthlyView({ today }: { today: string }) {
             <div className="space-y-5">
               <MonthStatsGrid stats={open.stats} />
               <LeaveBalance ledger={open.ledger} pending={open.stats.pendingLeave} />
-              <MonthCalendar days={open.days} />
+              <div className="text-xs text-muted-foreground">
+                Click any day to add or correct that day&rsquo;s attendance.
+              </div>
+              <MonthCalendar
+                days={open.days}
+                allowAnyDay
+                onDayClick={(date) => openEntry({ employeeId: open.employee.id, date })}
+              />
               <DailyLog days={open.days} records={open.records} />
               <div className="space-y-2">
                 <div className="text-sm font-semibold">CRM idle periods</div>
@@ -808,7 +853,492 @@ function MonthlyView({ today }: { today: string }) {
           )}
         </DialogContent>
       </Dialog>
+      <AttendanceEntryDialog
+        open={entryOpen}
+        onOpenChange={setEntryOpen}
+        today={today}
+        prefill={entryPrefill}
+        onSaved={invalidateAttendance}
+      />
+      <BulkBackfillDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        today={today}
+        onSaved={invalidateAttendance}
+      />
     </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+/** Active employees for the admin pickers: hide resigned/terminated and anyone
+ *  who had not joined by the given date, sorted by name. */
+function useActiveEmployees(onDate: string) {
+  const { data: employees = [] } = useEmployees();
+  return useMemo(
+    () =>
+      employees
+        .filter(
+          (e) =>
+            !INACTIVE.has(e.employment_status) && (!e.joining_date || e.joining_date <= onDate),
+        )
+        .sort((a, b) => employeeName(a).localeCompare(employeeName(b))),
+    [employees, onDate],
+  );
+}
+
+/**
+ * Single-day "Add / edit attendance": pick an employee + date + login (+ optional
+ * logout + note) and create or correct that one day. The edge function
+ * (admin-gated) is the source of truth and reuses the live scoring path, so an
+ * admin-entered day looks exactly like a punched one.
+ */
+function AttendanceEntryDialog({
+  open,
+  onOpenChange,
+  today,
+  prefill,
+  onSaved,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  today: string;
+  prefill: { employeeId?: string; date?: string };
+  onSaved: () => void;
+}) {
+  const { user } = useAuth();
+  const employees = useActiveEmployees(today);
+  const [employeeId, setEmployeeId] = useState("");
+  const [workDate, setWorkDate] = useState("");
+  const [login, setLogin] = useState("");
+  const [logout, setLogout] = useState("");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  // Seed the form each time the dialog opens (fresh prefill from the header
+  // button or a clicked calendar day).
+  useEffect(() => {
+    if (!open) return;
+    setEmployeeId(prefill.employeeId ?? "");
+    setWorkDate(prefill.date ?? "");
+    setLogin("");
+    setLogout("");
+    setNote("");
+    setSaving(false);
+  }, [open, prefill.employeeId, prefill.date]);
+
+  const logoutBeforeLogin = !!login && !!logout && logout <= login;
+  const canSubmit = !!employeeId && !!workDate && !!login && !logoutBeforeLogin && !saving;
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setSaving(true);
+    try {
+      await hrRequest({
+        action: "admin_set_attendance",
+        employee_id: employeeId,
+        work_date: workDate,
+        login,
+        logout: logout || null,
+        note: note || undefined,
+      });
+      const emp = employees.find((e) => e.id === employeeId);
+      const label = emp ? `${employeeName(emp)} · ${workDate}` : workDate;
+      toast.success(`Attendance saved for ${label}`);
+      logAudit({
+        actorId: user?.id,
+        action: "edit",
+        entity: "attendance",
+        entityId: employeeId,
+        entityLabel: label,
+        detail: `Set attendance for ${label}: login ${login}${
+          logout ? `, logout ${logout}` : " (login only)"
+        }`,
+        meta: { work_date: workDate, login, logout: logout || null },
+      });
+      onSaved();
+      onOpenChange(false);
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !saving && onOpenChange(v)}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Add / edit attendance</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Employee</label>
+            <Select value={employeeId} onValueChange={setEmployeeId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Pick an employee" />
+              </SelectTrigger>
+              <SelectContent>
+                {employees.map((e) => (
+                  <SelectItem key={e.id} value={e.id}>
+                    {employeeName(e)} · {e.employee_code}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium" htmlFor="attn-date">
+              Date
+            </label>
+            <Input
+              id="attn-date"
+              type="date"
+              max={today}
+              value={workDate}
+              onChange={(e) => setWorkDate(e.target.value)}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium" htmlFor="attn-login">
+                Login
+              </label>
+              <Input
+                id="attn-login"
+                type="time"
+                value={login}
+                onChange={(e) => setLogin(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium" htmlFor="attn-logout">
+                Logout <span className="font-normal text-muted-foreground">(optional)</span>
+              </label>
+              <Input
+                id="attn-logout"
+                type="time"
+                value={logout}
+                onChange={(e) => setLogout(e.target.value)}
+              />
+            </div>
+          </div>
+          {logoutBeforeLogin && (
+            <div className="text-xs text-rose-600">Logout must be after login.</div>
+          )}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium" htmlFor="attn-note">
+              Note <span className="font-normal text-muted-foreground">(optional)</span>
+            </label>
+            <Textarea
+              id="attn-note"
+              rows={2}
+              placeholder="e.g. back-filled from WhatsApp timings"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" disabled={saving} onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button disabled={!canSubmit} onClick={submit}>
+              {saving ? "Saving…" : "Save day"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type BulkRow = { date: string; login: string; logout: string };
+type BulkResult = {
+  index: number;
+  employee_id: string;
+  work_date: string;
+  ok: boolean;
+  message?: string;
+};
+
+/** Inclusive list of YYYY-MM-DD dates from `from` to `to` (both IST date-only
+ *  strings). Returns [] if the range is empty or inverted. */
+function dateRange(from: string, to: string): string[] {
+  if (!from || !to || from > to) return [];
+  const out: string[] = [];
+  // Iterate on a UTC midnight cursor to avoid DST / local-zone drift; the
+  // strings are plain calendar dates so UTC stepping is exact.
+  let cursor = Date.UTC(
+    Number(from.slice(0, 4)),
+    Number(from.slice(5, 7)) - 1,
+    Number(from.slice(8, 10)),
+  );
+  const end = Date.UTC(Number(to.slice(0, 4)), Number(to.slice(5, 7)) - 1, Number(to.slice(8, 10)));
+  while (cursor <= end && out.length <= 400) {
+    out.push(new Date(cursor).toISOString().slice(0, 10));
+    cursor += 86_400_000;
+  }
+  return out;
+}
+
+/**
+ * Bulk back-fill: pick ONE employee, choose a date range, then fill login/logout
+ * per day in a table (one row per date). One submit writes every row that has a
+ * login. This matches how WhatsApp timings are organized — one teammate at a
+ * time across the range — and keeps the grid readable for ~11 days. The server
+ * processes each row independently and returns a per-row pass/fail summary.
+ */
+function BulkBackfillDialog({
+  open,
+  onOpenChange,
+  today,
+  onSaved,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  today: string;
+  onSaved: () => void;
+}) {
+  const { user } = useAuth();
+  const employees = useActiveEmployees(today);
+  const defaultFrom = `${today.slice(0, 7)}-01`;
+  const [employeeId, setEmployeeId] = useState("");
+  const [from, setFrom] = useState(defaultFrom);
+  const [to, setTo] = useState(today);
+  const [times, setTimes] = useState<Record<string, { login: string; logout: string }>>({});
+  const [saving, setSaving] = useState(false);
+  const [results, setResults] = useState<BulkResult[] | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setEmployeeId("");
+    setFrom(defaultFrom);
+    setTo(today);
+    setTimes({});
+    setSaving(false);
+    setResults(null);
+  }, [open, defaultFrom, today]);
+
+  const dates = useMemo(() => dateRange(from, to), [from, to]);
+  const rows: BulkRow[] = dates.map((date) => ({
+    date,
+    login: times[date]?.login ?? "",
+    logout: times[date]?.logout ?? "",
+  }));
+
+  const setTime = (date: string, field: "login" | "logout", value: string) =>
+    setTimes((prev) => {
+      const current = prev[date] ?? { login: "", logout: "" };
+      return { ...prev, [date]: { ...current, [field]: value } };
+    });
+
+  const filled = rows.filter((r) => r.login);
+  const anyBadOrder = rows.some((r) => r.login && r.logout && r.logout <= r.login);
+  const rangeTooLong = !!from && !!to && from <= to && dates.length === 0;
+  const canSubmit = !!employeeId && filled.length > 0 && !anyBadOrder && !rangeTooLong && !saving;
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setSaving(true);
+    try {
+      const entries = filled.map((r) => ({
+        employee_id: employeeId,
+        work_date: r.date,
+        login: r.login,
+        logout: r.logout || null,
+      }));
+      const res = await hrRequest<{
+        ok: true;
+        results: BulkResult[];
+        written: number;
+        failed: number;
+      }>({ action: "admin_bulk_set_attendance", entries });
+      setResults(res.results ?? []);
+      const written = res.written ?? 0;
+      const failed = res.failed ?? 0;
+      const skipped = dates.length - filled.length;
+      if (failed > 0) {
+        toast.warning(`${written} day(s) saved, ${failed} failed, ${skipped} blank skipped`);
+      } else {
+        toast.success(`${written} day(s) saved${skipped ? `, ${skipped} blank skipped` : ""}`);
+      }
+      const emp = employees.find((e) => e.id === employeeId);
+      const label = emp ? employeeName(emp) : employeeId;
+      logAudit({
+        actorId: user?.id,
+        action: "edit",
+        entity: "attendance",
+        entityId: employeeId,
+        entityLabel: `${label} · ${from}…${to}`,
+        detail: `Bulk back-fill for ${label} (${from} to ${to}): ${written} saved, ${failed} failed`,
+        meta: { from, to, written, failed },
+      });
+      onSaved();
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const failures = (results ?? []).filter((r) => !r.ok);
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !saving && onOpenChange(v)}>
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Bulk back-fill attendance</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Pick one teammate and a date range, then enter their login/logout for each day. Only
+            days with a login are saved; blanks are skipped. The server scores each day exactly like
+            a live punch.
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Employee</label>
+              <Select value={employeeId} onValueChange={setEmployeeId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pick an employee" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {employeeName(e)} · {e.employee_code}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium" htmlFor="bulk-from">
+                From
+              </label>
+              <Input
+                id="bulk-from"
+                type="date"
+                max={today}
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium" htmlFor="bulk-to">
+                To
+              </label>
+              <Input
+                id="bulk-to"
+                type="date"
+                max={today}
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {from > to && (
+            <div className="text-xs text-rose-600">
+              The &ldquo;from&rdquo; date must not be after the &ldquo;to&rdquo; date.
+            </div>
+          )}
+
+          {employeeId && dates.length > 0 && (
+            <div className="overflow-x-auto rounded-lg border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Login</TableHead>
+                    <TableHead>Logout</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((r) => {
+                    const bad = !!r.login && !!r.logout && r.logout <= r.login;
+                    return (
+                      <TableRow key={r.date}>
+                        <TableCell className="whitespace-nowrap tabular-nums">
+                          {new Date(`${r.date}T00:00:00Z`).toLocaleDateString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                            weekday: "short",
+                            timeZone: "UTC",
+                          })}
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="time"
+                            className="h-8 w-32"
+                            value={r.login}
+                            onChange={(e) => setTime(r.date, "login", e.target.value)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="time"
+                            className={cn("h-8 w-32", bad && "border-rose-400")}
+                            value={r.logout}
+                            onChange={(e) => setTime(r.date, "logout", e.target.value)}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          {!employeeId && (
+            <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+              Pick an employee to start filling days.
+            </div>
+          )}
+
+          {anyBadOrder && (
+            <div className="flex items-center gap-1.5 text-xs text-rose-600">
+              <AlertTriangle className="h-3.5 w-3.5" /> Some rows have logout before login — fix
+              them before saving.
+            </div>
+          )}
+
+          {results && (
+            <div className="space-y-2 rounded-lg border bg-muted/30 p-3 text-sm">
+              <div className="font-medium">
+                {results.filter((r) => r.ok).length} saved · {failures.length} failed
+              </div>
+              {failures.length > 0 && (
+                <ul className="space-y-0.5 text-xs text-rose-600">
+                  {failures.map((f) => (
+                    <li key={f.index}>
+                      {f.work_date}: {f.message ?? "failed"}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-xs text-muted-foreground">
+              {employeeId
+                ? `${filled.length} day(s) to save of ${dates.length} in range`
+                : "No employee selected"}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="ghost" disabled={saving} onClick={() => onOpenChange(false)}>
+                Close
+              </Button>
+              <Button disabled={!canSubmit} onClick={submit}>
+                {saving ? "Saving…" : `Save ${filled.length || ""} day(s)`}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

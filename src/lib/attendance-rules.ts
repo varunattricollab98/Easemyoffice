@@ -607,6 +607,77 @@ export function validateAttendanceRequest(
 }
 
 /**
+ * How far back an admin may enter or correct a day by hand. Comfortably covers
+ * back-filling the 1st of the current month early in the next one (e.g. seeding
+ * the 1st–11th on the 9th) and caps how old a hand-entered day can be.
+ */
+export const MANUAL_ATTENDANCE_BACKDATE_DAYS = 45;
+
+export type ManualAttendanceEntryInput = {
+  /** The day being entered or corrected, YYYY-MM-DD. */
+  work_date: string;
+  /** Minutes since IST midnight for the login. Required. */
+  login_minutes: number | null;
+  /** Minutes since IST midnight for the logout; optional (an open day). */
+  logout_minutes: number | null;
+  /** Today in India, YYYY-MM-DD. */
+  today: string;
+  /** How many days back entry is allowed (pass MANUAL_ATTENDANCE_BACKDATE_DAYS). */
+  backdateDays: number;
+};
+
+export type NormalizedManualAttendanceEntry = {
+  work_date: string;
+  login_minutes: number;
+  logout_minutes: number | null;
+};
+
+/**
+ * Pure validator shared by the single-day admin entry and the bulk back-fill so
+ * both apply identical rules. The caller (an admin edge action) still owns
+ * permissions and the actual scoring via regularizedAttendance; this only
+ * checks the shape of one day's input. Date comparisons are on YYYY-MM-DD
+ * strings, so there is no timezone drift.
+ */
+export function validateManualAttendanceEntry(
+  input: ManualAttendanceEntryInput,
+):
+  | { ok: true; normalized: NormalizedManualAttendanceEntry }
+  | { ok: false; message: string } {
+  const work_date = String(input.work_date ?? "");
+  if (!isValidDate(work_date)) return { ok: false, message: "Pick a valid date." };
+
+  if (work_date > input.today)
+    return { ok: false, message: "You cannot enter attendance for a future date." };
+
+  const backdateDays = Math.max(0, Math.floor(Number(input.backdateDays) || 0));
+  const earliest = addDays(input.today, -backdateDays);
+  if (work_date < earliest)
+    return {
+      ok: false,
+      message: `The date is too far back — attendance can be entered for the last ${backdateDays} days only.`,
+    };
+
+  const login = input.login_minutes;
+  if (!inDayRange(login)) return { ok: false, message: "Enter the login time." };
+
+  const logout = input.logout_minutes;
+  if (logout !== null && logout !== undefined) {
+    if (!inDayRange(logout) || logout <= login)
+      return { ok: false, message: "The logout time must be after the login time." };
+  }
+
+  return {
+    ok: true,
+    normalized: {
+      work_date,
+      login_minutes: login,
+      logout_minutes: logout === null || logout === undefined ? null : logout,
+    },
+  };
+}
+
+/**
  * The fields a missed-login approval writes onto the attendance row, computed
  * with the SAME pure rules the logout flow uses (closeDay / lateMinutes /
  * windowMinutes / minutesBetween / istMidnightMs) so a corrected day matches a
