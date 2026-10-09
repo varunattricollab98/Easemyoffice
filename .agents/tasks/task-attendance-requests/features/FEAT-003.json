@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "Add pure, unit-tested validation and effect helpers for the three attendance request kinds to the shared rules file, kept byte-identical between src/lib and the edge-function copy. These functions encode: which inputs each type requires, the backdate/future window, and how an approved missed-login regularization recomputes an attendance row's worked-minutes/status/late via the EXISTING closeDay/lateMinutes/windowMinutes rules. Putting the math here (not in the edge function) keeps it testable without a database and consistent between server and browser preview.",
-  "status": "pending",
+  "status": "completed",
   "steps": [
     "Edit src/lib/attendance-rules.ts (the browser copy). Add, in the Leave section's style, a small typed vocabulary and pure helpers. Keep NO imports (the file must run unchanged under both Vite and Deno).",
     "Add `export type AttendanceRequestType = 'work_from_home' | 'absence_clarification' | 'missed_login_regularization';` and an `export const ATTENDANCE_REQUEST_BACKDATE_DAYS = 7;` and `ATTENDANCE_REQUEST_AHEAD_DAYS` (allow WFH to be requested ahead — e.g. 60 days; the other two kinds are about days already passed so they should be today-or-earlier). Document each with a comment.",
@@ -25,5 +25,5 @@
     "Diff the two attendance-rules files to confirm zero differences."
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Added AttendanceRequestType, ATTENDANCE_REQUEST_BACKDATE_DAYS (7), ATTENDANCE_REQUEST_AHEAD_DAYS (60), validateAttendanceRequest() and regularizedAttendance() to src/lib/attendance-rules.ts in a new 'Attendance requests' section (before Month view), with zero imports preserved. regularizedAttendance reuses closeDay/lateMinutes/windowMinutes/minutesBetween/istMidnightMs so a corrected missed-login row matches the attendance-punch logout math; it requires both login+logout (documented) for a status-producing correction. The _shared copy was overwritten verbatim and is byte-identical (same sha256; the guard test passes). Added 12 Vitest cases (attendance-rules.test.ts 37 -> 49 tests): WFH happy path + range + ahead-window reject, backdate reject, future-date reject for the two past-only kinds but allowed for WFH, multi-day reject for past-only kinds, missed-login requires login time, logout<=login reject, and regularization math (normal flex day present+overtime, late fixed-day login, short/half_day). Verified: `bun run test` 18 files / 273 tests pass (261 baseline + 12 new); `./node_modules/.bin/tsc --noEmit` exit 0; both rules files prettier-clean (test file was already clean). Notes: `cmp` and `diff` are NOT installed in this sandbox, so byte-identity was confirmed via sha256sum. Branch policy: main was checked out with no session branch, so work was committed to a new branch feat/attendance-request-rules (not committed to main)."
 }
