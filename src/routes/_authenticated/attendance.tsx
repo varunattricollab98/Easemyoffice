@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import {
   CalendarCheck,
   CalendarPlus,
+  ClipboardCheck,
   Clock,
   Home,
   Loader2,
@@ -29,12 +30,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn, getErrorMessage } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import {
   hrmsDb,
   formatMinutes,
+  ATTENDANCE_REQUEST_TYPES,
   type AttendanceEvent,
+  type AttendanceRequest,
   type AttendanceRow,
   type Employee,
   type LeaveRequest,
@@ -54,6 +64,7 @@ import {
   dateTimeIST,
   describeSchedule,
   fetchAttendance,
+  fetchAttendanceRequests,
   fetchHolidays,
   fetchHrSettings,
   fetchIdlePeriods,
@@ -490,6 +501,8 @@ function MonthSection({
         month={`${year}-${String(month).padStart(2, "0")}`}
       />
 
+      <AttendanceRequestsCard employee={employee} today={today} />
+
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Daily attendance</CardTitle>
@@ -719,6 +732,262 @@ function LeaveCard({
               disabled={apply.isPending || !f.from || preview <= 0 || f.reason.trim().length < 3}
               onClick={() => apply.mutate()}
             >
+              {apply.isPending ? "Sending…" : "Send request"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+const REQUEST_STATUS_CLASS: Record<AttendanceRequest["status"], string> = {
+  pending: "bg-teal-50 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300",
+  approved: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
+  rejected: "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300",
+  cancelled: "bg-muted text-muted-foreground",
+};
+
+/** Friendlier dialog labels than the stored type labels; ids stay exact. */
+const REQUEST_TYPE_UI: Record<AttendanceRequest["type"], string> = {
+  work_from_home: "Work from home",
+  absence_clarification: "Explain an absence",
+  missed_login_regularization: "I forgot to log in",
+};
+
+const requestTypeLabel = (type: AttendanceRequest["type"]) =>
+  ATTENDANCE_REQUEST_TYPES.find((t) => t.id === type)?.label ?? type;
+
+type RequestType = AttendanceRequest["type"];
+
+const EMPTY_REQUEST_FORM = {
+  type: "work_from_home" as RequestType,
+  work_date: "",
+  to_date: "",
+  reason: "",
+  login: "",
+  logout: "",
+};
+
+function requestDateRange(r: AttendanceRequest) {
+  const f = (d: string) =>
+    new Date(`${d}T00:00:00Z`).toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      timeZone: "UTC",
+    });
+  return r.to_date && r.to_date !== r.work_date
+    ? `${f(r.work_date)} – ${f(r.to_date)}`
+    : f(r.work_date);
+}
+
+/**
+ * Lets an employee raise one of three attendance requests to the admin — work
+ * from home, explaining an absence, or regularizing a day they forgot to log in
+ * — and track/cancel them. Mirrors LeaveCard's structure exactly.
+ */
+function AttendanceRequestsCard({ employee, today }: { employee: Employee; today: string }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [f, setF] = useState(EMPTY_REQUEST_FORM);
+
+  const { data: history = [] } = useQuery({
+    queryKey: ["my-attendance-requests", employee.id],
+    queryFn: () => fetchAttendanceRequests({ employeeId: employee.id }),
+  });
+
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ["my-attendance-requests", employee.id] });
+    qc.invalidateQueries({ queryKey: ["hrms-approval-counts"] });
+  };
+
+  const openDialog = () => {
+    setF({ ...EMPTY_REQUEST_FORM, work_date: today });
+    setOpen(true);
+  };
+
+  const isMissedLogin = f.type === "missed_login_regularization";
+  const isWfh = f.type === "work_from_home";
+  const canSubmit =
+    !!f.work_date &&
+    f.reason.trim().length >= 3 &&
+    (!isMissedLogin || (!!f.login && !!f.logout && f.logout > f.login)) &&
+    (!isWfh || !f.to_date || f.to_date >= f.work_date);
+
+  const apply = useMutation({
+    mutationFn: () =>
+      hrRequest({
+        action: "apply_attendance_request",
+        type: f.type,
+        work_date: f.work_date,
+        ...(isWfh && f.to_date ? { to_date: f.to_date } : {}),
+        reason: f.reason.trim(),
+        ...(isMissedLogin ? { login: f.login, logout: f.logout } : {}),
+      }),
+    onSuccess: () => {
+      toast.success("Request sent to the admin");
+      setOpen(false);
+      setF(EMPTY_REQUEST_FORM);
+      refresh();
+    },
+    onError: (e: unknown) => toast.error(getErrorMessage(e)),
+  });
+
+  const cancel = useMutation({
+    mutationFn: (id: string) => hrRequest({ action: "cancel_attendance_request", id }),
+    onSuccess: () => {
+      toast.success("Request cancelled");
+      refresh();
+    },
+    onError: (e: unknown) => toast.error(getErrorMessage(e)),
+  });
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <ClipboardCheck className="h-4 w-4 text-indigo-500" /> Attendance requests
+        </CardTitle>
+        <Button size="sm" onClick={openDialog}>
+          <CalendarPlus className="mr-1 h-4 w-4" /> Raise a request
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-xs text-muted-foreground">
+          Ask the admin to work from home, explain a day you were absent, or regularize a day you
+          forgot to log in. The admin gets an email and approves it.
+        </p>
+        {history.length > 0 && (
+          <div className="divide-y rounded-lg border">
+            {history.map((r) => (
+              <div key={r.id} className="flex flex-wrap items-center gap-3 px-3 py-2 text-sm">
+                <div className="w-36 shrink-0 font-medium tabular-nums">{requestDateRange(r)}</div>
+                <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                  {requestTypeLabel(r.type)}
+                </span>
+                <div className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                  {r.type === "missed_login_regularization" &&
+                    (r.requested_login_at || r.requested_logout_at) && (
+                      <span className="text-foreground">
+                        {timeIST(r.requested_login_at)} – {timeIST(r.requested_logout_at)} ·{" "}
+                      </span>
+                    )}
+                  {r.reason}
+                  {r.admin_note && (
+                    <span className="text-foreground"> · Admin: {r.admin_note}</span>
+                  )}
+                </div>
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-[11px] font-medium capitalize",
+                    REQUEST_STATUS_CLASS[r.status],
+                  )}
+                >
+                  {r.status}
+                </span>
+                {r.status === "pending" && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-xs"
+                    disabled={cancel.isPending}
+                    onClick={() => cancel.mutate(r.id)}
+                  >
+                    Cancel
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Raise a request</DialogTitle>
+            <DialogDescription>
+              Pick what you need and the admin gets an email to approve it.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">What do you need?</Label>
+              <Select
+                value={f.type}
+                onValueChange={(v) =>
+                  setF((prev) => ({ ...prev, type: v as RequestType, to_date: "" }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ATTENDANCE_REQUEST_TYPES.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {REQUEST_TYPE_UI[t.id]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">{isWfh ? "From" : "Date"}</Label>
+                <Input
+                  type="date"
+                  value={f.work_date}
+                  onChange={(e) => setF({ ...f, work_date: e.target.value })}
+                />
+              </div>
+              {isWfh && (
+                <div>
+                  <Label className="text-xs">To (optional)</Label>
+                  <Input
+                    type="date"
+                    value={f.to_date}
+                    min={f.work_date}
+                    onChange={(e) => setF({ ...f, to_date: e.target.value })}
+                  />
+                </div>
+              )}
+            </div>
+            {isMissedLogin && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Login time</Label>
+                  <Input
+                    type="time"
+                    value={f.login}
+                    onChange={(e) => setF({ ...f, login: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Logout time</Label>
+                  <Input
+                    type="time"
+                    value={f.logout}
+                    onChange={(e) => setF({ ...f, logout: e.target.value })}
+                  />
+                </div>
+              </div>
+            )}
+            <div>
+              <Label className="text-xs">Reason</Label>
+              <Textarea
+                rows={3}
+                value={f.reason}
+                onChange={(e) => setF({ ...f, reason: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button disabled={apply.isPending || !canSubmit} onClick={() => apply.mutate()}>
               {apply.isPending ? "Sending…" : "Send request"}
             </Button>
           </DialogFooter>

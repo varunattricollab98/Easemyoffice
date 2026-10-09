@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Check, Home, MapPin, MoonStar, X, Inbox } from "lucide-react";
+import { Check, ClipboardCheck, Home, MapPin, MoonStar, X, Inbox } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,8 @@ import {
   hrmsDb,
   employeeName,
   formatMinutes,
+  ATTENDANCE_REQUEST_TYPES,
+  type AttendanceRequest,
   type AttendanceRow,
   type Employee,
   type LeaveRequest,
@@ -20,6 +22,7 @@ import { hrRequest } from "@/lib/attendance-client";
 import {
   buildEmployeeMonth,
   dateTimeIST,
+  fetchAttendanceRequests,
   fetchHolidays,
   fetchHrSettings,
   fetchLeaves,
@@ -41,6 +44,15 @@ const fmtDate = (d: string) =>
     weekday: "short",
     timeZone: "UTC",
   });
+
+const requestTypeLabel = (type: AttendanceRequest["type"]) =>
+  ATTENDANCE_REQUEST_TYPES.find((t) => t.id === type)?.label ?? type;
+
+/** "3 Oct" or "3 Oct – 5 Oct" for an attendance request's day/range. */
+const attendanceRequestRange = (r: AttendanceRequest) =>
+  r.to_date && r.to_date !== r.work_date
+    ? `${fmtDate(r.work_date)} – ${fmtDate(r.to_date)}`
+    : fmtDate(r.work_date);
 
 function useEmployeeMap() {
   const { data: employees = [] } = useQuery({
@@ -81,11 +93,15 @@ function ApprovalsPage() {
       return data ?? [];
     },
   });
+  const { data: attendanceRequests = [] } = useQuery({
+    queryKey: ["hrms-attendance-requests-pending"],
+    queryFn: () => fetchAttendanceRequests({ status: "pending" }),
+  });
   const { data: recent = [] } = useQuery({
     queryKey: ["hrms-decided-recent"],
     queryFn: async () => {
       const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
-      const [l, r] = await Promise.all([
+      const [l, r, a] = await Promise.all([
         hrmsDb()
           .from("leave_requests")
           .select("*")
@@ -99,6 +115,13 @@ function ApprovalsPage() {
           .in("remote_status", ["approved", "rejected"])
           .gte("remote_decided_at", since)
           .order("remote_decided_at", { ascending: false })
+          .limit(30),
+        hrmsDb()
+          .from("attendance_requests")
+          .select("*")
+          .in("status", ["approved", "rejected"])
+          .gte("decided_at", since)
+          .order("decided_at", { ascending: false })
           .limit(30),
       ]);
       const items = [
@@ -119,6 +142,15 @@ function ApprovalsPage() {
           label: `WFH · ${fmtDate(x.work_date)}`,
           approved: x.remote_status === "approved",
           note: x.remote_note,
+        })),
+        ...((a.data ?? []) as AttendanceRequest[]).map((x) => ({
+          kind: "attendance_request" as const,
+          id: x.id,
+          employee_id: x.employee_id,
+          when: x.decided_at ?? x.created_at,
+          label: `${requestTypeLabel(x.type)} · ${attendanceRequestRange(x)}`,
+          approved: x.status === "approved",
+          note: x.admin_note,
         })),
       ];
       return items.sort((a, b) => b.when.localeCompare(a.when)).slice(0, 30);
@@ -160,6 +192,7 @@ function ApprovalsPage() {
     for (const k of [
       "hrms-remote-pending",
       "hrms-leave-pending",
+      "hrms-attendance-requests-pending",
       "hrms-decided-recent",
       "hrms-approval-counts",
       "hrms-leaves-since",
@@ -168,16 +201,27 @@ function ApprovalsPage() {
   };
 
   const decide = useMutation({
-    mutationFn: (v: { kind: "leave" | "remote"; id: string; approve: boolean }) =>
+    mutationFn: (v: {
+      kind: "leave" | "remote" | "attendance_request";
+      id: string;
+      approve: boolean;
+    }) =>
       hrRequest(
         v.kind === "leave"
           ? { action: "decide_leave", id: v.id, approve: v.approve, note: notes[v.id] ?? "" }
-          : {
-              action: "decide_remote",
-              attendance_id: v.id,
-              approve: v.approve,
-              note: notes[v.id] ?? "",
-            },
+          : v.kind === "attendance_request"
+            ? {
+                action: "decide_attendance_request",
+                id: v.id,
+                approve: v.approve,
+                note: notes[v.id] ?? "",
+              }
+            : {
+                action: "decide_remote",
+                attendance_id: v.id,
+                approve: v.approve,
+                note: notes[v.id] ?? "",
+              },
       ),
     onSuccess: (_, v) => {
       toast.success(v.approve ? "Approved — employee notified" : "Rejected — employee notified");
@@ -191,7 +235,7 @@ function ApprovalsPage() {
     return e ? employeeName(e) : "Employee";
   };
 
-  const actions = (kind: "leave" | "remote", id: string) => (
+  const actions = (kind: "leave" | "remote" | "attendance_request", id: string) => (
     <div className="flex flex-wrap items-center gap-2">
       <Input
         className="h-8 w-56 text-xs"
@@ -317,6 +361,43 @@ function ApprovalsPage() {
               </div>
             );
           })}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ClipboardCheck className="h-4 w-4 text-indigo-500" /> Attendance requests (
+            {attendanceRequests.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {attendanceRequests.length === 0 && (
+            <div className="py-4 text-center text-sm text-muted-foreground">Nothing pending.</div>
+          )}
+          {attendanceRequests.map((r) => (
+            <div key={r.id} className="space-y-2 rounded-xl border p-3">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                <span className="font-semibold">{nameOf(r.employee_id)}</span>
+                <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                  {requestTypeLabel(r.type)}
+                </span>
+                <span className="tabular-nums">{attendanceRequestRange(r)}</span>
+                {r.type === "missed_login_regularization" &&
+                  (r.requested_login_at || r.requested_logout_at) && (
+                    <span className="text-xs text-muted-foreground">
+                      Login {timeIST(r.requested_login_at)} · Logout{" "}
+                      {timeIST(r.requested_logout_at)}
+                    </span>
+                  )}
+                <span className="text-xs text-muted-foreground">
+                  applied {dateTimeIST(r.created_at)}
+                </span>
+              </div>
+              {r.reason && <div className="text-xs text-muted-foreground">Reason: {r.reason}</div>}
+              {actions("attendance_request", r.id)}
+            </div>
+          ))}
         </CardContent>
       </Card>
 
