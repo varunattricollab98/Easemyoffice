@@ -23,6 +23,7 @@ import {
   addDays,
   normalizeSchedules,
   regularizedAttendance,
+  remoteDayAttendance,
   validateAttendanceRequest,
   weekdayOf,
   type AttendanceRequestType,
@@ -184,19 +185,45 @@ async function approveRemoteDay(
     remote_decided_at: decidedAt,
   };
   if (existing) {
+    // The day was actually punched (e.g. a reactive-WFH day); keep its real
+    // worked_minutes and schedule intact and only record the approval.
     await db.from("attendance").update(patch).eq("id", existing.id);
-  } else {
-    // A planned/absent WFH day has no real punch; first_login_at is NOT NULL,
-    // so anchor it at IST midnight. The row exists only to carry the approval,
-    // so it counts as a present remote day in the month view.
-    await db.from("attendance").insert({
-      employee_id: employeeId,
-      work_date: workDate,
-      first_login_at: istInstant(workDate, 0),
-      status: "present",
-      ...patch,
-    });
+    return;
   }
+
+  // A planned/absent WFH day has no real punch, so it would otherwise credit
+  // zero minutes. Credit it the full scheduled working day through the SAME
+  // pure path a normally-worked day uses, so it adds to the month's hours.
+  const { data: settings } = await db
+    .from("hr_settings")
+    .select("day_schedules, grace_minutes, half_day_minutes")
+    .eq("id", true)
+    .maybeSingle();
+  const schedule = normalizeSchedules(settings?.day_schedules)[weekdayOf(workDate)];
+  const credited = remoteDayAttendance({
+    schedule,
+    graceMinutes: Number(settings?.grace_minutes ?? 15),
+    halfDayMinutes: Number(settings?.half_day_minutes ?? 240),
+    work_date: workDate,
+  });
+  await db.from("attendance").insert({
+    employee_id: employeeId,
+    work_date: workDate,
+    open_since: null,
+    first_login_at: credited.first_login_at,
+    last_logout_at: credited.last_logout_at,
+    worked_minutes: credited.worked_minutes,
+    window_minutes: credited.window_minutes,
+    is_late: credited.is_late,
+    late_minutes: credited.late_minutes,
+    status: credited.status,
+    overtime_minutes: credited.overtime_minutes,
+    schedule_mode: schedule.mode,
+    window_start: schedule.start,
+    window_end: schedule.end,
+    required_minutes: schedule.required_minutes,
+    ...patch,
+  });
 }
 
 /**

@@ -14,6 +14,7 @@ import {
   minutesBetween,
   normalizeSchedules,
   regularizedAttendance,
+  remoteDayAttendance,
   summarizeMonth,
   validateAttendanceRequest,
   windowMinutes,
@@ -654,5 +655,59 @@ describe("regularizedAttendance", () => {
       requested_logout_minutes: 720,
     });
     expect(half.status).toBe("half_day");
+  });
+});
+
+describe("remoteDayAttendance", () => {
+  const FLEX = DEFAULT_SCHEDULES[1]; // Mon flexible 09:00–19:30, 540 required
+  const SAT = DEFAULT_SCHEDULES[6]; // fixed 10:00–17:00, 420 required
+  const SUN = DEFAULT_SCHEDULES[0]; // off, 0 required
+
+  it("credits a full flexible weekday the scheduled hours as a present day", () => {
+    // 2026-10-05 is a Monday: 09:00 start, 540 required → logout 18:00.
+    const r = remoteDayAttendance({
+      schedule: FLEX,
+      halfDayMinutes: 240,
+      graceMinutes: 15,
+      work_date: "2026-10-05",
+    });
+    expect(r.worked_minutes).toBe(540);
+    expect(r.window_minutes).toBe(540);
+    expect(r.status).toBe("present");
+    expect(r.is_late).toBe(false);
+    expect(r.late_minutes).toBe(0);
+    expect(r.overtime_minutes).toBe(0);
+    expect(r.first_login_at).toBe("2026-10-05T03:30:00.000Z"); // 09:00 IST
+    expect(r.last_logout_at).toBe("2026-10-05T12:30:00.000Z"); // 18:00 IST
+  });
+
+  it("credits a fixed day its whole window", () => {
+    // 2026-10-03 Saturday fixed 10:00–17:00, 420 required.
+    const r = remoteDayAttendance({
+      schedule: SAT,
+      halfDayMinutes: 240,
+      graceMinutes: 15,
+      work_date: "2026-10-03",
+    });
+    expect(r.worked_minutes).toBe(420);
+    expect(r.window_minutes).toBe(420);
+    expect(r.status).toBe("present");
+    expect(r.overtime_minutes).toBe(0);
+  });
+
+  it("credits zero on a week-off but still reads as present", () => {
+    // 2026-10-04 is a Sunday (off).
+    const r = remoteDayAttendance({
+      schedule: SUN,
+      halfDayMinutes: 240,
+      graceMinutes: 15,
+      work_date: "2026-10-04",
+    });
+    expect(r.worked_minutes).toBe(0);
+    expect(r.window_minutes).toBe(0);
+    expect(r.status).toBe("present");
+    expect(r.overtime_minutes).toBe(0);
+    expect(r.first_login_at).toBe("2026-10-03T18:30:00.000Z"); // IST midnight of the 4th
+    expect(r.last_logout_at).toBe("2026-10-03T18:30:00.000Z");
   });
 });

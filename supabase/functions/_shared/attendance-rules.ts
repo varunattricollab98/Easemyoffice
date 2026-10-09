@@ -661,6 +661,64 @@ export function regularizedAttendance(input: {
   };
 }
 
+/**
+ * The attendance-row fields that credit a full scheduled working day without a
+ * real punch — used when an approved work-from-home request falls on a day that
+ * has no attendance row yet (a planned or already-absent date). The day must
+ * count toward the month's hours exactly like a normally-worked full day, so it
+ * is scored through the SAME pure path (regularizedAttendance → closeDay) by
+ * pretending the whole scheduled window was worked: login at the window start,
+ * logout once the required minutes are met.
+ *
+ * On a week-off / holiday schedule (mode "off" or required_minutes = 0) there
+ * are no scheduled hours to credit, so the day stays present+remote but worth
+ * zero — a WFH request on a non-working day must not fabricate hours.
+ */
+export function remoteDayAttendance(input: {
+  schedule: DaySchedule;
+  halfDayMinutes: number;
+  graceMinutes: number;
+  work_date: string;
+}): {
+  first_login_at: string;
+  last_logout_at: string;
+  worked_minutes: number;
+  window_minutes: number;
+  is_late: boolean;
+  late_minutes: number;
+  status: DayStatus;
+  overtime_minutes: number;
+} {
+  const { schedule } = input;
+  if (schedule.mode === "off" || schedule.required_minutes <= 0) {
+    const at = new Date(istMidnightMs(input.work_date)).toISOString();
+    return {
+      first_login_at: at,
+      last_logout_at: at,
+      worked_minutes: 0,
+      window_minutes: 0,
+      is_late: false,
+      late_minutes: 0,
+      status: "present",
+      overtime_minutes: 0,
+    };
+  }
+  // Credit exactly the scheduled day: start at the window open, log out once the
+  // required minutes are met (never past the window close). On a fixed day the
+  // window span equals the requirement, so this is the whole window.
+  const start = timeToMinutes(schedule.start);
+  const end = timeToMinutes(schedule.end);
+  const logout = Math.min(end, start + schedule.required_minutes);
+  return regularizedAttendance({
+    schedule,
+    halfDayMinutes: input.halfDayMinutes,
+    graceMinutes: input.graceMinutes,
+    work_date: input.work_date,
+    requested_login_minutes: start,
+    requested_logout_minutes: logout,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Month view
 // ---------------------------------------------------------------------------
