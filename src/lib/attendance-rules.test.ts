@@ -17,9 +17,11 @@ import {
   remoteDayAttendance,
   summarizeMonth,
   validateAttendanceRequest,
+  validateManualAttendanceEntry,
   windowMinutes,
   ATTENDANCE_REQUEST_AHEAD_DAYS,
   ATTENDANCE_REQUEST_BACKDATE_DAYS,
+  MANUAL_ATTENDANCE_BACKDATE_DAYS,
   DEFAULT_LEAVE_POLICY,
   DEFAULT_SCHEDULES,
   type AttendanceDayRecord,
@@ -655,6 +657,163 @@ describe("regularizedAttendance", () => {
       requested_logout_minutes: 720,
     });
     expect(half.status).toBe("half_day");
+  });
+
+  it("credits a full flexible weekday as present with concrete worked/window minutes", () => {
+    // The owner's common admin case: a normal 09:00→18:00 day on a flexible
+    // weekday (540 required) is exactly present, no overtime, not late.
+    const r = regularizedAttendance({
+      schedule: FLEX,
+      halfDayMinutes: 240,
+      graceMinutes: 15,
+      work_date: "2026-10-05", // Monday
+      requested_login_minutes: 540, // 09:00
+      requested_logout_minutes: 1080, // 18:00
+    });
+    expect(r.worked_minutes).toBe(540);
+    expect(r.window_minutes).toBe(540);
+    expect(r.status).toBe("present");
+    expect(r.is_late).toBe(false);
+    expect(r.late_minutes).toBe(0);
+    expect(r.overtime_minutes).toBe(0);
+  });
+
+  it("credits an off-day entry as present with window 0 and all time overtime", () => {
+    // An admin-entered day on a week-off (mode 'off', 0 required): the hours
+    // worked are credited but none are inside a window, so the day is present
+    // with window 0 and every worked minute is overtime — no fabricated
+    // required hours (mirrors closeDay's off-day rule).
+    const SUN = DEFAULT_SCHEDULES[0]; // off, 0 required
+    const r = regularizedAttendance({
+      schedule: SUN,
+      halfDayMinutes: 240,
+      graceMinutes: 15,
+      work_date: "2026-10-04", // Sunday
+      requested_login_minutes: 600, // 10:00
+      requested_logout_minutes: 900, // 15:00
+    });
+    expect(r.worked_minutes).toBe(300);
+    expect(r.window_minutes).toBe(0);
+    expect(r.status).toBe("present");
+    expect(r.is_late).toBe(false);
+    expect(r.late_minutes).toBe(0);
+    expect(r.overtime_minutes).toBe(300); // all of it is overtime
+  });
+});
+
+describe("validateManualAttendanceEntry", () => {
+  // 2026-10-10 is a Saturday.
+  const TODAY = "2026-10-10";
+
+  it("accepts a valid login + logout on a weekday and normalizes the values", () => {
+    const r = validateManualAttendanceEntry({
+      work_date: "2026-10-05", // Monday
+      login_minutes: 540, // 09:00
+      logout_minutes: 1080, // 18:00
+      today: TODAY,
+      backdateDays: MANUAL_ATTENDANCE_BACKDATE_DAYS,
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok)
+      expect(r.normalized).toEqual({
+        work_date: "2026-10-05",
+        login_minutes: 540,
+        logout_minutes: 1080,
+      });
+  });
+
+  it("accepts a login-only entry and leaves logout null", () => {
+    const r = validateManualAttendanceEntry({
+      work_date: "2026-10-05",
+      login_minutes: 540,
+      logout_minutes: null,
+      today: TODAY,
+      backdateDays: MANUAL_ATTENDANCE_BACKDATE_DAYS,
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.normalized.login_minutes).toBe(540);
+      expect(r.normalized.logout_minutes).toBeNull();
+    }
+  });
+
+  it("rejects a logout at or before the login", () => {
+    const r = validateManualAttendanceEntry({
+      work_date: "2026-10-05",
+      login_minutes: 600,
+      logout_minutes: 600,
+      today: TODAY,
+      backdateDays: MANUAL_ATTENDANCE_BACKDATE_DAYS,
+    });
+    expect(r).toMatchObject({
+      ok: false,
+      message: "The logout time must be after the login time.",
+    });
+  });
+
+  it("rejects a future work_date", () => {
+    const r = validateManualAttendanceEntry({
+      work_date: addDays(TODAY, 1),
+      login_minutes: 540,
+      logout_minutes: 1080,
+      today: TODAY,
+      backdateDays: MANUAL_ATTENDANCE_BACKDATE_DAYS,
+    });
+    expect(r).toMatchObject({
+      ok: false,
+      message: "You cannot enter attendance for a future date.",
+    });
+  });
+
+  it("rejects a date older than the back-date window and accepts the edge of it", () => {
+    const tooFar = addDays(TODAY, -(MANUAL_ATTENDANCE_BACKDATE_DAYS + 1));
+    const r = validateManualAttendanceEntry({
+      work_date: tooFar,
+      login_minutes: 540,
+      logout_minutes: 1080,
+      today: TODAY,
+      backdateDays: MANUAL_ATTENDANCE_BACKDATE_DAYS,
+    });
+    expect(r.ok).toBe(false);
+    // The oldest allowed day is accepted.
+    const edge = validateManualAttendanceEntry({
+      work_date: addDays(TODAY, -MANUAL_ATTENDANCE_BACKDATE_DAYS),
+      login_minutes: 540,
+      logout_minutes: 1080,
+      today: TODAY,
+      backdateDays: MANUAL_ATTENDANCE_BACKDATE_DAYS,
+    });
+    expect(edge.ok).toBe(true);
+  });
+
+  it("rejects a missing or out-of-range login", () => {
+    const missing = validateManualAttendanceEntry({
+      work_date: "2026-10-05",
+      login_minutes: null,
+      logout_minutes: null,
+      today: TODAY,
+      backdateDays: MANUAL_ATTENDANCE_BACKDATE_DAYS,
+    });
+    expect(missing).toMatchObject({ ok: false, message: "Enter the login time." });
+    const outOfRange = validateManualAttendanceEntry({
+      work_date: "2026-10-05",
+      login_minutes: 1500, // > 24:00
+      logout_minutes: null,
+      today: TODAY,
+      backdateDays: MANUAL_ATTENDANCE_BACKDATE_DAYS,
+    });
+    expect(outOfRange).toMatchObject({ ok: false, message: "Enter the login time." });
+  });
+
+  it("rejects an invalid date string", () => {
+    const r = validateManualAttendanceEntry({
+      work_date: "2026-13-40",
+      login_minutes: 540,
+      logout_minutes: 1080,
+      today: TODAY,
+      backdateDays: MANUAL_ATTENDANCE_BACKDATE_DAYS,
+    });
+    expect(r).toMatchObject({ ok: false, message: "Pick a valid date." });
   });
 });
 
