@@ -1,7 +1,14 @@
 {
   "task_id": "task-attendance-requests",
   "task_description": "Let employees raise attendance-related requests to the admin from the My Attendance page: (1) request Work From Home, (2) raise an absence clarification (explain/justify an ABSENT day), and (3) when they forgot to log in / punch, request a correction/regularization or clarification. Extend the existing HRMS request system (leave_requests + hr-requests edge function + /hrms/approvals admin screen) rather than building a parallel system. New idempotent migration adds an attendance_requests table (type in {work_from_home, absence_clarification, missed_login_regularization}) with RLS mirroring leave_requests; new edge-function actions apply_attendance_request / cancel_attendance_request / decide_attendance_request validate server-side, notify admins/employees, and on approval apply the per-type effect to the attendance row via the shared pure rules (WFH -> remote-approved day; missed-login -> recomputed login/logout/hours/status; absence clarification -> recorded justification). Employee request UI on My Attendance; admin review UI on the Approvals screen; strictly additive and backward-compatible.",
-  "status": "in_progress",
+  "status": "completed",
   "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004", "FEAT-005"],
-  "blocked_reason": null
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "Full gate green on main (5 commits, a02f2b7..3b57650). tsc --noEmit exit 0; bun run test 18 files / 273 tests pass (+12 new over the 261 baseline); bun run build succeeds in ~11s with routeTree.gen.ts unchanged. Test quality: the 12 new Vitest cases in src/lib/attendance-rules.test.ts exercise the real pure logic — validateAttendanceRequest (each type's happy path + reason/backdate/future/range/missed-login/logout-order rejections) and regularizedAttendance (concrete derived values: worked_minutes 600, overtime 60, late_minutes 45, short/half_day transitions). They assert computed outputs, not static constants, so they would fail if the logic were reverted; the byte-identical-copy guard test also passes, proving the src/lib and _shared rules files are in sync. Docker build skipped (no Dockerfile build path for this web app; no Docker in sandbox). Edge function type-checked separately via deno check (exit 0) during FEAT-004 since CI does not check Deno functions."
+  }
 }
