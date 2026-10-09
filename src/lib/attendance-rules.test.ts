@@ -13,8 +13,13 @@ import {
   leaveLedger,
   minutesBetween,
   normalizeSchedules,
+  regularizedAttendance,
+  remoteDayAttendance,
   summarizeMonth,
+  validateAttendanceRequest,
   windowMinutes,
+  ATTENDANCE_REQUEST_AHEAD_DAYS,
+  ATTENDANCE_REQUEST_BACKDATE_DAYS,
   DEFAULT_LEAVE_POLICY,
   DEFAULT_SCHEDULES,
   type AttendanceDayRecord,
@@ -434,5 +439,275 @@ describe("summarizeMonth", () => {
     const { stats, days } = run([], { joiningDate: "2026-10-08" });
     expect(days[0].kind).toBe("not_employed");
     expect(stats.absent).toBe(2); // 8th and 9th
+  });
+});
+
+describe("validateAttendanceRequest", () => {
+  // 2026-10-10 is a Saturday; the backdate window reaches back to 2026-10-03.
+  const TODAY = "2026-10-10";
+
+  it("accepts a WFH day planned ahead and defaults the range to one day", () => {
+    const r = validateAttendanceRequest({
+      type: "work_from_home",
+      work_date: "2026-10-20",
+      reason: "Internet work from home",
+      today: TODAY,
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok)
+      expect(r.normalized).toMatchObject({
+        type: "work_from_home",
+        from_date: "2026-10-20",
+        to_date: "2026-10-20",
+        reason: "Internet work from home",
+        requested_login_minutes: null,
+        requested_logout_minutes: null,
+      });
+  });
+
+  it("accepts a WFH multi-day range and trims the reason", () => {
+    const r = validateAttendanceRequest({
+      type: "work_from_home",
+      work_date: "2026-10-20",
+      to_date: "2026-10-22",
+      reason: "  Out of town  ",
+      today: TODAY,
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.normalized).toMatchObject({ to_date: "2026-10-22", reason: "Out of town" });
+  });
+
+  it("rejects a reason shorter than 3 characters", () => {
+    const r = validateAttendanceRequest({
+      type: "work_from_home",
+      work_date: TODAY,
+      reason: "ok",
+      today: TODAY,
+    });
+    expect(r).toMatchObject({ ok: false });
+  });
+
+  it("rejects a date beyond the backdate window", () => {
+    const tooFar = addDays(TODAY, -(ATTENDANCE_REQUEST_BACKDATE_DAYS + 1));
+    const r = validateAttendanceRequest({
+      type: "absence_clarification",
+      work_date: tooFar,
+      reason: "Was on client site",
+      today: TODAY,
+    });
+    expect(r).toMatchObject({ ok: false });
+    // One day inside the window is accepted.
+    const ok = validateAttendanceRequest({
+      type: "absence_clarification",
+      work_date: addDays(TODAY, -ATTENDANCE_REQUEST_BACKDATE_DAYS),
+      reason: "Was on client site",
+      today: TODAY,
+    });
+    expect(ok.ok).toBe(true);
+  });
+
+  it("forbids a future date for the two past-only kinds but allows it for WFH", () => {
+    const future = addDays(TODAY, 1);
+    expect(
+      validateAttendanceRequest({
+        type: "absence_clarification",
+        work_date: future,
+        reason: "placeholder",
+        today: TODAY,
+      }),
+    ).toMatchObject({ ok: false });
+    expect(
+      validateAttendanceRequest({
+        type: "missed_login_regularization",
+        work_date: future,
+        reason: "placeholder",
+        requested_login_minutes: 600,
+        today: TODAY,
+      }),
+    ).toMatchObject({ ok: false });
+    expect(
+      validateAttendanceRequest({
+        type: "work_from_home",
+        work_date: future,
+        reason: "planned",
+        today: TODAY,
+      }).ok,
+    ).toBe(true);
+  });
+
+  it("rejects a WFH date past the ahead window", () => {
+    const r = validateAttendanceRequest({
+      type: "work_from_home",
+      work_date: addDays(TODAY, ATTENDANCE_REQUEST_AHEAD_DAYS + 1),
+      reason: "too far ahead",
+      today: TODAY,
+    });
+    expect(r).toMatchObject({ ok: false });
+  });
+
+  it("forbids a multi-day range for the past-only kinds", () => {
+    const r = validateAttendanceRequest({
+      type: "absence_clarification",
+      work_date: "2026-10-05",
+      to_date: "2026-10-06",
+      reason: "two days",
+      today: TODAY,
+    });
+    expect(r).toMatchObject({ ok: false });
+  });
+
+  it("requires a login time for a missed-login regularization", () => {
+    const r = validateAttendanceRequest({
+      type: "missed_login_regularization",
+      work_date: "2026-10-05",
+      reason: "Forgot to punch in",
+      today: TODAY,
+    });
+    expect(r).toMatchObject({ ok: false });
+  });
+
+  it("rejects a logout at or before the login and accepts a valid pair", () => {
+    const bad = validateAttendanceRequest({
+      type: "missed_login_regularization",
+      work_date: "2026-10-05",
+      reason: "Forgot to punch",
+      requested_login_minutes: 600,
+      requested_logout_minutes: 600,
+      today: TODAY,
+    });
+    expect(bad).toMatchObject({ ok: false });
+    const ok = validateAttendanceRequest({
+      type: "missed_login_regularization",
+      work_date: "2026-10-05",
+      reason: "Forgot to punch",
+      requested_login_minutes: 600,
+      requested_logout_minutes: 1080,
+      today: TODAY,
+    });
+    expect(ok.ok).toBe(true);
+    if (ok.ok)
+      expect(ok.normalized).toMatchObject({
+        from_date: "2026-10-05",
+        to_date: "2026-10-05",
+        requested_login_minutes: 600,
+        requested_logout_minutes: 1080,
+      });
+  });
+});
+
+describe("regularizedAttendance", () => {
+  const FLEX = DEFAULT_SCHEDULES[1]; // Mon flexible 09:00–19:30, 540 required
+  const SAT = DEFAULT_SCHEDULES[6]; // fixed 10:00–17:00, 420 required
+
+  it("computes a normal flexible day: on-time, worked/window/overtime from closeDay", () => {
+    // 2026-10-05 Monday, 09:00 (540) → 19:00 (1140): 10h worked, window 09:00–19:00.
+    const r = regularizedAttendance({
+      schedule: FLEX,
+      halfDayMinutes: 240,
+      graceMinutes: 15,
+      work_date: "2026-10-05",
+      requested_login_minutes: 540,
+      requested_logout_minutes: 1140,
+    });
+    expect(r.first_login_at).toBe("2026-10-05T03:30:00.000Z"); // 09:00 IST
+    expect(r.last_logout_at).toBe("2026-10-05T13:30:00.000Z"); // 19:00 IST
+    expect(r.worked_minutes).toBe(600);
+    expect(r.window_minutes).toBe(600); // all inside 09:00–19:30
+    expect(r.is_late).toBe(false);
+    expect(r.late_minutes).toBe(0);
+    expect(r.status).toBe("present");
+    expect(r.overtime_minutes).toBe(60); // 600 − 540
+  });
+
+  it("flags a late login on a fixed day", () => {
+    // Saturday fixed 10:00: login 10:45 (645) is 45 min late past 15 grace.
+    const r = regularizedAttendance({
+      schedule: SAT,
+      halfDayMinutes: 240,
+      graceMinutes: 15,
+      work_date: "2026-10-03",
+      requested_login_minutes: 645,
+      requested_logout_minutes: 1020, // 17:00
+    });
+    expect(r.is_late).toBe(true);
+    expect(r.late_minutes).toBe(45);
+  });
+
+  it("yields short/half_day when the in-window time falls below the requirement", () => {
+    // Flexible day, 09:00 → 14:00: 300 worked, below 540 but above half-day 240.
+    const short = regularizedAttendance({
+      schedule: FLEX,
+      halfDayMinutes: 240,
+      graceMinutes: 15,
+      work_date: "2026-10-05",
+      requested_login_minutes: 540,
+      requested_logout_minutes: 840,
+    });
+    expect(short.status).toBe("short");
+    expect(short.overtime_minutes).toBe(0);
+    // 09:00 → 12:00: 180 worked, below the 240 half-day threshold.
+    const half = regularizedAttendance({
+      schedule: FLEX,
+      halfDayMinutes: 240,
+      graceMinutes: 15,
+      work_date: "2026-10-05",
+      requested_login_minutes: 540,
+      requested_logout_minutes: 720,
+    });
+    expect(half.status).toBe("half_day");
+  });
+});
+
+describe("remoteDayAttendance", () => {
+  const FLEX = DEFAULT_SCHEDULES[1]; // Mon flexible 09:00–19:30, 540 required
+  const SAT = DEFAULT_SCHEDULES[6]; // fixed 10:00–17:00, 420 required
+  const SUN = DEFAULT_SCHEDULES[0]; // off, 0 required
+
+  it("credits a full flexible weekday the scheduled hours as a present day", () => {
+    // 2026-10-05 is a Monday: 09:00 start, 540 required → logout 18:00.
+    const r = remoteDayAttendance({
+      schedule: FLEX,
+      halfDayMinutes: 240,
+      graceMinutes: 15,
+      work_date: "2026-10-05",
+    });
+    expect(r.worked_minutes).toBe(540);
+    expect(r.window_minutes).toBe(540);
+    expect(r.status).toBe("present");
+    expect(r.is_late).toBe(false);
+    expect(r.late_minutes).toBe(0);
+    expect(r.overtime_minutes).toBe(0);
+    expect(r.first_login_at).toBe("2026-10-05T03:30:00.000Z"); // 09:00 IST
+    expect(r.last_logout_at).toBe("2026-10-05T12:30:00.000Z"); // 18:00 IST
+  });
+
+  it("credits a fixed day its whole window", () => {
+    // 2026-10-03 Saturday fixed 10:00–17:00, 420 required.
+    const r = remoteDayAttendance({
+      schedule: SAT,
+      halfDayMinutes: 240,
+      graceMinutes: 15,
+      work_date: "2026-10-03",
+    });
+    expect(r.worked_minutes).toBe(420);
+    expect(r.window_minutes).toBe(420);
+    expect(r.status).toBe("present");
+    expect(r.overtime_minutes).toBe(0);
+  });
+
+  it("credits zero on a week-off but still reads as present", () => {
+    // 2026-10-04 is a Sunday (off).
+    const r = remoteDayAttendance({
+      schedule: SUN,
+      halfDayMinutes: 240,
+      graceMinutes: 15,
+      work_date: "2026-10-04",
+    });
+    expect(r.worked_minutes).toBe(0);
+    expect(r.window_minutes).toBe(0);
+    expect(r.status).toBe("present");
+    expect(r.overtime_minutes).toBe(0);
+    expect(r.first_login_at).toBe("2026-10-03T18:30:00.000Z"); // IST midnight of the 4th
+    expect(r.last_logout_at).toBe("2026-10-03T18:30:00.000Z");
   });
 });

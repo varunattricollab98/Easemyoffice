@@ -27,12 +27,12 @@ const SECTIONS = [
 
 function HrmsLayout() {
   const { pathname } = useLocation();
-  // Pending WFH + leave requests, shown on the Approvals tab.
+  // Pending WFH + leave + attendance requests, shown on the Approvals tab.
   const { data: pending = 0 } = useQuery({
     queryKey: ["hrms-approval-counts"],
     refetchInterval: 60_000,
     queryFn: async (): Promise<number> => {
-      const [a, b] = await Promise.all([
+      const [a, b, c] = await Promise.all([
         hrmsDb()
           .from("attendance")
           .select("id", { count: "exact", head: true })
@@ -41,8 +41,12 @@ function HrmsLayout() {
           .from("leave_requests")
           .select("id", { count: "exact", head: true })
           .eq("status", "pending"),
+        hrmsDb()
+          .from("attendance_requests")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "pending"),
       ]);
-      return (a.count ?? 0) + (b.count ?? 0);
+      return (a.count ?? 0) + (b.count ?? 0) + (c.count ?? 0);
     },
   });
   return (

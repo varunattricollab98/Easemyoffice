@@ -20,6 +20,7 @@ import {
 import {
   formatMinutes,
   hrmsDb,
+  type AttendanceRequest,
   type AttendanceRow,
   type Employee,
   type Holiday,
@@ -120,6 +121,39 @@ export async function fetchLeaves(opts: {
   if (opts.employeeId) q = q.eq("employee_id", opts.employeeId);
   const { data, error } = await q.order("from_date");
   if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+/**
+ * True when a PostgREST error means the relation does not exist yet: Postgres
+ * `undefined_table` (SQLSTATE 42P01) or a "does not exist" message. Used so a
+ * manually-applied migration's not-yet-created table reads as empty, not an error.
+ */
+function isMissingRelationError(error: { code?: string; message?: string }): boolean {
+  return error.code === "42P01" || /does not exist/i.test(error.message ?? "");
+}
+
+/**
+ * Attendance requests for the UI (My Attendance and admin Approvals). RLS
+ * already scopes an employee to their own rows; the admin screen passes a
+ * status filter to list the pending queue. Mirrors fetchLeaves.
+ */
+export async function fetchAttendanceRequests(opts: {
+  employeeId?: string;
+  status?: AttendanceRequest["status"];
+}): Promise<AttendanceRequest[]> {
+  let q = hrmsDb().from("attendance_requests").select("*");
+  if (opts.employeeId) q = q.eq("employee_id", opts.employeeId);
+  if (opts.status) q = q.eq("status", opts.status);
+  const { data, error } = await q.order("created_at", { ascending: false });
+  if (error) {
+    // The migration is applied manually by the owner, so there is a window
+    // where the table does not exist yet. Treat a missing-relation error as an
+    // empty list (like the admin pending-count badge does) so the My
+    // Attendance card degrades to empty rather than showing a failed query.
+    if (isMissingRelationError(error)) return [];
+    throw new Error(error.message);
+  }
   return data ?? [];
 }
 

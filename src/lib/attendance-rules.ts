@@ -452,6 +452,274 @@ export function ledgerFor(
 }
 
 // ---------------------------------------------------------------------------
+// Attendance requests
+// ---------------------------------------------------------------------------
+
+/**
+ * The three kinds of attendance request an employee can raise:
+ * - work_from_home: ask to count a day (or short range) as a remote day. May be
+ *   raised ahead of time (planning) or for a recent past day.
+ * - absence_clarification: explain a single day that already passed with no
+ *   attendance (e.g. was on duty off-site). Never about the future.
+ * - missed_login_regularization: forgot to punch on a single past day — supply
+ *   the login (and usually logout) time so the admin can correct the row.
+ */
+export type AttendanceRequestType =
+  | "work_from_home"
+  | "absence_clarification"
+  | "missed_login_regularization";
+
+/** How many days back any request may reach — the day must have happened recently. */
+export const ATTENDANCE_REQUEST_BACKDATE_DAYS = 7;
+
+/**
+ * How far ahead a work-from-home request may be planned. The other two kinds
+ * explain a day that already happened, so they are capped at today (see the
+ * validator) and never use this window.
+ */
+export const ATTENDANCE_REQUEST_AHEAD_DAYS = 60;
+
+export type AttendanceRequestInput = {
+  type: AttendanceRequestType;
+  /** The day the request concerns, YYYY-MM-DD. For a WFH range this is its start. */
+  work_date: string;
+  /** End of a WFH range (inclusive). Defaults to work_date; ignored by the other kinds. */
+  to_date?: string;
+  reason: string;
+  /** Minutes since IST midnight for a missed-login correction. */
+  requested_login_minutes?: number | null;
+  /** Minutes since IST midnight; when given must be after the login. */
+  requested_logout_minutes?: number | null;
+  /** Today in India, YYYY-MM-DD. */
+  today: string;
+};
+
+export type NormalizedAttendanceRequest = {
+  type: AttendanceRequestType;
+  from_date: string;
+  to_date: string;
+  reason: string;
+  requested_login_minutes: number | null;
+  requested_logout_minutes: number | null;
+};
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** True for a real YYYY-MM-DD date (round-trips through addDays with 0). */
+function isValidDate(date: string): boolean {
+  return DATE_RE.test(date) && addDays(date, 0) === date;
+}
+
+const inDayRange = (m: unknown): m is number =>
+  typeof m === "number" && Number.isFinite(m) && m >= 0 && m <= 24 * 60;
+
+/**
+ * Pure validator for a new attendance request. Returns the normalized row to
+ * store on success, or a human message on failure. All date comparisons are on
+ * YYYY-MM-DD strings so there is no timezone drift.
+ */
+export function validateAttendanceRequest(
+  input: AttendanceRequestInput,
+): { ok: true; normalized: NormalizedAttendanceRequest } | { ok: false; message: string } {
+  const reason = String(input.reason ?? "").trim();
+  if (reason.length < 3)
+    return { ok: false, message: "Add a short reason (at least 3 characters)." };
+
+  const from = String(input.work_date ?? "");
+  if (!isValidDate(from)) return { ok: false, message: "Pick a valid date." };
+
+  const earliest = addDays(input.today, -ATTENDANCE_REQUEST_BACKDATE_DAYS);
+  if (from < earliest)
+    return {
+      ok: false,
+      message: `The date is too far back — requests cover the last ${ATTENDANCE_REQUEST_BACKDATE_DAYS} days only.`,
+    };
+
+  if (input.type === "work_from_home") {
+    const latest = addDays(input.today, ATTENDANCE_REQUEST_AHEAD_DAYS);
+    if (from > latest)
+      return {
+        ok: false,
+        message: `Work from home can be planned up to ${ATTENDANCE_REQUEST_AHEAD_DAYS} days ahead.`,
+      };
+    const to = input.to_date ? String(input.to_date) : from;
+    if (!isValidDate(to)) return { ok: false, message: "Pick a valid end date." };
+    if (to < from) return { ok: false, message: "The end date is before the start date." };
+    if (to > latest)
+      return {
+        ok: false,
+        message: `Work from home can be planned up to ${ATTENDANCE_REQUEST_AHEAD_DAYS} days ahead.`,
+      };
+    return {
+      ok: true,
+      normalized: {
+        type: input.type,
+        from_date: from,
+        to_date: to,
+        reason,
+        requested_login_minutes: null,
+        requested_logout_minutes: null,
+      },
+    };
+  }
+
+  // absence_clarification and missed_login_regularization explain a single day
+  // that already happened, so no future date and no multi-day range.
+  if (from > input.today)
+    return { ok: false, message: "This request is only for a day that already passed." };
+  if (input.to_date && input.to_date !== from)
+    return { ok: false, message: "This request covers a single day only." };
+
+  if (input.type === "missed_login_regularization") {
+    const login = input.requested_login_minutes;
+    if (!inDayRange(login))
+      return { ok: false, message: "Enter the login time you missed punching." };
+    const logout = input.requested_logout_minutes;
+    if (logout !== null && logout !== undefined) {
+      if (!inDayRange(logout)) return { ok: false, message: "Enter a valid logout time." };
+      if (logout <= login)
+        return { ok: false, message: "The logout time must be after the login time." };
+    }
+    return {
+      ok: true,
+      normalized: {
+        type: input.type,
+        from_date: from,
+        to_date: from,
+        reason,
+        requested_login_minutes: login,
+        requested_logout_minutes: logout === null || logout === undefined ? null : logout,
+      },
+    };
+  }
+
+  return {
+    ok: true,
+    normalized: {
+      type: input.type,
+      from_date: from,
+      to_date: from,
+      reason,
+      requested_login_minutes: null,
+      requested_logout_minutes: null,
+    },
+  };
+}
+
+/**
+ * The fields a missed-login approval writes onto the attendance row, computed
+ * with the SAME pure rules the logout flow uses (closeDay / lateMinutes /
+ * windowMinutes / minutesBetween / istMidnightMs) so a corrected day matches a
+ * normally-punched one.
+ *
+ * A status-producing correction needs both a login and a logout: with only a
+ * login there are no worked minutes to judge, so callers requiring a status
+ * must supply both. The ISO instants are built at the fixed IST offset from the
+ * work_date plus the minutes-since-midnight.
+ */
+export function regularizedAttendance(input: {
+  schedule: DaySchedule;
+  halfDayMinutes: number;
+  graceMinutes: number;
+  work_date: string;
+  requested_login_minutes: number;
+  requested_logout_minutes: number;
+}): {
+  first_login_at: string;
+  last_logout_at: string;
+  worked_minutes: number;
+  window_minutes: number;
+  is_late: boolean;
+  late_minutes: number;
+  status: DayStatus;
+  overtime_minutes: number;
+} {
+  const base = istMidnightMs(input.work_date);
+  const firstLoginAt = new Date(base + input.requested_login_minutes * 60_000).toISOString();
+  const lastLogoutAt = new Date(base + input.requested_logout_minutes * 60_000).toISOString();
+
+  const worked = minutesBetween(firstLoginAt, lastLogoutAt);
+  const inWindow = windowMinutes(firstLoginAt, lastLogoutAt, input.work_date, input.schedule);
+  const late = lateMinutes(input.requested_login_minutes, input.schedule, input.graceMinutes);
+  const closed = closeDay({
+    workedMinutes: worked,
+    windowMinutes: inWindow,
+    requiredMinutes: input.schedule.required_minutes,
+    halfDayMinutes: input.halfDayMinutes,
+    mode: input.schedule.mode,
+  });
+
+  return {
+    first_login_at: firstLoginAt,
+    last_logout_at: lastLogoutAt,
+    worked_minutes: worked,
+    window_minutes: inWindow,
+    is_late: late > 0,
+    late_minutes: late,
+    status: closed.status,
+    overtime_minutes: closed.overtimeMinutes,
+  };
+}
+
+/**
+ * The attendance-row fields that credit a full scheduled working day without a
+ * real punch — used when an approved work-from-home request falls on a day that
+ * has no attendance row yet (a planned or already-absent date). The day must
+ * count toward the month's hours exactly like a normally-worked full day, so it
+ * is scored through the SAME pure path (regularizedAttendance → closeDay) by
+ * pretending the whole scheduled window was worked: login at the window start,
+ * logout once the required minutes are met.
+ *
+ * On a week-off / holiday schedule (mode "off" or required_minutes = 0) there
+ * are no scheduled hours to credit, so the day stays present+remote but worth
+ * zero — a WFH request on a non-working day must not fabricate hours.
+ */
+export function remoteDayAttendance(input: {
+  schedule: DaySchedule;
+  halfDayMinutes: number;
+  graceMinutes: number;
+  work_date: string;
+}): {
+  first_login_at: string;
+  last_logout_at: string;
+  worked_minutes: number;
+  window_minutes: number;
+  is_late: boolean;
+  late_minutes: number;
+  status: DayStatus;
+  overtime_minutes: number;
+} {
+  const { schedule } = input;
+  if (schedule.mode === "off" || schedule.required_minutes <= 0) {
+    const at = new Date(istMidnightMs(input.work_date)).toISOString();
+    return {
+      first_login_at: at,
+      last_logout_at: at,
+      worked_minutes: 0,
+      window_minutes: 0,
+      is_late: false,
+      late_minutes: 0,
+      status: "present",
+      overtime_minutes: 0,
+    };
+  }
+  // Credit exactly the scheduled day: start at the window open, log out once the
+  // required minutes are met (never past the window close). On a fixed day the
+  // window span equals the requirement, so this is the whole window.
+  const start = timeToMinutes(schedule.start);
+  const end = timeToMinutes(schedule.end);
+  const logout = Math.min(end, start + schedule.required_minutes);
+  return regularizedAttendance({
+    schedule,
+    halfDayMinutes: input.halfDayMinutes,
+    graceMinutes: input.graceMinutes,
+    work_date: input.work_date,
+    requested_login_minutes: start,
+    requested_logout_minutes: logout,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Month view
 // ---------------------------------------------------------------------------
 

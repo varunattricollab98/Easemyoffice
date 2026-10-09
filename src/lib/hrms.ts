@@ -196,6 +196,31 @@ export type LeaveRequest = {
   created_at: string;
 };
 
+/** The three kinds of attendance request, with human labels for the UI. */
+export const ATTENDANCE_REQUEST_TYPES = [
+  { id: "work_from_home", label: "Work from home" },
+  { id: "absence_clarification", label: "Absence clarification" },
+  { id: "missed_login_regularization", label: "Missed login regularization" },
+] as const;
+
+export type AttendanceRequest = {
+  id: string;
+  employee_id: string;
+  type: "work_from_home" | "absence_clarification" | "missed_login_regularization";
+  work_date: string;
+  from_date: string;
+  to_date: string;
+  reason: string;
+  requested_login_at: string | null;
+  requested_logout_at: string | null;
+  status: "pending" | "approved" | "rejected" | "cancelled";
+  decided_by: string | null;
+  decided_at: string | null;
+  admin_note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type IdlePeriod = {
   id: string;
   attendance_id: string;
