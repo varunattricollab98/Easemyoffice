@@ -1,0 +1,27 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Build the period/filter model in the pure, tested maths layer. This is the deterministic foundation the data layer and UI consume. Extend src/lib/report-period.ts with the extra presets the command center needs (this_quarter, this_year, all) and add a single shared filter type the command center will thread through every module. Add concrete-value unit tests. No DB, no React here. Depends on FEAT-001.",
+  "status": "completed",
+  "steps": [
+    "In src/lib/report-period.ts, extend PeriodId to add 'this_quarter' | 'this_year' | 'all' alongside the existing 'today' | 'this_week' | 'this_month' | 'custom'. Add matching entries to PERIOD_OPTIONS with labels 'This quarter', 'This year', 'All time'.",
+    "In resolvePeriod, handle the new ids using date-fns (startOfQuarter/startOfYear are available in date-fns v4; import them). For 'all', return a window that effectively spans everything: set fromISO to a very old instant (e.g. new Date(0).toISOString()) and fromDate to '1970-01-01', with toISO/toDate = end of `now` (end of day). Keep the existing `previous` and `bucket` fields populated sensibly (for 'all' and large windows, bucket = 'day').",
+    "Confirm resolvePeriod still returns BOTH fromISO/toISO (timestamptz columns) AND fromDate/toDate (YYYY-MM-DD date columns) for every id, since different command-center modules filter different column types.",
+    "Define a shared command-center filter type. Add it to src/lib/command-center.ts (so both the query and the pure summaries can import it without a cycle): export type CommandCenterFilter = { period: PeriodId; from?: string | null; to?: string | null; day?: string | null }. `day` is a specific YYYY-MM-DD used by the Attendance block; when absent the Attendance block falls back to today. Import PeriodId from report-period.ts (or re-export it) so there is one source of truth.",
+    "Add a tiny pure helper in src/lib/command-center.ts, e.g. `inRangeDate(dateStr: string | null | undefined, fromDate: string, toDate: string): boolean` that does an inclusive YYYY-MM-DD lexicographic comparison (returns false for null/empty), and `inRangeISO(iso, fromISO, toISO)` for timestamptz values compared as instants. These are the single, tested predicates every module filter will use so the date-column-vs-timestamp distinction is handled in one place. Document in comments that date-only comparisons are lexicographic on YYYY-MM-DD (local parts) per the codebase convention.",
+    "Extend src/lib/report-period.test.ts with concrete-value cases for the new presets: given a fixed `now` (e.g. 2026-05-15), assert resolvePeriod('this_quarter', {now}) yields fromDate '2026-04-01', resolvePeriod('this_year', {now}) yields fromDate '2026-01-01', and resolvePeriod('all', {now}) yields fromDate '1970-01-01' with toDate = that day. Keep existing tests green.",
+    "Extend src/lib/command-center.test.ts with concrete-value cases for inRangeDate and inRangeISO: inside range true, outside range false (both ends), boundary inclusive, null/empty false, and a reversed/degenerate range handled as documented."
+  ],
+  "acceptance_criteria": [
+    "resolvePeriod handles 'this_quarter', 'this_year', and 'all' and returns correct fromDate/toDate and fromISO/toISO for a fixed injected `now`, proven by new tests.",
+    "CommandCenterFilter type is exported from src/lib/command-center.ts and PeriodId has one authoritative definition in report-period.ts (imported/re-exported, not duplicated).",
+    "inRangeDate and inRangeISO are exported, pure, and covered by new concrete-value tests including boundary and null cases.",
+    "`bun run test` passes with the new tests; existing report-period and command-center tests still pass."
+  ],
+  "verification": [
+    "./node_modules/.bin/tsc --noEmit",
+    "bun run test src/lib/report-period.test.ts src/lib/command-center.test.ts"
+  ],
+  "blocked_reason": null,
+  "findings": "Extended src/lib/report-period.ts: PeriodId now includes 'this_quarter' | 'this_year' | 'all'; PERIOD_OPTIONS gained 'This quarter' / 'This year' / 'All time'. resolvePeriod handles the new ids via date-fns startOfQuarter/startOfYear; 'all' uses new Date(0) as the lower instant and a pinned '1970-01-01' fromDate (avoids local-tz drift to 1969-12-31) with toISO/toDate = end of now. bucket stays 'day' for large windows. Added to src/lib/command-center.ts: CommandCenterFilter type ({period, from?, to?, day?}), a re-export of PeriodId from report-period.ts (single source of truth, no duplication), plus pure predicates inRangeDate (inclusive lexicographic YYYY-MM-DD, false for null/empty, reversed range matches nothing) and inRangeISO (instant compare, false for null/empty/unparseable). Added concrete-value tests: report-period.test.ts +3 cases (now=2026-05-15 -> fromDate 2026-04-01 / 2026-01-01 / 1970-01-01), command-center.test.ts +10 cases covering inside/outside/boundary/null/reversed for both predicates. Verification: tsc --noEmit clean, bun run build ok, full vitest suite 256 passed (was 243, +13 new). No React/Supabase touched."
+}

@@ -1,0 +1,7 @@
+{
+  "task_id": "task-command-center-filters",
+  "task_description": "Add filters to the Admin 'Command Center' cross-module KPI dashboard (src/components/dashboard/admin-command-center.tsx): a Date/period filter (Today, This week, This month, This quarter, This year, All time, Custom range) applied per-module on the correct date column, and a Day filter driving the day-level Attendance block, plus clear labeling of point-in-time tiles that stay current-state. Thread a CommandCenterFilter through the filter-aware commandCenterQuery/fetchCommandCenter, extend the pure/tested period maths, and keep everything admin-only, defensive (safeSelect), backward-compatible, and drill-downs intact. Build + tsc + full Vitest suite must stay green.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
+  "blocked_reason": null
+}

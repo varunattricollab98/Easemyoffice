@@ -10,6 +10,8 @@ import {
   payrollSummary,
   inRangeDate,
   inRangeISO,
+  bestReferralDate,
+  monthKeyFromDate,
 } from "./command-center";
 
 describe("pct", () => {
@@ -190,5 +192,44 @@ describe("inRangeISO", () => {
   });
   it("matches nothing for a reversed range", () => {
     expect(inRangeISO("2026-04-01T12:00:00.000Z", to, from)).toBe(false);
+  });
+});
+
+describe("bestReferralDate", () => {
+  it("prefers referral_date, then date_received, then created_at", () => {
+    expect(
+      bestReferralDate({
+        referral_date: "2026-05-01",
+        date_received: "2026-05-02",
+        created_at: "2026-05-03",
+      }),
+    ).toBe("2026-05-01");
+    expect(bestReferralDate({ date_received: "2026-05-02", created_at: "2026-05-03" })).toBe(
+      "2026-05-02",
+    );
+    expect(bestReferralDate({ created_at: "2026-05-03" })).toBe("2026-05-03");
+  });
+  it("ignores null/empty columns and returns null when none present", () => {
+    expect(
+      bestReferralDate({ referral_date: null, date_received: "", created_at: "2026-05-03" }),
+    ).toBe("2026-05-03");
+    expect(bestReferralDate({})).toBeNull();
+    expect(bestReferralDate({ referral_date: null, date_received: null, created_at: null })).toBeNull();
+  });
+});
+
+describe("monthKeyFromDate", () => {
+  it("derives the YYYY-MM-01 month key from a YYYY-MM-DD date", () => {
+    expect(monthKeyFromDate("2026-04-30")).toBe("2026-04-01");
+    expect(monthKeyFromDate("2026-12-01")).toBe("2026-12-01");
+  });
+  it("accepts an ISO timestamp prefix", () => {
+    expect(monthKeyFromDate("2026-07-15T23:59:59.999Z")).toBe("2026-07-01");
+  });
+  it("returns null for null/empty or unparseable input", () => {
+    expect(monthKeyFromDate(null)).toBeNull();
+    expect(monthKeyFromDate(undefined)).toBeNull();
+    expect(monthKeyFromDate("")).toBeNull();
+    expect(monthKeyFromDate("not-a-date")).toBeNull();
   });
 });

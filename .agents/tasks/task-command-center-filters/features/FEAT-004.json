@@ -1,0 +1,34 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Add the filter controls to the Command Center UI and wire them to the filter-aware query. Deliver the user-requested Date filter (period presets + custom range) and Day filter (specific calendar date for Attendance), reusing the shadcn Select + Popover + Calendar pattern from bookings/leads. Label point-in-time tiles so an admin is never misled. Keep drill-downs working and the view admin-only. Depends on FEAT-003.",
+  "status": "pending",
+  "steps": [
+    "In src/components/dashboard/admin-command-center.tsx, add local filter state: const [period, setPeriod] = useState<PeriodId>('all'); plus customFrom/customTo (YYYY-MM-DD strings) for the custom range, and const [day, setDay] = useState<string>('') for the Attendance Day filter. Default period 'all' preserves the current all-time view on first render.",
+    "Build a CommandCenterFilter from state (period, from: customFrom||null, to: customTo||null, day: day||null) and pass it to useQuery(commandCenterQuery(filter)). Because the queryKey now includes the filter (FEAT-003), changing a control refetches automatically.",
+    "Add a filter bar directly under the header. Use the shadcn Select for the Date period with options matching PERIOD_OPTIONS: Today / This week / This month / This quarter / This year / All time / Custom range. Mirror the bookings/leads vocabulary and the SelectTrigger/SelectContent/SelectItem structure.",
+    "When period === 'custom', render a Popover + Calendar (mode='range', numberOfMonths={2}) exactly like leads/index.tsx custom_range: set customFrom/customTo via format(date,'yyyy-MM-dd'), tolerate reversed picks, show a formatted label on the trigger button using date-fns format. Import Calendar from @/components/ui/calendar and Popover* from @/components/ui/popover.",
+    "Add the Day filter as its own Popover + Calendar (mode='single') with a label like 'Attendance day', defaulting to empty = today. Place it near the Attendance section OR in the top filter bar with a clear 'Attendance day' label; whichever is cleaner, but it must be visually associated with the Attendance block so admins understand its scope.",
+    "Update section headings/labels from the returned meta: show the resolved period label near the header (e.g. 'Showing: This quarter (2026-04-01 → 2026-06-30)'), and change the Attendance section title to reflect the chosen day (e.g. 'Attendance (Today)' when no day, 'Attendance (12 May 2026)' when a day is picked) using meta.attendanceDay. Keep 'Payroll (This Month)' labeled as monthly and, if a period is selected, reflect the resolved month.",
+    "Mark point-in-time tiles so they are not misread as range-scoped: add a short hint via KpiTile's `hint` prop (or a small 'current' badge/footnote) on Active CA Partners, Partners, Open Pipeline, the Renewals block, and Overdue Follow-ups indicating these are current-state / all-time regardless of the date filter. Add one concise explanatory line in the header area, e.g. 'Some tiles (partners, pipeline, renewals) always reflect current state.'",
+    "Preserve all existing drill-down `to` + `search` props on tiles. OPTIONAL and only if clean: when the period maps to something the target list page already supports, pass it through (e.g. bookings already accepts ?source=; it also has its own date filter but no date search param, so do NOT invent new search params — leave drill-down date behavior as-is unless the target page already validates such a param). Do not regress any existing navigation.",
+    "Keep the component admin-only: no change to the dashboard.tsx gating; the component itself does not need an isAdmin check since it is only mounted for admins, but do not remove or weaken that upstream guard.",
+    "Ensure loading state still works: the existing `v()` undefined-while-loading pattern must continue to drive the KpiTile placeholders during refetches triggered by filter changes."
+  ],
+  "acceptance_criteria": [
+    "A Date period Select with Today/This week/This month/This quarter/This year/All time/Custom range is visible in the Command Center header area and changing it refetches and updates every range-scoped tile.",
+    "Selecting 'Custom range' reveals a Popover+Calendar range picker (two months) and the dashboard reflects the chosen inclusive range.",
+    "A Day (Attendance day) picker is present, visually associated with Attendance; picking a day updates the Attendance block and its heading, and clearing it falls back to today.",
+    "Point-in-time tiles (Active CA Partners, Partners, Open Pipeline, Renewals, Overdue Follow-ups) are clearly labeled as current-state so they are not mistaken for range-scoped values; a one-line note explains this.",
+    "All existing KPI drill-down links continue to work; no new/invalid search params are introduced to target pages.",
+    "The view remains admin-only (dashboard.tsx gating unchanged) and the loading placeholder behavior still works during filter-triggered refetches.",
+    "`./node_modules/.bin/tsc --noEmit`, `bun run build`, and `bun run test` all pass."
+  ],
+  "verification": [
+    "./node_modules/.bin/tsc --noEmit",
+    "bun run build",
+    "bun run test"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

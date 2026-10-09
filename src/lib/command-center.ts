@@ -71,6 +71,40 @@ export function inRangeISO(
   return t >= new Date(fromISO).getTime() && t <= new Date(toISO).getTime();
 }
 
+// ---------------------------------------------------------------------------
+// Date-selection helpers used by the filter-aware command-center query. Pure
+// and tested so the "which date does this row count under" and "which month
+// key does payroll use" decisions live in one auditable place.
+// ---------------------------------------------------------------------------
+
+/**
+ * The best available date for a referral row. Referrals carry three possible
+ * date columns and not every row has all three, so the authoritative range
+ * check must fall back in priority order: the business referral_date first,
+ * then when it was received, then the row's created_at. Returns null when the
+ * row has none, so the caller can decide how to treat an undated referral.
+ */
+export function bestReferralDate(r: {
+  referral_date?: string | null;
+  date_received?: string | null;
+  created_at?: string | null;
+}): string | null {
+  return r.referral_date || r.date_received || r.created_at || null;
+}
+
+/**
+ * The salary-slips month key (YYYY-MM-01) for a given YYYY-MM-DD date. Payroll
+ * is a monthly view; a selected period's end date (period.toDate) picks the
+ * month to show. Falls back to null when the input is not a parseable
+ * YYYY-MM-DD so the caller can default to the current month.
+ */
+export function monthKeyFromDate(dateStr: string | null | undefined): string | null {
+  if (!dateStr) return null;
+  const m = /^(\d{4})-(\d{2})-\d{2}/.exec(dateStr);
+  if (!m) return null;
+  return `${m[1]}-${m[2]}-01`;
+}
+
 /** A `numeric` column from PostgREST can arrive as number or string. */
 type Num = number | string | null | undefined;
 
