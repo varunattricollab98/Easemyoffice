@@ -235,8 +235,11 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* Command-palette style: anchor near the top of the screen (not dead
           center), fixed width, and hide the default Dialog close button so the
-          input's own clear ✕ is the only one. */}
-      <DialogContent className="overflow-hidden p-0 max-w-xl w-[92vw] top-[12%] translate-y-0 rounded-xl shadow-2xl [&>button.absolute]:hidden">
+          input's own clear ✕ is the only one. `top-[8%] translate-y-0` fully
+          override the base Dialog's `top-[50%] translate-y-[-50%]` centering,
+          and `max-h-[85vh]` caps the box height so the whole palette (input +
+          results) always stays on screen and is never clipped at the top. */}
+      <DialogContent className="overflow-hidden p-0 max-w-xl w-[92vw] top-[8%] translate-y-0 max-h-[85vh] rounded-xl shadow-2xl [&>button.absolute]:hidden">
         <Command shouldFilter={false} className="[&_[cmdk-input]]:h-12">
           <CommandInput
             ref={inputRef}
