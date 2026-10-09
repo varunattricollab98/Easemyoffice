@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Server-side admin-only write actions in the hr-requests edge function for single-day and bulk manual attendance entry. The sole writer of the attendance rows for manual entry, admin-gated server-side, reusing the existing regularizeDay/scheduleFor/regularizedAttendance path so an admin-entered day scores IDENTICALLY to a real punch. Depends on FEAT-002.",
+  "status": "pending",
+  "steps": [
+    "In supabase/functions/hr-requests/index.ts, import validateManualAttendanceEntry and MANUAL_ATTENDANCE_BACKDATE_DAYS from ../_shared/attendance-rules.ts (add to the existing import block).",
+    "Refactor the existing private regularizeDay(db, {...}) so its row-writing core can be reused for admin entry WITHOUT changing its current behavior: extend it (or add a sibling helper writeManualAttendance) that accepts an optional entrySource string and, when provided, includes entry_source in the insert/update patch. IMPORTANT backward-compat: writing entry_source must degrade gracefully if the FEAT-002 migration has not been applied yet — perform the write first WITHOUT entry_source; only attempt to set entry_source in a way that cannot fail the whole write (e.g. a best-effort follow-up update wrapped so a missing-column error is swallowed), OR detect the column once. Prefer: do the core create-or-update (unchanged, no entry_source) then a try/catch best-effort update setting entry_source that ignores errors — so a correct attendance row is always written even on an un-migrated DB. Keep the existing missed-login approval call path behaving exactly as before (it may pass entrySource 'regularization' or omit it — do not change its observable output).",
+    "Add admin action 'admin_set_attendance' (single day): guard with if (!isAdmin) return json({ error: 'Admins only.' }, 403). Read body { employee_id, work_date, login (HH:MM), logout (HH:MM|null), note? }. Validate employee_id is a non-empty string and the employee exists (db.from('employees').select('id, first_name, last_name, employee_code').eq('id', employee_id).maybeSingle()); fail('Employee not found.') otherwise. Compute today = istParts(new Date()).date. Call validateManualAttendanceEntry({ work_date, login_minutes: parseHHMM(body.login), logout_minutes: parseHHMM(body.logout), today, backdateDays: MANUAL_ATTENDANCE_BACKDATE_DAYS }); on !ok return fail(check.message). Then write via the shared path with entrySource 'admin_manual': loginMinutes = normalized.login_minutes, logoutMinutes = normalized.logout_minutes. If logout is null, the row is written login-only like an open/in-progress correction — follow exactly what regularizeDay does when logout is null today (it currently returns early requiring both); for admin single-day entry we DO want to support login-only, so write first_login_at + open_since=null with status handling that matches a day that has a login but no logout: set status 'in_progress' and leave last_logout_at null, worked/window 0 — mirror how attendance-punch represents a logged-in-not-out day (study attendance-punch/index.ts for the exact column shape of an open/in-progress row and replicate it; do NOT invent new semantics). Return json({ ok: true }).",
+    "Add admin action 'admin_bulk_set_attendance' (bulk back-fill): guard isAdmin 403. Read body { entries: [{ employee_id, work_date, login, logout? }, ...] } (cap the array length, e.g. reject >500 entries with fail('Too many entries in one submit.')). For each entry: run the SAME employee-existence check (cache looked-up employee ids to avoid refetching) and validateManualAttendanceEntry; on validation/employee failure, record a per-entry failure {index, employee_id, work_date, ok:false, message} and CONTINUE (do not abort the batch); on success write via the shared path with entrySource 'admin_bulk' and record {index, employee_id, work_date, ok:true}. Entries with a blank/absent login should be treated as skipped (ok:false, message 'No login time — skipped.') not as hard errors. Return json({ ok: true, results: [...], written: <count>, failed: <count> }) so the client can show a per-row success/failure summary.",
+    "Audit on the SERVER is not possible under the existing client-side audit RLS (actor_id = auth.uid()); the browser logs the audit after a successful call (see FEAT-004). Do NOT attempt to write audit_log from the service-role edge function.",
+    "Keep all existing actions and helpers unchanged. Confirm the file still type-checks under Deno: npx -y deno check supabase/functions/hr-requests/index.ts (if deno available)."
+  ],
+  "acceptance_criteria": [
+    "hr-requests handles action 'admin_set_attendance' and 'admin_bulk_set_attendance', both returning 403 when the caller is not an admin",
+    "A single-day entry with login+logout creates-or-updates the attendance row with worked/window/late/status/overtime computed via regularizedAttendance (identical to a punch) and sets entry_source='admin_manual' when the column exists",
+    "A login-only single-day entry writes an in-progress row shaped like attendance-punch's open row (no fabricated hours), without erroring",
+    "Bulk action processes each entry independently, skips blank-login rows, returns a per-entry results array with ok/message and written/failed counts, and never aborts the whole batch on one bad row",
+    "Writing entry_source degrades gracefully: on a DB without the FEAT-002 column the attendance row is still written correctly (no 500)",
+    "Existing actions (apply_leave, decide_attendance_request missed-login, decide_remote, etc.) are behaviorally unchanged; deno check passes if run"
+  ],
+  "verification": [
+    "npx -y deno check supabase/functions/hr-requests/index.ts",
+    "./node_modules/.bin/tsc --noEmit",
+    "bun run test"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

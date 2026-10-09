@@ -1,0 +1,28 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Shared pure validator for an admin manual attendance entry + its unit tests, and an optional idempotent migration that marks admin-entered days. This is the pure/compute foundation that FEAT-003 (server) builds on. The actual scoring reuses the EXISTING regularizedAttendance(...) helper unchanged; this feature only adds a small pure validator so single-day and bulk entries share identical validation, plus concrete-value tests. Depends on FEAT-001.",
+  "status": "pending",
+  "steps": [
+    "Add a pure function validateManualAttendanceEntry(input) to BOTH src/lib/attendance-rules.ts AND supabase/functions/_shared/attendance-rules.ts, placed near validateAttendanceRequest. Keep the two files BYTE-IDENTICAL (the 'shared copy' test enforces it) — make the same edit in both. Signature: input { work_date: string; login_minutes: number | null; logout_minutes: number | null; today: string; backdateDays: number } returning { ok: true; normalized: { work_date: string; login_minutes: number; logout_minutes: number | null } } | { ok: false; message: string }.",
+    "Validation rules (reuse existing helpers isValidDate via addDays round-trip, inDayRange, ATTENDANCE constants): work_date must be a valid YYYY-MM-DD; work_date must NOT be in the future (work_date <= today) with message like 'You cannot enter attendance for a future date.'; work_date must be within the back-date window (work_date >= addDays(today, -backdateDays)) with a clear message naming the window; login_minutes required and in day range (0..1440) else 'Enter the login time.'; logout_minutes optional but when present must be in range AND strictly greater than login_minutes else 'The logout time must be after the login time.'. Export a constant MANUAL_ATTENDANCE_BACKDATE_DAYS = 45 (comfortably covers back-filling the 1st of the current month on the 9th-11th and is a sensible cap) and use it as the default-intended window; the edge function will pass this constant.",
+    "Add concrete-value unit tests to src/lib/attendance-rules.test.ts in a new describe('validateManualAttendanceEntry') block: (a) a valid login+logout on a weekday returns ok with normalized values; (b) logout <= login is rejected with the logout-after-login message; (c) a future work_date is rejected; (d) a date older than the back-date window is rejected; (e) missing/out-of-range login is rejected; (f) login-only (logout null) is accepted and normalized.logout_minutes is null.",
+    "Add end-to-end scoring tests (still in attendance-rules.test.ts) that assert regularizedAttendance behaves correctly for the admin cases the owner cares about, so the compute contract is pinned with concrete numbers: a full flexible weekday (e.g. login 09:00, logout 18:00 against the default flexible schedule 540 required) yields status 'present' and worked/window minutes equal to the expected concrete values; a week-off / mode 'off' schedule credits worked>0 but window 0 and status 'present' with all time as overtime (mirrors existing closeDay off-day rule) — i.e. an off-day entry does not fabricate required hours. (If equivalent assertions already exist in the existing regularizedAttendance describe block, extend rather than duplicate.)",
+    "Author an OPTIONAL, idempotent migration file supabase/migrations/20260518000001_attendance_entry_source.sql that adds a nullable marker column so admin-entered days are distinguishable from real punches: ALTER TABLE public.attendance ADD COLUMN IF NOT EXISTS entry_source text; and ADD CONSTRAINT ... only via a DROP CONSTRAINT IF EXISTS then ADD CONSTRAINT guard allowing NULL or ('punch','admin_manual','admin_bulk','regularization','remote') — keep the allowed set permissive and NULL-friendly so existing rows (NULL) and the punch flow (which never sets it) remain valid. Add a short header comment stating the OWNER must apply this manually and that the app degrades gracefully if it is not applied.",
+    "Do NOT add non-idempotent DDL and do NOT alter the status CHECK. Confirm the migration only uses IF NOT EXISTS / DROP IF EXISTS patterns."
+  ],
+  "acceptance_criteria": [
+    "validateManualAttendanceEntry exists identically in both attendance-rules.ts files and the 'shared copy' byte-identical test still passes",
+    "New describe('validateManualAttendanceEntry') tests cover valid, logout<=login, future date, too-far-back, bad login, and login-only cases and all pass",
+    "Concrete-value scoring assertions for a full weekday (present) and an off day (window 0, present, overtime) pass",
+    "supabase/migrations/20260518000001_attendance_entry_source.sql exists, is idempotent (IF NOT EXISTS / DROP IF EXISTS), adds nullable entry_source, does not touch the status CHECK",
+    "./node_modules/.bin/tsc --noEmit and bun run test pass"
+  ],
+  "verification": [
+    "bun run test",
+    "./node_modules/.bin/tsc --noEmit",
+    "node -e \"const a=require('fs').readFileSync('src/lib/attendance-rules.ts','utf8');const b=require('fs').readFileSync('supabase/functions/_shared/attendance-rules.ts','utf8');if(a!==b){console.error('NOT identical');process.exit(1)}console.log('identical')\""
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
