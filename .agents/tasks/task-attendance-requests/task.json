@@ -1,0 +1,7 @@
+{
+  "task_id": "task-attendance-requests",
+  "task_description": "Let employees raise attendance-related requests to the admin from the My Attendance page: (1) request Work From Home, (2) raise an absence clarification (explain/justify an ABSENT day), and (3) when they forgot to log in / punch, request a correction/regularization or clarification. Extend the existing HRMS request system (leave_requests + hr-requests edge function + /hrms/approvals admin screen) rather than building a parallel system. New idempotent migration adds an attendance_requests table (type in {work_from_home, absence_clarification, missed_login_regularization}) with RLS mirroring leave_requests; new edge-function actions apply_attendance_request / cancel_attendance_request / decide_attendance_request validate server-side, notify admins/employees, and on approval apply the per-type effect to the attendance row via the shared pure rules (WFH -> remote-approved day; missed-login -> recomputed login/logout/hours/status; absence clarification -> recorded justification). Employee request UI on My Attendance; admin review UI on the Approvals screen; strictly additive and backward-compatible.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004", "FEAT-005"],
+  "blocked_reason": null
+}

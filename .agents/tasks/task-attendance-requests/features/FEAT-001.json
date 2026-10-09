@@ -1,0 +1,26 @@
+{
+  "id": "FEAT-001",
+  "type": "chore",
+  "description": "Establish a green baseline before any changes. Install dependencies and run the project's existing typecheck, unit tests, and build so later features start from a known-passing state and regressions are attributable.",
+  "status": "completed",
+  "steps": [
+    "cd /projects/sandbox/Easemyoffice. If node_modules is missing, run `bun install --frozen-lockfile`.",
+    "Run typecheck with the local binary: `./node_modules/.bin/tsc --noEmit`. If it reports node not found, export PATH to the nvm node bin (see AGENT_CONTEXT.md §4: `export PATH=\"/root/.nvm/versions/node/<ver>/bin:$PATH\"`; check `ls /root/.nvm/versions/node` for the version) and retry.",
+    "Run the unit tests: `bun run test`. Note the baseline pass count (AGENT_CONTEXT.md records ~98 earlier; the repo has grown — just record the current numbers).",
+    "Run the build: `bun run build`. Confirm it completes and emits dist output.",
+    "Record the exact baseline numbers (tests passed/files, build success) in this feature's findings so later features can detect regressions. Do NOT modify any source in this feature."
+  ],
+  "acceptance_criteria": [
+    "`./node_modules/.bin/tsc --noEmit` exits 0 (no type errors).",
+    "`bun run test` exits 0 with all test files passing; the baseline count is recorded in findings.",
+    "`bun run build` exits 0.",
+    "No source files were modified (git status clean apart from the .agents task dir)."
+  ],
+  "verification": [
+    "`./node_modules/.bin/tsc --noEmit` prints nothing and exits 0.",
+    "`bun run test` reports all files passing.",
+    "`bun run build` completes without errors."
+  ],
+  "blocked_reason": null,
+  "findings": "Green baseline established on branch main (HEAD a02f2b7). No source files modified. Environment: node_modules already present (no bun install needed); node v24.21.0 on PATH at /usr/local/bin/node (no PATH export required); local tsc at ./node_modules/.bin/tsc works. Results: (1) typecheck `./node_modules/.bin/tsc --noEmit` -> exit 0, no output. (2) `bun run test` (vitest run) -> exit 0, 18 test files passed, 261 tests passed (0 failed). Per-file counts: b2b-import 26, booking-math 24, attendance-rules 37, utils 8, command-center 29, b2b-analytics 22, b2b-scoring 15, b2b-performance 6, b2b-followups 11, b2b-documentation 11, b2b 7, payroll 9, payment-ack-email 6, booking-kind 5, csv 3, hrms 4, report-metrics 23, report-period 15. (3) `bun run build` (vite build) -> exit 0, built in ~12.65s, emitted dist/ output (dist/server + dist/client assets). (4) `git status` clean apart from the untracked .agents task dir; build did not modify src/routeTree.gen.ts or any tracked source. Regression check for later features: expect tsc exit 0, 18 files / 261 tests passing, and a successful build."
+}

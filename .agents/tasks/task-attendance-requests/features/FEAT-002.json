@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Add the data model for employee-initiated attendance requests: a single new idempotent migration creating `attendance_requests` with RLS mirroring leave_requests, plus the matching hand-written row type in src/lib/hrms.ts. This is the foundation for the three request kinds (work_from_home, absence_clarification, missed_login_regularization). The migration is APPLIED MANUALLY BY THE OWNER — nothing in the app may assume it auto-ran.",
+  "status": "pending",
+  "steps": [
+    "Create a new migration file supabase/migrations/20260517000004_attendance_requests.sql (next free number after the existing 20260517000003_b2b_documentation.sql — verify nothing newer exists with glob/ls before naming). Make the whole file idempotent and safe to re-run (CREATE TABLE IF NOT EXISTS, DROP POLICY IF EXISTS before CREATE POLICY, CREATE INDEX IF NOT EXISTS).",
+    "Define table public.attendance_requests modeled on public.leave_requests in 20260516000007_hrms_flex_leave_idle.sql: id uuid PK default gen_random_uuid(); employee_id uuid NOT NULL REFERENCES public.employees(id) ON DELETE CASCADE; type text NOT NULL CHECK (type IN ('work_from_home','absence_clarification','missed_login_regularization')); work_date date NOT NULL (the day the request concerns; for a WFH range also add from_date/to_date date columns defaulting to work_date so a single-day request is the common case and a range is supported — document that work_date mirrors from_date); reason text NOT NULL; requested_login_at timestamptz NULL and requested_logout_at timestamptz NULL (only meaningful for missed_login_regularization); status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected','cancelled')); decided_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL; decided_at timestamptz; admin_note text; created_at timestamptz NOT NULL DEFAULT now(); updated_at timestamptz NOT NULL DEFAULT now(). Add CHECK (to_date >= from_date) for the range columns.",
+    "Add the updated_at trigger exactly like leave_requests: DROP TRIGGER IF EXISTS trg_attendance_requests_updated_at ...; CREATE TRIGGER ... BEFORE UPDATE ... FOR EACH ROW EXECUTE FUNCTION public.hrms_touch_updated_at(); (that function already exists from Phase 1/2).",
+    "Add indexes: on (employee_id, work_date), and a partial index on (created_at) WHERE status='pending' (mirrors leave_requests_pending_idx) so the admin pending list and the hub badge count are cheap.",
+    "Enable RLS and add a SELECT policy identical in shape to leave_requests_select: ALTER TABLE ... ENABLE ROW LEVEL SECURITY; DROP POLICY IF EXISTS attendance_requests_select; CREATE POLICY attendance_requests_select FOR SELECT TO authenticated USING (public.is_admin(auth.uid()) OR employee_id IN (SELECT id FROM public.employees WHERE profile_id = auth.uid())). Do NOT add any INSERT/UPDATE/DELETE policy — the hr-requests edge function writes with the service role, exactly as leave_requests and attendance do. Add a COMMENT ON TABLE noting it is written only by the hr-requests edge function and employees can never self-approve.",
+    "In src/lib/hrms.ts add an exported `AttendanceRequest` row type matching the columns above (id, employee_id, type as the 3-value union, work_date, from_date, to_date, reason, requested_login_at: string|null, requested_logout_at: string|null, status: 'pending'|'approved'|'rejected'|'cancelled', decided_by: string|null, decided_at: string|null, admin_note: string|null, created_at, updated_at). Place it near the LeaveRequest type and keep the same style/casing. Also export a small const array of the three request types with human labels (e.g. ATTENDANCE_REQUEST_TYPES) for reuse by the UI, mirroring how EMPLOYMENT_TYPES etc. are declared.",
+    "Do not touch src/integrations/supabase/types.ts — the new table is accessed via hrmsDb() + the hand-written type, exactly like leave_requests/attendance.",
+    "After editing, run `./node_modules/.bin/tsc --noEmit` to confirm the new type compiles. Run `npx -y deno check supabase/functions/hr-requests/index.ts` is NOT required in this feature (no edge code changed yet) but optionally sanity-check SQL by eye against the leave_requests block."
+  ],
+  "acceptance_criteria": [
+    "A new file supabase/migrations/20260517000004_attendance_requests.sql exists, is fully idempotent (re-runnable), and defines attendance_requests with the type CHECK constraint over exactly {work_from_home, absence_clarification, missed_login_regularization}, the status CHECK over {pending,approved,rejected,cancelled}, the updated_at trigger, the two indexes, RLS enabled, a SELECT-only policy mirroring leave_requests_select, and NO write policies.",
+    "src/lib/hrms.ts exports an `AttendanceRequest` type whose fields match the migration columns, plus an ATTENDANCE_REQUEST_TYPES label list.",
+    "`./node_modules/.bin/tsc --noEmit` exits 0.",
+    "src/integrations/supabase/types.ts is unchanged."
+  ],
+  "verification": [
+    "`./node_modules/.bin/tsc --noEmit` exits 0 after the type is added.",
+    "Read the migration back and confirm every CREATE/ALTER/POLICY is guarded by IF NOT EXISTS / DROP ... IF EXISTS so re-running is safe.",
+    "`bun run build` exits 0 (no route change expected, so routeTree.gen.ts should be unchanged)."
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
