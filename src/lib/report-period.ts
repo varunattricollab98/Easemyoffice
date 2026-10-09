@@ -11,14 +11,33 @@
 // is unit-tested, and it can only be tested if the window it works on is
 // deterministic.
 
-import { startOfDay, startOfWeek, startOfMonth, endOfDay, subDays, format } from "date-fns";
+import {
+  startOfDay,
+  startOfWeek,
+  startOfMonth,
+  startOfQuarter,
+  startOfYear,
+  endOfDay,
+  subDays,
+  format,
+} from "date-fns";
 
-export type PeriodId = "today" | "this_week" | "this_month" | "custom";
+export type PeriodId =
+  | "today"
+  | "this_week"
+  | "this_month"
+  | "this_quarter"
+  | "this_year"
+  | "all"
+  | "custom";
 
 export const PERIOD_OPTIONS: { id: PeriodId; label: string }[] = [
   { id: "today", label: "Today" },
   { id: "this_week", label: "This week" },
   { id: "this_month", label: "This month" },
+  { id: "this_quarter", label: "This quarter" },
+  { id: "this_year", label: "This year" },
+  { id: "all", label: "All time" },
   { id: "custom", label: "Custom range" },
 ];
 
@@ -67,6 +86,20 @@ export function resolvePeriod(
       start = startOfWeek(now, { weekStartsOn: 1 });
       label = "This week";
       break;
+    case "this_quarter":
+      start = startOfQuarter(now);
+      label = "This quarter";
+      break;
+    case "this_year":
+      start = startOfYear(now);
+      label = "This year";
+      break;
+    case "all":
+      // Spans everything: from the Unix epoch up to the end of today, so a
+      // single window matches every row regardless of column type.
+      start = new Date(0);
+      label = "All time";
+      break;
     case "custom": {
       // Fall back to the current month when a custom range is selected but not
       // yet filled in, so the page always has a valid window to query.
@@ -94,12 +127,19 @@ export function resolvePeriod(
   const prevEnd = endOfDay(subDays(startOfDay(start), 1));
   const prevStart = startOfDay(subDays(startOfDay(start), spanDays));
 
+  // For 'all' the lower bound is a fixed sentinel rather than a local-date
+  // render of the epoch, which would drift to 1969-12-31 in negative-UTC
+  // timezones. Pin it to the epoch instant / 1970-01-01 so every row matches.
+  const isAll = id === "all";
+  const fromISO = isAll ? new Date(0).toISOString() : start.toISOString();
+  const fromDate = isAll ? "1970-01-01" : ymd(start);
+
   return {
     id,
     label,
-    fromISO: start.toISOString(),
+    fromISO,
     toISO: end.toISOString(),
-    fromDate: ymd(start),
+    fromDate,
     toDate: ymd(end),
     previous: {
       fromISO: prevStart.toISOString(),

@@ -9,6 +9,68 @@
 // row shapes so a query can select only the columns it needs, and the B2B
 // rollups are reused straight from src/lib/b2b-analytics.ts.
 
+import type { PeriodId } from "./report-period";
+
+// Re-export so callers can import the period id from a single command-center
+// entry point if they prefer, while report-period.ts stays the one source of
+// truth for the type definition.
+export type { PeriodId } from "./report-period";
+
+/**
+ * The filter the whole command center threads through every module. `period`
+ * selects a preset window (resolved by resolvePeriod); `from`/`to` carry the
+ * YYYY-MM-DD bounds for a `custom` period; `day` is a specific YYYY-MM-DD that
+ * drives the day-level Attendance block (when absent the block falls back to
+ * today).
+ */
+export type CommandCenterFilter = {
+  period: PeriodId;
+  from?: string | null;
+  to?: string | null;
+  day?: string | null;
+};
+
+// ---------------------------------------------------------------------------
+// Range predicates — the single, tested place that knows how each column type
+// is compared, so the date-column-vs-timestamp distinction lives in one spot.
+//
+// Date-only values (YYYY-MM-DD) are compared LEXICOGRAPHICALLY: the strings are
+// zero-padded and ordered the same as the dates, and this matches the codebase
+// convention of building YYYY-MM-DD from LOCAL date parts (never new Date(iso))
+// to avoid UTC drift. Timestamptz values are compared as instants.
+// ---------------------------------------------------------------------------
+
+/**
+ * Inclusive membership test for a `date` column value. `dateStr` is a
+ * YYYY-MM-DD string; the bounds are compared lexicographically (which equals
+ * chronological order for this format). Returns false for null/empty. A
+ * reversed range (fromDate > toDate) simply matches nothing, as documented.
+ */
+export function inRangeDate(
+  dateStr: string | null | undefined,
+  fromDate: string,
+  toDate: string,
+): boolean {
+  if (!dateStr) return false;
+  return dateStr >= fromDate && dateStr <= toDate;
+}
+
+/**
+ * Inclusive membership test for a timestamptz column value, compared as an
+ * instant. `iso` is parsed with Date; returns false for null/empty or an
+ * unparseable value. A reversed range matches nothing.
+ */
+export function inRangeISO(
+  iso: string | null | undefined,
+  fromISO: string,
+  toISO: string,
+): boolean {
+  if (!iso) return false;
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return false;
+  return t >= new Date(fromISO).getTime() && t <= new Date(toISO).getTime();
+}
+
 /** A `numeric` column from PostgREST can arrive as number or string. */
 type Num = number | string | null | undefined;
 

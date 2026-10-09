@@ -60,6 +60,33 @@ describe("resolvePeriod", () => {
     const p = resolvePeriod("custom", { now: NOW });
     expect(p.fromDate).toBe("2026-09-01");
   });
+
+  // New presets. Fixed to Friday 15 May 2026 so the quarter/year/all boundaries
+  // are not clock-dependent.
+  const MID_MAY = new Date("2026-05-15T10:00:00.000Z");
+
+  it("starts 'this_quarter' on the first day of the calendar quarter", () => {
+    const p = resolvePeriod("this_quarter", { now: MID_MAY });
+    // May is in Q2 (Apr-Jun), so the quarter starts on 1 Apr.
+    expect(p.fromDate).toBe("2026-04-01");
+    expect(p.toDate).toBe("2026-05-15");
+    expect(p.bucket).toBe("day");
+  });
+
+  it("starts 'this_year' on 1 January", () => {
+    const p = resolvePeriod("this_year", { now: MID_MAY });
+    expect(p.fromDate).toBe("2026-01-01");
+    expect(p.toDate).toBe("2026-05-15");
+    expect(p.bucket).toBe("day");
+  });
+
+  it("spans everything for 'all' from the epoch up to today", () => {
+    const p = resolvePeriod("all", { now: MID_MAY });
+    expect(p.fromDate).toBe("1970-01-01");
+    expect(p.toDate).toBe("2026-05-15");
+    expect(p.fromISO).toBe(new Date(0).toISOString());
+    expect(p.bucket).toBe("day");
+  });
 });
 
 describe("growthPct", () => {
