@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/command";
 import { Users, BookOpen, UserCheck, Loader2, Building2, Share2 } from "lucide-react";
 import { b2bDb } from "@/lib/b2b";
+import { NAV_TREE, flattenNodes, visibleNodes, type NavItem } from "@/lib/nav";
 
 // Global search palette: search leads, bookings, clients AND the B2B entities
 // (CA firms, B2B leads, contacts, referrals) by name / phone / email / id from
@@ -68,7 +69,7 @@ interface ReferralHit {
 
 export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const navigate = useNavigate();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, roles } = useAuth();
   const [term, setTerm] = useState("");
   const [debounced, setDebounced] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -92,22 +93,30 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
     enabled,
     staleTime: 30_000,
     queryFn: async () => {
-      const esc = `%${like}%`;
       const digitsOnly = like.replace(/\D/g, "");
       const phoneEsc = digitsOnly.length >= 4 ? `%${digitsOnly}%` : null;
+
+      // Broader matching: split the term into whitespace tokens and match each
+      // token independently (ILIKE) across the given fields. This lets partial
+      // and multi-word terms ("acme pvt", "john 98") match more rows while the
+      // full-term match stays in the mix for exact-ish hits. We keep this to
+      // the already-searched columns so RLS and performance stay unchanged.
+      const tokens = Array.from(new Set([like, ...like.split(/\s+/)].filter((t) => t.length >= 2)));
+      const orFor = (fields: string[]) => {
+        const parts: string[] = [];
+        for (const t of tokens) {
+          const te = `%${t}%`;
+          for (const f of fields) parts.push(`${f}.ilike.${te}`);
+        }
+        return parts;
+      };
 
       // Leads (server-side across the whole table; RLS still applies).
       let leadsQ = supabase
         .from("leads")
         .select("id, lead_code, client_name, mobile, email, company_name")
         .or(
-          [
-            `client_name.ilike.${esc}`,
-            `company_name.ilike.${esc}`,
-            `email.ilike.${esc}`,
-            `lead_code.ilike.${esc}`,
-            `mobile.ilike.${esc}`,
-          ].join(","),
+          orFor(["client_name", "company_name", "email", "lead_code", "mobile"]).join(","),
         )
         .limit(8);
       if (!isAdmin && user?.id) leadsQ = leadsQ.or(`assigned_to.eq.${user.id},created_by.eq.${user.id}`);
@@ -118,12 +127,15 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
         .select("id, booking_code, external_booking_id, client_name, business_name, contact_no, email_id, plan_name")
         .or(
           [
-            `client_name.ilike.${esc}`,
-            `business_name.ilike.${esc}`,
-            `email_id.ilike.${esc}`,
-            `contact_no.ilike.${esc}`,
-            `booking_code.ilike.${esc}`,
-            `external_booking_id.ilike.${esc}`,
+            ...orFor([
+              "client_name",
+              "business_name",
+              "email_id",
+              "contact_no",
+              "booking_code",
+              "external_booking_id",
+              "plan_name",
+            ]),
             ...(phoneEsc ? [`alt_contact_no.ilike.${phoneEsc}`, `alt_contact_no_2.ilike.${phoneEsc}`] : []),
           ].join(","),
         )
@@ -140,9 +152,7 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
         .select("id, firm_name, phone, email, city, state, partner_status")
         .or(
           [
-            `firm_name.ilike.${esc}`,
-            `email.ilike.${esc}`,
-            `phone.ilike.${esc}`,
+            ...orFor(["firm_name", "email", "phone", "city", "state"]),
             ...(phoneEsc ? [`alt_phone.ilike.${phoneEsc}`] : []),
           ].join(","),
         )
@@ -152,10 +162,7 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
         .select("id, firm_id, b2b_lead_code, contact_person, phone, email, city, lead_status")
         .or(
           [
-            `contact_person.ilike.${esc}`,
-            `email.ilike.${esc}`,
-            `phone.ilike.${esc}`,
-            `b2b_lead_code.ilike.${esc}`,
+            ...orFor(["contact_person", "email", "phone", "b2b_lead_code", "city"]),
             ...(phoneEsc ? [`alt_phone.ilike.${phoneEsc}`] : []),
           ].join(","),
         )
@@ -165,9 +172,7 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
         .select("id, firm_id, name, phone, email, designation")
         .or(
           [
-            `name.ilike.${esc}`,
-            `email.ilike.${esc}`,
-            `phone.ilike.${esc}`,
+            ...orFor(["name", "email", "phone", "designation"]),
             ...(phoneEsc ? [`alt_phone.ilike.${phoneEsc}`] : []),
           ].join(","),
         )
@@ -176,11 +181,7 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
         .from("referrals")
         .select("id, firm_id, referral_code, referred_client_name, client_phone, referral_status")
         .or(
-          [
-            `referred_client_name.ilike.${esc}`,
-            `client_phone.ilike.${esc}`,
-            `referral_code.ilike.${esc}`,
-          ].join(","),
+          orFor(["referred_client_name", "client_phone", "referral_code"]).join(","),
         )
         .limit(6);
 
@@ -229,6 +230,39 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
     return Array.from(map.values()).slice(0, 5);
   }, [data?.bookings]);
 
+  // Role-filtered navigation pages the user can actually open. These are
+  // searched in-memory (no DB call) so they match from the FIRST character,
+  // even though the DB record queries stay gated at >= 2 chars. visibleNodes
+  // already enforces role access (admins see everything).
+  const visiblePages = useMemo<NavItem[]>(
+    () => flattenNodes(visibleNodes(NAV_TREE, roles, isAdmin)),
+    [roles, isAdmin],
+  );
+
+  const pages = useMemo<NavItem[]>(() => {
+    const q = term.trim().toLowerCase();
+    if (q.length < 1) return [];
+    const qTokens = q.split(/\s+/).filter(Boolean);
+    const scored: { item: NavItem; score: number }[] = [];
+    for (const item of visiblePages) {
+      const label = item.label.toLowerCase();
+      // The last path segment, e.g. "/renewals/leads" -> "renewals leads".
+      const pathWords = item.to.replace(/^\//, "").replace(/\//g, " ");
+      const haystack = `${label} ${pathWords}`;
+      // Every token must appear somewhere in the label or the path.
+      if (!qTokens.every((t) => haystack.includes(t))) continue;
+      // Rank: label prefix beats label contains beats path-only.
+      let score = 3;
+      if (label.includes(q)) score = 2;
+      if (label.startsWith(q)) score = 1;
+      scored.push({ item, score });
+    }
+    return scored
+      .sort((a, b) => a.score - b.score)
+      .slice(0, 8)
+      .map((s) => s.item);
+  }, [term, visiblePages]);
+
   const go = (fn: () => void) => { onOpenChange(false); fn(); };
 
   return (
@@ -248,17 +282,45 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
             placeholder="Search leads, bookings, clients by name, phone, email, ID…"
           />
           <CommandList className="max-h-[60vh]">
-            {!enabled && (
+            {term.trim().length === 0 && (
               <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                Type at least 2 characters to search.
+                Search pages, leads, bookings, clients and more…
               </div>
             )}
+            {!enabled && term.trim().length > 0 && pages.length === 0 && (
+              <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                Type at least 2 characters to search records.
+              </div>
+            )}
+
+            {pages.length > 0 && (
+              <CommandGroup heading="Pages">
+                {pages.map((p) => {
+                  const Icon = p.icon;
+                  return (
+                    <CommandItem
+                      key={`page-${p.to}`}
+                      value={`page-${p.to}`}
+                      onSelect={() => go(() => navigate({ to: p.to as never }))}
+                    >
+                      <Icon className="mr-2 h-4 w-4 shrink-0 text-primary" />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium">{p.label}</div>
+                        <div className="truncate text-xs text-muted-foreground">{p.to}</div>
+                      </div>
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            )}
+
             {enabled && isFetching && (
               <div className="px-4 py-6 text-center text-sm text-muted-foreground inline-flex items-center justify-center gap-2 w-full">
                 <Loader2 className="h-4 w-4 animate-spin" /> Searching…
               </div>
             )}
             {enabled && !isFetching &&
+              pages.length === 0 &&
               (data?.leads.length ?? 0) === 0 &&
               (data?.bookings.length ?? 0) === 0 &&
               (data?.firms.length ?? 0) === 0 &&
