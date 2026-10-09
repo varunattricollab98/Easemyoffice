@@ -21,10 +21,13 @@ import {
   expandLeave,
   istParts,
   addDays,
+  lateMinutes,
+  MANUAL_ATTENDANCE_BACKDATE_DAYS,
   normalizeSchedules,
   regularizedAttendance,
   remoteDayAttendance,
   validateAttendanceRequest,
+  validateManualAttendanceEntry,
   weekdayOf,
   type AttendanceRequestType,
   type DaySchedule,
@@ -227,22 +230,52 @@ async function approveRemoteDay(
 }
 
 /**
- * Correct a missed-login day: recompute the attendance row through the shared
- * regularizedAttendance helper (closeDay / lateMinutes / windowMinutes) so a
- * corrected day matches a normally-punched one. Needs both a login and logout;
- * with only a login there is nothing to score, so it is skipped.
+ * Best-effort tag of a day's provenance. The entry_source column is added by a
+ * migration the OWNER applies by hand (FEAT-002), so it may not exist yet; a
+ * missing-column error here must never fail the request — the attendance row
+ * itself was already written correctly by the core write above.
  */
-async function regularizeDay(
+async function tagEntrySource(
+  db: Db,
+  employeeId: string,
+  workDate: string,
+  entrySource: string | undefined,
+) {
+  if (!entrySource) return;
+  try {
+    await db
+      .from("attendance")
+      .update({ entry_source: entrySource })
+      .eq("employee_id", employeeId)
+      .eq("work_date", workDate);
+  } catch {
+    // Column not present on an un-migrated DB — ignore.
+  }
+}
+
+/**
+ * Write one day's attendance by hand, scoring it IDENTICALLY to a real punch.
+ * The single row-writing core shared by the missed-login approval path and the
+ * admin manual-entry actions. A correct attendance row is always written first
+ * WITHOUT entry_source; the provenance tag is a best-effort follow-up so an
+ * un-migrated DB still succeeds.
+ *
+ * With both a login and a logout the day is fully scored through
+ * regularizedAttendance (worked / window / late / status / overtime). With only
+ * a login the day is written as an open/in-progress row shaped exactly like
+ * attendance-punch's open insert — no fabricated hours. In both cases this is a
+ * create-OR-update that overwrites any existing row for that employee+date.
+ */
+async function writeManualAttendance(
   db: Db,
   input: {
     employeeId: string;
     workDate: string;
-    loginMinutes: number | null;
+    loginMinutes: number;
     logoutMinutes: number | null;
+    entrySource?: string;
   },
 ) {
-  if (input.loginMinutes === null || input.logoutMinutes === null) return;
-
   const { data: existing } = await db
     .from("attendance")
     .select("*")
@@ -259,30 +292,53 @@ async function regularizeDay(
   const graceMinutes = Number(settings?.grace_minutes ?? 15);
   const halfDayMinutes = Number(settings?.half_day_minutes ?? 240);
 
-  const r = regularizedAttendance({
-    schedule,
-    graceMinutes,
-    halfDayMinutes,
-    work_date: input.workDate,
-    requested_login_minutes: input.loginMinutes,
-    requested_logout_minutes: input.logoutMinutes,
-  });
+  let patch: Record<string, unknown>;
+  if (input.logoutMinutes === null) {
+    // Login-only: mirror attendance-punch's open-row shape exactly.
+    const loginInstant = istInstant(input.workDate, input.loginMinutes);
+    const late = lateMinutes(input.loginMinutes, schedule, graceMinutes);
+    patch = {
+      first_login_at: loginInstant,
+      open_since: loginInstant,
+      last_activity_at: loginInstant,
+      last_logout_at: null,
+      worked_minutes: 0,
+      window_minutes: 0,
+      is_late: late > 0,
+      late_minutes: late,
+      status: "in_progress",
+      overtime_minutes: 0,
+      schedule_mode: schedule.mode,
+      window_start: schedule.start,
+      window_end: schedule.end,
+      required_minutes: schedule.required_minutes,
+    };
+  } else {
+    const r = regularizedAttendance({
+      schedule,
+      graceMinutes,
+      halfDayMinutes,
+      work_date: input.workDate,
+      requested_login_minutes: input.loginMinutes,
+      requested_logout_minutes: input.logoutMinutes,
+    });
+    patch = {
+      first_login_at: r.first_login_at,
+      last_logout_at: r.last_logout_at,
+      open_since: null,
+      worked_minutes: r.worked_minutes,
+      window_minutes: r.window_minutes,
+      is_late: r.is_late,
+      late_minutes: r.late_minutes,
+      status: r.status,
+      overtime_minutes: r.overtime_minutes,
+      schedule_mode: schedule.mode,
+      window_start: schedule.start,
+      window_end: schedule.end,
+      required_minutes: schedule.required_minutes,
+    };
+  }
 
-  const patch = {
-    first_login_at: r.first_login_at,
-    last_logout_at: r.last_logout_at,
-    open_since: null,
-    worked_minutes: r.worked_minutes,
-    window_minutes: r.window_minutes,
-    is_late: r.is_late,
-    late_minutes: r.late_minutes,
-    status: r.status,
-    overtime_minutes: r.overtime_minutes,
-    schedule_mode: schedule.mode,
-    window_start: schedule.start,
-    window_end: schedule.end,
-    required_minutes: schedule.required_minutes,
-  };
   if (existing) {
     await db.from("attendance").update(patch).eq("id", existing.id);
   } else {
@@ -293,6 +349,32 @@ async function regularizeDay(
       ...patch,
     });
   }
+
+  await tagEntrySource(db, input.employeeId, input.workDate, input.entrySource);
+}
+
+/**
+ * Correct a missed-login day: recompute the attendance row through the shared
+ * regularizedAttendance helper (closeDay / lateMinutes / windowMinutes) so a
+ * corrected day matches a normally-punched one. Needs both a login and logout;
+ * with only a login there is nothing to score, so it is skipped.
+ */
+async function regularizeDay(
+  db: Db,
+  input: {
+    employeeId: string;
+    workDate: string;
+    loginMinutes: number | null;
+    logoutMinutes: number | null;
+  },
+) {
+  if (input.loginMinutes === null || input.logoutMinutes === null) return;
+  await writeManualAttendance(db, {
+    employeeId: input.employeeId,
+    workDate: input.workDate,
+    loginMinutes: input.loginMinutes,
+    logoutMinutes: input.logoutMinutes,
+  });
 }
 
 Deno.serve(async (req) => {
@@ -613,6 +695,146 @@ Deno.serve(async (req) => {
         cta: "Open My Attendance",
       });
       return json({ ok: true });
+    }
+
+    // Admin single-day manual attendance entry: create or correct ONE day's
+    // login/logout by hand (e.g. seeding a past day from the WhatsApp log). The
+    // day is scored identically to a real punch; login-only writes an open row.
+    if (action === "admin_set_attendance") {
+      if (!isAdmin) return json({ error: "Admins only." }, 403);
+      const employeeId = text(body.employee_id, 64);
+      if (!employeeId) return fail("Pick an employee.");
+      const { data: employee } = await db
+        .from("employees")
+        .select("id, first_name, last_name, employee_code")
+        .eq("id", employeeId)
+        .maybeSingle();
+      if (!employee) return fail("Employee not found.");
+
+      const today = istParts(new Date()).date;
+      const check = validateManualAttendanceEntry({
+        work_date: String(body.work_date ?? ""),
+        login_minutes: parseHHMM(body.login),
+        logout_minutes: parseHHMM(body.logout),
+        today,
+        backdateDays: MANUAL_ATTENDANCE_BACKDATE_DAYS,
+      });
+      if (!check.ok) return fail(check.message);
+
+      await writeManualAttendance(db, {
+        employeeId: employee.id,
+        workDate: check.normalized.work_date,
+        loginMinutes: check.normalized.login_minutes,
+        logoutMinutes: check.normalized.logout_minutes,
+        entrySource: "admin_manual",
+      });
+      return json({ ok: true });
+    }
+
+    // Admin bulk back-fill: write many days in one submit (e.g. the 1st–11th
+    // for the whole team). Each entry is processed independently — a bad or
+    // blank row is recorded and skipped, never aborting the batch.
+    if (action === "admin_bulk_set_attendance") {
+      if (!isAdmin) return json({ error: "Admins only." }, 403);
+      const entries = Array.isArray(body.entries) ? body.entries : [];
+      if (entries.length > 500) return fail("Too many entries in one submit.");
+
+      const today = istParts(new Date()).date;
+      // Cache employee lookups by id so a day-per-employee grid refetches once.
+      const employeeCache = new Map<string, { id: string } | null>();
+      const results: {
+        index: number;
+        employee_id: string;
+        work_date: string;
+        ok: boolean;
+        message?: string;
+      }[] = [];
+
+      for (let index = 0; index < entries.length; index++) {
+        const entry = (entries[index] ?? {}) as Record<string, unknown>;
+        const employeeId = text(entry.employee_id, 64) ?? "";
+        const workDate = typeof entry.work_date === "string" ? entry.work_date : "";
+
+        // A blank/absent login is a deliberate skip, not a hard error.
+        if (parseHHMM(entry.login) === null) {
+          results.push({
+            index,
+            employee_id: employeeId,
+            work_date: workDate,
+            ok: false,
+            message: "No login time — skipped.",
+          });
+          continue;
+        }
+
+        if (!employeeId) {
+          results.push({
+            index,
+            employee_id: employeeId,
+            work_date: workDate,
+            ok: false,
+            message: "Pick an employee.",
+          });
+          continue;
+        }
+
+        let employee = employeeCache.get(employeeId);
+        if (employee === undefined) {
+          const { data } = await db
+            .from("employees")
+            .select("id")
+            .eq("id", employeeId)
+            .maybeSingle();
+          employee = data ?? null;
+          employeeCache.set(employeeId, employee);
+        }
+        if (!employee) {
+          results.push({
+            index,
+            employee_id: employeeId,
+            work_date: workDate,
+            ok: false,
+            message: "Employee not found.",
+          });
+          continue;
+        }
+
+        const check = validateManualAttendanceEntry({
+          work_date: workDate,
+          login_minutes: parseHHMM(entry.login),
+          logout_minutes: parseHHMM(entry.logout),
+          today,
+          backdateDays: MANUAL_ATTENDANCE_BACKDATE_DAYS,
+        });
+        if (!check.ok) {
+          results.push({
+            index,
+            employee_id: employeeId,
+            work_date: workDate,
+            ok: false,
+            message: check.message,
+          });
+          continue;
+        }
+
+        await writeManualAttendance(db, {
+          employeeId: employee.id,
+          workDate: check.normalized.work_date,
+          loginMinutes: check.normalized.login_minutes,
+          logoutMinutes: check.normalized.logout_minutes,
+          entrySource: "admin_bulk",
+        });
+        results.push({
+          index,
+          employee_id: employeeId,
+          work_date: check.normalized.work_date,
+          ok: true,
+        });
+      }
+
+      const written = results.filter((r) => r.ok).length;
+      const failed = results.length - written;
+      return json({ ok: true, results, written, failed });
     }
 
     if (action === "decide_leave" || action === "decide_remote") {
