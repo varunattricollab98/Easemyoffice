@@ -253,11 +253,17 @@ const ACTIONABLE_DAY_KINDS: ReadonlySet<DayKind> = new Set<DayKind>(["absent", "
 export function MonthCalendar({
   days,
   onDayClick,
+  allowAnyDay = false,
 }: {
   days: DayCell[];
   /** When set, actionable day cells become clickable and call this with the
    * cell's date (YYYY-MM-DD) so the page can open a pre-filled request. */
   onDayClick?: (date: string) => void;
+  /** Admin override: when true (and `onDayClick` is set), EVERY day becomes
+   * clickable with a neutral "edit" label so an admin can correct any day,
+   * not just the request-worthy ones. Defaults to false, so the employee-side
+   * and read-only callers keep the exact ACTIONABLE_DAY_KINDS behavior. */
+  allowAnyDay?: boolean;
 }) {
   // Monday-first grid: JS weekday 1 (Mon) -> column 0, Sunday -> column 6.
   const lead = days.length ? (days[0].weekday + 6) % 7 : 0;
@@ -284,7 +290,7 @@ export function MonthCalendar({
           ]
             .filter(Boolean)
             .join(" · ");
-          const clickable = !!onDayClick && ACTIONABLE_DAY_KINDS.has(d.kind);
+          const clickable = !!onDayClick && (allowAnyDay || ACTIONABLE_DAY_KINDS.has(d.kind));
           return (
             <div
               key={d.date}
@@ -293,7 +299,9 @@ export function MonthCalendar({
                 ? {
                     role: "button" as const,
                     tabIndex: 0,
-                    "aria-label": `Raise a request for ${d.date}`,
+                    "aria-label": allowAnyDay
+                      ? `Edit attendance for ${d.date}`
+                      : `Raise a request for ${d.date}`,
                     onClick: () => onDayClick(d.date),
                     onKeyDown: (e: KeyboardEvent) => {
                       if (e.key === "Enter" || e.key === " ") {
