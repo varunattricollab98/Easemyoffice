@@ -374,6 +374,33 @@ export type SalarySlipRow = {
   reopened_at: string | null;
 };
 
+/** Payment / expense kinds for the standalone employee payments ledger. */
+export const PAYMENT_TYPES = [
+  { id: "incentive", label: "Incentive" },
+  { id: "bonus", label: "Bonus" },
+  { id: "reimbursement", label: "Reimbursement" },
+  { id: "advance", label: "Advance" },
+  { id: "other", label: "Other" },
+] as const;
+
+export type EmployeePaymentType = (typeof PAYMENT_TYPES)[number]["id"];
+
+/** Human label for a payment type id, falling back to the raw id. */
+export const paymentTypeLabel = (id: string): string =>
+  PAYMENT_TYPES.find((t) => t.id === id)?.label ?? id;
+
+export type EmployeePayment = {
+  id: string;
+  employee_id: string;
+  paid_on: string;
+  type: EmployeePaymentType;
+  amount: number | string;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 // ---------------------------------------------------------------------------
 // Import team from CRM logins
 // ---------------------------------------------------------------------------

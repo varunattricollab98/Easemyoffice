@@ -10,11 +10,14 @@ import {
   LockOpen,
   Download,
   Pencil,
+  Plus,
   Printer,
+  Trash2,
   Wallet,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,6 +31,24 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -40,15 +61,21 @@ import { useAuth } from "@/lib/auth";
 import {
   hrmsDb,
   employeeName,
+  paymentTypeLabel,
+  PAYMENT_TYPES,
   type AttendanceRow,
   type Department,
   type Employee,
+  type EmployeePayment,
+  type EmployeePaymentType,
   type EmployeePrivate,
   type EmployeeSalary,
   type LeaveRequest,
   type OfficeLocation,
   type SalarySlipRow,
 } from "@/lib/hrms";
+import { logAudit } from "@/lib/audit";
+import { paymentsForMonth, totalPayments } from "@/lib/payments-ledger";
 import { istParts } from "@/lib/attendance-rules";
 import {
   buildEmployeeMonth,
@@ -126,8 +153,17 @@ function useLookups() {
   return { employees: employees.data ?? [], salaries: salaries.data ?? [] };
 }
 
+// Frosted-glass stat tile, matching MonthStatsGrid in attendance-month.tsx.
+const GLASS_CARD =
+  "rounded-xl border border-black/[0.06] bg-white/60 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_1px_3px_rgba(0,0,0,0.04)] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.04]";
+
 function SalaryPage() {
-  const [tab, setTab] = useState<"slips" | "structure">("slips");
+  const [tab, setTab] = useState<"slips" | "structure" | "payments">("slips");
+  // One selected month shared by the slips view, the payments view and the
+  // bottom summary, so every figure on this page agrees.
+  const today = istParts(new Date()).date;
+  const [ym, setYm] = useState(() => defaultMonth(today));
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -147,10 +183,22 @@ function SalaryPage() {
           tabs={[
             { id: "slips", label: "Salary slips" },
             { id: "structure", label: "Salary structure" },
+            { id: "payments", label: "Payments & expenses" },
           ]}
         />
       </div>
-      {tab === "slips" ? <SlipsView /> : <StructureView />}
+      {tab === "slips" ? (
+        <SlipsView ym={ym} onMonthChange={(year, month) => setYm({ year, month })} today={today} />
+      ) : tab === "structure" ? (
+        <StructureView />
+      ) : (
+        <PaymentsView
+          ym={ym}
+          onMonthChange={(year, month) => setYm({ year, month })}
+          today={today}
+        />
+      )}
+      <SalarySummary ym={ym} today={today} />
     </div>
   );
 }
@@ -427,12 +475,12 @@ function defaultMonth(today: string) {
   return m === 1 ? { year: y - 1, month: 12 } : { year: y, month: m - 1 };
 }
 
-function SlipsView() {
-  const qc = useQueryClient();
-  const { user } = useAuth();
-  const today = istParts(new Date()).date;
-  const [ym, setYm] = useState(() => defaultMonth(today));
-  const [adjusting, setAdjusting] = useState<SlipRowView | null>(null);
+// Single source of truth for the per-employee slip rows and their totals for a
+// given month. SlipsView renders these, and the bottom summary reuses the exact
+// same `totals.net` as "Paid this month" — so both always agree. All queries use
+// shared react-query keys, so calling this hook from two places does not double
+// the network traffic.
+function useSlipRows(ym: { year: number; month: number }, today: string) {
   const { from, to } = monthRange(ym.year, ym.month);
   const monthKey = from.slice(0, 7);
 
@@ -590,6 +638,33 @@ function SlipsView() {
     monthKey,
   ]);
 
+  const totals = rows.reduce(
+    (t, r) => ({
+      gross: t.gross + (r.slip?.grossEarnings ?? 0),
+      ded: t.ded + (r.slip?.totalDeductions ?? 0),
+      net: t.net + (r.slip?.netPay ?? 0),
+    }),
+    { gross: 0, ded: 0, net: 0 },
+  );
+
+  return { rows, totals, from, to, monthKey, employees, salaries };
+}
+
+function SlipsView({
+  ym,
+  onMonthChange,
+  today,
+}: {
+  ym: { year: number; month: number };
+  onMonthChange: (year: number, month: number) => void;
+  today: string;
+}) {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  const [adjusting, setAdjusting] = useState<SlipRowView | null>(null);
+  const { rows, totals, from } = useSlipRows(ym, today);
+  const monthKey = from.slice(0, 7);
+
   const refresh = () => qc.invalidateQueries({ queryKey: ["hrms-salary-slips", from] });
 
   const finalize = useMutation({
@@ -647,14 +722,6 @@ function SlipsView() {
   });
 
   const drafts = rows.filter((r) => r.slip && r.row?.status !== "final");
-  const totals = rows.reduce(
-    (t, r) => ({
-      gross: t.gross + (r.slip?.grossEarnings ?? 0),
-      ded: t.ded + (r.slip?.totalDeductions ?? 0),
-      net: t.net + (r.slip?.netPay ?? 0),
-    }),
-    { gross: 0, ded: 0, net: 0 },
-  );
   const fmtDays = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
 
   return (
@@ -664,7 +731,7 @@ function SlipsView() {
           <MonthNav
             year={ym.year}
             month={ym.month}
-            onChange={(year, month) => setYm({ year, month })}
+            onChange={onMonthChange}
             maxYearMonth={today.slice(0, 7)}
           />
           <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -1033,5 +1100,478 @@ function AdjustDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Payments & expenses ledger (standalone, admin-only)
+// ---------------------------------------------------------------------------
+
+/**
+ * All employee payment rows. Degrades gracefully: if the employee_payments
+ * table has not been applied yet (owner applies migrations manually) the query
+ * resolves to [] instead of throwing, so the ledger shows nothing and the
+ * bottom summary's "Other expenses" renders ₹0 — never a crash.
+ */
+function useEmployeePayments() {
+  return useQuery({
+    queryKey: ["hrms-employee-payments"],
+    queryFn: async (): Promise<EmployeePayment[]> => {
+      const { data } = await hrmsDb()
+        .from("employee_payments")
+        .select("*")
+        .order("paid_on", { ascending: false });
+      return (data ?? []) as EmployeePayment[];
+    },
+  });
+}
+
+function formatPaymentDate(date: string) {
+  return new Date(`${date}T00:00:00Z`).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+function PaymentsView({
+  ym,
+  onMonthChange,
+  today,
+}: {
+  ym: { year: number; month: number };
+  onMonthChange: (year: number, month: number) => void;
+  today: string;
+}) {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  const { employees } = useLookups();
+  const { data: payments = [] } = useEmployeePayments();
+  const [editing, setEditing] = useState<EmployeePayment | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [deleting, setDeleting] = useState<EmployeePayment | null>(null);
+
+  const { from } = monthRange(ym.year, ym.month);
+  const monthKey = from.slice(0, 7);
+  const nameOf = new Map(employees.map((e) => [e.id, employeeName(e)]));
+  const monthRows = paymentsForMonth(payments, monthKey);
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["hrms-employee-payments"] });
+
+  const remove = useMutation({
+    mutationFn: async (p: EmployeePayment) => {
+      const { error } = await hrmsDb().from("employee_payments").delete().eq("id", p.id);
+      if (error) throw new Error(error.message);
+      logAudit({
+        actorId: user?.id,
+        action: "delete",
+        entity: "employee_payment",
+        entityId: p.id,
+        entityLabel: `${nameOf.get(p.employee_id) ?? "Employee"} · ${paymentTypeLabel(p.type)}`,
+        detail: formatINR(Number(p.amount)),
+      });
+    },
+    onSuccess: () => {
+      toast.success("Payment deleted");
+      invalidate();
+      setDeleting(null);
+    },
+    onError: (e: unknown) => toast.error(getErrorMessage(e)),
+  });
+
+  return (
+    <Card>
+      <CardContent className="space-y-3 p-0">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4">
+          <MonthNav
+            year={ym.year}
+            month={ym.month}
+            onChange={onMonthChange}
+            maxYearMonth={today.slice(0, 7)}
+          />
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <span className="text-muted-foreground">
+              This month{" "}
+              <strong className="tabular-nums text-foreground">
+                {formatINR(totalPayments(monthRows))}
+              </strong>
+            </span>
+            <Button size="sm" onClick={() => setAdding(true)}>
+              <Plus className="mr-1 h-3.5 w-3.5" /> Add payment
+            </Button>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Employee</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead className="text-right">Amount</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Details</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {monthRows.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
+                    No payments recorded for {monthLabel(monthKey)}.
+                  </TableCell>
+                </TableRow>
+              )}
+              {monthRows.map((p) => (
+                <TableRow key={p.id}>
+                  <TableCell className="font-medium">{nameOf.get(p.employee_id) ?? "—"}</TableCell>
+                  <TableCell>
+                    <Badge variant="secondary">{paymentTypeLabel(p.type)}</Badge>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {formatINR(Number(p.amount))}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap tabular-nums">
+                    {formatPaymentDate(p.paid_on)}
+                  </TableCell>
+                  <TableCell className="max-w-xs text-sm text-muted-foreground">
+                    {p.note || "—"}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-right">
+                    <div className="inline-flex gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8"
+                        title="Edit payment"
+                        onClick={() => setEditing(p)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <AlertDialog
+                        open={deleting?.id === p.id}
+                        onOpenChange={(v) => setDeleting(v ? p : null)}
+                      >
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            title="Delete payment"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete this payment?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This permanently removes the{" "}
+                              <span className="font-medium">{paymentTypeLabel(p.type)}</span> entry
+                              of <span className="font-medium">{formatINR(Number(p.amount))}</span>{" "}
+                              for{" "}
+                              <span className="font-medium">
+                                {nameOf.get(p.employee_id) ?? "this employee"}
+                              </span>
+                              . This cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              disabled={remove.isPending}
+                              onClick={() => remove.mutate(p)}
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+        <div className="flex items-start gap-2 px-4 pb-4 text-[11px] text-muted-foreground">
+          <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          Standalone ledger of incentives, bonuses, reimbursements, advances and other expenses paid
+          to employees. These entries are separate from salary slips and feed the &quot;Other
+          expenses&quot; figure in the summary below. Admin only — employees never see these
+          records.
+        </div>
+      </CardContent>
+      <PaymentDialog
+        open={adding}
+        payment={null}
+        employees={employees}
+        today={today}
+        onClose={() => setAdding(false)}
+        onSaved={invalidate}
+      />
+      <PaymentDialog
+        open={!!editing}
+        payment={editing}
+        employees={employees}
+        today={today}
+        onClose={() => setEditing(null)}
+        onSaved={invalidate}
+      />
+    </Card>
+  );
+}
+
+function PaymentDialog({
+  open,
+  payment,
+  employees,
+  today,
+  onClose,
+  onSaved,
+}: {
+  open: boolean;
+  payment: EmployeePayment | null;
+  employees: Employee[];
+  today: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { user } = useAuth();
+  const editing = !!payment;
+  const [employeeId, setEmployeeId] = useState("");
+  const [type, setType] = useState<EmployeePaymentType>("incentive");
+  const [amount, setAmount] = useState("");
+  const [paidOn, setPaidOn] = useState(today);
+  const [note, setNote] = useState("");
+
+  // Active employees to pick from (plus whoever the edited row points at, even
+  // if they have since been marked inactive, so the Select can show them).
+  const active = employees.filter(
+    (e) => !INACTIVE.has(e.employment_status) || e.id === payment?.employee_id,
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    setEmployeeId(payment?.employee_id ?? "");
+    setType(payment?.type ?? "incentive");
+    setAmount(payment ? String(payment.amount ?? "") : "");
+    setPaidOn(payment?.paid_on ?? today);
+    setNote(payment?.note ?? "");
+  }, [open, payment, today]);
+
+  const save = useMutation({
+    mutationFn: async () => {
+      if (!employeeId) throw new Error("Pick an employee");
+      const amt = n(amount);
+      if (editing && payment) {
+        const { error } = await hrmsDb()
+          .from("employee_payments")
+          .update({
+            type,
+            amount: amt,
+            paid_on: paidOn || today,
+            note: note || null,
+          })
+          .eq("id", payment.id);
+        if (error) throw new Error(error.message);
+        logAudit({
+          actorId: user?.id,
+          action: "edit",
+          entity: "employee_payment",
+          entityId: payment.id,
+          entityLabel: `${employeeNameById(employees, employeeId)} · ${paymentTypeLabel(type)}`,
+          detail: formatINR(amt),
+        });
+        return;
+      }
+      const { data, error } = await hrmsDb()
+        .from("employee_payments")
+        .insert({
+          employee_id: employeeId,
+          type,
+          amount: amt,
+          paid_on: paidOn || today,
+          note: note || null,
+          created_by: user?.id ?? null,
+        })
+        .select("id")
+        .single();
+      if (error) throw new Error(error.message);
+      logAudit({
+        actorId: user?.id,
+        action: "create",
+        entity: "employee_payment",
+        entityId: (data as { id: string } | null)?.id ?? null,
+        entityLabel: `${employeeNameById(employees, employeeId)} · ${paymentTypeLabel(type)}`,
+        detail: formatINR(amt),
+      });
+    },
+    onSuccess: () => {
+      toast.success(editing ? "Payment updated" : "Payment added");
+      onSaved();
+      onClose();
+    },
+    onError: (e: unknown) => toast.error(getErrorMessage(e)),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{editing ? "Edit payment" : "Add payment"}</DialogTitle>
+          <DialogDescription>
+            Record an incentive, bonus, reimbursement, advance or other expense paid to an employee.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="col-span-2">
+            <Label className="text-xs">Employee</Label>
+            <Select value={employeeId} onValueChange={setEmployeeId} disabled={editing}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select employee" />
+              </SelectTrigger>
+              <SelectContent>
+                {active.map((e) => (
+                  <SelectItem key={e.id} value={e.id}>
+                    {employeeName(e)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">Type</Label>
+            <Select value={type} onValueChange={(v) => setType(v as EmployeePaymentType)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PAYMENT_TYPES.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">Amount</Label>
+            <Input
+              type="number"
+              min={0}
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Date</Label>
+            <Input
+              type="date"
+              max={today}
+              value={paidOn}
+              onChange={(e) => setPaidOn(e.target.value)}
+            />
+          </div>
+          <div className="col-span-2">
+            <Label className="text-xs">Details</Label>
+            <Textarea
+              rows={2}
+              placeholder="What is this payment for?"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button disabled={save.isPending} onClick={() => save.mutate()}>
+            {save.isPending ? "Saving…" : editing ? "Save" : "Add payment"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function employeeNameById(employees: Employee[], id: string) {
+  const e = employees.find((x) => x.id === id);
+  return e ? employeeName(e) : "Employee";
+}
+
+// ---------------------------------------------------------------------------
+// Bottom summary — shared selected month, one source of truth
+// ---------------------------------------------------------------------------
+
+function SalarySummary({ ym, today }: { ym: { year: number; month: number }; today: string }) {
+  const { totals, monthKey, employees, salaries } = useSlipRows(ym, today);
+  const { data: payments = [] } = useEmployeePayments();
+
+  // Fixed monthly salary cost = sum of fixedGross across employees who are
+  // active and carry a salary structure.
+  const byEmp = new Map(salaries.map((s) => [s.employee_id, s]));
+  const totalSalaries = employees.reduce((sum, e) => {
+    const structure = toStructure(byEmp.get(e.id));
+    if (!structure) return sum;
+    if (INACTIVE.has(e.employment_status)) return sum;
+    return sum + fixedGross(structure);
+  }, 0);
+
+  const paidThisMonth = totals.net;
+  const otherExpenses = totalPayments(paymentsForMonth(payments, monthKey));
+  const grandTotal = paidThisMonth + otherExpenses;
+
+  const tiles: { label: string; value: number; hint?: string; tone?: string }[] = [
+    {
+      label: "Total salaries",
+      value: totalSalaries,
+      hint: "fixed monthly salary cost (active employees)",
+    },
+    {
+      label: "Paid this month",
+      value: paidThisMonth,
+      hint: "net of this month's salary slips",
+      tone: "text-emerald-600",
+    },
+    {
+      label: "Other expenses",
+      value: otherExpenses,
+      hint: "incentives, bonuses & other payments",
+    },
+    {
+      label: "Total employee outflow",
+      value: grandTotal,
+      hint: "paid this month + other expenses",
+    },
+  ];
+
+  return (
+    <Card>
+      <CardContent className="space-y-3 p-4">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold">Summary — {monthLabel(monthKey)}</h3>
+          <span className="text-[11px] text-muted-foreground">
+            Admin only — employees cannot see any salary or payment figure.
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {tiles.map((t) => (
+            <div key={t.label} className={GLASS_CARD}>
+              <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                {t.label}
+              </div>
+              <div className={cn("mt-1 text-xl font-semibold tabular-nums", t.tone)}>
+                {formatINR(t.value)}
+              </div>
+              {t.hint && <div className="text-[11px] text-muted-foreground">{t.hint}</div>}
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
