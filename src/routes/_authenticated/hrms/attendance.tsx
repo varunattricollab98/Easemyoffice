@@ -19,6 +19,7 @@ import {
   CalendarPlus,
   CalendarRange,
   AlertTriangle,
+  Trash2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -31,6 +32,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -47,6 +59,7 @@ import {
   hrmsDb,
   employeeName,
   formatMinutes,
+  sharedDeviceKeys,
   type AttendanceDevice,
   type AttendanceEvent,
   type AttendanceRow,
@@ -1558,6 +1571,10 @@ function DevicesView() {
   const order = { pending: 0, approved: 1, revoked: 2 } as const;
   const sorted = [...devices].sort((a, b) => order[a.status] - order[b.status]);
 
+  // Device keys registered to more than one employee — i.e. someone punching
+  // from a device already tied to a different person. Surfaced as a badge.
+  const shared = useMemo(() => sharedDeviceKeys(devices), [devices]);
+
   const decide = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: AttendanceDevice["status"] }) => {
       const { error } = await hrmsDb()
@@ -1568,6 +1585,19 @@ function DevicesView() {
     },
     onSuccess: (_, v) => {
       toast.success(v.status === "approved" ? "Device approved" : "Device blocked");
+      qc.invalidateQueries({ queryKey: ["hrms-devices"] });
+      qc.invalidateQueries({ queryKey: ["hrms-pending-devices"] });
+    },
+    onError: (e: unknown) => toast.error(getErrorMessage(e)),
+  });
+
+  const remove = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await hrmsDb().from("attendance_devices").delete().eq("id", id);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      toast.success("Device deleted");
       qc.invalidateQueries({ queryKey: ["hrms-devices"] });
       qc.invalidateQueries({ queryKey: ["hrms-pending-devices"] });
     },
@@ -1632,8 +1662,28 @@ function DevicesView() {
                       <Smartphone className="h-3.5 w-3.5 text-muted-foreground" />
                       {d.label ?? "Unknown device"}
                     </div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {d.device_key.slice(0, 8)}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] text-muted-foreground">
+                        {d.device_key.slice(0, 8)}
+                      </span>
+                      {shared.has(d.device_key) && (
+                        <span
+                          className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900"
+                          title={
+                            "Also registered to: " +
+                            (devices
+                              .filter(
+                                (o) =>
+                                  o.device_key === d.device_key && o.employee_id !== d.employee_id,
+                              )
+                              .map((o) => names.emp.get(o.employee_id) ?? "Employee")
+                              .filter((v, i, a) => a.indexOf(v) === i)
+                              .join(", ") || "another employee")
+                          }
+                        >
+                          Shared
+                        </span>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-xs tabular-nums">
@@ -1675,6 +1725,42 @@ function DevicesView() {
                           <Ban className="mr-1 h-3.5 w-3.5" /> Block
                         </Button>
                       )}
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive hover:text-destructive"
+                            disabled={remove.isPending}
+                          >
+                            <Trash2 className="mr-1 h-3.5 w-3.5" /> Delete
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete this device?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This permanently removes the registration for{" "}
+                              <span className="font-medium">
+                                {names.emp.get(d.employee_id) ?? "this employee"}
+                              </span>
+                              . The device will have to re-register on its next punch (and wait for
+                              approval again if device approval is on). Attendance history is not
+                              affected.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              disabled={remove.isPending}
+                              onClick={() => remove.mutate(d.id)}
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </TableCell>
                 </TableRow>

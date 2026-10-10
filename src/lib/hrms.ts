@@ -261,6 +261,45 @@ export type AttendanceDevice = {
   decided_at: string | null;
 };
 
+/**
+ * Map every device_key to the distinct set of employee_ids it is registered to.
+ * Duplicate rows for the same (device_key, employee_id) pair collapse to one
+ * entry, so the set size is the number of DIFFERENT people using that device.
+ */
+export function deviceKeyEmployeeCount(
+  devices: Pick<AttendanceDevice, "device_key" | "employee_id">[],
+): Map<string, Set<string>> {
+  const byKey = new Map<string, Set<string>>();
+  for (const d of devices) {
+    if (!d.device_key || !d.employee_id) continue;
+    let owners = byKey.get(d.device_key);
+    if (!owners) {
+      owners = new Set<string>();
+      byKey.set(d.device_key, owners);
+    }
+    owners.add(d.employee_id);
+  }
+  return byKey;
+}
+
+/**
+ * The set of device_key values registered to MORE THAN ONE distinct employee.
+ *
+ * Flags device sharing — i.e. one person punching from a device already
+ * registered to someone else — so the admin UI can surface it. Pure and total:
+ * empty input yields an empty set, and repeated rows for the same employee are
+ * counted once (a key used by a single employee is never reported as shared).
+ */
+export function sharedDeviceKeys(
+  devices: Pick<AttendanceDevice, "device_key" | "employee_id">[],
+): Set<string> {
+  const shared = new Set<string>();
+  for (const [key, owners] of deviceKeyEmployeeCount(devices)) {
+    if (owners.size > 1) shared.add(key);
+  }
+  return shared;
+}
+
 export const employeeName = (e: Pick<Employee, "first_name" | "last_name">) =>
   [e.first_name, e.last_name].filter(Boolean).join(" ").trim();
 

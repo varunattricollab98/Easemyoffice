@@ -1,0 +1,26 @@
+{
+  "id": "FEAT-001",
+  "type": "chore",
+  "description": "Establish a green baseline before any changes. Install dependencies and run the full gate (typecheck + vitest + build) exactly as CI does, so later regressions are attributable to this task's changes and not pre-existing state.",
+  "status": "completed",
+  "steps": [
+    "cd /projects/sandbox/Easemyoffice and run `bun install --frozen-lockfile` (expect ~562 packages).",
+    "Ensure node/tsc are on PATH: if `./node_modules/.bin/tsc --noEmit` cannot find node, run `export PATH=\"/root/.nvm/versions/node/$(ls /root/.nvm/versions/node | tail -1)/bin:$PATH\"` then retry.",
+    "Run `./node_modules/.bin/tsc --noEmit` and confirm it is clean.",
+    "Run `bun run test` and record how many test files / tests pass (AGENT_CONTEXT.md notes ~98 passed historically; record the actual current number).",
+    "Run `bun run build` and confirm it completes and emits dist/server/index.js. Note whether src/routeTree.gen.ts changed (it should not, since no routes change)."
+  ],
+  "acceptance_criteria": [
+    "`bun install --frozen-lockfile` completes without error.",
+    "`./node_modules/.bin/tsc --noEmit` exits 0 with no errors.",
+    "`bun run test` passes with all vitest files green; the baseline pass count is recorded in findings.",
+    "`bun run build` completes successfully."
+  ],
+  "verification": [
+    "./node_modules/.bin/tsc --noEmit",
+    "bun run test",
+    "bun run build"
+  ],
+  "blocked_reason": null,
+  "findings": "Baseline is fully GREEN on branch main @ 25d01a4. (1) `bun install --frozen-lockfile`: clean, 584 installs across 710 packages, no changes (~1s). (2) PATH quirk is real — node/tsc are not on PATH by default; `export PATH=\"/root/.nvm/versions/node/$(ls /root/.nvm/versions/node | tail -1)/bin:$PATH\"` fixes it, needed for tsc/vitest/build. (3) `./node_modules/.bin/tsc --noEmit`: exit 0, no errors. (4) `bun run test` (vitest run): 18 test files passed, 285 tests passed, 0 failures (hrms.test.ts currently has 4 tests — this is the file to extend for the shared-device helper). AGENT_CONTEXT's ~98 historical count is stale; current baseline is 285. (5) `bun run build`: succeeded in ~11s, emitted dist/server/index.js (104 bytes) + assets. src/routeTree.gen.ts did NOT change (git status shows only the untracked .agents task dir), as expected since no routes change. No commit made for this baseline feature per instructions."
+}
