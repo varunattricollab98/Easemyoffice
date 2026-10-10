@@ -467,7 +467,7 @@ function EmployeeDialog({
         </DialogHeader>
 
         <div className="grid gap-3 md:grid-cols-3">
-          {T("employee_code", "Employee Code *", { placeholder: "EMO-EMP-001" })}
+          {T("employee_code", "Employee Code *", { placeholder: "EMOC001" })}
           {T("first_name", "First Name *")}
           {T("last_name", "Last Name")}
           {T("phone", "Phone", { inputMode: "tel" })}

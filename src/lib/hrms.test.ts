@@ -17,10 +17,18 @@ describe("splitName", () => {
 
 describe("nextEmployeeCodes", () => {
   it("continues after the highest existing code", () => {
-    expect(nextEmployeeCodes(["EMO001", "emo007", "HR-1"], 2)).toEqual(["EMO008", "EMO009"]);
+    expect(nextEmployeeCodes(["EMOC001", "emoc007", "HR-1"], 2)).toEqual(["EMOC008", "EMOC009"]);
   });
 
-  it("starts at EMO001 with no codes", () => {
-    expect(nextEmployeeCodes([], 3)).toEqual(["EMO001", "EMO002", "EMO003"]);
+  it("continues after EMOC008 with EMOC009", () => {
+    expect(nextEmployeeCodes(["EMOC008"], 1)).toEqual(["EMOC009"]);
+  });
+
+  it("starts at EMOC001 with no codes", () => {
+    expect(nextEmployeeCodes([], 3)).toEqual(["EMOC001", "EMOC002", "EMOC003"]);
+  });
+
+  it("starts at EMOC001 when no codes match the prefix", () => {
+    expect(nextEmployeeCodes(["HR-1", "ABC123"], 1)).toEqual(["EMOC001"]);
   });
 });
