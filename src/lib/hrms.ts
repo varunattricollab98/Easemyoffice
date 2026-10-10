@@ -348,10 +348,10 @@ export function splitName(fullName: string | null, email: string | null) {
 }
 
 /**
- * The next `count` codes after the highest existing EMO### code, so imports
- * never collide with codes typed by hand ("EMO007" -> "EMO008", "EMO009"…).
+ * The next `count` codes after the highest existing EMOC### code, so imports
+ * never collide with codes typed by hand ("EMOC007" -> "EMOC008", "EMOC009"…).
  */
-export function nextEmployeeCodes(existing: string[], count: number, prefix = "EMO"): string[] {
+export function nextEmployeeCodes(existing: string[], count: number, prefix = "EMOC"): string[] {
   const re = new RegExp(`^${prefix}(\\d+)$`, "i");
   const max = existing.reduce((m, c) => {
     const hit = re.exec(c.trim());
