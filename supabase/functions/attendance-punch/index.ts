@@ -131,8 +131,13 @@ Deno.serve(async (req) => {
       user_agent: userAgent,
     };
 
+    // Cross-employee shared-device flags, set by the device block below. Kept
+    // in this scope so a rejected attempt from a shared device is still flagged.
+    let sharedDevice = false;
+    let sharedWithEmployeeId: string | null = null;
     const reject = async (reason: RejectionReason, extra: Record<string, unknown> = {}) => {
-      await db.from("attendance_events").insert({ ...event, outcome: "rejected", reason });
+      const flagged = sharedDevice ? `${reason}|shared_device` : reason;
+      await db.from("attendance_events").insert({ ...event, outcome: "rejected", reason: flagged });
       return json({ ok: false, reason, message: REJECTION_MESSAGES[reason], ...extra });
     };
 
@@ -172,6 +177,12 @@ Deno.serve(async (req) => {
     //    required, so switching the requirement on later does not lock out
     //    devices that were already in use.
     let deviceStatus: DeviceStatus = "new";
+    // Live cross-employee sharing detection. A device_key registered to a
+    // DIFFERENT employee means this machine is shared — we FLAG + ALERT but
+    // never block (families and shared office PCs are legitimate; a false
+    // block would lock a real employee out). Fully defensive: a failure here
+    // must never reject or 500 the punch. The flags are declared earlier so
+    // the reject() helper can mark a rejected attempt as shared too.
     if (deviceKey) {
       const { data: device } = await db
         .from("attendance_devices")
@@ -195,6 +206,22 @@ Deno.serve(async (req) => {
           status,
         });
         deviceStatus = status;
+      }
+
+      try {
+        const { data: others } = await db
+          .from("attendance_devices")
+          .select("employee_id, status")
+          .eq("device_key", deviceKey)
+          .neq("employee_id", employee.id)
+          .limit(1);
+        const other = others?.[0] ?? null;
+        if (other?.employee_id) {
+          sharedDevice = true;
+          sharedWithEmployeeId = other.employee_id as string;
+        }
+      } catch {
+        /* best-effort — never block the punch on a detection failure */
       }
     }
 
@@ -411,12 +438,75 @@ Deno.serve(async (req) => {
       attendance = closedRow;
     }
 
-    await db.from("attendance_events").insert({
-      ...event,
-      attendance_id: attendance?.id ?? null,
-      outcome: "accepted",
-      reason: remote ? "remote_request" : null,
-    });
+    // Compose the accepted reason: remote_request and/or shared_device.
+    const acceptedReason =
+      [remote ? "remote_request" : null, sharedDevice ? "shared_device" : null]
+        .filter(Boolean)
+        .join("|") || null;
+    const { data: acceptedEvent } = await db
+      .from("attendance_events")
+      .insert({
+        ...event,
+        attendance_id: attendance?.id ?? null,
+        outcome: "accepted",
+        reason: acceptedReason,
+      })
+      .select("id")
+      .maybeSingle();
+
+    // Best-effort: record the other owner on the event when the optional
+    // shared_with_employee_id column exists. Done as a SEPARATE update so the
+    // insert above still succeeds (punches keep working) when the migration is
+    // not yet applied.
+    if (sharedDevice && sharedWithEmployeeId && acceptedEvent?.id) {
+      try {
+        await db
+          .from("attendance_events")
+          .update({ shared_with_employee_id: sharedWithEmployeeId })
+          .eq("id", acceptedEvent.id);
+      } catch {
+        /* column may not exist yet — the reason token still records sharing */
+      }
+    }
+
+    // Alert admins once per punch when a shared device is detected on an
+    // accepted login/logout. The admin can then Block or Delete the device.
+    if (sharedDevice) {
+      try {
+        const { data: otherEmp } = sharedWithEmployeeId
+          ? await db
+              .from("employees")
+              .select("first_name, last_name, employee_code")
+              .eq("id", sharedWithEmployeeId)
+              .maybeSingle()
+          : { data: null };
+        const otherName =
+          [otherEmp?.first_name, otherEmp?.last_name].filter(Boolean).join(" ") ||
+          "another employee";
+        const otherCode = otherEmp?.employee_code ? ` (${otherEmp.employee_code})` : "";
+        const deviceLabel = text(body.device_label, 120);
+        await notifyAdmins(db, {
+          type: "hr_shared_device",
+          title: `Shared device detected — ${employeeName}`,
+          body: `${employeeName} ${action === "login" ? "logged in" : "logged out"} at ${timeIST(nowIso)} from a device that is also registered to ${otherName}${otherCode}.`,
+          details: [
+            ["Employee", `${employeeName} (${employee.employee_code})`],
+            [
+              "Device",
+              [deviceKey ? deviceKey.slice(0, 8) : "—", deviceLabel].filter(Boolean).join(" · "),
+            ],
+            ["Also registered to", `${otherName}${otherCode}`],
+            ["Date", today.date],
+            ["When", timeIST(nowIso)],
+            ["IP", ip ?? "—"],
+          ],
+          path: "/hrms/attendance",
+          cta: "Open Devices",
+        });
+      } catch {
+        /* best-effort — detection must never break the punch */
+      }
+    }
 
     if (newRemotePending) {
       const where =

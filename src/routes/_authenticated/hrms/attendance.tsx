@@ -1507,7 +1507,17 @@ function SecurityView() {
                   <TableCell className="capitalize">{e.event_type}</TableCell>
                   <TableCell>
                     {e.outcome === "accepted" ? (
-                      <span className="text-xs font-medium text-emerald-600">Accepted</span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="text-xs font-medium text-emerald-600">Accepted</span>
+                        {e.reason?.includes("shared_device") && (
+                          <span
+                            className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900"
+                            title="This device is also registered to another employee"
+                          >
+                            shared device
+                          </span>
+                        )}
+                      </span>
                     ) : (
                       <span
                         className="text-xs font-medium text-rose-600"
