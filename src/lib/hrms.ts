@@ -289,6 +289,15 @@ export function deviceKeyEmployeeCount(
  * registered to someone else — so the admin UI can surface it. Pure and total:
  * empty input yields an empty set, and repeated rows for the same employee are
  * counted once (a key used by a single employee is never reported as shared).
+ *
+ * NOTE: this client badge is intentionally BROADER than the server-side
+ * `hr_shared_device` alert in the attendance-punch edge function. The badge
+ * counts a key as shared whenever it maps to two or more distinct employees in
+ * ANY status (pending / approved / revoked), because for the admin reviewing
+ * the Devices tab, every multi-owner key is worth seeing as a hygiene signal.
+ * The server alert, by contrast, is scoped to another employee's APPROVED
+ * device (the user's literal ask) so it only fires on an active cross-employee
+ * share. The two signals are deliberately different granularities.
  */
 export function sharedDeviceKeys(
   devices: Pick<AttendanceDevice, "device_key" | "employee_id">[],

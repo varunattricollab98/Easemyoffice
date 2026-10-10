@@ -1603,8 +1603,19 @@ function DevicesView() {
 
   const remove = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await hrmsDb().from("attendance_devices").delete().eq("id", id);
+      // Request the deleted rows back: a PostgREST DELETE blocked by a missing
+      // RLS DELETE policy returns 200 with zero rows and no error, so an empty
+      // result means the delete was silently filtered out (migration
+      // 20260518000002 not applied yet) and must surface as an error toast.
+      const { data, error } = await hrmsDb()
+        .from("attendance_devices")
+        .delete()
+        .eq("id", id)
+        .select("id");
       if (error) throw new Error(error.message);
+      if (!data?.length) {
+        throw new Error("Delete was blocked — the device delete policy may not be applied yet.");
+      }
     },
     onSuccess: () => {
       toast.success("Device deleted");

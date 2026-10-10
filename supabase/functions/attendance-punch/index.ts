@@ -209,10 +209,15 @@ Deno.serve(async (req) => {
       }
 
       try {
+        // The user's ask is specifically another employee's APPROVED device, so
+        // the alert signal is scoped to status = 'approved' (a revoked or
+        // pending registration under someone else is not an active shared
+        // device). Defensive: a detection failure must never block the punch.
         const { data: others } = await db
           .from("attendance_devices")
           .select("employee_id, status")
           .eq("device_key", deviceKey)
+          .eq("status", "approved")
           .neq("employee_id", employee.id)
           .limit(1);
         const other = others?.[0] ?? null;
