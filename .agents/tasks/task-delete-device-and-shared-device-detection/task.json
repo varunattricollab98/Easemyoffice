@@ -1,0 +1,7 @@
+{
+  "task_id": "task-delete-device-and-shared-device-detection",
+  "task_description": "On the admin HRMS Attendance -> Devices tab, add a 'Delete device' action (distinct from the existing Block/revoke) and detect when an employee logs in / punches from a device already registered to a DIFFERENT employee (device sharing). Delivery: (1) client-side 'Shared' badge on any device_key used by >1 employee, backed by a pure tested helper; (2) admin Delete action with a destructive AlertDialog confirm + owner-applied idempotent RLS DELETE policy migration; (3) server-side live detection in the attendance-punch edge function that flags the attendance_events row ('shared_device') and alerts admins via notifyAdmins — DETECT+FLAG+ALERT, no hard block. Strictly additive; app must degrade gracefully until owner applies the migration(s).",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}
