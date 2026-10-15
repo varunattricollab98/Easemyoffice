@@ -30,6 +30,7 @@ import {
 import { Plus, Search, Check, MapPin, Building2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
+import { emailDocAssignee } from "@/lib/documentation-queries";
 import { supabase } from "@/integrations/supabase/client";
 import { getSheetPlans, getNextBookingIdFromSheet, syncBookingToSheet } from "@/lib/bookings-sheet";
 import { buildPaymentAckEmailHtml } from "@/lib/payment-ack-email";
@@ -447,9 +448,16 @@ export function NewBookingDialog({
       });
       if (error) throw new Error(error.message);
     },
-    onSuccess: () => {
+    onSuccess: (_data, { bookingId, assignedTo }) => {
       toast.success("Assigned to documentation team");
       qc.invalidateQueries({ queryKey: ["documentation-tasks"] });
+      qc.invalidateQueries({ queryKey: ["doc-pipeline"] });
+      // The in-CRM notification comes from a DB trigger; this emails the
+      // documentation person the booking details. Never blocks the save.
+      void emailDocAssignee(bookingId, assignedTo).then((sent) => {
+        if (!sent)
+          toast.warning("Assigned, but the email to the documentation person could not be sent");
+      });
     },
     onError: (e: Error) => {
       toast.error("Failed to assign: " + e.message);
@@ -1873,7 +1881,8 @@ export function NewBookingDialog({
           <AlertDialogHeader>
             <AlertDialogTitle>Assign to Documentation</AlertDialogTitle>
             <AlertDialogDescription>
-              Select a documentation team member to assign this booking for document processing.
+              Select a documentation team member for this booking. They get a CRM alert and an email
+              with the booking details, and the documentation TAT starts now.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="py-4">

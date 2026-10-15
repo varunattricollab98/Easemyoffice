@@ -18,6 +18,7 @@ const TYPE_EMOJI: Record<string, string> = {
   payment: "\ud83d\udcb0",
   task: "\ud83d\udccb",
   lead_moved: "\ud83c\udfaf",
+  doc_assigned: "\ud83d\udcc4",
   general: "\ud83d\udd14",
 };
 
@@ -62,7 +63,11 @@ export function NotificationsWatcher() {
             title: `${emoji} ${n.title ?? "New notification"}`,
             body: n.body ?? undefined,
             tag: n.id ? `notif-${n.id}` : undefined,
-            url: n.lead_id ? `/leads/${n.lead_id}` : "/notifications",
+            url: n.lead_id
+              ? `/leads/${n.lead_id}`
+              : n.type === "doc_assigned"
+                ? "/documentation"
+                : "/notifications",
           });
           lastNotifTs.current = Date.now();
           qc.invalidateQueries({ queryKey: ["notif-unread-count"] });

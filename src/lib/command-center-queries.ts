@@ -33,6 +33,7 @@ import {
   type CommandCenterFilter,
 } from "@/lib/command-center";
 import { resolvePeriod } from "@/lib/report-period";
+import { DEFAULT_TAT_DAYS } from "@/lib/documentation";
 import {
   buildFunnel,
   activityBreakdown,
@@ -432,7 +433,8 @@ async function fetchCommandCenter(
       isAll,
     ).limit(ROW_LIMIT),
   );
-  const documentation = docSummary(docRows, now);
+  // Same 3-day TAT as the Documentation pipeline (src/lib/documentation.ts).
+  const documentation = docSummary(docRows, now, DEFAULT_TAT_DAYS);
 
   // --- Attendance (driven by the Day filter, not the period range) --------
   // Attendance is a day-level view: it is scoped by filter.day (a single

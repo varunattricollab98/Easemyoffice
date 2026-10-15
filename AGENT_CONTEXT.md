@@ -345,3 +345,20 @@ Sandbox quirks (all learned the hard way — several fail SILENTLY with empty ou
 - To measure bundles: temporarily add `vite: { build: { sourcemap: true } }` to vite.config, build, then
   `npx -y source-map-explorer dist/client/assets/index-*.js --json --no-border-checks`; revert the config.
 - Not done yet: `/reports` still downloads whole tables client-side (and PostgREST caps each at 1000 rows).
+
+### Documentation pipeline (Oct 2026)
+- Owner's process: sales assigns booking → docs-required email → client KYC → team verifies + sends draft →
+  client approves → team asks SP for final → SP final → forwarded for countersign → countersigned →
+  Part B (NOC + utility bill) → completed. **TAT = 3 calendar days from assignment** (`app_settings`
+  `doc_tat_days`; `doc_escalation_days` is now the "stuck in stage" alert, default 1).
+- Migrations `20260520000001` (enum `final_requested`, alone — enum rule) + `20260520000002`:
+  `documentation_tasks.due_at` (snapshotted at insert by trigger), `stage_changed_at`, `completed_at`;
+  append-only `documentation_stage_events` (trigger-written, back-filled rows flagged `backfilled`);
+  `notify_documentation_assignment` trigger → `notifications.type = 'doc_assigned'`; read policy on the
+  two doc settings for all signed-in users (app_settings was admin-only).
+- Maths: `src/lib/documentation.ts` (stages + waiting-on team/client/SP, TAT state, summaries, stage
+  durations, trend). Data + mutations + assignee email: `src/lib/documentation-queries.ts`.
+  UI: `src/components/documentation/*` (Overview · Pipeline board · List · Analytics · Settings, task
+  sheet, "Assign booking" dialog). Doc-only users' dashboard reuses `DocOverview`.
+- Assignment email goes from `team@easemyoffice.in` to the assignee's profile email via
+  `send-client-email`, from the new-booking dialog and on re-assign.

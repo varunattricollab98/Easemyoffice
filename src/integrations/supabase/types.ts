@@ -592,6 +592,44 @@ export type Database = {
           },
         ]
       }
+      documentation_stage_events: {
+        Row: {
+          id: string;
+          task_id: string;
+          from_stage: Database["public"]["Enums"]["doc_task_stage"] | null;
+          to_stage: Database["public"]["Enums"]["doc_task_stage"];
+          changed_by: string | null;
+          changed_at: string;
+          backfilled: boolean;
+        }
+        Insert: {
+          id?: string;
+          task_id: string;
+          from_stage?: Database["public"]["Enums"]["doc_task_stage"] | null;
+          to_stage: Database["public"]["Enums"]["doc_task_stage"];
+          changed_by?: string | null;
+          changed_at?: string;
+          backfilled?: boolean;
+        }
+        Update: {
+          id?: string;
+          task_id?: string;
+          from_stage?: Database["public"]["Enums"]["doc_task_stage"] | null;
+          to_stage?: Database["public"]["Enums"]["doc_task_stage"];
+          changed_by?: string | null;
+          changed_at?: string;
+          backfilled?: boolean;
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documentation_stage_events_task_id_fkey"
+            columns: ["task_id"];
+            isOneToOne: false
+            referencedRelation: "documentation_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documentation_tasks: {
         Row: {
           id: string
@@ -605,6 +643,9 @@ export type Database = {
           escalated: boolean
           escalation_reason: string | null
           escalated_at: string | null
+          due_at: string;
+          stage_changed_at: string;
+          completed_at: string | null;
         }
         Insert: {
           id?: string
@@ -618,6 +659,9 @@ export type Database = {
           escalated?: boolean
           escalation_reason?: string | null
           escalated_at?: string | null
+          due_at?: string;
+          stage_changed_at?: string;
+          completed_at?: string | null;
         }
         Update: {
           id?: string
@@ -631,6 +675,9 @@ export type Database = {
           escalated?: boolean
           escalation_reason?: string | null
           escalated_at?: string | null
+          due_at?: string;
+          stage_changed_at?: string;
+          completed_at?: string | null;
         }
         Relationships: [
           {
@@ -645,10 +692,10 @@ export type Database = {
       follow_ups: {
         Row: {
           action: string
-          completed_at: string | null
+          completed_at: string | null;
           created_at: string
           created_by: string | null
-          due_at: string
+          due_at: string;
           id: string
           lead_id: string
           note: string | null
@@ -658,10 +705,10 @@ export type Database = {
         }
         Insert: {
           action: string
-          completed_at?: string | null
+          completed_at?: string | null;
           created_at?: string
           created_by?: string | null
-          due_at: string
+          due_at: string;
           id?: string
           lead_id: string
           note?: string | null
@@ -671,10 +718,10 @@ export type Database = {
         }
         Update: {
           action?: string
-          completed_at?: string | null
+          completed_at?: string | null;
           created_at?: string
           created_by?: string | null
-          due_at?: string
+          due_at?: string;
           id?: string
           lead_id?: string
           note?: string | null
@@ -999,7 +1046,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           description: string | null
-          due_at: string | null
+          due_at: string | null;
           id: string
           lead_id: string | null
           last_reminded_at: string | null
@@ -1013,7 +1060,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string | null
-          due_at?: string | null
+          due_at?: string | null;
           id?: string
           lead_id?: string | null
           last_reminded_at?: string | null
@@ -1027,7 +1074,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string | null
-          due_at?: string | null
+          due_at?: string | null;
           id?: string
           lead_id?: string | null
           last_reminded_at?: string | null
@@ -1135,6 +1182,7 @@ export type Database = {
         | "docs_received"
         | "draft_shared"
         | "draft_approved"
+        | "final_requested"
         | "agreement_shared"
         | "countersigned"
         | "part_b_shared"
@@ -1329,6 +1377,7 @@ export const Constants = {
         "docs_received",
         "draft_shared",
         "draft_approved",
+        "final_requested",
         "agreement_shared",
         "countersigned",
         "part_b_shared",
