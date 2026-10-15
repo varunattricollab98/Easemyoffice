@@ -117,7 +117,7 @@ function NotificationsPage() {
     queryKey: ["notif-assigned", user?.id],
     queryFn: async () => {
       const { data } = await supabase.from("notifications")
-        .select("id, title, body, lead_id, task_id, read, created_at")
+        .select("id, title, body, type, lead_id, task_id, read, created_at")
         .eq("read", false as never).order("created_at", { ascending: false }).limit(100);
       return data ?? [];
     },
@@ -129,7 +129,7 @@ function NotificationsPage() {
     queryKey: ["notif-read", user?.id],
     queryFn: async () => {
       const { data } = await supabase.from("notifications")
-        .select("id, title, body, lead_id, task_id, read, created_at")
+        .select("id, title, body, type, lead_id, task_id, read, created_at")
         .eq("read", true as never).order("created_at", { ascending: false }).limit(100);
       return data ?? [];
     },
@@ -211,7 +211,13 @@ function NotificationsPage() {
         ts: new Date(n.created_at).getTime(),
         channels: [],
         onDone: () => markNotifRead.mutate(n.id),
-        href: n.lead_id ? "/leads/$id" : n.task_id ? "/tasks" : undefined,
+        href: n.lead_id
+          ? "/leads/$id"
+          : n.task_id
+            ? "/tasks"
+            : n.type === "doc_assigned"
+              ? "/documentation"
+              : undefined,
         params: n.lead_id ? { id: n.lead_id } : undefined,
       });
     });
@@ -266,7 +272,13 @@ function NotificationsPage() {
       ts: new Date(n.created_at).getTime(),
       channels: [] as Array<"whatsapp" | "email">,
       onDone: () => {},
-      href: n.lead_id ? "/leads/$id" : n.task_id ? "/tasks" : undefined,
+      href: n.lead_id
+        ? "/leads/$id"
+        : n.task_id
+          ? "/tasks"
+          : n.type === "doc_assigned"
+            ? "/documentation"
+            : undefined,
       params: n.lead_id ? { id: n.lead_id } : undefined,
     }));
   }, [readNotifs]);
