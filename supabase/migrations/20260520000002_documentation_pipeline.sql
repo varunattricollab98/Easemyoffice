@@ -53,9 +53,11 @@ WITH fresh AS (
 )
 INSERT INTO public.documentation_stage_events
   (task_id, from_stage, to_stage, changed_by, changed_at, backfilled)
-SELECT id, NULL, 'assigned', assigned_by, created_at, true FROM fresh
+-- Explicit casts: in a UNION the bare NULL / 'assigned' literals resolve to text.
+SELECT id, NULL::public.doc_task_stage, 'assigned'::public.doc_task_stage, assigned_by, created_at, true FROM fresh
 UNION ALL
-SELECT id, 'assigned', stage, NULL, updated_at, true FROM fresh WHERE stage <> 'assigned';
+SELECT id, 'assigned'::public.doc_task_stage, stage, NULL::uuid, updated_at, true FROM fresh
+WHERE stage <> 'assigned';
 
 -- Column back-fill without bumping updated_at.
 ALTER TABLE public.documentation_tasks DISABLE TRIGGER trg_documentation_tasks_updated_at;
