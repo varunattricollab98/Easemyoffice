@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { notificationLink } from "@/lib/notification-links";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -207,18 +208,14 @@ function NotificationsPage() {
       list.push({
         id: `nt-${n.id}`, key: `nt-${n.id}`, type: "assigned",
         title: n.title,
-        sub: formatDistanceToNow(new Date(n.created_at), { addSuffix: true }),
+        sub: [n.body, formatDistanceToNow(new Date(n.created_at), { addSuffix: true })]
+          .filter(Boolean)
+          .join(" · "),
         ts: new Date(n.created_at).getTime(),
         channels: [],
         onDone: () => markNotifRead.mutate(n.id),
-        href: n.lead_id
-          ? "/leads/$id"
-          : n.task_id
-            ? "/tasks"
-            : n.type === "doc_assigned"
-              ? "/documentation"
-              : undefined,
-        params: n.lead_id ? { id: n.lead_id } : undefined,
+        href: notificationLink(n)?.to,
+        params: notificationLink(n)?.params,
       });
     });
 
@@ -268,18 +265,14 @@ function NotificationsPage() {
       key: `rd-${n.id}`,
       type: "assigned" as const,
       title: n.title,
-      sub: formatDistanceToNow(new Date(n.created_at), { addSuffix: true }),
+      sub: [n.body, formatDistanceToNow(new Date(n.created_at), { addSuffix: true })]
+        .filter(Boolean)
+        .join(" · "),
       ts: new Date(n.created_at).getTime(),
       channels: [] as Array<"whatsapp" | "email">,
       onDone: () => {},
-      href: n.lead_id
-        ? "/leads/$id"
-        : n.task_id
-          ? "/tasks"
-          : n.type === "doc_assigned"
-            ? "/documentation"
-            : undefined,
-      params: n.lead_id ? { id: n.lead_id } : undefined,
+      href: notificationLink(n)?.to,
+      params: notificationLink(n)?.params,
     }));
   }, [readNotifs]);
 
@@ -471,7 +464,16 @@ function NotificationsPage() {
             );
 
             return i.href ? (
-              <Link key={i.id} to={i.href} params={i.params}>{inner}</Link>
+              <Link
+                key={i.id}
+                to={i.href}
+                params={i.params}
+                onClick={() => {
+                  if (i.id.startsWith("nt-")) i.onDone();
+                }}
+              >
+                {inner}
+              </Link>
             ) : (
               <div key={i.id}>{inner}</div>
             );

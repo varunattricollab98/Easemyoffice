@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { showBrowserNotification } from "@/lib/browser-notify";
+import { notificationLink } from "@/lib/notification-links";
 
 // Repeating reminder cadence per task priority (minutes).
 const REMINDER_MINUTES: Record<string, number> = {
@@ -49,6 +50,7 @@ export function NotificationsWatcher() {
             type?: string;
             id?: string;
             lead_id?: string | null;
+            task_id?: string | null;
           };
           const emoji = TYPE_EMOJI[n.type || "general"] || "\ud83d\udd14";
           toast(`${emoji} ${n.title ?? "New notification"}`, {
@@ -63,11 +65,7 @@ export function NotificationsWatcher() {
             title: `${emoji} ${n.title ?? "New notification"}`,
             body: n.body ?? undefined,
             tag: n.id ? `notif-${n.id}` : undefined,
-            url: n.lead_id
-              ? `/leads/${n.lead_id}`
-              : n.type === "doc_assigned"
-                ? "/documentation"
-                : "/notifications",
+            url: notificationLink(n)?.url ?? "/notifications",
           });
           lastNotifTs.current = Date.now();
           qc.invalidateQueries({ queryKey: ["notif-unread-count"] });
@@ -166,7 +164,7 @@ export function NotificationsWatcher() {
       const since = new Date(lastNotifTs.current).toISOString();
       const { data } = await supabase
         .from("notifications")
-        .select("id, title, body, type")
+        .select("id, title, body, type, lead_id, task_id")
         .eq("user_id", user.id)
         .eq("read", false as never)
         .gt("created_at", since)
@@ -187,7 +185,7 @@ export function NotificationsWatcher() {
             title: `${emoji} ${n.title ?? "New notification"}`,
             body: n.body ?? undefined,
             tag: `notif-${n.id}`,
-            url: "/notifications",
+            url: notificationLink(n)?.url ?? "/notifications",
           });
         }
         qc.invalidateQueries({ queryKey: ["notif-unread-count"] });
