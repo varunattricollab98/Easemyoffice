@@ -175,6 +175,8 @@ export type AttendanceRow = {
   remote_status: "pending" | "approved" | "rejected" | null;
   remote_reason: string | null;
   remote_note: string | null;
+  /** Admin / import note for the day (e.g. from the attendance sheet). */
+  remarks?: string | null;
   remote_decided_at: string | null;
   idle_minutes: number;
   last_activity_at: string | null;
