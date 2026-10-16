@@ -78,10 +78,11 @@ export function DocWorkspace({
   const {
     data: settings = { tatDays: DEFAULT_TAT_DAYS, stageAlertDays: DEFAULT_STAGE_ALERT_DAYS },
   } = useDocSettings();
+  // The pipeline board is the landing view. Non-admins already get the
+  // Overview on their Dashboard, so it is not repeated here for them.
+  const adminOnly: DocTab[] = ["overview", "analytics", "settings"];
   const tab: DocTab =
-    search.tab && (isAdmin || (search.tab !== "analytics" && search.tab !== "settings"))
-      ? search.tab
-      : "overview";
+    search.tab && (isAdmin || !adminOnly.includes(search.tab)) ? search.tab : "board";
   const { data: events = [] } = useDocEvents(isAdmin && tab === "analytics");
 
   const [q, setQ] = useState("");
@@ -110,15 +111,6 @@ export function DocWorkspace({
 
   const tabs: { id: DocTab; label: ReactNode; count?: number }[] = [
     {
-      id: "overview",
-      label: (
-        <>
-          <LayoutDashboard className="h-4 w-4" />
-          Overview
-        </>
-      ),
-    },
-    {
       id: "board",
       label: (
         <>
@@ -139,6 +131,15 @@ export function DocWorkspace({
     },
     ...(isAdmin
       ? ([
+          {
+            id: "overview",
+            label: (
+              <>
+                <LayoutDashboard className="h-4 w-4" />
+                Overview
+              </>
+            ),
+          },
           {
             id: "analytics",
             label: (
@@ -244,6 +245,13 @@ export function DocWorkspace({
             go({ tab: "list" });
           }}
         />
+      ) : tab === "board" && tasks.length === 0 ? (
+        <div className="surface-card p-10 text-center">
+          <div className="font-semibold">No files in the pipeline yet</div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            A file shows up here as soon as sales assigns a booking to documentation.
+          </p>
+        </div>
       ) : tab === "board" ? (
         <DocBoard
           tasks={filtered}
