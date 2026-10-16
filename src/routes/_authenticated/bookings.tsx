@@ -768,7 +768,7 @@ function BookingsPage() {
                         className="transition-all duration-200 ease-out hover:shadow-sm"
                         onClick={() => setSelected(b)}
                       >
-                        Open
+                        {isAdmin ? "Edit" : "Open"}
                       </Button>
                       {!isPaid && balance > 0 && (
                         <Button

@@ -136,3 +136,130 @@ export async function getNextBookingIdFromSheet(): Promise<NextBookingIdResult> 
   }
   return { nextBookingId: id, error: null };
 }
+
+// ─── Admin edits → update the existing sheet row ─────────────────────────────
+
+/** A saved booking, as read back from the bookings table. */
+export interface BookingSheetSource {
+  booking_code?: string | null;
+  external_booking_id?: string | null;
+  booking_date?: string | null;
+  sales_agent_name?: string | null;
+  booking_source?: string | null;
+  plan_name?: string | null;
+  vo_plan?: string | null;
+  sp_name?: string | null;
+  area?: string | null;
+  city?: string | null;
+  state?: string | null;
+  sp_status?: string | null;
+  vo_amount?: number | string | null;
+  vo_gst?: number | string | null;
+  addon_services?: string | null;
+  addon_amount?: number | string | null;
+  addon_gst?: number | string | null;
+  total_amount?: number | string | null;
+  tds_pct?: number | string | null;
+  tds_amount?: number | string | null;
+  amount_after_tds?: number | string | null;
+  payment_mode_ref?: string | null;
+  payment_id_utr?: string | null;
+  invoice_number?: string | null;
+  sp_payable?: number | string | null;
+  addon_payable?: number | string | null;
+  profit?: number | string | null;
+  sp_payment_status?: string | null;
+  vo_status?: string | null;
+  business_name?: string | null;
+  client_name?: string | null;
+  email_id?: string | null;
+  contact_no?: string | null;
+  remarks?: string | null;
+  sales_month?: string | null;
+  amount_received?: number | string | null;
+  balance_amount?: number | string | null;
+  balance_due_date?: string | null;
+  plan_years?: number | string | null;
+  plan_start_date?: string | null;
+  plan_expiry_date?: string | null;
+}
+
+export function sheetBookingId(b: BookingSheetSource): string {
+  return String(b.external_booking_id || b.booking_code || "").trim();
+}
+
+/**
+ * The sheet row for a saved booking, in the SAME column order the new-booking
+ * form appends (new-booking-dialog persistBooking) so an update lines up with
+ * the row that was originally written.
+ */
+export function bookingSheetValues(b: BookingSheetSource): (string | number)[] {
+  const n = (v: number | string | null | undefined) => (v == null || v === "" ? 0 : Number(v));
+  const t = (v: string | null | undefined) => v ?? "";
+  return [
+    t(b.booking_date),
+    t(b.sales_agent_name),
+    sheetBookingId(b),
+    t(b.booking_source),
+    t(b.plan_name),
+    t(b.vo_plan),
+    t(b.sp_name),
+    t(b.area),
+    t(b.city),
+    t(b.state),
+    t(b.sp_status),
+    n(b.vo_amount),
+    n(b.vo_gst),
+    t(b.addon_services),
+    n(b.addon_amount),
+    n(b.addon_gst),
+    n(b.total_amount),
+    n(b.tds_pct),
+    n(b.tds_amount),
+    n(b.amount_after_tds),
+    t(b.payment_mode_ref),
+    t(b.payment_id_utr),
+    t(b.invoice_number),
+    n(b.sp_payable),
+    n(b.addon_payable),
+    n(b.profit),
+    t(b.sp_payment_status),
+    t(b.vo_status),
+    t(b.business_name),
+    t(b.client_name),
+    t(b.email_id),
+    t(b.contact_no),
+    t(b.remarks),
+    t(b.sales_month),
+    n(b.amount_received),
+    n(b.balance_amount),
+    t(b.balance_due_date),
+    b.plan_years == null || b.plan_years === "" ? "" : Number(b.plan_years),
+    t(b.plan_start_date),
+    t(b.plan_expiry_date),
+  ];
+}
+
+/**
+ * Overwrites the booking's existing row (matched on the Booking ID column) in
+ * the "Bookings" tab. Never appends: bookings that were never in the sheet
+ * (e.g. the 2024/2025 bulk upload) are reported as not found. Never throws.
+ */
+export async function updateBookingInSheet(
+  b: BookingSheetSource,
+): Promise<{ ok: boolean; notFound?: boolean; note?: string }> {
+  const bookingId = sheetBookingId(b);
+  if (!bookingId) return { ok: false, note: "booking has no Booking ID" };
+  const { data, error } = await invokeWithTimeout<{
+    ok?: boolean;
+    error?: string;
+    notFound?: boolean;
+  }>(
+    "sync-booking-to-sheet",
+    { action: "update", booking_id: bookingId, values: bookingSheetValues(b) },
+    WRITE_TIMEOUT_MS,
+  );
+  if (error) return { ok: false, note: error };
+  if (data?.ok) return { ok: true };
+  return { ok: false, notFound: !!data?.notFound, note: data?.error || "sheet not connected" };
+}

@@ -21,6 +21,7 @@ import { format, formatDistanceToNow } from "date-fns";
 import { Plus } from "lucide-react";
 import { num, computeBookingMoney } from "@/lib/booking-math";
 import { formatINR as fmtINR } from "@/lib/utils";
+import { updateBookingInSheet } from "@/lib/bookings-sheet";
 
 const PAY_STATUSES = ["Pending", "Paid", "Partial"];
 const VO_STATUSES = ["Pending", "Active", "Delivered"];
@@ -235,9 +236,30 @@ export function BookingDetailDialog({
         .eq("id", bookingId);
       if (error) throw new Error(error.message);
       await logUpdate("Updated booking details");
+
+      // Mirror the edit onto the booking's existing Google Sheet row. Read the
+      // row back so derived columns (sales month, plan dates) match the DB.
+      const { data: saved } = await supabase
+        .from("bookings")
+        .select("*")
+        .eq("id", bookingId)
+        .maybeSingle();
+      if (!saved) return { sheet: "skipped" as const };
+      const res = await updateBookingInSheet(saved);
+      const sheet = res.ok ? "ok" : res.notFound ? "missing" : "failed";
+      return { sheet, note: res.note };
     },
-    onSuccess: () => {
-      toast.success("Booking updated");
+    onSuccess: (r) => {
+      const note = r?.note ? `: ${r.note}` : "";
+      if (r?.sheet === "ok") {
+        toast.success("Booking updated · Google Sheet row updated ✓");
+      } else if (r?.sheet === "missing") {
+        toast.success("Booking updated · not found in the Google Sheet, sheet unchanged");
+      } else if (r?.sheet === "failed") {
+        toast.warning(`Booking updated, but the Google Sheet could not be updated${note}`);
+      } else {
+        toast.success("Booking updated");
+      }
       qc.invalidateQueries({ queryKey: ["bookings"] });
       // The Invoices page reads its own query, so it needs refreshing too now
       // that this dialog can be opened from there.
