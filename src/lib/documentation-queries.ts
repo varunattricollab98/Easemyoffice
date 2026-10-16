@@ -316,6 +316,46 @@ export function useSaveDocSettings() {
   });
 }
 
+// ─── Per-booking file (Bookings list) ─────────────────────────────────────────
+
+export interface BookingDocTask extends DocTaskCore {
+  booking_id: string;
+  assignee_name: string | null;
+}
+
+/**
+ * Documentation file per booking, for the Bookings list. RLS returns only the
+ * files the viewer may see (admin: all; sales: bookings they own or assigned).
+ */
+export function useBookingDocTasks() {
+  return useQuery({
+    queryKey: ["doc-pipeline", "by-booking"],
+    staleTime: 30_000,
+    queryFn: async (): Promise<Map<string, BookingDocTask>> => {
+      const { data, error } = await supabase
+        .from("documentation_tasks")
+        .select(
+          "id, booking_id, assigned_to, stage, created_at, due_at, stage_changed_at, completed_at, escalated",
+        )
+        .limit(5000);
+      if (error) throw new Error(error.message);
+      const rows = (data ?? []) as unknown as BookingDocTask[];
+      const ids = [...new Set(rows.map((r) => r.assigned_to))];
+      const names = new Map<string, string | null>();
+      if (ids.length) {
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("id, full_name, email")
+          .in("id", ids);
+        for (const p of profs ?? []) names.set(p.id, p.full_name || p.email);
+      }
+      return new Map(
+        rows.map((r) => [r.booking_id, { ...r, assignee_name: names.get(r.assigned_to) ?? null }]),
+      );
+    },
+  });
+}
+
 // ─── Assignment email ────────────────────────────────────────────────────────
 
 const esc = (v: unknown) =>

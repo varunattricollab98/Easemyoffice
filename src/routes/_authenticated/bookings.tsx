@@ -38,6 +38,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { BookingDetailDialog } from "@/components/bookings/booking-detail-dialog";
+import { BookingDocCell } from "@/components/documentation/booking-doc-status";
+import { useBookingDocTasks } from "@/lib/documentation-queries";
 import { BulkUploadDialog } from "@/components/bookings/bulk-upload-dialog";
 import {
   AlertDialog,
@@ -248,6 +250,10 @@ function BookingsPage() {
       return { bookings: data ?? [] };
     },
   });
+
+  // Which documentation person has each booking, and the file stage / TAT.
+  const { data: docByBooking } = useBookingDocTasks();
+  const docNow = Date.now();
 
   const markM = useMutation({
     mutationFn: async (id: string) => {
@@ -645,20 +651,21 @@ function BookingsPage() {
               />
               <SortHeader label="Due" sortKey="due" sort={sort} onSort={onSort} />
               <SortHeader label="Status" sortKey="status" sort={sort} onSort={onSort} />
+              <TableHead>Documentation</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && (
               <TableRow>
-                <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
                   Loading…
                 </TableCell>
               </TableRow>
             )}
             {!isLoading && rows.length === 0 && (
               <TableRow>
-                <TableCell colSpan={11} className="text-center py-10 text-muted-foreground">
+                <TableCell colSpan={12} className="text-center py-10 text-muted-foreground">
                   {q ? (
                     <>
                       No bookings match “{q}”.{" "}
@@ -749,6 +756,9 @@ function BookingsPage() {
                         Pending
                       </Badge>
                     )}
+                  </TableCell>
+                  <TableCell className="min-w-36 max-w-48">
+                    <BookingDocCell task={docByBooking?.get(b.id)} now={docNow} />
                   </TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-2">
