@@ -69,7 +69,7 @@ export const SALES_NAV: NavNode[] = [
   { to: "/attendance", label: "My Attendance", icon: CalendarCheck },
   { to: "/my-payroll", label: "My Payroll", icon: Receipt },
   { to: "/notifications", label: "Notifications", icon: Inbox },
-  { to: "/documentation", label: "Documentation", icon: FileText, roles: ["admin", "documentation", "sales"] },
+  { to: "/documentation", label: "Documentation Pipeline", icon: FileText, roles: ["admin", "documentation", "sales"] },
   { to: "/bookings", label: "Bookings", icon: BookOpen, roles: ["admin", "sales", "bd", "accounts", "renewals"] },
   { to: "/invoices", label: "Invoices", icon: FileSignature, roles: ["admin", "accounts"] },
   { to: "/payments", label: "Payments", icon: Receipt, roles: ["admin", "accounts", "sales"] },
