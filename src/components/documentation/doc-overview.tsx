@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import {
   AlarmClock,
   ArrowRight,
@@ -37,6 +37,7 @@ export function DocOverview({
   onOpenTask,
   onOpenStage,
   onShowOverdue,
+  board,
 }: {
   tasks: DocTaskRow[];
   settings: DocSettings;
@@ -45,6 +46,8 @@ export function DocOverview({
   onOpenTask: (id: string) => void;
   onOpenStage: (stage: DocStage) => void;
   onShowOverdue: () => void;
+  /** When given, replaces the stage strip with the full pipeline board. */
+  board?: ReactNode;
 }) {
   const move = useMoveDocStage();
 
@@ -136,55 +139,57 @@ export function DocOverview({
         />
       </div>
 
-      {/* Stage strip */}
-      <section className="surface-card p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold">Pipeline by stage</h2>
-          <span className="text-xs text-muted-foreground">
-            Click a stage to open it on the board
-          </span>
-        </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-          {live.byStage
-            .filter((b) => b.stage !== "completed")
-            .map((b) => {
-              const def = stageDef(b.stage);
-              return (
-                <button
-                  key={b.stage}
-                  type="button"
-                  onClick={() => onOpenStage(b.stage)}
-                  className="group rounded-xl border bg-background/50 p-3 text-left transition hover:border-primary/40 hover:shadow-sm"
-                >
-                  <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                    <StageDot stage={b.stage} />
-                    <span className="truncate">{def.label}</span>
-                  </div>
-                  <div className="mt-1 flex items-baseline gap-2">
-                    <span className="text-xl font-bold tabular-nums">{b.count}</span>
-                    {b.overdue > 0 && (
-                      <span className="text-[11px] font-medium text-red-600 dark:text-red-400">
-                        {b.overdue} overdue
+      {/* Stage strip (or the full board when one is passed in) */}
+      {board ?? (
+        <section className="surface-card p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold">Pipeline by stage</h2>
+            <span className="text-xs text-muted-foreground">
+              Click a stage to open it on the board
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+            {live.byStage
+              .filter((b) => b.stage !== "completed")
+              .map((b) => {
+                const def = stageDef(b.stage);
+                return (
+                  <button
+                    key={b.stage}
+                    type="button"
+                    onClick={() => onOpenStage(b.stage)}
+                    className="group rounded-xl border bg-background/50 p-3 text-left transition hover:border-primary/40 hover:shadow-sm"
+                  >
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                      <StageDot stage={b.stage} />
+                      <span className="truncate">{def.label}</span>
+                    </div>
+                    <div className="mt-1 flex items-baseline gap-2">
+                      <span className="text-xl font-bold tabular-nums">{b.count}</span>
+                      {b.overdue > 0 && (
+                        <span className="text-[11px] font-medium text-red-600 dark:text-red-400">
+                          {b.overdue} overdue
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className={cn("h-full rounded-full", def.color)}
+                        style={{ width: `${(b.count / maxStage) * 100}%` }}
+                      />
+                    </div>
+                    <div className="mt-1.5 flex items-center justify-between gap-1">
+                      <WaitingOnChip waitingOn={def.waitingOn} />
+                      <span className="text-[10px] tabular-nums text-muted-foreground">
+                        {b.avgAgeMs == null ? "" : `avg ${formatDuration(b.avgAgeMs)}`}
                       </span>
-                    )}
-                  </div>
-                  <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className={cn("h-full rounded-full", def.color)}
-                      style={{ width: `${(b.count / maxStage) * 100}%` }}
-                    />
-                  </div>
-                  <div className="mt-1.5 flex items-center justify-between gap-1">
-                    <WaitingOnChip waitingOn={def.waitingOn} />
-                    <span className="text-[10px] tabular-nums text-muted-foreground">
-                      {b.avgAgeMs == null ? "" : `avg ${formatDuration(b.avgAgeMs)}`}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-        </div>
-      </section>
+                    </div>
+                  </button>
+                );
+              })}
+          </div>
+        </section>
+      )}
 
       <div className="grid gap-5 lg:grid-cols-3">
         {/* Needs attention */}

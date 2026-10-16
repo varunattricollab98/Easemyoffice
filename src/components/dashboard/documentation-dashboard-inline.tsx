@@ -2,6 +2,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { QuickPunch } from "@/components/hrms/quick-punch";
 import { Button } from "@/components/ui/button";
+import { DocBoard } from "@/components/documentation/doc-board";
 import { DocOverview } from "@/components/documentation/doc-overview";
 import { useNow } from "@/components/documentation/doc-format";
 import { useAuth } from "@/lib/auth";
@@ -61,6 +62,19 @@ export function DocumentationDashboardInline() {
             navigate({ to: "/documentation", search: { tab: "board", stage } })
           }
           onShowOverdue={() => navigate({ to: "/documentation", search: { tab: "list" } })}
+          board={
+            <section className="space-y-2">
+              <h2 className="text-sm font-semibold">My pipeline</h2>
+              <DocBoard
+                tasks={tasks}
+                now={now}
+                stageAlertDays={settings.stageAlertDays}
+                showAssignee={false}
+                focusStage={null}
+                onOpenTask={(id) => navigate({ to: "/documentation", search: { task: id } })}
+              />
+            </section>
+          }
         />
       )}
     </div>

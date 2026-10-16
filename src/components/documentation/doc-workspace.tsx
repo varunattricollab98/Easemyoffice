@@ -245,13 +245,6 @@ export function DocWorkspace({
             go({ tab: "list" });
           }}
         />
-      ) : tab === "board" && tasks.length === 0 ? (
-        <div className="surface-card p-10 text-center">
-          <div className="font-semibold">No files in the pipeline yet</div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            A file shows up here as soon as sales assigns a booking to documentation.
-          </p>
-        </div>
       ) : tab === "board" ? (
         <DocBoard
           tasks={filtered}
