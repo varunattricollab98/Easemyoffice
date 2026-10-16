@@ -395,6 +395,7 @@ export function DailyLog({ days, records }: { days: DayCell[]; records: Attendan
             <TableHead className="text-right">Completed</TableHead>
             <TableHead className="text-right">Short / OT</TableHead>
             <TableHead className="text-right">Idle</TableHead>
+            <TableHead>Remarks</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -479,6 +480,9 @@ export function DailyLog({ days, records }: { days: DayCell[]; records: Attendan
                   className={cn("text-right tabular-nums", d.idleMinutes > 0 && "text-amber-600")}
                 >
                   {r ? (d.idleMinutes ? formatMinutes(d.idleMinutes) : "0m") : "—"}
+                </TableCell>
+                <TableCell className="min-w-40 max-w-72 text-xs text-muted-foreground">
+                  {r?.remarks || ""}
                 </TableCell>
               </TableRow>
             );
