@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { ArrowLeft, UserPlus } from "lucide-react";
+import { ChangeLoginEmail } from "@/components/admin/change-login-email";
 
 export const Route = createFileRoute("/_authenticated/admin/users")({
   head: () => ({ meta: [{ title: "Team — EaseMyOffice CRM" }] }),
@@ -247,7 +248,18 @@ function AdminUsersPage() {
                 return (
                 <tr key={u.id} className="border-t">
                   <td className="px-4 py-2">{u.full_name ?? "—"}</td>
-                  <td className="px-4 py-2 text-muted-foreground">{u.email}</td>
+                    <td className="px-4 py-2 text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <span>{u.email}</span>
+                        {!isProtected && (
+                          <ChangeLoginEmail
+                            userId={u.id}
+                            currentEmail={u.email}
+                            name={u.full_name}
+                          />
+                        )}
+                      </div>
+                    </td>
                   <td className="px-4 py-2">{(u.roles ?? []).join(", ") || "—"}</td>
                   <td className="px-4 py-2">
                     {isProtected ? (

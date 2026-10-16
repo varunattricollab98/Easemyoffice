@@ -37,6 +37,7 @@ import { getErrorMessage } from "@/lib/utils";
 import { logAudit } from "@/lib/audit";
 import { useAuth } from "@/lib/auth";
 import { ImportTeamButton } from "@/components/hrms/import-team-dialog";
+import { ChangeLoginEmail } from "@/components/admin/change-login-email";
 import {
   hrmsDb,
   employeeName,
@@ -589,6 +590,18 @@ function EmployeeDialog({
                 ))}
               </SelectContent>
             </Select>
+            {f.profile_id && (
+              <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                <span className="truncate">
+                  Login: {profiles.find((p) => p.id === f.profile_id)?.email ?? "—"}
+                </span>
+                <ChangeLoginEmail
+                  userId={f.profile_id}
+                  currentEmail={profiles.find((p) => p.id === f.profile_id)?.email ?? null}
+                  name={profiles.find((p) => p.id === f.profile_id)?.full_name}
+                />
+              </div>
+            )}
           </div>
           {(f.employment_status === "resigned" || f.employment_status === "terminated") &&
             T("exit_date", "Exit Date", { type: "date" })}
