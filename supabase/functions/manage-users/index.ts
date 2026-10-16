@@ -5,6 +5,7 @@
 // Actions (POST body):
 //   { action: "create", email, password, full_name, role, department }
 //   { action: "delete", user_id }
+//   { action: "update_email", user_id, email }
 //
 // The caller's JWT is checked to ensure they are an admin before anything runs.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
@@ -109,6 +110,38 @@ Deno.serve(async (req) => {
       }
 
       return json({ ok: true, id: uid });
+    }
+
+    // ---- UPDATE EMAIL ---------------------------------------------------
+    // Changes the CRM login email (auth.users) and keeps profiles.email and
+    // the linked employee's work email in step. Pre-confirmed, so the person
+    // signs in with the new address straight away with the same password.
+    if (action === "update_email") {
+      const targetId = String(body.user_id ?? "");
+      const email = String(body.email ?? "").trim().toLowerCase();
+      if (!targetId) throw new Error("user_id is required.");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Enter a valid email address.");
+
+      const { data: targetProfile } = await admin.from("profiles").select("email").eq("id", targetId).maybeSingle();
+      if (!targetProfile) throw new Error("User not found.");
+      if (targetProfile.email === PROTECTED_EMAIL) {
+        throw new Error("This account is protected; its email cannot be changed here.");
+      }
+      const oldEmail = (targetProfile.email ?? "").toLowerCase();
+      if (oldEmail === email) return json({ ok: true, email });
+
+      const { error } = await admin.auth.admin.updateUserById(targetId, { email, email_confirm: true });
+      if (error) {
+        throw new Error(/already|registered|exists/i.test(error.message) ? "Another login already uses this email." : error.message);
+      }
+      await admin.from("profiles").update({ email }).eq("id", targetId);
+
+      // Work email follows the login only when it was blank or the old login email.
+      const { data: emp } = await admin.from("employees").select("id, email").eq("profile_id", targetId).maybeSingle();
+      if (emp && (!emp.email || String(emp.email).toLowerCase() === oldEmail)) {
+        await admin.from("employees").update({ email }).eq("id", emp.id);
+      }
+      return json({ ok: true, email });
     }
 
     throw new Error("Unknown action.");
