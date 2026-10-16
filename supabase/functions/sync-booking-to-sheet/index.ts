@@ -1,6 +1,11 @@
 // Forwards a new booking to a Google Apps Script Web App, which appends it as a
 // row in your Google Sheet. One-way sync: CRM -> Sheet.
 //
+// Body: { values }                                   -> append a new row
+//       { action: "update", booking_id, values }     -> overwrite the row whose
+//         Booking ID matches (admin edits). Needs the updated Apps Script
+//         (setup/apps-script-code.gs); older scripts just append.
+//
 // Required Edge Function secrets (Supabase -> Edge Functions -> Secrets):
 //   BOOKINGS_SHEET_WEBHOOK_URL -> the Apps Script Web App URL (ends in /exec)
 //   BOOKINGS_SHEET_TOKEN       -> a shared secret; must match the TOKEN in the
@@ -35,18 +40,32 @@ Deno.serve(async (req) => {
       return json({ ok: false, skipped: true, error: "Google Sheet not connected yet." });
     }
 
-    const { values } = await req.json().catch(() => ({}));
+    const { values, action, booking_id } = await req.json().catch(() => ({}));
     if (!Array.isArray(values)) throw new Error("A 'values' array (the row) is required.");
+    const isUpdate = action === "update";
+    if (isUpdate && (typeof booking_id !== "string" || !booking_id.trim())) {
+      throw new Error("booking_id is required for an update.");
+    }
 
     const res = await fetch(WEBHOOK_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: TOKEN, values }),
+      body: JSON.stringify(
+        isUpdate ? { token: TOKEN, values, action: "update", booking_id } : { token: TOKEN, values },
+      ),
       redirect: "follow", // Apps Script /exec redirects once before responding
     });
     const text = await res.text();
     if (!res.ok) throw new Error(`Sheet responded ${res.status}: ${text.slice(0, 200)}`);
 
+    // Pass the Apps Script verdict through (an update can report notFound).
+    let script: { ok?: boolean; error?: string; notFound?: boolean } = {};
+    try {
+      script = JSON.parse(text);
+    } catch {
+      /* older script / non-JSON body: treat as success */
+    }
+    if (script.ok === false) return json({ ok: false, error: script.error, notFound: !!script.notFound });
     return json({ ok: true });
   } catch (e) {
     return json({ ok: false, error: (e as Error).message });

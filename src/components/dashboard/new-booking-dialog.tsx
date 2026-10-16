@@ -71,8 +71,11 @@ function genBookingId() {
   return `EMO-BK-${y}${m}${day}-${r}`;
 }
 
+// Local (IST) calendar date. toISOString() is UTC, which gave yesterday's date
+// before 05:30 IST.
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 // `num`, `salesMonth`, and `addYearsISO` now live in @/lib/booking-math (imported
@@ -134,7 +137,9 @@ type BookingForm = typeof initialForm;
 
 // Build a fresh initial form with a locally-generated fallback booking id.
 function makeInitialForm(): BookingForm {
-  return { ...initialForm, date: todayISO(), booking_id: genBookingId() };
+  // initialForm is evaluated once at module load, so both dates are refreshed
+  // here; a tab left open for days must not default to an old date.
+  return { ...initialForm, date: todayISO(), plan_start_date: todayISO(), booking_id: genBookingId() };
 }
 
 // All the money/derived values computed from a single booking form. Factored out
@@ -343,9 +348,14 @@ export function NewBookingDialog({
     ) {
       return;
     }
-    const p = parsed as { form?: unknown; queue?: unknown };
-    const restoredForm = mergeForm(p.form);
-    const restoredQueue = Array.isArray(p.queue) ? p.queue.map(mergeForm) : [];
+    const p = parsed as { form?: unknown; queue?: unknown; savedOn?: unknown };
+    // A draft from an earlier day keeps every field except the dates: the
+    // booking is being made today (a 28 Sep draft was saved as a 28 Sep booking).
+    const stale = p.savedOn !== todayISO();
+    const freshen = (b: BookingForm): BookingForm =>
+      stale ? { ...b, date: todayISO(), plan_start_date: todayISO() } : b;
+    const restoredForm = freshen(mergeForm(p.form));
+    const restoredQueue = Array.isArray(p.queue) ? p.queue.map((q) => freshen(mergeForm(q))) : [];
     const hasSomething = restoredQueue.length > 0 || isFormFilled(restoredForm);
     if (!hasSomething) return;
     // Re-apply the current user's identity over whatever was stored (a stale
@@ -356,7 +366,11 @@ export function NewBookingDialog({
       sales_agent_id: user?.id ?? restoredForm.sales_agent_id,
     });
     setQueue(restoredQueue);
-    toast("Restored your saved booking draft");
+    toast(
+      stale
+        ? "Restored your saved booking draft · booking date set to today"
+        : "Restored your saved booking draft",
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftKey, open, convertMode]);
 
@@ -394,7 +408,7 @@ export function NewBookingDialog({
         }
         localStorage.setItem(
           draftKey,
-          JSON.stringify({ v: DRAFT_VERSION, form: f, queue }),
+          JSON.stringify({ v: DRAFT_VERSION, form: f, queue, savedOn: todayISO() }),
         );
       } catch {
         /* storage unavailable — draft persistence is best-effort */

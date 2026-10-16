@@ -3,7 +3,9 @@
 // keep your TOKEN the same, then Deploy -> Manage deployments -> edit -> Version: New version.
 //
 // It does TWO things:
-//   doPost  -> appends a booking row to the "Bookings" tab (write)
+//   doPost  -> appends a booking row to the "Bookings" tab (write), or with
+//              action "update" overwrites the row whose Booking ID matches
+//              (admin edits in the CRM). An update never appends.
 //   doGet   -> returns the next unused Booking ID + the plans list (read)
 //
 // OPTIONAL sheets for the read features:
@@ -43,12 +45,36 @@ function doPost(e) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var targetSheet = body.sheet ? String(body.sheet) : SHEET_NAME;
     var sh = ss.getSheetByName(targetSheet) || ss.insertSheet(targetSheet);
+    if (body.action === "update") return updateRow(sh, String(body.booking_id || "").trim(), body.values);
     if (sh.getLastRow() === 0) sh.appendRow(HEADERS);
     sh.appendRow(body.values);
     return json({ ok: true });
   } catch (err) {
     return json({ ok: false, error: String(err) });
   }
+}
+
+// ---- UPDATE: overwrite an existing booking row (admin edit) ----
+// Finds the "Booking ID" column from the header row (falls back to column C)
+// and rewrites the LAST row with that id. Not found -> no write.
+function updateRow(sh, bookingId, values) {
+  if (!bookingId) return json({ ok: false, error: "booking_id missing" });
+  if (!values || !values.length) return json({ ok: false, error: "values missing" });
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return json({ ok: false, notFound: true, error: "Booking ID not found in sheet" });
+  var lastCol = Math.max(sh.getLastColumn(), 1);
+  var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0]
+    .map(function (h) { return String(h).trim().toLowerCase(); });
+  var col = headers.indexOf("booking id") + 1;
+  if (col < 1) col = 3;
+  var ids = sh.getRange(2, col, lastRow - 1, 1).getValues();
+  for (var i = ids.length - 1; i >= 0; i--) {
+    if (String(ids[i][0]).trim() === bookingId) {
+      sh.getRange(i + 2, 1, 1, values.length).setValues([values]);
+      return json({ ok: true, updated: true, row: i + 2 });
+    }
+  }
+  return json({ ok: false, notFound: true, error: "Booking ID not found in sheet" });
 }
 
 // ---- READ: next booking id + plans ----
