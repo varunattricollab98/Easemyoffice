@@ -232,7 +232,7 @@ Deno.serve(async (req) => {
 
     // The open session decides whether a logout needs the office geofence: a
     // work-from-home session is logged out of from home.
-    const { data: open } = await db
+    const { data: openRow } = await db
       .from("attendance")
       .select("*")
       .eq("employee_id", employee.id)
@@ -240,6 +240,30 @@ Deno.serve(async (req) => {
       .order("work_date", { ascending: false })
       .limit(1)
       .maybeSingle();
+    let open = openRow;
+
+    // A session left open on an earlier day (forgot to log out) can never be
+    // closed by a punch: it is past MAX_SESSION_MINUTES. Left alone it blocked
+    // the person for good (LOGOUT refused, LOGIN never offered). Close it as a
+    // missed punch out (no logout time, so it stays "Logout missing" for the
+    // admin to correct), then carry on with today.
+    if (
+      open &&
+      String(open.work_date) < istParts(now).date &&
+      minutesBetween(String(open.open_since), nowIso) > MAX_SESSION_MINUTES
+    ) {
+      const note = "Missed punch out";
+      await db
+        .from("attendance")
+        .update({
+          open_since: null,
+          remarks: open.remarks ? `${open.remarks} · ${note}` : note,
+        })
+        .eq("id", open.id)
+        .eq("open_since", open.open_since);
+      open = null;
+      if (action === "logout") return reject("stale_session_closed");
+    }
     const remoteLogout = action === "logout" && open?.work_mode === "remote";
     const today = istParts(now);
     const { data: todayRow } =
