@@ -62,6 +62,7 @@ import {
   minutesBetween,
   normalizeSchedules,
   windowMinutes,
+  MAX_SESSION_MINUTES,
   REJECTION_MESSAGES,
   type RejectionReason,
 } from "@/lib/attendance-rules";
@@ -205,7 +206,15 @@ function TodayCard({ employee, now, today }: { employee: Employee; now: Date; to
       return data ?? null;
     },
   });
-  const row = current && (current.work_date === today || current.open_since) ? current : null;
+  // A session left open on an earlier day (forgot to log out) is not "today":
+  // show LOGIN, and the punch function closes the old one as a missed punch
+  // out when the person logs in. Overnight sessions (< 16h) still count.
+  const staleOpen =
+    !!current?.open_since &&
+    current.work_date < today &&
+    minutesBetween(current.open_since, now.toISOString()) > MAX_SESSION_MINUTES;
+  const row =
+    current && !staleOpen && (current.work_date === today || current.open_since) ? current : null;
   const isIn = !!row?.open_since;
   const nowIso = now.toISOString();
   const sched = row?.schedule_mode
