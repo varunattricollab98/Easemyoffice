@@ -27,7 +27,8 @@ export type RejectionReason =
   | "remote_reason_required"
   | "already_logged_in"
   | "not_logged_in"
-  | "session_too_long";
+  | "session_too_long"
+  | "stale_session_closed";
 
 export const REJECTION_MESSAGES: Record<RejectionReason, string> = {
   not_linked: "Your CRM login is not linked to an employee record. Ask the admin to link it.",
@@ -43,6 +44,8 @@ export const REJECTION_MESSAGES: Record<RejectionReason, string> = {
   not_logged_in: "You are not logged in, so there is nothing to log out of.",
   session_too_long:
     "Your last login is too old to close automatically. Ask the admin for a correction.",
+  stale_session_closed:
+    "Your earlier login had no logout, so it is marked 'Missed punch out' for the admin to correct. Press LOGIN to start today.",
 };
 
 /** Rejections that can be turned into a work-from-home request instead. */
