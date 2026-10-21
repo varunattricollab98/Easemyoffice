@@ -687,7 +687,8 @@ function B2BImportPage() {
                 {invalidSamples.length > 0 && (
                   <div className="space-y-1">
                     <div className="text-sm font-medium flex items-center gap-1">
-                      <AlertTriangle className="h-3.5 w-3.5 text-destructive" /> Invalid rows (skipped)
+                      <AlertTriangle className="h-3.5 w-3.5 text-destructive" /> Invalid rows
+                      (skipped)
                     </div>
                     <ul className="text-xs text-muted-foreground list-disc pl-5">
                       {invalidSamples.map(

@@ -103,9 +103,7 @@ function ContactsListPage() {
                     <span className="inline-flex items-center gap-2">
                       {c.name}
                       {c.is_primary && (
-                        <Badge className="bg-warning text-white hover:bg-warning">
-                          Primary
-                        </Badge>
+                        <Badge className="bg-warning text-white hover:bg-warning">Primary</Badge>
                       )}
                     </span>
                   </TableCell>
