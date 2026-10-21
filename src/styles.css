@@ -440,9 +440,13 @@
 
 /* Brand-gradient header for pipeline columns (reference: Deals board). */
 .pipeline-col-head {
-  background: var(--gradient-brand);
+  /* Lighter than the brand gradient: bright blue into a soft indigo. */
+  background: linear-gradient(135deg, #4385f5 0%, #5b6cf0 100%);
   color: #fff;
-  box-shadow: 0 8px 20px -10px rgb(55 48 163 / 0.55), inset 0 1px 0 rgb(255 255 255 / 0.18);
+  box-shadow: 0 6px 16px -10px rgb(67 133 245 / 0.55), inset 0 1px 0 rgb(255 255 255 / 0.22);
+}
+.dark .pipeline-col-head {
+  background: linear-gradient(135deg, #3d6fe0 0%, #4c55c9 100%);
 }
 
 /* Page headings: 600 weight (design system uses 400/500/600). Unlayered, so it
