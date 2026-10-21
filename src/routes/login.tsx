@@ -38,13 +38,15 @@ function LoginPage() {
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2 bg-background">
-      <div className="hidden lg:flex flex-col justify-between p-10 bg-gradient-to-br from-primary to-primary/70 text-primary-foreground">
+      <div className="hidden lg:flex flex-col justify-between p-10 bg-[image:var(--gradient-brand)] text-white">
         <div className="flex items-center gap-2 font-semibold">
           <Building2 className="h-6 w-6" />
           EaseMyOffice CRM
         </div>
         <div className="space-y-4 max-w-md">
-          <h1 className="text-4xl font-bold leading-tight">Never miss a lead. Close faster.</h1>
+          <h1 className="text-4xl font-semibold leading-tight tracking-tight">
+            Never miss a lead. Close faster.
+          </h1>
           <p className="opacity-90">
             Action-driven CRM built for compliance & virtual office sales teams. Track follow-ups,
             move leads through your pipeline, and ship invoices on time.

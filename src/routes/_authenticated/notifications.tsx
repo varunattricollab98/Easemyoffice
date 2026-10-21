@@ -72,21 +72,22 @@ const DUMMY_NOTIFICATIONS = [
 ];
 
 const TYPE_STYLES: Record<string, { border: string; bg: string; text: string }> = {
-  assigned: { border: "border-l-blue-500", bg: "bg-blue-100 dark:bg-blue-950", text: "text-blue-600 dark:text-blue-400" },
-  overdue: { border: "border-l-red-500", bg: "bg-red-100 dark:bg-red-950", text: "text-red-600 dark:text-red-400" },
-  payment: { border: "border-l-amber-500", bg: "bg-amber-100 dark:bg-amber-950", text: "text-amber-600 dark:text-amber-400" },
-  due: { border: "border-l-sky-500", bg: "bg-sky-100 dark:bg-sky-950", text: "text-sky-600 dark:text-sky-400" },
-  task: { border: "border-l-violet-500", bg: "bg-violet-100 dark:bg-violet-950", text: "text-violet-600 dark:text-violet-400" },
-  lead_moved: { border: "border-l-emerald-500", bg: "bg-emerald-100 dark:bg-emerald-950", text: "text-emerald-600 dark:text-emerald-400" },
+  assigned: { border: "", bg: "bg-accent", text: "text-primary" },
+  overdue: { border: "", bg: "bg-destructive/10", text: "text-destructive" },
+  payment: { border: "", bg: "bg-warning/12", text: "text-warning" },
+  due: { border: "", bg: "bg-info/10", text: "text-info" },
+  task: { border: "", bg: "bg-accent", text: "text-accent-foreground" },
+  lead_moved: { border: "", bg: "bg-success/10", text: "text-success" },
 };
 
+// Tab underline + count chip, same for every filter (reference: Notifications inbox).
 const FILTER_STYLES: Record<string, string> = {
-  all: "bg-gradient-to-r from-primary to-violet-600 text-white shadow-lg shadow-primary/25",
-  assigned: "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800",
-  overdue: "bg-red-500/10 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800",
-  due: "bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800",
-  payments: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800",
-  read: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
+  all: "",
+  assigned: "",
+  overdue: "",
+  due: "",
+  payments: "",
+  read: "",
 };
 
 function NotificationsPage() {
@@ -296,13 +297,13 @@ function NotificationsPage() {
       {/* Premium Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="space-y-1">
-          <h1 className="text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-r from-primary via-primary/80 to-violet-600 bg-clip-text text-transparent flex items-center gap-3">
-            <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-primary to-violet-600 grid place-items-center shadow-lg shadow-primary/20">
-              <Bell className="h-5 w-5 text-white" />
+          <h1 className="flex items-center gap-3 text-[28px] font-semibold tracking-tight">
+            <div className="grid h-10 w-10 place-items-center rounded-xl bg-accent text-primary">
+              <Bell className="h-5 w-5" />
             </div>
             Notifications
           </h1>
-          <p className="text-sm text-muted-foreground/70 ml-[52px]">
+          <p className="ml-[52px] text-sm text-muted-foreground">
             Your action centre - follow-ups, payments & lead alerts
           </p>
         </div>
@@ -329,7 +330,7 @@ function NotificationsPage() {
       <DesktopAlertsCard />
 
       {/* Filter Pills */}
-      <div className="flex gap-2 flex-wrap">
+      <div className="scrollbar-modern flex gap-1 overflow-x-auto border-b border-border">
         {(["all", "assigned", "overdue", "due", "payments", "read"] as const).map((f) => {
           const isActive = filter === f;
           return (
@@ -337,16 +338,15 @@ function NotificationsPage() {
               key={f}
               onClick={() => setFilter(f)}
               className={`
-                inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium
-                border transition-all duration-300 ease-out
-                hover:scale-[1.03] active:scale-[0.97]
-                ${isActive ? FILTER_STYLES[f] + " border-transparent" : "border-border/50 hover:border-border hover:bg-muted/50 text-muted-foreground"}
+                relative -mb-px inline-flex shrink-0 items-center gap-2 border-b-2 px-3 pb-2.5 pt-1 text-sm font-medium
+                transition-colors duration-150
+                ${isActive ? "border-foreground text-foreground " + FILTER_STYLES[f] : "border-transparent text-muted-foreground hover:text-foreground"}
               `}
             >
               {f[0].toUpperCase() + f.slice(1)}
               <span className={`
                 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-semibold
-                ${isActive ? "bg-white/25 text-inherit" : "bg-muted text-muted-foreground"}
+                ${isActive ? "bg-foreground text-background" : "border border-border text-muted-foreground"}
               `}>
                 {counts[f]}
               </span>
@@ -373,9 +373,9 @@ function NotificationsPage() {
               <div
                 key={n.id}
                 className={`
-                  relative rounded-xl border border-border/40 border-l-4 ${style.border}
-                  bg-card/80 backdrop-blur-sm p-4 transition-all duration-300 ease-out
-                  hover:shadow-md hover:scale-[1.01] group
+                  relative rounded-xl border border-border ${style.border}
+                  bg-card p-4 shadow-[var(--shadow-xs)] transition-[box-shadow,border-color] duration-150
+                  hover:border-primary/30 hover:shadow-[var(--shadow-soft)] group
                 `}
               >
                 <div className="flex gap-3 items-start">
@@ -416,9 +416,10 @@ function NotificationsPage() {
             const inner = (
               <div
                 className={`
-                  relative rounded-xl border border-border/40 border-l-4 ${style.border}
-                  bg-card/80 backdrop-blur-sm p-4 transition-all duration-300 ease-out
-                  hover:shadow-md hover:scale-[1.01] group
+                  relative rounded-xl border border-border ${style.border}
+                  bg-card p-4 shadow-[var(--shadow-xs)] transition-[box-shadow,border-color] duration-150
+                  hover:border-primary/30 hover:shadow-[var(--shadow-soft)] group
+                  ${i.id.startsWith("nt-") ? "bg-accent/40" : ""}
                 `}
               >
                 <div className="flex gap-3 items-start">

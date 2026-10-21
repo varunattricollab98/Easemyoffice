@@ -134,24 +134,24 @@ const StageColumn = memo(function StageColumn({
       ref={setNodeRef}
       data-stage={stage.id}
       className={cn(
-        "flex w-72 shrink-0 flex-col rounded-2xl border bg-muted/30 transition",
+        "flex w-72 shrink-0 flex-col rounded-2xl border border-border/70 bg-muted/50 p-2 transition",
         isOver && "ring-2 ring-primary/50",
         highlighted && "ring-2 ring-primary/30",
       )}
     >
-      <div className="sticky top-0 space-y-1.5 rounded-t-2xl border-b bg-background/70 p-3 backdrop-blur">
+      <div className="pipeline-col-head sticky top-0 z-10 space-y-1.5 rounded-xl p-3">
         <div className="flex items-center gap-2">
-          <span className={cn("h-2.5 w-2.5 rounded-full", stage.color)} />
+          <span className={cn("h-2.5 w-2.5 rounded-full ring-2 ring-white/40", stage.color)} />
           <span className="truncate text-sm font-semibold">{stage.label}</span>
-          <span className="ml-auto rounded-full bg-background px-2 py-0.5 text-xs font-medium tabular-nums ring-1 ring-border">
+          <span className="ml-auto rounded-full bg-white/20 px-2 py-0.5 text-xs font-semibold tabular-nums">
             {items.length}
           </span>
         </div>
         <div className="flex items-center justify-between gap-2">
-          <WaitingOnChip waitingOn={stage.waitingOn} />
-          <span className="text-[10px] tabular-nums text-muted-foreground">
+          <WaitingOnChip waitingOn={stage.waitingOn} className="bg-white/20 text-white" />
+          <span className="text-[10px] tabular-nums text-white/80">
             {overdue > 0 && (
-              <span className="mr-1.5 font-semibold text-red-600 dark:text-red-400">
+              <span className="mr-1.5 rounded bg-white/20 px-1 font-semibold text-white">
                 {overdue} overdue
               </span>
             )}
@@ -210,7 +210,7 @@ function DocCard({
       {...attributes}
       onClick={() => onOpen(task.id)}
       className={cn(
-        "cursor-grab select-none rounded-xl border bg-card p-3 text-left shadow-sm transition hover:shadow-md active:cursor-grabbing",
+        "cursor-grab select-none rounded-xl border border-border/80 bg-card p-3 text-left shadow-[var(--shadow-soft)] transition-[transform,box-shadow] duration-150 hover:-translate-y-0.5 hover:shadow-[var(--shadow-elevated)] active:cursor-grabbing",
         state === "overdue" && "border-red-300 dark:border-red-900",
         isDragging && "z-50 opacity-80 shadow-lg",
       )}

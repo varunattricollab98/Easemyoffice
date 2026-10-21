@@ -312,20 +312,26 @@ const StageColumn = memo(function StageColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`w-72 shrink-0 rounded-xl border bg-card/50 p-2 shadow-sm transition-colors ${
+      className={`w-72 shrink-0 rounded-2xl border border-border/70 bg-muted/50 p-2 transition-[box-shadow] duration-150 ${
         isOver ? "ring-2 ring-primary" : ""
       } ${closed ? "border-dashed" : ""}`}
     >
-      <div className="flex items-center justify-between px-2 py-2">
-        <div className="flex items-center gap-2">
+      <div
+        className={`mb-2 flex items-center justify-between rounded-xl px-3 py-2.5 ${
+          closed ? "bg-muted text-muted-foreground" : "pipeline-col-head"
+        }`}
+      >
+        <div className="flex min-w-0 items-center gap-2">
           {closed ? (
-            <XCircle className="h-3.5 w-3.5 text-rose-500" />
+            <XCircle className="h-3.5 w-3.5 text-destructive" />
           ) : (
-            <span className={`h-2 w-2 rounded-full ${color}`} />
+            <span className={`h-2 w-2 shrink-0 rounded-full ring-2 ring-white/40 ${color}`} />
           )}
-          <div className="text-sm font-medium">{label}</div>
+          <div className="truncate text-sm font-semibold">{label}</div>
         </div>
-        <span className="text-xs text-muted-foreground">{items.length}</span>
+        <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-semibold tabular-nums">
+          {items.length}
+        </span>
       </div>
       <div className="space-y-2 min-h-24 max-h-[640px] overflow-y-auto pr-1">
         {items.length === 0 ? (
@@ -362,7 +368,7 @@ const DraggableCard = memo(function DraggableCard({
       style={{
         transform: transform ? `translate3d(${transform.x}px,${transform.y}px,0)` : undefined,
       }}
-      className={`rounded-xl bg-card border p-3 shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md transition-all duration-200 ease-out ${
+      className={`rounded-xl bg-card border border-border/80 p-3 shadow-[var(--shadow-soft)] cursor-grab active:cursor-grabbing hover:-translate-y-0.5 hover:shadow-[var(--shadow-elevated)] transition-[transform,box-shadow] duration-150 ${
         isDragging ? "opacity-50" : ""
       }`}
     >
@@ -373,7 +379,7 @@ const DraggableCard = memo(function DraggableCard({
 
 const StaticCard = memo(function StaticCard({ partnership }: { partnership: PartnershipWithFirm }) {
   return (
-    <div className="rounded-xl bg-card border p-3 shadow-sm opacity-80">
+    <div className="rounded-xl bg-card border border-border/80 p-3 shadow-[var(--shadow-soft)] opacity-80">
       <CardBody partnership={partnership} closed />
     </div>
   );

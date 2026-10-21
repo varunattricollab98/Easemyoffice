@@ -435,14 +435,16 @@ const StageColumn = memo(function StageColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`w-72 shrink-0 rounded-xl border bg-card/50 p-2 shadow-sm transition-colors ${isOver ? "ring-2 ring-primary" : ""}`}
+      className={`w-72 shrink-0 rounded-2xl border border-border/70 bg-muted/50 p-2 transition-[box-shadow] duration-150 ${isOver ? "ring-2 ring-primary" : ""}`}
     >
-      <div className="flex items-center justify-between px-2 py-2">
-        <div className="flex items-center gap-2">
-          <span className={`h-2 w-2 rounded-full ${stage.color}`} />
-          <div className="text-sm font-medium">{stage.label}</div>
+      <div className="pipeline-col-head mb-2 flex items-center justify-between rounded-xl px-3 py-2.5">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className={`h-2 w-2 shrink-0 rounded-full ring-2 ring-white/40 ${stage.color}`} />
+          <div className="truncate text-sm font-semibold">{stage.label}</div>
         </div>
-        <span className="text-xs text-muted-foreground">{items.length}</span>
+        <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-semibold tabular-nums">
+          {items.length}
+        </span>
       </div>
       <VirtualList items={items} height={COLUMN_HEIGHT} draggable />
     </div>
@@ -501,7 +503,7 @@ const DraggableLeadCard = memo(function DraggableLeadCard({ lead }: { lead: Lead
       {...listeners}
       {...attributes}
       style={{ transform: transform ? `translate3d(${transform.x}px,${transform.y}px,0)` : undefined }}
-      className={`rounded-xl bg-card border p-3 shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md hover:scale-[1.01] transition-all duration-200 ease-out ${isDragging ? "opacity-50" : ""}`}
+      className={`rounded-xl bg-card border border-border/80 p-3 shadow-[var(--shadow-soft)] cursor-grab active:cursor-grabbing hover:-translate-y-0.5 hover:shadow-[var(--shadow-elevated)] transition-[transform,box-shadow] duration-150 ${isDragging ? "opacity-50" : ""}`}
     >
       <LeadCardBody lead={lead} />
     </div>
@@ -510,7 +512,7 @@ const DraggableLeadCard = memo(function DraggableLeadCard({ lead }: { lead: Lead
 
 const StaticLeadCard = memo(function StaticLeadCard({ lead }: { lead: Lead }) {
   return (
-    <div className="rounded-xl bg-card border p-3 shadow-sm hover:shadow-md hover:scale-[1.01] transition-all duration-200 ease-out">
+    <div className="rounded-xl bg-card border border-border/80 p-3 shadow-[var(--shadow-soft)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-elevated)] transition-[transform,box-shadow] duration-150">
       <LeadCardBody lead={lead} />
     </div>
   );
