@@ -246,7 +246,7 @@ export function AppHeader() {
         className="flex h-9 w-72 items-center gap-2 rounded-lg border border-input bg-card px-3 text-sm text-muted-foreground shadow-[var(--shadow-xs)] transition-colors duration-150 hover:border-primary/40 hover:text-foreground"
       >
         <Search className="h-4 w-4" />
-        <span className="flex-1 text-left">Search leads, bookings, pages…</span>
+        <span className="flex-1 truncate whitespace-nowrap text-left">Search leads, bookings…</span>
         <kbd className="pointer-events-none select-none rounded-md border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
           ⌘K
         </kbd>
