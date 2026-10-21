@@ -46,7 +46,7 @@ function MyTasksPage() {
   return (
     <div className="p-5 md:p-10 space-y-5 max-w-5xl mx-auto">
       <div className="flex items-center gap-3">
-        <div className="grid size-10 place-items-center rounded-lg bg-gradient-to-br from-primary to-primary/70 text-primary-foreground">
+        <div className="grid size-10 place-items-center rounded-lg bg-[image:var(--gradient-brand)] text-primary-foreground">
           <CheckSquare className="h-5 w-5" />
         </div>
         <div>
@@ -61,7 +61,7 @@ function MyTasksPage() {
       <Card className="shadow-sm">
         <CardHeader className="flex-row items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
-            <Bell className="h-4 w-4 text-amber-600" /> Follow-ups
+            <Bell className="h-4 w-4 text-warning" /> Follow-ups
           </CardTitle>
           <Link to="/b2b/activities/followups" className="text-xs text-primary hover:underline">
             Open follow-ups →
@@ -75,7 +75,7 @@ function MyTasksPage() {
           ) : (
             <>
               <TaskGroup label="Overdue" tone="text-destructive" items={buckets.overdue} />
-              <TaskGroup label="Today" tone="text-amber-600" items={buckets.today} />
+              <TaskGroup label="Today" tone="text-warning" items={buckets.today} />
               <TaskGroup label="Upcoming" tone="text-muted-foreground" items={buckets.upcoming} />
             </>
           )}

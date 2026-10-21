@@ -56,7 +56,7 @@ export function TodayFollowups() {
     <div className="surface-card p-4 lift-in h-full flex flex-col">
       <div className="flex items-center justify-between mb-3 widget-handle cursor-grab active:cursor-grabbing">
         <div className="flex items-center gap-2">
-          <Bell className="h-4 w-4 text-amber-500" />
+          <Bell className="h-4 w-4 text-warning" />
           <h3 className="text-sm font-semibold">Today's follow-ups</h3>
         </div>
         <span className="text-[11px] text-muted-foreground tabular-nums">{data?.length ?? 0}</span>
@@ -70,7 +70,7 @@ export function TodayFollowups() {
             key={fu.id}
             className="group flex items-start gap-2 p-2.5 rounded-lg border border-transparent hover:bg-accent/50 hover:border-border transition-colors"
           >
-            <Bell className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+            <Bell className="h-4 w-4 text-warning mt-0.5 shrink-0" />
             <Link
               to="/leads/$id"
               params={{ id: fu.leads?.id ?? "" }}

@@ -50,7 +50,7 @@ function ImportHistoryPage() {
     <div className="p-5 md:p-10 space-y-5 max-w-7xl mx-auto">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="grid size-10 place-items-center rounded-lg bg-gradient-to-br from-primary to-primary/70 text-primary-foreground">
+          <div className="grid size-10 place-items-center rounded-lg bg-[image:var(--gradient-brand)] text-primary-foreground">
             <HistoryIcon className="h-5 w-5" />
           </div>
           <div>
@@ -113,10 +113,10 @@ function ImportHistoryPage() {
                   <TableCell>{labelFor(B2B_SOURCES, b.source)}</TableCell>
                   <TableCell className="max-w-[200px] truncate">{b.file_name || "—"}</TableCell>
                   <TableCell className="text-right">{b.total_records}</TableCell>
-                  <TableCell className="text-right text-emerald-600">{b.new_records}</TableCell>
-                  <TableCell className="text-right text-amber-600">{b.duplicate_records}</TableCell>
-                  <TableCell className="text-right text-rose-600">{b.invalid_records}</TableCell>
-                  <TableCell className="text-right text-blue-600">{b.assigned_records}</TableCell>
+                  <TableCell className="text-right text-success">{b.new_records}</TableCell>
+                  <TableCell className="text-right text-warning">{b.duplicate_records}</TableCell>
+                  <TableCell className="text-right text-destructive">{b.invalid_records}</TableCell>
+                  <TableCell className="text-right text-primary">{b.assigned_records}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

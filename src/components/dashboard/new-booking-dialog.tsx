@@ -814,9 +814,9 @@ export function NewBookingDialog({
     // Reminder for the client
     const clientReminderHtml = `
           <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;">
-            <div style="background:#FEF3C7;border:1px solid #F59E0B;border-radius:12px;padding:20px;margin-bottom:20px;">
-              <div style="font-size:16px;font-weight:700;color:#92400E;margin-bottom:8px;">&#9888;&#65039; Payment Reminder</div>
-              <div style="font-size:14px;color:#78350F;">Your balance payment of <strong>${formattedBal}</strong> for booking <strong>${bookingId}</strong> is due on <strong>${formattedDueDate}</strong>.</div>
+            <div style="background:#FDF6E7;border:1px solid #B7791F;border-radius:12px;padding:20px;margin-bottom:20px;">
+              <div style="font-size:16px;font-weight:700;color:#7A5212;margin-bottom:8px;">&#9888;&#65039; Payment Reminder</div>
+              <div style="font-size:14px;color:#5C3D0E;">Your balance payment of <strong>${formattedBal}</strong> for booking <strong>${bookingId}</strong> is due on <strong>${formattedDueDate}</strong>.</div>
             </div>
             <div style="font-size:14px;color:#374151;line-height:1.6;">
               <p>Dear ${form.client_name},</p>
@@ -856,9 +856,9 @@ export function NewBookingDialog({
     if (salesEmail) {
       const salesReminderHtml = `
             <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;">
-              <div style="background:#DBEAFE;border:1px solid #3B82F6;border-radius:12px;padding:20px;margin-bottom:20px;">
-                <div style="font-size:16px;font-weight:700;color:#1E40AF;margin-bottom:8px;">&#128176; Balance Payment Due</div>
-                <div style="font-size:14px;color:#1E3A5F;">Client <strong>${form.client_name}</strong> has a pending balance of <strong>${formattedBal}</strong> for booking <strong>${bookingId}</strong>, due on <strong>${formattedDueDate}</strong>.</div>
+              <div style="background:#EEF0FF;border:1px solid #315EFB;border-radius:12px;padding:20px;margin-bottom:20px;">
+                <div style="font-size:16px;font-weight:700;color:#3730A3;margin-bottom:8px;">&#128176; Balance Payment Due</div>
+                <div style="font-size:14px;color:#191B2A;">Client <strong>${form.client_name}</strong> has a pending balance of <strong>${formattedBal}</strong> for booking <strong>${bookingId}</strong>, due on <strong>${formattedDueDate}</strong>.</div>
               </div>
               <div style="font-size:14px;color:#374151;line-height:1.6;">
                 <p>Please follow up with the client to ensure timely payment.</p>

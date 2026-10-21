@@ -220,7 +220,7 @@ export function PartnershipPipelineBoard() {
   return (
     <div className="p-5 md:p-10 space-y-4 max-w-[1600px] mx-auto">
       <div className="flex items-center gap-3">
-        <div className="grid size-10 place-items-center rounded-lg bg-gradient-to-br from-primary to-primary/70 text-primary-foreground">
+        <div className="grid size-10 place-items-center rounded-lg bg-[image:var(--gradient-brand)] text-primary-foreground">
           <Building2 className="h-5 w-5" />
         </div>
         <div>
@@ -249,7 +249,7 @@ export function PartnershipPipelineBoard() {
           <StageColumn
             id={CLOSED_COLUMN_ID}
             label="Lost / Closed"
-            color="bg-rose-500"
+            color="bg-destructive"
             items={buckets.closed}
             closed
           />

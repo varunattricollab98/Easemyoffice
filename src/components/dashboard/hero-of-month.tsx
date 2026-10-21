@@ -30,14 +30,14 @@ type HeroProfile = { id: string; full_name: string | null; email: string | null 
 type UserTargetRow = { user_id: string; bookings: number | null; profit: number | null };
 
 function barColor(pct: number) {
-  if (pct >= 75) return "bg-emerald-500";
-  if (pct >= 40) return "bg-amber-500";
-  return "bg-rose-500";
+  if (pct >= 75) return "bg-success";
+  if (pct >= 40) return "bg-warning";
+  return "bg-destructive";
 }
 function targetStatus(pct: number) {
-  if (pct >= 75) return { text: "On track 🔥", cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" };
-  if (pct >= 40) return { text: "Keep pushing", cls: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300" };
-  return { text: "Behind ⚠", cls: "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300" };
+  if (pct >= 75) return { text: "On track 🔥", cls: "bg-success/10 text-success dark:bg-success/15 dark:text-success" };
+  if (pct >= 40) return { text: "Keep pushing", cls: "bg-warning/10 text-warning dark:bg-warning/15 dark:text-warning" };
+  return { text: "Behind ⚠", cls: "bg-destructive/10 text-destructive dark:bg-destructive/15 dark:text-destructive" };
 }
 function compactINR(n: number) {
   if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
@@ -281,7 +281,7 @@ export function HeroOfMonth() {
   return (
     <Card>
       <CardHeader className="flex-col sm:flex-row sm:items-center justify-between gap-3 space-y-0">
-        <CardTitle className="text-base flex items-center gap-2"><Trophy className="h-5 w-5 text-amber-500" /> Hero of the Month</CardTitle>
+        <CardTitle className="text-base flex items-center gap-2"><Trophy className="h-5 w-5 text-warning" /> Hero of the Month</CardTitle>
         <div className="flex flex-wrap gap-2">
           <Select value={rankBy} onValueChange={(v) => setRankBy(v as "bookings" | "profit")}>
             <SelectTrigger className="h-8 w-[150px]"><SelectValue /></SelectTrigger>
@@ -305,17 +305,17 @@ export function HeroOfMonth() {
           {/* Left: hero + KPIs */}
           <div className="lg:col-span-2 space-y-4">
             {hero && hero.bookings > 0 && (
-              <div className="flex flex-wrap items-center gap-4 rounded-lg border border-amber-300 bg-gradient-to-br from-amber-100 to-amber-50 p-4 dark:border-amber-800/60 dark:from-amber-950/40 dark:to-amber-950/10">
+              <div className="flex flex-wrap items-center gap-4 rounded-lg border border-warning/30 bg-gradient-to-br from-warning/10 to-warning/6 p-4 dark:border-warning/15 dark:from-warning/15 dark:to-warning/15">
                 <div className="text-4xl leading-none">🏆</div>
                 <div className="min-w-[180px] flex-1">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-warning dark:text-warning">
                     Hero of {MONTHS[month]} {year} · by {rankBy === "profit" ? "profit" : "bookings"}
                   </div>
                   <div className="text-xl font-bold">{hero.name}</div>
                   <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-sm text-muted-foreground tabular-nums">
                     <span>{hero.bookings} bookings</span>
                     <span>{fmtINR(hero.revenue)} revenue</span>
-                    <span className="text-emerald-600 dark:text-emerald-400">
+                    <span className="text-success dark:text-success">
                       {fmtINR(hero.profit)} profit
                     </span>
                   </div>
@@ -334,7 +334,7 @@ export function HeroOfMonth() {
           <div className="lg:col-span-1">
             <div className="rounded-lg border h-full p-4">
               <div className="flex items-center justify-between mb-3">
-                <div className="font-semibold flex items-center gap-2"><Target className="h-4 w-4 text-amber-500" /> {isAdmin ? "Our Target" : "My Target"}</div>
+                <div className="font-semibold flex items-center gap-2"><Target className="h-4 w-4 text-warning" /> {isAdmin ? "Our Target" : "My Target"}</div>
                 {isAdmin && !editingTarget && (
                   <Button size="sm" variant="ghost" className="h-7 px-2"
                     onClick={() => { setTargetDraft({ bookings: String(orgBookingsTarget), profit: String(orgProfitTarget) }); setEditingTarget(true); }}>
@@ -439,7 +439,7 @@ export function HeroOfMonth() {
                 {agents.map((a, i) => (
                   <tr
                     key={a.key}
-                    className={`hover:bg-muted/30 ${i === 0 ? "bg-amber-50/60 dark:bg-amber-950/20" : ""}`}
+                    className={`hover:bg-muted/30 ${i === 0 ? "bg-warning/6 dark:bg-warning/15" : ""}`}
                   >
                     {/* Fixed-height cell so a medal row and a "#4" row line up. */}
                     <td className="py-2">
@@ -452,12 +452,12 @@ export function HeroOfMonth() {
                     <td className="font-medium">{a.name}</td>
                     <td className="text-right font-medium tabular-nums">{a.bookings}</td>
                     <td className="text-right tabular-nums">{fmtINR(a.revenue)}</td>
-                    <td className="text-right tabular-nums text-emerald-600">{fmtINR(a.profit)}</td>
+                    <td className="text-right tabular-nums text-success">{fmtINR(a.profit)}</td>
                     <td className="text-right tabular-nums text-muted-foreground">{fmtINR(a.avg)}</td>
                     <td className="pl-4">
                       <div className="h-2 overflow-hidden rounded-full bg-muted">
                         <div
-                          className="h-full rounded-full bg-amber-500 transition-all duration-500"
+                          className="h-full rounded-full bg-warning transition-all duration-500"
                           style={{ width: `${(a.revenue / maxRevenue) * 100}%` }}
                         />
                       </div>
@@ -490,7 +490,7 @@ export function HeroOfMonth() {
                   </div>
                   <div className="relative h-6 flex-1 overflow-hidden rounded bg-muted">
                     <div
-                      className="absolute inset-y-0 left-0 rounded bg-blue-500/70"
+                      className="absolute inset-y-0 left-0 rounded bg-primary/70"
                       style={{ width: `${(p.bookings / (topPlans[0]?.bookings || 1)) * 100}%` }}
                     />
                     <div className="absolute inset-0 flex items-center px-2 text-xs font-medium tabular-nums">
@@ -575,10 +575,10 @@ function SectionTitle({ title, hint }: { title: string; hint?: string }) {
 
 function Kpi({ icon: Icon, label, value, tone }: { icon: ComponentType<{ className?: string }>; label: string; value: string; tone: string }) {
   const tones: Record<string, string> = {
-    blue: "from-blue-500/10 to-blue-500/5 text-blue-600",
-    emerald: "from-emerald-500/10 to-emerald-500/5 text-emerald-600",
-    amber: "from-amber-500/10 to-amber-500/5 text-amber-600",
-    violet: "from-violet-500/10 to-violet-500/5 text-violet-600",
+    blue: "from-primary/10 to-primary/5 text-primary",
+    emerald: "from-success/10 to-success/5 text-success",
+    amber: "from-warning/10 to-warning/5 text-warning",
+    violet: "from-accent-foreground/10 to-accent-foreground/5 text-accent-foreground",
   };
   return (
     <div className={`rounded-lg border bg-gradient-to-br ${tones[tone]} flex items-center gap-3 p-3`}>

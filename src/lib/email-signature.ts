@@ -3,8 +3,8 @@
  * (payment acknowledgment, quotations, reminders, lead emails).
  *
  * Palette matches the master EaseMyOffice template:
- *   deep navy #0B1B36 / #0A1F4D, royal blue #1E4DB7 → #3D6EE0,
- *   surface #F6F8FC, border #E5E9F0, muted #5A6B85, gold #B8860B, green #15803D.
+ *   deep navy #191B2A / #2B2785, royal blue #315EFB → #4385F5,
+ *   surface #F5F6FA, border #E6E8EF, muted #6B7280, gold #B8860B, green #16835B.
  *
  * Dynamic per salesperson: name, initials, phone, WhatsApp + call links.
  * Static: role, badges, quote, shared mailbox, working hours.
@@ -28,46 +28,46 @@ export function buildEmailSignature(opts: {
 
   return `
   <!-- RELATIONSHIP MANAGER -->
-  <tr><td style="background:#F6F8FC; padding:34px 28px; border-top:1px solid #E5E9F0;" class="pad-lg">
-    <div style="background:#fff; border:1px solid #E5E9F0; border-radius:16px; padding:28px 24px; text-align:center; box-shadow:0 4px 16px rgba(11,27,54,0.06);">
-      <div style="font-size:11px; font-weight:800; color:#1E4DB7; letter-spacing:2px; text-transform:uppercase; margin-bottom:14px; text-align:center;">Your Dedicated Manager</div>
+  <tr><td style="background:#F5F6FA; padding:34px 28px; border-top:1px solid #E6E8EF;" class="pad-lg">
+    <div style="background:#fff; border:1px solid #E6E8EF; border-radius:16px; padding:28px 24px; text-align:center; box-shadow:0 4px 16px rgba(11,27,54,0.06);">
+      <div style="font-size:11px; font-weight:800; color:#315EFB; letter-spacing:2px; text-transform:uppercase; margin-bottom:14px; text-align:center;">Your Dedicated Manager</div>
 
-      <div style="width:88px; height:88px; line-height:88px; text-align:center; border-radius:50%; background:linear-gradient(135deg,#1E4DB7,#3D6EE0); color:#fff; font-weight:800; font-size:32px; letter-spacing:1px; margin:0 auto 14px; box-shadow:0 8px 20px rgba(30,77,183,0.35); border:4px solid #fff;">${initials}</div>
+      <div style="width:88px; height:88px; line-height:88px; text-align:center; border-radius:50%; background:linear-gradient(135deg,#315EFB,#4385F5); color:#fff; font-weight:800; font-size:32px; letter-spacing:1px; margin:0 auto 14px; box-shadow:0 8px 20px rgba(30,77,183,0.35); border:4px solid #fff;">${initials}</div>
 
-      <div style="font-size:22px; font-weight:800; color:#0B1B36;">${managerName}</div>
-      <div style="font-size:13px; color:#1E4DB7; font-weight:700; margin-top:4px; letter-spacing:0.5px;">Virtual Office Relationship Manager</div>
+      <div style="font-size:22px; font-weight:800; color:#191B2A;">${managerName}</div>
+      <div style="font-size:13px; color:#315EFB; font-weight:700; margin-top:4px; letter-spacing:0.5px;">Virtual Office Relationship Manager</div>
 
       <div style="margin-top:12px;">
-        <span style="display:inline-block; background:rgba(22,163,74,0.12); color:#15803D; font-size:10.5px; font-weight:800; padding:5px 11px; border-radius:30px; margin:2px 3px;">&#9679;&nbsp; ONLINE NOW</span>
-        <span style="display:inline-block; background:rgba(30,77,183,0.1); color:#1E4DB7; font-size:10.5px; font-weight:800; padding:5px 11px; border-radius:30px; margin:2px 3px;">&#9889;&nbsp; REPLIES IN &lt; 10 MIN</span>
+        <span style="display:inline-block; background:rgba(22,131,91,0.12); color:#16835B; font-size:10.5px; font-weight:800; padding:5px 11px; border-radius:30px; margin:2px 3px;">&#9679;&nbsp; ONLINE NOW</span>
+        <span style="display:inline-block; background:rgba(30,77,183,0.1); color:#315EFB; font-size:10.5px; font-weight:800; padding:5px 11px; border-radius:30px; margin:2px 3px;">&#9889;&nbsp; REPLIES IN &lt; 10 MIN</span>
         <span style="display:inline-block; background:rgba(184,134,11,0.12); color:#B8860B; font-size:10.5px; font-weight:800; padding:5px 11px; border-radius:30px; margin:2px 3px;">EN &middot; HINDI &middot; PUNJABI</span>
       </div>
 
-      <div style="font-size:13px; color:#0B1B36; font-style:italic; margin:18px auto 0; max-width:460px; line-height:1.6;">"Thank you for placing your trust in EaseMyOffice. I'll personally guide you through every step of activation &mdash; your compliance and peace of mind are my responsibility."</div>
+      <div style="font-size:13px; color:#191B2A; font-style:italic; margin:18px auto 0; max-width:460px; line-height:1.6;">"Thank you for placing your trust in EaseMyOffice. I'll personally guide you through every step of activation &mdash; your compliance and peace of mind are my responsibility."</div>
 
       <table role="presentation" width="100%" class="grid-2" style="margin:20px auto 0; max-width:480px;"><tr>
         <td class="stack" valign="top" style="width:50%; padding:5px;">
-          <a href="tel:+${digits}" style="display:block; text-decoration:none; background:#fff; border:1px solid #E5E9F0; border-radius:12px; padding:14px 12px; box-shadow:0 2px 6px rgba(11,27,54,0.04); text-align:center;">
-            <div style="font-size:10px; color:#5A6B85; font-weight:700; letter-spacing:1px;">CALL DIRECT</div>
-            <div style="font-size:14px; color:#0B1B36; font-weight:800; margin-top:4px;">${display}</div>
+          <a href="tel:+${digits}" style="display:block; text-decoration:none; background:#fff; border:1px solid #E6E8EF; border-radius:12px; padding:14px 12px; box-shadow:0 2px 6px rgba(11,27,54,0.04); text-align:center;">
+            <div style="font-size:10px; color:#6B7280; font-weight:700; letter-spacing:1px;">CALL DIRECT</div>
+            <div style="font-size:14px; color:#191B2A; font-weight:800; margin-top:4px;">${display}</div>
           </a>
         </td>
         <td class="stack" valign="top" style="width:50%; padding:5px;">
-          <a href="mailto:contact@easemyoffice.in" style="display:block; text-decoration:none; background:#fff; border:1px solid #E5E9F0; border-radius:12px; padding:14px 12px; box-shadow:0 2px 6px rgba(11,27,54,0.04); text-align:center;">
-            <div style="font-size:10px; color:#5A6B85; font-weight:700; letter-spacing:1px;">EMAIL ME</div>
-            <div style="font-size:13px; color:#1E4DB7; font-weight:800; margin-top:4px; word-break:break-all;">contact@easemyoffice.in</div>
+          <a href="mailto:contact@easemyoffice.in" style="display:block; text-decoration:none; background:#fff; border:1px solid #E6E8EF; border-radius:12px; padding:14px 12px; box-shadow:0 2px 6px rgba(11,27,54,0.04); text-align:center;">
+            <div style="font-size:10px; color:#6B7280; font-weight:700; letter-spacing:1px;">EMAIL ME</div>
+            <div style="font-size:13px; color:#315EFB; font-weight:800; margin-top:4px; word-break:break-all;">contact@easemyoffice.in</div>
           </a>
         </td>
       </tr></table>
 
       <div style="margin-top:18px;">
         <a href="https://wa.me/${digits}" style="display:inline-block; background:#25D366; color:#fff; padding:12px 22px; border-radius:30px; font-weight:800; font-size:13px; margin:4px; box-shadow:0 4px 12px rgba(37,211,102,0.35);">WhatsApp</a>
-        <a href="tel:+${digits}" style="display:inline-block; background:#0B1B36; color:#fff; padding:12px 22px; border-radius:30px; font-weight:800; font-size:13px; margin:4px;">Call Now</a>
-        <a href="mailto:contact@easemyoffice.in${replySubject}" style="display:inline-block; background:linear-gradient(135deg,#1E4DB7,#3D6EE0); color:#fff; padding:12px 22px; border-radius:30px; font-weight:800; font-size:13px; margin:4px;">Reply</a>
+        <a href="tel:+${digits}" style="display:inline-block; background:#191B2A; color:#fff; padding:12px 22px; border-radius:30px; font-weight:800; font-size:13px; margin:4px;">Call Now</a>
+        <a href="mailto:contact@easemyoffice.in${replySubject}" style="display:inline-block; background:linear-gradient(135deg,#315EFB,#4385F5); color:#fff; padding:12px 22px; border-radius:30px; font-weight:800; font-size:13px; margin:4px;">Reply</a>
       </div>
 
-      <div style="margin-top:18px; padding-top:14px; border-top:1px dashed rgba(11,27,54,0.15); font-size:11px; color:#5A6B85;">
-        <b style="color:#0B1B36;">Working Hours:</b> Mon&ndash;Sat &middot; 10:00 AM &ndash; 8:00 PM IST &nbsp;&middot;&nbsp; <b style="color:#0B1B36;">WhatsApp:</b> 24&times;7
+      <div style="margin-top:18px; padding-top:14px; border-top:1px dashed rgba(11,27,54,0.15); font-size:11px; color:#6B7280;">
+        <b style="color:#191B2A;">Working Hours:</b> Mon&ndash;Sat &middot; 10:00 AM &ndash; 8:00 PM IST &nbsp;&middot;&nbsp; <b style="color:#191B2A;">WhatsApp:</b> 24&times;7
       </div>
     </div>
   </td></tr>

@@ -67,7 +67,7 @@ function FollowupsPage() {
   return (
     <div className="p-5 md:p-10 space-y-5 max-w-5xl mx-auto">
       <div className="flex items-center gap-3">
-        <div className="grid size-10 place-items-center rounded-lg bg-gradient-to-br from-primary to-primary/70 text-primary-foreground">
+        <div className="grid size-10 place-items-center rounded-lg bg-[image:var(--gradient-brand)] text-primary-foreground">
           <Bell className="h-5 w-5" />
         </div>
         <div>
@@ -95,7 +95,7 @@ function FollowupsPage() {
             <Bucket
               title="Today's Follow-ups"
               icon={Clock}
-              tone="text-amber-600"
+              tone="text-warning"
               items={buckets.today}
               onUpdate={setActive}
             />

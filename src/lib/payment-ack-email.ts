@@ -53,7 +53,7 @@ export function buildPaymentAckEmailHtml(details: PaymentAckEmailDetails) {
   // `size` scales the two lines; used at 30px in the hero, 22px in the footer.
   const logoMark = (size: number) =>
     `<div style="font-family:Arial,Helvetica,sans-serif;font-weight:800;font-size:${size}px;line-height:1.1;letter-spacing:-0.5px;white-space:nowrap;">`
-    + `<span style="color:#0B1B36">Ease</span><span style="color:#1E4DB7">My</span><span style="color:#0B1B36">Office</span>`
+    + `<span style="color:#191B2A">Ease</span><span style="color:#315EFB">My</span><span style="color:#191B2A">Office</span>`
     + `</div>`;
   const signatureHtml = buildEmailSignature({
     name: managerName,
@@ -71,7 +71,7 @@ export function buildPaymentAckEmailHtml(details: PaymentAckEmailDetails) {
 <meta name="supported-color-schemes" content="light only">
 <title>EaseMyOffice &mdash; Payment Acknowledgment</title>
 <style>
-  body { margin:0; padding:0; background:#EEF1F7; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif; color:#0B1B36; -webkit-font-smoothing:antialiased; }
+  body { margin:0; padding:0; background:#F5F6FA; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif; color:#191B2A; -webkit-font-smoothing:antialiased; }
   table { border-collapse:collapse; }
   a { text-decoration:none; }
   img { border:0; outline:none; -ms-interpolation-mode:bicubic; display:block; }
@@ -97,16 +97,16 @@ export function buildPaymentAckEmailHtml(details: PaymentAckEmailDetails) {
 </div>
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-<tr><td align="center" style="padding:28px 0; background:#EEF1F7;">
+<tr><td align="center" style="padding:28px 0; background:#F5F6FA;">
 
 <table role="presentation" width="960" class="container" cellpadding="0" cellspacing="0" style="max-width:960px; width:100%;">
 
   <tr><td align="center" style="text-align:center; padding-bottom:14px;">
-    <span style="font-size:11px; color:#5A6B85; letter-spacing:2px; font-weight:700; text-transform:uppercase;">Payment Acknowledgment &middot; Officially Confirmed</span>
+    <span style="font-size:11px; color:#6B7280; letter-spacing:2px; font-weight:700; text-transform:uppercase;">Payment Acknowledgment &middot; Officially Confirmed</span>
   </td></tr>
 
-  <tr><td style="background:#0A1535; background:linear-gradient(135deg,#0A1535 0%, #16306B 55%, #1E4DB7 100%); padding:46px 36px; border-radius:18px 18px 0 0; text-align:center;" class="pad-lg">
-    <div style="display:inline-block; background:rgba(22,163,74,0.18); color:#A7F3C5; font-size:11px; font-weight:800; letter-spacing:2px; padding:7px 16px; border-radius:30px; border:1px solid rgba(167,243,197,0.45); margin-bottom:22px;">
+  <tr><td style="background:#3730A3; background:linear-gradient(135deg,#3730A3 0%, #3448D8 55%, #315EFB 100%); padding:46px 36px; border-radius:18px 18px 0 0; text-align:center;" class="pad-lg">
+    <div style="display:inline-block; background:rgba(22,131,91,0.18); color:#A7F3C5; font-size:11px; font-weight:800; letter-spacing:2px; padding:7px 16px; border-radius:30px; border:1px solid rgba(167,243,197,0.45); margin-bottom:22px;">
       PAYMENT RECEIVED &amp; CONFIRMED
     </div>
     <div style="display:inline-block; background:#fff; padding:16px 30px; border-radius:12px;">${logoMark(30)}</div>
@@ -115,161 +115,161 @@ export function buildPaymentAckEmailHtml(details: PaymentAckEmailDetails) {
   </td></tr>
 
   <tr><td style="background:#FFE39A; padding:11px 24px; font-size:12px; color:#5A4500; font-weight:700; text-align:center; letter-spacing:0.4px;">
-    Payment ID / UTR: ${utr} &nbsp;&middot;&nbsp; ${date} &nbsp;&middot;&nbsp; Status: ${isPartialPayment ? '<span style="color:#B45309;">PARTIAL PAYMENT</span>' : '<span style="color:#15803D;">PAID &#10003;</span>'}
+    Payment ID / UTR: ${utr} &nbsp;&middot;&nbsp; ${date} &nbsp;&middot;&nbsp; Status: ${isPartialPayment ? '<span style="color:#B7791F;">PARTIAL PAYMENT</span>' : '<span style="color:#16835B;">PAID &#10003;</span>'}
   </td></tr>
 
   <tr><td style="background:#ffffff; padding:36px 32px; text-align:center;" class="pad-lg">
-    <div style="font-size:11px; font-weight:800; color:#1E4DB7; letter-spacing:2px; text-transform:uppercase; margin-bottom:10px;">A Heartfelt Thank You</div>
-    <div style="font-size:28px; font-weight:800; color:#0B1B36; letter-spacing:-0.5px; text-align:center;" class="h2">Hello ${client_name}</div>
+    <div style="font-size:11px; font-weight:800; color:#315EFB; letter-spacing:2px; text-transform:uppercase; margin-bottom:10px;">A Heartfelt Thank You</div>
+    <div style="font-size:28px; font-weight:800; color:#191B2A; letter-spacing:-0.5px; text-align:center;" class="h2">Hello ${client_name}</div>
     <div style="font-size:14px; color:#475569; margin-top:16px; line-height:1.75; max-width:520px; margin-left:auto; margin-right:auto;">
       Thank you for your trust and your prompt payment. We're truly delighted to welcome you on board. Your premium virtual office is officially in motion &mdash; and our team is already working behind the scenes to get you activated quickly and compliantly.
     </div>
-    <div style="margin-top:24px; background:#16A34A; background:linear-gradient(135deg,#15803D,#16A34A); color:#fff; font-weight:700; font-size:14px; padding:14px 18px; border-radius:10px; box-shadow:0 6px 18px rgba(22,163,74,0.22); text-align:center;">
+    <div style="margin-top:24px; background:#16835B; background:linear-gradient(135deg,#16835B,#16835B); color:#fff; font-weight:700; font-size:14px; padding:14px 18px; border-radius:10px; box-shadow:0 6px 18px rgba(22,131,91,0.22); text-align:center;">
       You're now part of the family of 5,000+ growing brands
     </div>
   </td></tr>
 
-  <tr><td style="background:#F6F8FC; padding:30px 28px; text-align:center; border-top:1px solid #E5E9F0;" class="pad-lg">
+  <tr><td style="background:#F5F6FA; padding:30px 28px; text-align:center; border-top:1px solid #E6E8EF;" class="pad-lg">
     <table role="presentation" width="100%" style="max-width:620px; margin:0 auto;"><tr>
       <td align="center" class="stack" style="padding:8px;">
-        <div style="font-size:26px; font-weight:800; color:#0B1B36;" class="stat-num">5,000+</div>
-        <div style="font-size:10.5px; color:#5A6B85; letter-spacing:1.2px; text-transform:uppercase; margin-top:4px; font-weight:700;">Clients Served</div>
+        <div style="font-size:26px; font-weight:800; color:#191B2A;" class="stat-num">5,000+</div>
+        <div style="font-size:10.5px; color:#6B7280; letter-spacing:1.2px; text-transform:uppercase; margin-top:4px; font-weight:700;">Clients Served</div>
       </td>
       <td align="center" class="stack" style="padding:8px;">
-        <div style="font-size:26px; font-weight:800; color:#0B1B36;" class="stat-num">4.9 &#9733;</div>
-        <div style="font-size:10.5px; color:#5A6B85; letter-spacing:1.2px; text-transform:uppercase; margin-top:4px; font-weight:700;">Average Rating</div>
+        <div style="font-size:26px; font-weight:800; color:#191B2A;" class="stat-num">4.9 &#9733;</div>
+        <div style="font-size:10.5px; color:#6B7280; letter-spacing:1.2px; text-transform:uppercase; margin-top:4px; font-weight:700;">Average Rating</div>
       </td>
       <td align="center" class="stack" style="padding:8px;">
-        <div style="font-size:26px; font-weight:800; color:#16A34A;" class="stat-num">97%</div>
-        <div style="font-size:10.5px; color:#5A6B85; letter-spacing:1.2px; text-transform:uppercase; margin-top:4px; font-weight:700;">GST Approval</div>
+        <div style="font-size:26px; font-weight:800; color:#16835B;" class="stat-num">97%</div>
+        <div style="font-size:10.5px; color:#6B7280; letter-spacing:1.2px; text-transform:uppercase; margin-top:4px; font-weight:700;">GST Approval</div>
       </td>
       <td align="center" class="stack" style="padding:8px;">
-        <div style="font-size:26px; font-weight:800; color:#1E4DB7;" class="stat-num">48 hrs</div>
-        <div style="font-size:10.5px; color:#5A6B85; letter-spacing:1.2px; text-transform:uppercase; margin-top:4px; font-weight:700;">Activation</div>
+        <div style="font-size:26px; font-weight:800; color:#315EFB;" class="stat-num">48 hrs</div>
+        <div style="font-size:10.5px; color:#6B7280; letter-spacing:1.2px; text-transform:uppercase; margin-top:4px; font-weight:700;">Activation</div>
       </td>
     </tr></table>
   </td></tr>
 
-  <tr><td style="background:#ffffff; padding:34px 30px; border-top:1px solid #E5E9F0;" class="pad-lg">
+  <tr><td style="background:#ffffff; padding:34px 30px; border-top:1px solid #E6E8EF;" class="pad-lg">
     <div style="text-align:center; margin-bottom:22px;">
-      <div style="display:inline-block; background:rgba(22,163,74,0.12); color:#15803D; font-size:11px; font-weight:800; padding:6px 14px; border-radius:30px; letter-spacing:1.5px; margin-bottom:10px;">PAYMENT SUMMARY</div>
-      <div style="font-size:22px; font-weight:800; color:#0B1B36;" class="h2">Your Transaction Details</div>
-      <div style="font-size:13px; color:#5A6B85; margin-top:6px;">Kindly retain this email as your official payment record.</div>
+      <div style="display:inline-block; background:rgba(22,131,91,0.12); color:#16835B; font-size:11px; font-weight:800; padding:6px 14px; border-radius:30px; letter-spacing:1.5px; margin-bottom:10px;">PAYMENT SUMMARY</div>
+      <div style="font-size:22px; font-weight:800; color:#191B2A;" class="h2">Your Transaction Details</div>
+      <div style="font-size:13px; color:#6B7280; margin-top:6px;">Kindly retain this email as your official payment record.</div>
     </div>
-    <table role="presentation" width="100%" class="summary-table" style="border-collapse:separate; border-spacing:0; border:1px solid #E5E9F0; border-radius:12px; overflow:hidden;">
-      <tr style="background:#0A1F4D; color:#fff;">
+    <table role="presentation" width="100%" class="summary-table" style="border-collapse:separate; border-spacing:0; border:1px solid #E6E8EF; border-radius:12px; overflow:hidden;">
+      <tr style="background:#2B2785; color:#fff;">
         <th style="padding:14px 16px; text-align:left; font-size:13px; font-weight:700; width:45%;">Detail</th>
         <th style="padding:14px 16px; text-align:left; font-size:13px; font-weight:700;">Value</th>
       </tr>
       <tr style="background:#fff;">
-        <td style="padding:13px 16px; border-bottom:1px solid #EEF2F8; font-weight:600; color:#5A6B85;">Payment ID / UTR</td>
-        <td style="padding:13px 16px; border-bottom:1px solid #EEF2F8; font-weight:700; color:#0B1B36;">${utr}</td>
+        <td style="padding:13px 16px; border-bottom:1px solid #F5F6FA; font-weight:600; color:#6B7280;">Payment ID / UTR</td>
+        <td style="padding:13px 16px; border-bottom:1px solid #F5F6FA; font-weight:700; color:#191B2A;">${utr}</td>
       </tr>
-      <tr style="background:#F6F8FC;">
-        <td style="padding:13px 16px; border-bottom:1px solid #EEF2F8; font-weight:600; color:#5A6B85;">Booking ID</td>
-        <td style="padding:13px 16px; border-bottom:1px solid #EEF2F8; font-weight:700; color:#0B1B36;">${booking_id}</td>
+      <tr style="background:#F5F6FA;">
+        <td style="padding:13px 16px; border-bottom:1px solid #F5F6FA; font-weight:600; color:#6B7280;">Booking ID</td>
+        <td style="padding:13px 16px; border-bottom:1px solid #F5F6FA; font-weight:700; color:#191B2A;">${booking_id}</td>
       </tr>
       <tr style="background:#fff;">
-        <td style="padding:13px 16px; border-bottom:1px solid #EEF2F8; font-weight:600; color:#5A6B85;">Payment Date</td>
-        <td style="padding:13px 16px; border-bottom:1px solid #EEF2F8; font-weight:700; color:#0B1B36;">${date}</td>
+        <td style="padding:13px 16px; border-bottom:1px solid #F5F6FA; font-weight:600; color:#6B7280;">Payment Date</td>
+        <td style="padding:13px 16px; border-bottom:1px solid #F5F6FA; font-weight:700; color:#191B2A;">${date}</td>
       </tr>
-      <tr style="background:#F6F8FC;">
-        <td style="padding:13px 16px; border-bottom:1px solid #EEF2F8; font-weight:600; color:#5A6B85;">Payment Mode</td>
-        <td style="padding:13px 16px; border-bottom:1px solid #EEF2F8; font-weight:700; color:#0B1B36;">${payment_mode || "\u2014"}</td>
+      <tr style="background:#F5F6FA;">
+        <td style="padding:13px 16px; border-bottom:1px solid #F5F6FA; font-weight:600; color:#6B7280;">Payment Mode</td>
+        <td style="padding:13px 16px; border-bottom:1px solid #F5F6FA; font-weight:700; color:#191B2A;">${payment_mode || "\u2014"}</td>
       </tr>
-      <tr style="background:#F0FAF4;">
-        <td style="padding:16px; border-bottom:1px solid #EEF2F8; font-weight:700; color:#0B1B36; font-size:14px;">Amount Paid</td>
-        <td style="padding:16px; border-bottom:1px solid #EEF2F8; font-weight:800; color:#15803D; font-size:18px;">${amount}${isPartialPayment ? ' <span style="font-size:12px; font-weight:700; color:#B45309; background:#FEF3C7; padding:2px 8px; border-radius:20px; margin-left:8px;">Half Payment</span>' : ''}</td>
+      <tr style="background:#EEF7F2;">
+        <td style="padding:16px; border-bottom:1px solid #F5F6FA; font-weight:700; color:#191B2A; font-size:14px;">Amount Paid</td>
+        <td style="padding:16px; border-bottom:1px solid #F5F6FA; font-weight:800; color:#16835B; font-size:18px;">${amount}${isPartialPayment ? ' <span style="font-size:12px; font-weight:700; color:#B7791F; background:#FDF6E7; padding:2px 8px; border-radius:20px; margin-left:8px;">Half Payment</span>' : ''}</td>
       </tr>${isPartialPayment && balance_amount ? `
-      <tr style="background:#FFF7ED;">
-        <td style="padding:13px 16px; border-bottom:1px solid #EEF2F8; font-weight:700; color:#0B1B36; font-size:14px;">Balance Remaining</td>
-        <td style="padding:13px 16px; border-bottom:1px solid #EEF2F8; font-weight:800; color:#B45309; font-size:16px;">${balance_amount}</td>
+      <tr style="background:#FDF6E7;">
+        <td style="padding:13px 16px; border-bottom:1px solid #F5F6FA; font-weight:700; color:#191B2A; font-size:14px;">Balance Remaining</td>
+        <td style="padding:13px 16px; border-bottom:1px solid #F5F6FA; font-weight:800; color:#B7791F; font-size:16px;">${balance_amount}</td>
       </tr>
       <tr style="background:#fff;">
-        <td style="padding:13px 16px; border-bottom:1px solid #EEF2F8; font-weight:600; color:#5A6B85;">Balance Due Date</td>
-        <td style="padding:13px 16px; border-bottom:1px solid #EEF2F8; font-weight:700; color:#0B1B36;">${balance_due_date || "\u2014"}</td>
+        <td style="padding:13px 16px; border-bottom:1px solid #F5F6FA; font-weight:600; color:#6B7280;">Balance Due Date</td>
+        <td style="padding:13px 16px; border-bottom:1px solid #F5F6FA; font-weight:700; color:#191B2A;">${balance_due_date || "\u2014"}</td>
       </tr>` : ''}
       <tr style="background:#fff;">
-        <td style="padding:13px 16px; font-weight:600; color:#5A6B85;">Status</td>
-        <td style="padding:13px 16px;">${isPartialPayment ? '<span style="display:inline-block; background:#D97706; color:#fff; font-size:12px; font-weight:800; padding:5px 12px; border-radius:30px; letter-spacing:0.5px;">PARTIAL PAYMENT</span>' : '<span style="display:inline-block; background:#16A34A; color:#fff; font-size:12px; font-weight:800; padding:5px 12px; border-radius:30px; letter-spacing:0.5px;">&#10003; SUCCESSFUL</span>'}</td>
+        <td style="padding:13px 16px; font-weight:600; color:#6B7280;">Status</td>
+        <td style="padding:13px 16px;">${isPartialPayment ? '<span style="display:inline-block; background:#B7791F; color:#fff; font-size:12px; font-weight:800; padding:5px 12px; border-radius:30px; letter-spacing:0.5px;">PARTIAL PAYMENT</span>' : '<span style="display:inline-block; background:#16835B; color:#fff; font-size:12px; font-weight:800; padding:5px 12px; border-radius:30px; letter-spacing:0.5px;">&#10003; SUCCESSFUL</span>'}</td>
       </tr>
     </table>
   </td></tr>
 
-  <tr><td style="background:#ffffff; padding:34px 30px; border-top:1px solid #E5E9F0;" class="pad-lg">
+  <tr><td style="background:#ffffff; padding:34px 30px; border-top:1px solid #E6E8EF;" class="pad-lg">
     <div style="text-align:center; margin-bottom:22px;">
       <div style="display:inline-block; background:#FFE39A; color:#5A4500; font-size:11px; font-weight:800; padding:6px 14px; border-radius:30px; letter-spacing:1.5px; margin-bottom:10px;">SERVICE DETAILS</div>
-      <div style="font-size:22px; font-weight:800; color:#0B1B36;" class="h2">What Your Payment Covers</div>
-      <div style="font-size:13px; color:#5A6B85; margin-top:6px;">Your payment has been applied toward the following service references.</div>
+      <div style="font-size:22px; font-weight:800; color:#191B2A;" class="h2">What Your Payment Covers</div>
+      <div style="font-size:13px; color:#6B7280; margin-top:6px;">Your payment has been applied toward the following service references.</div>
     </div>
     <table role="presentation" width="100%" class="grid-2"><tr>
       <td class="stack" valign="top" style="width:50%; padding:6px;">
-        <div style="background:#F6F8FC; border:1px solid #E5E9F0; border-left:4px solid #1E4DB7; padding:16px 18px; border-radius:10px;">
-          <div style="font-weight:800; color:#0B1B36; font-size:14px;">Plan</div>
-          <div style="font-size:13px; color:#5A6B85; margin-top:6px; line-height:1.5;">${plan_name}</div>
+        <div style="background:#F5F6FA; border:1px solid #E6E8EF; border-left:4px solid #315EFB; padding:16px 18px; border-radius:10px;">
+          <div style="font-weight:800; color:#191B2A; font-size:14px;">Plan</div>
+          <div style="font-size:13px; color:#6B7280; margin-top:6px; line-height:1.5;">${plan_name}</div>
         </div>
       </td>
       <td class="stack" valign="top" style="width:50%; padding:6px;">
-        <div style="background:#F6F8FC; border:1px solid #E5E9F0; border-left:4px solid #1E4DB7; padding:16px 18px; border-radius:10px;">
-          <div style="font-weight:800; color:#0B1B36; font-size:14px;">Tenure</div>
-          <div style="font-size:13px; color:#5A6B85; margin-top:6px; line-height:1.5;">1 Year of full address use, documentation &amp; mail handling.</div>
+        <div style="background:#F5F6FA; border:1px solid #E6E8EF; border-left:4px solid #315EFB; padding:16px 18px; border-radius:10px;">
+          <div style="font-weight:800; color:#191B2A; font-size:14px;">Tenure</div>
+          <div style="font-size:13px; color:#6B7280; margin-top:6px; line-height:1.5;">1 Year of full address use, documentation &amp; mail handling.</div>
         </div>
       </td>
     </tr><tr>
       <td class="stack" valign="top" style="width:50%; padding:6px;">
-        <div style="background:#F6F8FC; border:1px solid #E5E9F0; border-left:4px solid #1E4DB7; padding:16px 18px; border-radius:10px;">
-          <div style="font-weight:800; color:#0B1B36; font-size:14px;">Location(s) Covered</div>
-          <div style="font-size:13px; color:#5A6B85; margin-top:6px; line-height:1.5;">${state || "PAN India"}</div>
+        <div style="background:#F5F6FA; border:1px solid #E6E8EF; border-left:4px solid #315EFB; padding:16px 18px; border-radius:10px;">
+          <div style="font-weight:800; color:#191B2A; font-size:14px;">Location(s) Covered</div>
+          <div style="font-size:13px; color:#6B7280; margin-top:6px; line-height:1.5;">${state || "PAN India"}</div>
         </div>
       </td>
       <td class="stack" valign="top" style="width:50%; padding:6px;">
-        <div style="background:#F6F8FC; border:1px solid #E5E9F0; border-left:4px solid #1E4DB7; padding:16px 18px; border-radius:10px;">
-          <div style="font-weight:800; color:#0B1B36; font-size:14px;">Activation Window</div>
-          <div style="font-size:13px; color:#5A6B85; margin-top:6px; line-height:1.5;">Your address will be live within 48 hours.</div>
+        <div style="background:#F5F6FA; border:1px solid #E6E8EF; border-left:4px solid #315EFB; padding:16px 18px; border-radius:10px;">
+          <div style="font-weight:800; color:#191B2A; font-size:14px;">Activation Window</div>
+          <div style="font-size:13px; color:#6B7280; margin-top:6px; line-height:1.5;">Your address will be live within 48 hours.</div>
         </div>
       </td>
     </tr></table>
   </td></tr>
 
-  <tr><td style="background:#F6F8FC; padding:34px 30px; border-top:1px solid #E5E9F0;" class="pad-lg">
+  <tr><td style="background:#F5F6FA; padding:34px 30px; border-top:1px solid #E6E8EF;" class="pad-lg">
     <div style="text-align:center; margin-bottom:24px;">
-      <div style="display:inline-block; background:rgba(30,77,183,0.1); color:#1E4DB7; font-size:11px; font-weight:800; padding:6px 14px; border-radius:30px; letter-spacing:1.5px; margin-bottom:10px;">NEXT STEPS</div>
-      <div style="font-size:22px; font-weight:800; color:#0B1B36;" class="h2">What Happens Next</div>
-      <div style="font-size:13px; color:#5A6B85; margin-top:6px;">Three simple, guided steps &mdash; your dedicated manager handles everything.</div>
+      <div style="display:inline-block; background:rgba(30,77,183,0.1); color:#315EFB; font-size:11px; font-weight:800; padding:6px 14px; border-radius:30px; letter-spacing:1.5px; margin-bottom:10px;">NEXT STEPS</div>
+      <div style="font-size:22px; font-weight:800; color:#191B2A;" class="h2">What Happens Next</div>
+      <div style="font-size:13px; color:#6B7280; margin-top:6px;">Three simple, guided steps &mdash; your dedicated manager handles everything.</div>
     </div>
     <table role="presentation" width="100%" class="grid-3"><tr>
       <td class="stack" valign="top" style="width:33.33%; padding:6px;">
-        <div style="background:#fff; border:1px solid #E5E9F0; border-radius:12px; padding:20px 18px; text-align:center; box-shadow:0 2px 6px rgba(11,27,54,0.04);">
-          <div style="width:42px; height:42px; line-height:42px; border-radius:50%; background:linear-gradient(135deg,#1E4DB7,#3D6EE0); color:#fff; font-weight:800; font-size:16px; margin:0 auto 12px;">1</div>
-          <div style="font-weight:800; color:#0B1B36; font-size:14px;">Document Verification</div>
-          <div style="font-size:12.5px; color:#5A6B85; margin-top:8px; line-height:1.6;">Our team will reach out to collect &amp; verify your KYC documents.</div>
+        <div style="background:#fff; border:1px solid #E6E8EF; border-radius:12px; padding:20px 18px; text-align:center; box-shadow:0 2px 6px rgba(11,27,54,0.04);">
+          <div style="width:42px; height:42px; line-height:42px; border-radius:50%; background:linear-gradient(135deg,#315EFB,#4385F5); color:#fff; font-weight:800; font-size:16px; margin:0 auto 12px;">1</div>
+          <div style="font-weight:800; color:#191B2A; font-size:14px;">Document Verification</div>
+          <div style="font-size:12.5px; color:#6B7280; margin-top:8px; line-height:1.6;">Our team will reach out to collect &amp; verify your KYC documents.</div>
         </div>
       </td>
       <td class="stack" valign="top" style="width:33.33%; padding:6px;">
-        <div style="background:#fff; border:1px solid #E5E9F0; border-radius:12px; padding:20px 18px; text-align:center; box-shadow:0 2px 6px rgba(11,27,54,0.04);">
-          <div style="width:42px; height:42px; line-height:42px; border-radius:50%; background:linear-gradient(135deg,#1E4DB7,#3D6EE0); color:#fff; font-weight:800; font-size:16px; margin:0 auto 12px;">2</div>
-          <div style="font-weight:800; color:#0B1B36; font-size:14px;">Agreement &amp; KYC</div>
-          <div style="font-size:12.5px; color:#5A6B85; margin-top:8px; line-height:1.6;">Signed rent agreement, NOC and utility bill prepared in your name.</div>
+        <div style="background:#fff; border:1px solid #E6E8EF; border-radius:12px; padding:20px 18px; text-align:center; box-shadow:0 2px 6px rgba(11,27,54,0.04);">
+          <div style="width:42px; height:42px; line-height:42px; border-radius:50%; background:linear-gradient(135deg,#315EFB,#4385F5); color:#fff; font-weight:800; font-size:16px; margin:0 auto 12px;">2</div>
+          <div style="font-weight:800; color:#191B2A; font-size:14px;">Agreement &amp; KYC</div>
+          <div style="font-size:12.5px; color:#6B7280; margin-top:8px; line-height:1.6;">Signed rent agreement, NOC and utility bill prepared in your name.</div>
         </div>
       </td>
       <td class="stack" valign="top" style="width:33.33%; padding:6px;">
-        <div style="background:#fff; border:1px solid #E5E9F0; border-radius:12px; padding:20px 18px; text-align:center; box-shadow:0 2px 6px rgba(11,27,54,0.04);">
-          <div style="width:42px; height:42px; line-height:42px; border-radius:50%; background:linear-gradient(135deg,#15803D,#16A34A); color:#fff; font-weight:800; font-size:16px; margin:0 auto 12px;">3</div>
-          <div style="font-weight:800; color:#0B1B36; font-size:14px;">Address Activation</div>
-          <div style="font-size:12.5px; color:#5A6B85; margin-top:8px; line-height:1.6;">Complete GST kit delivered + signage installed. You're live!</div>
+        <div style="background:#fff; border:1px solid #E6E8EF; border-radius:12px; padding:20px 18px; text-align:center; box-shadow:0 2px 6px rgba(11,27,54,0.04);">
+          <div style="width:42px; height:42px; line-height:42px; border-radius:50%; background:linear-gradient(135deg,#16835B,#16835B); color:#fff; font-weight:800; font-size:16px; margin:0 auto 12px;">3</div>
+          <div style="font-weight:800; color:#191B2A; font-size:14px;">Address Activation</div>
+          <div style="font-size:12.5px; color:#6B7280; margin-top:8px; line-height:1.6;">Complete GST kit delivered + signage installed. You're live!</div>
         </div>
       </td>
     </tr></table>
   </td></tr>
 ${signatureHtml}
-  <tr><td style="background:#F6F8FC; padding:12px 30px; border-top:1px solid #E5E9F0; text-align:center;">
+  <tr><td style="background:#F5F6FA; padding:12px 30px; border-top:1px solid #E6E8EF; text-align:center;">
     <span style="font-size:10px; color:#7A8AA8;">Service governed by our</span>
-    <a href="https://easemyoffice.in/terms-and-conditions/" style="font-size:10px; color:#1E4DB7; font-weight:700; text-decoration:underline; margin:0 3px;">Terms</a>
+    <a href="https://easemyoffice.in/terms-and-conditions/" style="font-size:10px; color:#315EFB; font-weight:700; text-decoration:underline; margin:0 3px;">Terms</a>
     <span style="font-size:10px; color:#7A8AA8;">&amp;</span>
-    <a href="https://easemyoffice.in/refund-policy/" style="font-size:10px; color:#1E4DB7; font-weight:700; text-decoration:underline; margin:0 3px;">Refund Policy</a>
+    <a href="https://easemyoffice.in/refund-policy/" style="font-size:10px; color:#315EFB; font-weight:700; text-decoration:underline; margin:0 3px;">Refund Policy</a>
   </td></tr>
 
-  <tr><td style="background:#05122E; background:linear-gradient(135deg,#05122E 0%, #0A1F4D 50%, #1E3A8A 100%); padding:48px 32px; text-align:center;" class="pad-lg">
+  <tr><td style="background:#1E1B5C; background:linear-gradient(135deg,#1E1B5C 0%, #2B2785 50%, #3730A3 100%); padding:48px 32px; text-align:center;" class="pad-lg">
     <div style="display:inline-block; background:rgba(255,227,154,0.12); border:1px solid rgba(255,227,154,0.35); color:#FFE39A; font-size:10px; font-weight:800; letter-spacing:2.5px; padding:7px 16px; border-radius:30px; margin-bottom:20px;">
       WELCOME ABOARD
     </div>
@@ -281,7 +281,7 @@ ${signatureHtml}
     </div>
     <table role="presentation" align="center" style="margin:0 auto;"><tr>
       <td style="padding:5px;">
-        <a href="https://wa.me/${digits}" class="pill" style="display:inline-block; background:#FFE39A; background:linear-gradient(135deg,#FFE39A,#F5C842); color:#0A1F4D; padding:16px 32px; border-radius:30px; font-weight:800; font-size:14px; box-shadow:0 10px 28px rgba(245,200,66,0.35);">Chat on WhatsApp</a>
+        <a href="https://wa.me/${digits}" class="pill" style="display:inline-block; background:#FFE39A; background:linear-gradient(135deg,#FFE39A,#F5C842); color:#2B2785; padding:16px 32px; border-radius:30px; font-weight:800; font-size:14px; box-shadow:0 10px 28px rgba(245,200,66,0.35);">Chat on WhatsApp</a>
       </td>
       <td style="padding:5px;">
         <a href="tel:+${digits}" class="pill" style="display:inline-block; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.25); color:#fff; padding:16px 28px; border-radius:30px; font-weight:700; font-size:14px;">Talk to ${firstName}</a>
@@ -304,7 +304,7 @@ ${signatureHtml}
     <div style="font-size:11px; color:#9BB0D6; margin-top:24px; letter-spacing:0.5px; text-align:center;">Payment secured &nbsp;&middot;&nbsp; Compliance-first &nbsp;&middot;&nbsp; 4.9/5 rated</div>
   </td></tr>
 
-  <tr><td style="background:#05122E; background:linear-gradient(180deg,#05122E 0%, #0A1535 100%); padding:38px 30px; border-radius:0 0 18px 18px;" class="pad-lg">
+  <tr><td style="background:#1E1B5C; background:linear-gradient(180deg,#1E1B5C 0%, #3730A3 100%); padding:38px 30px; border-radius:0 0 18px 18px;" class="pad-lg">
     <table role="presentation" width="100%"><tr>
       <td class="stack" valign="top" style="width:55%; padding:6px;">
         <div style="display:inline-block; background:#fff; padding:14px 22px; border-radius:12px;">${logoMark(22)}</div>

@@ -103,7 +103,7 @@ export function B2BDocumentationPage() {
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-4">
       <div className="flex items-center gap-3">
-        <div className="grid size-10 place-items-center rounded-lg bg-gradient-to-br from-primary to-primary/70 text-primary-foreground">
+        <div className="grid size-10 place-items-center rounded-lg bg-[image:var(--gradient-brand)] text-primary-foreground">
           <FileText className="h-5 w-5" />
         </div>
         <div>
@@ -120,13 +120,13 @@ export function B2BDocumentationPage() {
           icon={Clock}
           label="Pending Documents"
           value={String(summary.pending)}
-          tone="text-amber-600"
+          tone="text-warning"
         />
         <KpiCard
           icon={CheckCircle2}
           label="Completed Documents"
           value={String(summary.completed)}
-          tone="text-emerald-600"
+          tone="text-success"
         />
         <KpiCard
           icon={FileText}
@@ -139,7 +139,7 @@ export function B2BDocumentationPage() {
           label="Delayed Documents"
           value={String(summary.delayed)}
           hint={`open > ${DEFAULT_ONBOARDING_TAT_DAYS}d`}
-          tone={summary.delayed ? "text-rose-600" : undefined}
+          tone={summary.delayed ? "text-destructive" : undefined}
         />
       </div>
 
@@ -209,7 +209,7 @@ export function B2BDocumentationPage() {
                       </TableCell>
                       <TableCell>
                         {p.isComplete ? (
-                          <Badge className="bg-emerald-500 text-white hover:bg-emerald-500">
+                          <Badge className="bg-success text-white hover:bg-success">
                             Completed
                           </Badge>
                         ) : p.isDelayed ? (
@@ -262,7 +262,7 @@ export function B2BDocumentationPage() {
                     />
                     <span className="flex-1">{item.label}</span>
                     {editing[item.id] === true && (
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                      <CheckCircle2 className="h-4 w-4 text-success" />
                     )}
                   </label>
                 ))}

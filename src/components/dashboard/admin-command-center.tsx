@@ -162,7 +162,7 @@ export function AdminCommandCenter() {
     <div className="space-y-7">
       <header className="space-y-4">
         <div className="flex items-center gap-3">
-          <div className="grid size-10 place-items-center rounded-lg bg-gradient-to-br from-primary to-primary/70 text-primary-foreground">
+          <div className="grid size-10 place-items-center rounded-lg bg-[image:var(--gradient-brand)] text-primary-foreground">
             <GitBranch className="h-5 w-5" />
           </div>
           <div>
@@ -424,7 +424,7 @@ export function AdminCommandCenter() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Trophy className="h-4 w-4 text-amber-500" /> Top B2B Employees
+              <Trophy className="h-4 w-4 text-warning" /> Top B2B Employees
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -453,7 +453,7 @@ export function AdminCommandCenter() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Handshake className="h-4 w-4 text-emerald-500" /> Top CA Partners
+              <Handshake className="h-4 w-4 text-success" /> Top CA Partners
             </CardTitle>
           </CardHeader>
           <CardContent>

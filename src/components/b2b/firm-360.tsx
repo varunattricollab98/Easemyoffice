@@ -121,7 +121,7 @@ export function Firm360Page({ id }: { id: string }) {
         <CardContent className="p-5 md:p-6 space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex items-start gap-4">
-              <div className="grid size-12 place-items-center rounded-xl bg-gradient-to-br from-primary to-primary/70 text-primary-foreground">
+              <div className="grid size-12 place-items-center rounded-xl bg-[image:var(--gradient-brand)] text-primary-foreground">
                 <Building2 className="h-6 w-6" />
               </div>
               <div className="space-y-1">
@@ -452,7 +452,7 @@ function ContactCard({
         <div className="flex items-center gap-2">
           <span className="font-medium truncate">{contact.name}</span>
           {contact.is_primary && (
-            <Badge className="bg-amber-500 text-white hover:bg-amber-500">Primary</Badge>
+            <Badge className="bg-warning text-white hover:bg-warning">Primary</Badge>
           )}
         </div>
         <div className="text-xs text-muted-foreground truncate">
