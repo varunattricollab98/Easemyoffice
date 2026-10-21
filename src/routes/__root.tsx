@@ -18,6 +18,9 @@ import appCss from "../styles.css?url";
 // Side effects: registers the service worker and captures the install prompt.
 import "@/lib/pwa";
 
+const INTER_CSS =
+  "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap";
+
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -74,10 +77,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap",
         as: "style",
       },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap",
-      },
     ],
   }),
   shellComponent: RootShell,
@@ -104,6 +103,18 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   useEffect(() => {
     bootstrapSim();
+  }, []);
+  // Inter is applied after first paint (it is preloaded in <head>). As a
+  // blocking stylesheet it held the whole page on a slow mobile network; the
+  // system font shows until it arrives (display=swap).
+  useEffect(() => {
+    const id = "inter-font";
+    if (document.getElementById(id)) return;
+    const link = document.createElement("link");
+    link.id = id;
+    link.rel = "stylesheet";
+    link.href = INTER_CSS;
+    document.head.appendChild(link);
   }, []);
   return (
     <QueryClientProvider client={queryClient}>
