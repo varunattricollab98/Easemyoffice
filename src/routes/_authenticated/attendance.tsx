@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/select";
 import { cn, getErrorMessage } from "@/lib/utils";
 import { useLocationGate } from "@/components/hrms/location-gate";
+import { useLoginOptions, type PunchOpts } from "@/components/hrms/login-options";
 import { LOCATION_CANCELLED } from "@/lib/location-access";
 import { useAuth } from "@/lib/auth";
 import {
@@ -61,6 +62,7 @@ import {
 import {
   expandLeave,
   istParts,
+  lateMinutes,
   minutesBetween,
   normalizeSchedules,
   windowMinutes,
@@ -68,7 +70,7 @@ import {
   REJECTION_MESSAGES,
   type RejectionReason,
 } from "@/lib/attendance-rules";
-import { hrRequest, punch, type Fix } from "@/lib/attendance-client";
+import { hrRequest, punch } from "@/lib/attendance-client";
 import {
   buildEmployeeMonth,
   dateTimeIST,
@@ -186,8 +188,6 @@ function MyAttendancePage() {
 function TodayCard({ employee, now, today }: { employee: Employee; now: Date; today: string }) {
   const qc = useQueryClient();
   const [lastRejection, setLastRejection] = useState<string | null>(null);
-  const [remoteOffer, setRemoteOffer] = useState<{ fix: Fix; message: string } | null>(null);
-  const [remoteReason, setRemoteReason] = useState("");
 
   const { data: settings } = useQuery({ queryKey: ["hrms-settings"], queryFn: fetchHrSettings });
   const schedules = normalizeSchedules(settings?.day_schedules);
@@ -244,20 +244,40 @@ function TodayCard({ employee, now, today }: { employee: Employee; now: Date; to
   };
 
   const { getFix, dialog: locationDialog } = useLocationGate();
+  // Late or refused login: Late login / Work from home / Half day / Leave.
+  const options = useLoginOptions({
+    doPunch: (o) => act.mutate(o),
+    onRequestSent: () => refresh(),
+  });
   const act = useMutation({
-    mutationFn: async (opts: { remote?: boolean; reason?: string; fix?: Fix } = {}) => {
+    mutationFn: async (opts: PunchOpts = {}) => {
       // Location first: if it is off or blocked, a dialog explains how to turn
       // it on for this device and retries, instead of a silent rejection.
       const fix = opts.fix ?? (await getFix());
       if (!fix) throw new Error(LOCATION_CANCELLED);
-      return punch(isIn ? "logout" : "login", { ...opts, fix });
+      const action = isIn ? "logout" : "login";
+      // First login of the day after the on-time start: ask why first.
+      if (action === "login" && !row && !opts.remote && opts.lateReason === undefined) {
+        const lateBy = lateMinutes(
+          istParts(new Date()).minutes,
+          todaySchedule,
+          Number(settings?.grace_minutes ?? 15),
+        );
+        if (lateBy > 0) {
+          options.open({
+            mode: "late",
+            fix,
+            message: `You are ${formatMinutes(lateBy)} late today.`,
+          });
+          throw new Error(LOCATION_CANCELLED);
+        }
+      }
+      return punch(action, { ...opts, fix });
     },
     onSuccess: (res) => {
       refresh();
       if (res.ok) {
         setLastRejection(null);
-        setRemoteOffer(null);
-        setRemoteReason("");
         toast.success(
           res.action === "login"
             ? res.remote
@@ -266,12 +286,17 @@ function TodayCard({ employee, now, today }: { employee: Employee; now: Date; to
             : "Logged out",
         );
       } else if (res.remote_allowed) {
-        setRemoteOffer({
+        options.open({
+          mode: "blocked",
           fix: res.fix,
           message: res.message || REJECTION_MESSAGES[res.reason as RejectionReason],
         });
       } else {
-        const msg = res.message || REJECTION_MESSAGES[res.reason as RejectionReason];
+        const base = res.message || REJECTION_MESSAGES[res.reason as RejectionReason];
+        const msg =
+          typeof res.attempts_left === "number" && res.reason !== "too_many_attempts"
+            ? `${base} (${res.attempts_left} of 3 attempts left)`
+            : base;
         setLastRejection(msg);
         toast.error(msg);
       }
@@ -401,42 +426,7 @@ function TodayCard({ employee, now, today }: { employee: Employee; now: Date; to
         </Button>
       </CardContent>
 
-      <Dialog open={!!remoteOffer} onOpenChange={(v) => !v && setRemoteOffer(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Home className="h-5 w-5 text-indigo-500" /> Work from home today?
-            </DialogTitle>
-            <DialogDescription>
-              {remoteOffer?.message} You can still log in — the admin gets an email and approves the
-              day. Your hours and CRM activity are tracked as usual.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Reason</Label>
-            <Textarea
-              value={remoteReason}
-              placeholder="e.g. Client calls from home, feeling unwell…"
-              onChange={(e) => setRemoteReason(e.target.value)}
-              rows={3}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setRemoteOffer(null)}>
-              Cancel
-            </Button>
-            <Button
-              disabled={act.isPending || remoteReason.trim().length < 3}
-              onClick={() =>
-                remoteOffer &&
-                act.mutate({ remote: true, reason: remoteReason.trim(), fix: remoteOffer.fix })
-              }
-            >
-              {act.isPending ? "Sending…" : "Log in & request WFH"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {options.dialog}
     </Card>
   );
 }

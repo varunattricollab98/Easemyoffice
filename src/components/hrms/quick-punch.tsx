@@ -10,23 +10,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Home, Loader2, LogIn, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { cn, getErrorMessage } from "@/lib/utils";
 import { useLocationGate } from "@/components/hrms/location-gate";
+import { useLoginOptions, type PunchOpts } from "@/components/hrms/login-options";
 import { LOCATION_CANCELLED } from "@/lib/location-access";
 import { useAuth } from "@/lib/auth";
 import { formatMinutes, hrmsDb, type AttendanceRow, type Employee } from "@/lib/hrms";
 import {
   istParts,
+  lateMinutes,
   minutesBetween,
   normalizeSchedules,
   windowMinutes,
@@ -34,7 +26,7 @@ import {
   REJECTION_MESSAGES,
   type RejectionReason,
 } from "@/lib/attendance-rules";
-import { punch, type Fix } from "@/lib/attendance-client";
+import { punch } from "@/lib/attendance-client";
 import { fetchHrSettings, timeIST } from "@/lib/attendance-queries";
 import { ATTENDANCE_CHANGED_EVENT } from "@/components/activity-heartbeat";
 
@@ -42,8 +34,6 @@ export function QuickPunch() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [now, setNow] = useState(() => new Date());
-  const [remoteOffer, setRemoteOffer] = useState<{ fix: Fix; message: string } | null>(null);
-  const [reason, setReason] = useState("");
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 30_000);
@@ -97,13 +87,38 @@ export function QuickPunch() {
   const isIn = !!row?.open_since;
 
   const { getFix, dialog: locationDialog } = useLocationGate();
+  // Late or refused login: Late login / Work from home / Half day / Leave.
+  const options = useLoginOptions({
+    doPunch: (o) => act.mutate(o),
+    onRequestSent: () => {
+      qc.invalidateQueries({ queryKey: ["my-attendance-current", employee?.id] });
+      qc.invalidateQueries({ queryKey: ["my-attendance-month", employee?.id] });
+    },
+  });
   const act = useMutation({
-    mutationFn: async (opts: { remote?: boolean; reason?: string; fix?: Fix } = {}) => {
+    mutationFn: async (opts: PunchOpts = {}) => {
       // Location first: if it is off or blocked, a dialog explains how to turn
       // it on for this device and retries, instead of a silent rejection.
       const fix = opts.fix ?? (await getFix());
       if (!fix) throw new Error(LOCATION_CANCELLED);
-      return punch(isIn ? "logout" : "login", { ...opts, fix });
+      const action = isIn ? "logout" : "login";
+      // First login of the day after the on-time start: ask why first.
+      if (action === "login" && !row && !opts.remote && opts.lateReason === undefined) {
+        const lateBy = lateMinutes(
+          istParts(new Date()).minutes,
+          normalizeSchedules(settings?.day_schedules)[istParts(new Date()).weekday],
+          Number(settings?.grace_minutes ?? 15),
+        );
+        if (lateBy > 0) {
+          options.open({
+            mode: "late",
+            fix,
+            message: `You are ${formatMinutes(lateBy)} late today.`,
+          });
+          throw new Error(LOCATION_CANCELLED);
+        }
+      }
+      return punch(action, { ...opts, fix });
     },
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ["my-attendance-current", employee?.id] });
@@ -111,8 +126,6 @@ export function QuickPunch() {
       qc.invalidateQueries({ queryKey: ["my-attendance-events"] });
       window.dispatchEvent(new Event(ATTENDANCE_CHANGED_EVENT));
       if (res.ok) {
-        setRemoteOffer(null);
-        setReason("");
         toast.success(
           res.action === "login"
             ? res.remote
@@ -121,12 +134,18 @@ export function QuickPunch() {
             : "Logged out",
         );
       } else if (res.remote_allowed) {
-        setRemoteOffer({
+        options.open({
+          mode: "blocked",
           fix: res.fix,
           message: res.message || REJECTION_MESSAGES[res.reason as RejectionReason],
         });
       } else {
-        toast.error(res.message || REJECTION_MESSAGES[res.reason as RejectionReason]);
+        const base = res.message || REJECTION_MESSAGES[res.reason as RejectionReason];
+        const msg =
+          typeof res.attempts_left === "number" && res.reason !== "too_many_attempts"
+            ? `${base} (${res.attempts_left} of 3 attempts left)`
+            : base;
+        toast.error(msg);
       }
     },
     onError: (e: unknown) => {
@@ -205,42 +224,7 @@ export function QuickPunch() {
         </Button>
       </div>
 
-      <Dialog open={!!remoteOffer} onOpenChange={(v) => !v && setRemoteOffer(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Home className="h-5 w-5 text-indigo-500" /> Work from home today?
-            </DialogTitle>
-            <DialogDescription>
-              {remoteOffer?.message} You can still log in — the admin gets an email and approves the
-              day.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Reason</Label>
-            <Textarea
-              rows={3}
-              value={reason}
-              placeholder="e.g. Client calls from home, feeling unwell…"
-              onChange={(e) => setReason(e.target.value)}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setRemoteOffer(null)}>
-              Cancel
-            </Button>
-            <Button
-              disabled={act.isPending || reason.trim().length < 3}
-              onClick={() =>
-                remoteOffer &&
-                act.mutate({ remote: true, reason: reason.trim(), fix: remoteOffer.fix })
-              }
-            >
-              {act.isPending ? "Sending…" : "Log in & request WFH"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {options.dialog}
     </>
   );
 }

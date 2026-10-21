@@ -28,7 +28,8 @@ export type RejectionReason =
   | "already_logged_in"
   | "not_logged_in"
   | "session_too_long"
-  | "stale_session_closed";
+  | "stale_session_closed"
+  | "too_many_attempts";
 
 export const REJECTION_MESSAGES: Record<RejectionReason, string> = {
   not_linked: "Your CRM login is not linked to an employee record. Ask the admin to link it.",
@@ -46,7 +47,13 @@ export const REJECTION_MESSAGES: Record<RejectionReason, string> = {
     "Your last login is too old to close automatically. Ask the admin for a correction.",
   stale_session_closed:
     "Your earlier login had no logout, so it is marked 'Missed punch out' for the admin to correct. Press LOGIN to start today.",
+  too_many_attempts:
+    "3 failed attempts. Wait 15 minutes, or choose Late login, Work from home, Half day or Leave below.",
 };
+
+/** Failed punches allowed per window before the punch button is locked. */
+export const MAX_PUNCH_ATTEMPTS = 3;
+export const PUNCH_ATTEMPT_WINDOW_MINUTES = 15;
 
 /** Rejections that can be turned into a work-from-home request instead. */
 export const REMOTE_ELIGIBLE: RejectionReason[] = ["outside_geofence", "low_accuracy"];

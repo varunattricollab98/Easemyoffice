@@ -91,7 +91,13 @@ export function readPosition(): Promise<Fix> {
 
 export type PunchResult =
   | { ok: true; action: PunchKind; attendance: AttendanceRow; remote?: boolean }
-  | { ok: false; reason: RejectionReason; message: string; remote_allowed?: boolean };
+  | {
+      ok: false;
+      reason: RejectionReason;
+      message: string;
+      remote_allowed?: boolean;
+      attempts_left?: number;
+    };
 
 /**
  * Reads the location and sends the punch. A failed fix is still sent (without
@@ -102,7 +108,7 @@ export type PunchResult =
  */
 export async function punch(
   action: PunchKind,
-  opts: { remote?: boolean; reason?: string; fix?: Fix } = {},
+  opts: { remote?: boolean; reason?: string; fix?: Fix; lateReason?: string } = {},
 ): Promise<PunchResult & { fix: Fix }> {
   const fix = opts.fix ?? (await readPosition());
   const body: Record<string, unknown> = {
@@ -117,6 +123,7 @@ export async function punch(
   } else {
     body.client_error = fix.error;
   }
+  if (opts.lateReason) body.late_reason = opts.lateReason;
   if (opts.remote) {
     body.remote = true;
     body.remote_reason = opts.reason ?? "";
