@@ -1,7 +1,7 @@
 import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { AppSidebar, MobileTabBar } from "@/components/app-shell";
+import { AppHeader, AppSidebar, MobileTabBar } from "@/components/app-shell";
 import { useGlobalShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { ShortcutsOverlay } from "@/components/shortcuts-overlay";
 import { NotificationsWatcher } from "@/components/notifications-watcher";
@@ -51,9 +51,12 @@ function AuthenticatedLayout() {
     <GlobalSearchContext.Provider value={{ open: () => setSearchOpen(true) }}>
       <div className="min-h-screen flex bg-background">
         <AppSidebar />
-        <main className="flex-1 min-w-0 pb-20 lg:pb-0">
-          <Outlet />
-        </main>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <AppHeader />
+          <main className="flex-1 min-w-0 pb-20 lg:pb-0">
+            <Outlet />
+          </main>
+        </div>
         <MobileTabBar />
         <ShortcutsOverlay />
         <NotificationsWatcher />

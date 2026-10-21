@@ -43,25 +43,17 @@ export function KpiTile({
     warning: "text-warning",
     destructive: "text-destructive",
     info: "text-info",
-    rose: "text-rose-500",
-  };
-  const ringMap: Record<string, string> = {
-    primary: "from-primary/15",
-    success: "from-success/15",
-    warning: "from-warning/15",
-    destructive: "from-destructive/15",
-    info: "from-info/15",
-    rose: "from-rose-500/15",
+    rose: "text-destructive",
   };
   // Tinted chip instead of the old flat `bg-background/60 border`, so the icon
   // carries the tile's accent instead of sitting in a grey box.
   const chipMap: Record<string, string> = {
-    primary: "bg-primary/10 border-primary/20",
-    success: "bg-success/10 border-success/20",
-    warning: "bg-warning/10 border-warning/20",
-    destructive: "bg-destructive/10 border-destructive/20",
-    info: "bg-info/10 border-info/20",
-    rose: "bg-rose-500/10 border-rose-500/20",
+    primary: "bg-accent border-transparent",
+    success: "bg-success/10 border-transparent",
+    warning: "bg-warning/12 border-transparent",
+    destructive: "bg-destructive/10 border-transparent",
+    info: "bg-info/10 border-transparent",
+    rose: "bg-destructive/10 border-transparent",
   };
 
   const interactive = !!to;
@@ -69,24 +61,16 @@ export function KpiTile({
 
   const inner = (
     <>
-      <div
-        className={cn(
-          "absolute inset-x-0 top-0 h-16 bg-gradient-to-b to-transparent pointer-events-none",
-          ringMap[accent],
-        )}
-      />
       <div className="relative flex items-start justify-between gap-2">
-        <div className="text-[11px] uppercase tracking-wide font-medium leading-tight text-muted-foreground">
-          {label}
-        </div>
+        <div className="text-[13px] font-medium leading-tight text-muted-foreground">{label}</div>
         <div
           className={cn(
-            "shrink-0 rounded-lg p-1.5 border flex items-center gap-1",
+            "shrink-0 rounded-lg p-2 border flex items-center gap-1",
             chipMap[accent],
             accentMap[accent],
           )}
         >
-          <Icon className="h-3.5 w-3.5" />
+          <Icon className="h-4 w-4" />
           {interactive && (
             <ArrowUpRight className="h-3 w-3 opacity-0 group-hover:opacity-70 group-focus-visible:opacity-70 transition-opacity" />
           )}
@@ -94,7 +78,7 @@ export function KpiTile({
       </div>
       <div className="relative mt-3">
         <div className="flex items-end justify-between gap-2">
-          <div className="text-3xl font-semibold leading-none tabular-nums">
+          <div className="text-[28px] font-semibold leading-none tracking-tight tabular-nums text-foreground">
             <CountUp value={value} />
           </div>
           {pulse && <span className="pulse-dot mb-1" aria-label="live" />}
@@ -102,7 +86,7 @@ export function KpiTile({
         {/* Always render the hint slot. Only "Total leads" sets a hint, and
             without a placeholder that one tile grew taller than the rest and
             knocked the row's numbers out of alignment. */}
-        <div className="mt-1 min-h-4 text-[11px] text-muted-foreground">{hint ?? ""}</div>
+        <div className="mt-1.5 min-h-4 text-[12px] text-muted-foreground">{hint ?? ""}</div>
       </div>
     </>
   );

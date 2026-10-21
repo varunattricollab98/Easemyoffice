@@ -11,7 +11,7 @@ export type FontScale = "sm" | "md" | "lg";
 export type Contrast = "normal" | "high";
 
 export const ACCENTS: { id: AccentName; label: string; primary: string; ring: string; darkPrimary: string }[] = [
-  { id: "indigo",  label: "Indigo",  primary: "oklch(0.5 0.2 270)", ring: "oklch(0.56 0.19 270)", darkPrimary: "oklch(0.7 0.16 272)" },
+    { id: "indigo",  label: "EaseMyOffice blue", primary: "#315efb", ring: "#315efb", darkPrimary: "#5b80ff" },
   { id: "emerald", label: "Emerald", primary: "oklch(0.55 0.16 152)", ring: "oklch(0.6 0.16 152)",  darkPrimary: "oklch(0.72 0.15 152)" },
   { id: "teal",    label: "Teal",    primary: "oklch(0.56 0.13 190)", ring: "oklch(0.6 0.13 190)",  darkPrimary: "oklch(0.72 0.13 190)" },
   { id: "cyan",    label: "Cyan",    primary: "oklch(0.6 0.13 220)",  ring: "oklch(0.65 0.13 220)", darkPrimary: "oklch(0.74 0.13 220)" },

@@ -46,6 +46,7 @@ import { canConvertLead, leadToBookingPrefill } from "@/lib/lead-to-booking";
 import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
+import { LeadActivityTimeline, type LeadActivityRow } from "@/components/activity-timeline";
 
 export const Route = createFileRoute("/_authenticated/leads/$id")({
   head: () => ({ meta: [{ title: "Lead — EaseMyOffice CRM" }] }),
@@ -560,30 +561,8 @@ function LeadDetailPage() {
         <TabsContent value="timeline" className="space-y-3">
           <EmailLogSummary emails={emailLog ?? []} />
           <NoteComposer onSubmit={(text) => logActivity("note", "Note added", text)} />
-          <Card><CardContent className="p-4 space-y-3">
-            {(activities ?? []).length === 0 && <div className="text-sm text-muted-foreground">No activity yet.</div>}
-            {activities?.map((a: any) => {
-              const isInteraction = (a.type === "call" || a.type === "whatsapp") && a.payload && a.payload.outcome;
-              return (
-                <div key={a.id} className="flex gap-3">
-                  <div className="size-2 rounded-full bg-primary mt-2" />
-                  <div className="flex-1">
-                    <div className="text-sm font-medium">{a.title}</div>
-                    {isInteraction ? (
-                      <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                        {a.type === "call" ? <Phone className="h-3.5 w-3.5" /> : <MessageCircle className="h-3.5 w-3.5" />}
-                        <span>
-                          {a.payload.outcome}
-                          {a.type === "call" && a.payload.durationMin != null && ` · ${a.payload.durationMin} min`}
-                        </span>
-                      </div>
-                    ) : null}
-                    {a.body && <div className="text-sm text-muted-foreground whitespace-pre-wrap">{a.body}</div>}
-                    <div className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(a.created_at), { addSuffix: true })} · {a.type}</div>
-                  </div>
-                </div>
-              );
-            })}
+          <Card><CardContent className="p-4">
+            <LeadActivityTimeline activities={(activities ?? []) as LeadActivityRow[]} />
           </CardContent></Card>
         </TabsContent>
 
