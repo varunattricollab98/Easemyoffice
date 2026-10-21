@@ -204,7 +204,7 @@ export function B2BRenewalsPage() {
     <div className="p-4 md:p-8 max-w-[1400px] mx-auto space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="grid size-10 place-items-center rounded-lg bg-gradient-to-br from-primary to-primary/70 text-primary-foreground">
+          <div className="grid size-10 place-items-center rounded-lg bg-[image:var(--gradient-brand)] text-primary-foreground">
             <Handshake className="h-5 w-5" />
           </div>
           <div>
@@ -224,26 +224,26 @@ export function B2BRenewalsPage() {
           icon={Handshake}
           label="Active Partners"
           value={buckets.active.length}
-          color="text-emerald-600"
+          color="text-success"
           highlight
         />
         <BucketCard
           icon={Users}
           label="No Recent Referral"
           value={buckets.noRecentReferral.length}
-          color="text-amber-600"
+          color="text-warning"
         />
         <BucketCard
           icon={TrendingDown}
           label="Dormant Partners"
           value={buckets.dormant.length}
-          color="text-rose-600"
+          color="text-destructive"
         />
         <BucketCard
           icon={Bell}
           label="Due for Follow-up"
           value={buckets.dueForFollowup.length}
-          color="text-blue-600"
+          color="text-primary"
         />
       </div>
 
@@ -392,7 +392,7 @@ function BucketCard({
   highlight?: boolean;
 }) {
   return (
-    <Card className={highlight ? "border-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/20" : ""}>
+    <Card className={highlight ? "border-success/30 bg-success/6 dark:bg-success/15" : ""}>
       <CardContent className="p-4">
         <div className="flex items-center gap-2">
           <Icon className={`h-5 w-5 ${color}`} />

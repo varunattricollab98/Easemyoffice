@@ -38,7 +38,7 @@ function SignupPage() {
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2 bg-background">
-      <div className="hidden lg:flex flex-col justify-between p-10 bg-gradient-to-br from-primary to-primary/70 text-primary-foreground">
+      <div className="hidden lg:flex flex-col justify-between p-10 bg-[image:var(--gradient-brand)] text-primary-foreground">
         <div className="flex items-center gap-2 font-semibold">
           <Building2 className="h-6 w-6" />
           EaseMyOffice CRM

@@ -38,7 +38,7 @@ function ContactsListPage() {
   return (
     <div className="p-5 md:p-10 space-y-5 max-w-7xl mx-auto">
       <div className="flex items-center gap-3">
-        <div className="grid size-10 place-items-center rounded-lg bg-gradient-to-br from-primary to-primary/70 text-primary-foreground">
+        <div className="grid size-10 place-items-center rounded-lg bg-[image:var(--gradient-brand)] text-primary-foreground">
           <UserCheck className="h-5 w-5" />
         </div>
         <div>
@@ -103,7 +103,7 @@ function ContactsListPage() {
                     <span className="inline-flex items-center gap-2">
                       {c.name}
                       {c.is_primary && (
-                        <Badge className="bg-amber-500 text-white hover:bg-amber-500">
+                        <Badge className="bg-warning text-white hover:bg-warning">
                           Primary
                         </Badge>
                       )}
@@ -139,7 +139,7 @@ function ContactsListPage() {
               <div className="flex items-center justify-between gap-2">
                 <div className="font-medium">{c.name}</div>
                 {c.is_primary && (
-                  <Badge className="bg-amber-500 text-white hover:bg-amber-500">Primary</Badge>
+                  <Badge className="bg-warning text-white hover:bg-warning">Primary</Badge>
                 )}
               </div>
               <div className="text-sm text-muted-foreground">{c.firm_name || "—"}</div>

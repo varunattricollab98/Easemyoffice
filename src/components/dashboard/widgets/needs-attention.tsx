@@ -59,7 +59,7 @@ export function NeedsAttention({ pulseTick = 0 }: { pulseTick?: number }) {
               params={{ id: l.id }}
               className={`flex items-center gap-3 p-2.5 rounded-lg border border-transparent hover:bg-accent/50 hover:border-border transition-colors ${flashIds.has(l.id) ? "row-flash" : ""}`}
             >
-              <div className={`size-2 rounded-full ${overdue ? "bg-destructive" : "bg-amber-500"}`} />
+              <div className={`size-2 rounded-full ${overdue ? "bg-destructive" : "bg-warning"}`} />
               <div className="flex-1 min-w-0">
                 <div className="font-medium truncate text-sm">{l.client_name}</div>
                 <div className="text-xs text-muted-foreground truncate">

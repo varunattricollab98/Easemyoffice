@@ -179,7 +179,7 @@ export function B2BDashboard() {
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-center gap-3">
-        <div className="grid size-10 place-items-center rounded-lg bg-gradient-to-br from-primary to-primary/70 text-primary-foreground">
+        <div className="grid size-10 place-items-center rounded-lg bg-[image:var(--gradient-brand)] text-primary-foreground">
           <Building2 className="h-5 w-5" />
         </div>
         <div>
@@ -265,7 +265,7 @@ export function B2BDashboard() {
                   <div className="w-44 shrink-0 text-sm text-muted-foreground">{stage.label}</div>
                   <div className="relative h-8 flex-1 overflow-hidden rounded-md bg-muted/40">
                     <div
-                      className="flex h-full items-center rounded-md bg-gradient-to-r from-primary to-primary/70 px-2 text-xs font-medium text-primary-foreground transition-all"
+                      className="flex h-full items-center rounded-md bg-[image:var(--gradient-brand)] px-2 text-xs font-medium text-primary-foreground transition-all"
                       style={{ width: `${widthPct}%` }}
                     >
                       {stage.count}

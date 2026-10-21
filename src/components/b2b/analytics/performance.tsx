@@ -114,7 +114,7 @@ export function B2BPerformanceAnalytics() {
 export function PageHeader({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <header className="flex items-center gap-3">
-      <div className="grid size-10 place-items-center rounded-lg bg-gradient-to-br from-primary to-primary/70 text-primary-foreground">
+      <div className="grid size-10 place-items-center rounded-lg bg-[image:var(--gradient-brand)] text-primary-foreground">
         <TrendingUp className="h-5 w-5" />
       </div>
       <div>

@@ -483,7 +483,7 @@ function B2BImportPage() {
       {step === "done" && summary ? (
         <Card>
           <CardContent className="p-6 space-y-3">
-            <div className="flex items-center gap-2 text-emerald-600">
+            <div className="flex items-center gap-2 text-success">
               <CheckCircle2 className="h-5 w-5" />
               <span className="font-medium">Import complete</span>
             </div>
@@ -595,7 +595,7 @@ function B2BImportPage() {
                   </div>
 
                   {!hasRequiredMapping && (
-                    <div className="text-sm text-amber-600">
+                    <div className="text-sm text-warning">
                       Map <b>Firm Name</b> and at least one of <b>Phone</b> / <b>Email</b> to
                       continue.
                     </div>
@@ -668,7 +668,7 @@ function B2BImportPage() {
                 {dupSamples.length > 0 && (
                   <div className="space-y-1">
                     <div className="text-sm font-medium flex items-center gap-1">
-                      <Copy className="h-3.5 w-3.5 text-amber-500" /> Duplicate rows
+                      <Copy className="h-3.5 w-3.5 text-warning" /> Duplicate rows
                     </div>
                     <ul className="text-xs text-muted-foreground list-disc pl-5">
                       {dupSamples.map(
@@ -687,7 +687,7 @@ function B2BImportPage() {
                 {invalidSamples.length > 0 && (
                   <div className="space-y-1">
                     <div className="text-sm font-medium flex items-center gap-1">
-                      <AlertTriangle className="h-3.5 w-3.5 text-rose-500" /> Invalid rows (skipped)
+                      <AlertTriangle className="h-3.5 w-3.5 text-destructive" /> Invalid rows (skipped)
                     </div>
                     <ul className="text-xs text-muted-foreground list-disc pl-5">
                       {invalidSamples.map(
@@ -849,13 +849,13 @@ function Tile({
 }) {
   const toneClass =
     tone === "emerald"
-      ? "text-emerald-600"
+      ? "text-success"
       : tone === "amber"
-        ? "text-amber-600"
+        ? "text-warning"
         : tone === "rose"
-          ? "text-rose-600"
+          ? "text-destructive"
           : tone === "blue"
-            ? "text-blue-600"
+            ? "text-primary"
             : "text-foreground";
   return (
     <div className="rounded-lg border bg-card p-3">

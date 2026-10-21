@@ -121,7 +121,7 @@ export function ReferralsPage() {
     <div className="p-5 md:p-10 space-y-5 max-w-7xl mx-auto">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="grid size-10 place-items-center rounded-lg bg-gradient-to-br from-primary to-primary/70 text-primary-foreground">
+          <div className="grid size-10 place-items-center rounded-lg bg-[image:var(--gradient-brand)] text-primary-foreground">
             <Share2 className="h-5 w-5" />
           </div>
           <div>
@@ -221,7 +221,7 @@ export function ReferralsPage() {
                     <TableCell>{statusBadge(r.referral_status)}</TableCell>
                     <TableCell>
                       {r.converted ? (
-                        <Badge className="bg-emerald-500 text-white hover:bg-emerald-500">
+                        <Badge className="bg-success text-white hover:bg-success">
                           Yes
                         </Badge>
                       ) : (
@@ -723,7 +723,7 @@ function LinkBookingDialog({
         <DialogFooter className="flex-wrap gap-2">
           <Button
             variant="ghost"
-            className="mr-auto text-rose-600 hover:text-rose-600"
+            className="mr-auto text-destructive hover:text-destructive"
             onClick={() => markLost.mutate()}
             disabled={!user || markLost.isPending}
           >
