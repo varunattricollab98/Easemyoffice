@@ -1,0 +1,9 @@
+# Cloudflare Workers static assets: response headers.
+# Files under /assets/ are content-hashed by Vite (a new deploy = new file
+# names), so phones can keep them for a year instead of re-checking ~20 files
+# on every open. HTML pages are rendered by the Worker and are not affected.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/sw.js
+  Cache-Control: no-cache

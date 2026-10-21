@@ -21,6 +21,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn, getErrorMessage } from "@/lib/utils";
+import { useLocationGate } from "@/components/hrms/location-gate";
+import { LOCATION_CANCELLED } from "@/lib/location-access";
 import { useAuth } from "@/lib/auth";
 import { formatMinutes, hrmsDb, type AttendanceRow, type Employee } from "@/lib/hrms";
 import {
@@ -94,9 +96,15 @@ export function QuickPunch() {
       : null;
   const isIn = !!row?.open_since;
 
+  const { getFix, dialog: locationDialog } = useLocationGate();
   const act = useMutation({
-    mutationFn: (opts: { remote?: boolean; reason?: string; fix?: Fix } = {}) =>
-      punch(isIn ? "logout" : "login", opts),
+    mutationFn: async (opts: { remote?: boolean; reason?: string; fix?: Fix } = {}) => {
+      // Location first: if it is off or blocked, a dialog explains how to turn
+      // it on for this device and retries, instead of a silent rejection.
+      const fix = opts.fix ?? (await getFix());
+      if (!fix) throw new Error(LOCATION_CANCELLED);
+      return punch(isIn ? "logout" : "login", { ...opts, fix });
+    },
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ["my-attendance-current", employee?.id] });
       qc.invalidateQueries({ queryKey: ["my-attendance-month", employee?.id] });
@@ -121,7 +129,10 @@ export function QuickPunch() {
         toast.error(res.message || REJECTION_MESSAGES[res.reason as RejectionReason]);
       }
     },
-    onError: (e: unknown) => toast.error(getErrorMessage(e)),
+    onError: (e: unknown) => {
+      if (e instanceof Error && e.message === LOCATION_CANCELLED) return;
+      toast.error(getErrorMessage(e));
+    },
   });
 
   if (!employee) return null;
@@ -147,6 +158,7 @@ export function QuickPunch() {
 
   return (
     <>
+      {locationDialog}
       <div className="flex items-center gap-3 rounded-2xl border border-black/[0.06] bg-white/60 py-1.5 pl-3 pr-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_1px_3px_rgba(0,0,0,0.04)] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.04]">
         <Link to="/attendance" className="min-w-0 text-xs leading-tight" title="Open My Attendance">
           <div className="flex items-center gap-1.5 font-medium">

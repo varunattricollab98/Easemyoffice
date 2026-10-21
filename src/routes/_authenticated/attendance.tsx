@@ -45,6 +45,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn, getErrorMessage } from "@/lib/utils";
+import { useLocationGate } from "@/components/hrms/location-gate";
+import { LOCATION_CANCELLED } from "@/lib/location-access";
 import { useAuth } from "@/lib/auth";
 import {
   hrmsDb,
@@ -241,9 +243,15 @@ function TodayCard({ employee, now, today }: { employee: Employee; now: Date; to
     window.dispatchEvent(new Event(ATTENDANCE_CHANGED_EVENT));
   };
 
+  const { getFix, dialog: locationDialog } = useLocationGate();
   const act = useMutation({
-    mutationFn: (opts: { remote?: boolean; reason?: string; fix?: Fix } = {}) =>
-      punch(isIn ? "logout" : "login", opts),
+    mutationFn: async (opts: { remote?: boolean; reason?: string; fix?: Fix } = {}) => {
+      // Location first: if it is off or blocked, a dialog explains how to turn
+      // it on for this device and retries, instead of a silent rejection.
+      const fix = opts.fix ?? (await getFix());
+      if (!fix) throw new Error(LOCATION_CANCELLED);
+      return punch(isIn ? "logout" : "login", { ...opts, fix });
+    },
     onSuccess: (res) => {
       refresh();
       if (res.ok) {
@@ -268,7 +276,10 @@ function TodayCard({ employee, now, today }: { employee: Employee; now: Date; to
         toast.error(msg);
       }
     },
-    onError: (e: unknown) => toast.error(getErrorMessage(e)),
+    onError: (e: unknown) => {
+      if (e instanceof Error && e.message === LOCATION_CANCELLED) return;
+      toast.error(getErrorMessage(e));
+    },
   });
 
   const statusBadge = isIn
@@ -283,6 +294,7 @@ function TodayCard({ employee, now, today }: { employee: Employee; now: Date; to
 
   return (
     <Card className="overflow-hidden">
+      {locationDialog}
       <CardContent className="grid gap-5 p-5 md:grid-cols-[1fr_auto] md:items-center md:p-6">
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
