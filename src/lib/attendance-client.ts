@@ -2,7 +2,7 @@
 // to the attendance-punch edge function. Nothing here decides a verdict — the
 // server does — so none of it is a security boundary.
 
-import { supabase } from "@/integrations/supabase/client";
+import { invokeFunction } from "@/lib/edge-functions";
 import type { PunchKind, RejectionReason } from "@/lib/attendance-rules";
 import type { AttendanceRow } from "@/lib/hrms";
 
@@ -128,8 +128,7 @@ export async function punch(
     body.remote = true;
     body.remote_reason = opts.reason ?? "";
   }
-  const { data, error } = await supabase.functions.invoke("attendance-punch", { body });
-  if (error) throw new Error(error.message || "Attendance service is unreachable");
+  const data = await invokeFunction<Record<string, unknown> | null>("attendance-punch", body);
   if (data?.error) throw new Error(String(data.error));
   return { ...(data as PunchResult), fix };
 }
@@ -142,8 +141,7 @@ export async function punch(
 export async function hrRequest<T = Record<string, unknown>>(
   body: Record<string, unknown>,
 ): Promise<T> {
-  const { data, error } = await supabase.functions.invoke("hr-requests", { body });
-  if (error) throw new Error(error.message || "HR service is unreachable");
+  const data = await invokeFunction<Record<string, unknown> | null>("hr-requests", body);
   if (data?.error) throw new Error(String(data.error));
   if (data?.ok === false) throw new Error(String(data.message ?? "Request failed"));
   return data as T;
