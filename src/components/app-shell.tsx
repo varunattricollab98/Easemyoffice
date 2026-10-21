@@ -100,7 +100,7 @@ function SidebarGroup({
                 className={cn(
                   "flex items-center gap-3 rounded-md px-3 py-1.5 text-sm transition-colors",
                   active
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-[0_0_0_1px_var(--sidebar-border),0_1px_3px_rgb(0_0_0/0.06)] [&_svg]:text-primary"
                     : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
                 )}
               >
@@ -129,9 +129,9 @@ export function AppSidebar() {
   const unreadCount = useUnreadCount(user?.id);
 
   return (
-    <aside className="hidden lg:flex sticky top-0 h-screen w-64 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">
+    <aside className="hidden lg:flex sticky top-0 h-screen w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar/85 text-sidebar-foreground backdrop-blur-xl">
       <div className="px-5 py-5 border-b flex items-center gap-2">
-        <div className="size-9 rounded-lg bg-gradient-to-br from-primary to-primary/70 grid place-items-center text-primary-foreground">
+        <div className="size-9 rounded-xl bg-[var(--gradient-hero)] grid place-items-center text-primary-foreground shadow-[inset_0_1px_0_rgb(255_255_255/0.25),0_4px_12px_-4px_color-mix(in_oklab,var(--primary)_60%,transparent)]">
           <Building2 className="h-5 w-5" />
         </div>
         <div className="flex-1">
@@ -181,7 +181,7 @@ export function AppSidebar() {
               className={cn(
                 "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
                 active
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-[0_0_0_1px_var(--sidebar-border),0_1px_3px_rgb(0_0_0/0.06)] [&_svg]:text-primary"
                   : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground"
               )}
             >
