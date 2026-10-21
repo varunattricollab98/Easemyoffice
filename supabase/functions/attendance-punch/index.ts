@@ -34,6 +34,8 @@ import {
   windowMinutes,
   weekdayOf,
   MAX_SESSION_MINUTES,
+  MAX_PUNCH_ATTEMPTS,
+  PUNCH_ATTEMPT_WINDOW_MINUTES,
   REJECTION_MESSAGES,
   REMOTE_ELIGIBLE,
   type DaySchedule,
@@ -110,6 +112,7 @@ Deno.serve(async (req) => {
     const deviceKey = text(body.device_key, 100);
     const wantsRemote = body.remote === true;
     const remoteReason = text(body.remote_reason, 300);
+    const lateReason = text(body.late_reason, 300);
     const userAgent = text(req.headers.get("user-agent"), 400);
     const ip =
       text(req.headers.get("cf-connecting-ip"), 64) ??
@@ -135,10 +138,16 @@ Deno.serve(async (req) => {
     // in this scope so a rejected attempt from a shared device is still flagged.
     let sharedDevice = false;
     let sharedWithEmployeeId: string | null = null;
+    // Failed attempts already made in the current window (set once the
+    // employee is known); every rejection tells the user how many are left.
+    let priorRejections = 0;
     const reject = async (reason: RejectionReason, extra: Record<string, unknown> = {}) => {
       const flagged = sharedDevice ? `${reason}|shared_device` : reason;
       await db.from("attendance_events").insert({ ...event, outcome: "rejected", reason: flagged });
-      return json({ ok: false, reason, message: REJECTION_MESSAGES[reason], ...extra });
+      const attempts_left = event.employee_id
+        ? Math.max(0, MAX_PUNCH_ATTEMPTS - priorRejections - 1)
+        : undefined;
+      return json({ ok: false, reason, message: REJECTION_MESSAGES[reason], attempts_left, ...extra });
     };
 
     // 2) Employee + policy.
@@ -150,6 +159,30 @@ Deno.serve(async (req) => {
     if (!employee) return reject("not_linked");
     event.employee_id = employee.id;
     if (INACTIVE_STATUSES.has(employee.employment_status)) return reject("inactive_employee");
+
+    // At most MAX_PUNCH_ATTEMPTS failed punches per window. Beyond that the
+    // attempt is refused without another audit row, so repeated tapping no
+    // longer floods the security log. A work-from-home login stays allowed:
+    // it is the way out offered to the user.
+    if (body.remote !== true) {
+      const since = new Date(Date.now() - PUNCH_ATTEMPT_WINDOW_MINUTES * 60_000).toISOString();
+      const { count } = await db
+        .from("attendance_events")
+        .select("id", { count: "exact", head: true })
+        .eq("employee_id", employee.id)
+        .eq("outcome", "rejected")
+        .gte("created_at", since);
+      priorRejections = count ?? 0;
+      if (priorRejections >= MAX_PUNCH_ATTEMPTS) {
+        return json({
+          ok: false,
+          reason: "too_many_attempts",
+          message: REJECTION_MESSAGES.too_many_attempts,
+          attempts_left: 0,
+          remote_allowed: true,
+        });
+      }
+    }
     const employeeName = [employee.first_name, employee.last_name].filter(Boolean).join(" ");
 
     const { data: settings } = await db
@@ -355,6 +388,8 @@ Deno.serve(async (req) => {
             work_mode: remote ? "remote" : "office",
             remote_status: remote ? "pending" : null,
             remote_reason: remote ? remoteReason : null,
+            // Reason given in the CRM when logging in late (shown in the Daily log).
+            remarks: lateReason ? `Late login: ${lateReason}` : null,
             login_latitude: fix.latitude,
             login_longitude: fix.longitude,
             login_accuracy_m: fix.accuracy_m,
