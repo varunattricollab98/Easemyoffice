@@ -60,6 +60,19 @@ function PipelinePage() {
   const [search, setSearch] = useState("");
   const [interestFilter, setInterestFilter] = useState<string>("all");
   const [overdueOnly, setOverdueOnly] = useState(false);
+  // Cards shown per stage (0 = all). Remembered on this device.
+  const [perStage, setPerStage] = useState<number>(() => {
+    if (typeof window === "undefined") return 25;
+    const v = Number(localStorage.getItem("emo:pipeline-per-stage") ?? "25");
+    return [0, 10, 20, 25, 50].includes(v) ? v : 25;
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("emo:pipeline-per-stage", String(perStage));
+    } catch {
+      /* ignore */
+    }
+  }, [perStage]);
   const [pendingMove, setPendingMove] = useState<{ id: string; client: string; fromStage: string; fromLabel: string; toStage: string; toLabel: string } | null>(null);
   const [reasonText, setReasonText] = useState("");
   const [followupConfigOpen, setFollowupConfigOpen] = useState(false);
@@ -297,6 +310,19 @@ function PipelinePage() {
           ))}
         </SelectContent>
       </Select>
+      <Select value={String(perStage)} onValueChange={(v) => setPerStage(Number(v))}>
+        <SelectTrigger className="w-[150px]" aria-label="Leads per stage">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {[10, 20, 25, 50].map((n) => (
+            <SelectItem key={n} value={String(n)}>
+              Show {n} leads
+            </SelectItem>
+          ))}
+          <SelectItem value="0">Show all leads</SelectItem>
+        </SelectContent>
+      </Select>
       <Button
         variant={overdueOnly ? "default" : "outline"}
         onClick={() => setOverdueOnly((v) => !v)}
@@ -343,7 +369,11 @@ function PipelinePage() {
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-        <VirtualList items={filtered} height={Math.max(window.innerHeight - 320, 320)} draggable={false} />
+        <VirtualList
+          items={perStage > 0 ? filtered.slice(0, perStage) : filtered}
+          height={Math.max(window.innerHeight - 320, 320)}
+          draggable={false}
+        />
       </div>
 
       {/* Desktop: full Kanban with virtualized columns */}
@@ -351,7 +381,7 @@ function PipelinePage() {
         <DndContext sensors={sensors} onDragEnd={onDragEnd}>
           <div className="flex gap-3 overflow-x-auto pb-4">
             {STAGES.map((s) => (
-              <StageColumn key={s.id} stage={s} items={buckets.get(s.id) ?? EMPTY_LEADS} />
+              <StageColumn key={s.id} stage={s} items={buckets.get(s.id) ?? EMPTY_LEADS} limit={perStage} />
             ))}
           </div>
         </DndContext>
@@ -429,9 +459,15 @@ const COLUMN_HEIGHT = 640;
 const CARD_HEIGHT = 92;
 
 const StageColumn = memo(function StageColumn({
-  stage, items,
-}: { stage: typeof STAGES[number]; items: Lead[] }) {
+  stage, items, limit,
+}: { stage: typeof STAGES[number]; items: Lead[]; limit: number }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
+  // "Show more" adds another page of the chosen size; resets when the size changes.
+  const [extra, setExtra] = useState(0);
+  useEffect(() => setExtra(0), [limit]);
+  const cap = limit > 0 ? limit + extra : items.length;
+  const shown = useMemo(() => (cap >= items.length ? items : items.slice(0, cap)), [items, cap]);
+  const hidden = items.length - shown.length;
   return (
     <div
       ref={setNodeRef}
@@ -446,7 +482,16 @@ const StageColumn = memo(function StageColumn({
           {items.length}
         </span>
       </div>
-      <VirtualList items={items} height={COLUMN_HEIGHT} draggable />
+      <VirtualList items={shown} height={COLUMN_HEIGHT} draggable />
+      {hidden > 0 && (
+        <button
+          type="button"
+          onClick={() => setExtra((e) => e + limit)}
+          className="mt-2 w-full rounded-lg border border-dashed border-border bg-card/60 py-2 text-xs font-medium text-muted-foreground transition-colors duration-150 hover:border-primary/40 hover:text-primary"
+        >
+          Show {Math.min(limit, hidden)} more · {hidden} hidden
+        </button>
+      )}
     </div>
   );
 });
