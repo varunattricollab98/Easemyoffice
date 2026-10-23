@@ -48,6 +48,14 @@ bun run build
   Then sync `main`, delete the branch, and confirm the post-merge checks on `main`.
   Never merge around a failing check.
 
+## Never deploy during the morning attendance peak
+
+Merging deploys instantly. A deploy invalidates the page files an already-open app
+(home-screen app, tab left open) still points at, so people get stuck mid-login.
+**Do not merge between 09:00 and 11:30 IST on working days** (Mon–Sat) unless the
+owner asks for an urgent fix; hold the green PR and merge after 11:30. Check with
+`TZ=Asia/Kolkata date` before every merge.
+
 ## Database migrations — never merge ahead of them
 
 Merging deploys immediately, so code that needs a new table or column must not reach `main`

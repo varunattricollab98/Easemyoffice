@@ -16,7 +16,36 @@ let deferred: InstallPromptEvent | null = null;
 const listeners = new Set<() => void>();
 const notify = () => listeners.forEach((l) => l());
 
+// After a deploy, an app that was already open (home-screen app resumed from
+// the background, a tab left open overnight) still runs the OLD build. Its
+// lazily loaded page files no longer exist on the server, so opening a page
+// failed and left an endless spinner. Reload once to pick up the new build.
+const RELOAD_KEY = "emo:stale-build-reload";
+export function reloadForNewBuild() {
+  try {
+    const last = Number(sessionStorage.getItem(RELOAD_KEY) ?? "0");
+    if (Date.now() - last < 30_000) return; // never loop
+    sessionStorage.setItem(RELOAD_KEY, String(Date.now()));
+  } catch {
+    /* storage blocked: still reload once */
+  }
+  window.location.reload();
+}
+export const STALE_CHUNK =
+  /Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed|Unable to preload CSS/i;
+
 if (typeof window !== "undefined") {
+  window.addEventListener("vite:preloadError", (e) => {
+    e.preventDefault();
+    reloadForNewBuild();
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    const msg = String((e.reason as { message?: string } | undefined)?.message ?? e.reason ?? "");
+    if (STALE_CHUNK.test(msg)) reloadForNewBuild();
+  });
+  window.addEventListener("error", (e) => {
+    if (STALE_CHUNK.test(String(e.message ?? ""))) reloadForNewBuild();
+  });
   window.addEventListener("beforeinstallprompt", (e) => {
     // Keep Chrome's mini-infobar from showing; the CRM offers its own button.
     e.preventDefault();

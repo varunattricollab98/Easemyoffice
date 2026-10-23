@@ -1,5 +1,6 @@
 import { Link, useRouter } from "@tanstack/react-router";
 import type { ErrorComponentProps } from "@tanstack/react-router";
+import { reloadForNewBuild, STALE_CHUNK } from "@/lib/pwa";
 
 // App-wide error UI. Wired as the root route's `errorComponent`, so any
 // uncaught error thrown during rendering or a route loader shows this friendly
@@ -13,18 +14,21 @@ export function DefaultCatchBoundary({ error }: ErrorComponentProps) {
     console.error("[DefaultCatchBoundary]", error);
   }
 
+  // A page file from an older deploy is gone: load the new build instead of
+  // showing an error.
+  if (typeof window !== "undefined" && error instanceof Error && STALE_CHUNK.test(error.message)) {
+    reloadForNewBuild();
+  }
+
   const message =
-    error instanceof Error && error.message
-      ? error.message
-      : "An unexpected error occurred.";
+    error instanceof Error && error.message ? error.message : "An unexpected error occurred.";
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-4xl font-bold text-foreground">Something went wrong</h1>
         <p className="mt-3 text-sm text-muted-foreground">
-          We hit an unexpected error. You can retry, or head back to the
-          dashboard.
+          We hit an unexpected error. You can retry, or head back to the dashboard.
         </p>
         <pre className="mt-4 max-h-40 overflow-auto rounded-md bg-muted/50 p-3 text-left text-xs text-muted-foreground">
           {message}
