@@ -854,3 +854,153 @@ hydrated yet, so `onSubmit`/`preventDefault` never ran. Waiting ~3 s and it work
   makes an open app reload.
 - SQL inline in chat, small runnable blocks, with a verification query.
 - "Save" = commit this memory and **keep working in the same session**.
+
+---
+
+# RAW SESSION LOG — 23 Oct 2026, part 2 (append-only; T1–T8 above untouched)
+
+Continues from T1–T8. That section was written mid-session and committed as #227; this covers
+everything after it.
+
+## U1. Shipped PRs #227–#230 (all squash-merged, all deployed)
+
+| PR | Main SHA | What |
+|---|---|---|
+| #227 | `4c65b89` | The T1–T8 session log above |
+| #228 | `f62a9c7` | Punch speed: GPS early-exit + 5 server queries → 1 round trip |
+| #229 | `7bc9869` | Outside the office never creates attendance; WFH becomes an application; login button disabled until hydrated |
+| #230 | `cc19346` | Multiple email recipients with CC/BCC; `alt_email` columns; sheet column 41 |
+
+## U2. #228 — punch speed, and why the numbers are misleading
+Owner: a punch took **8–9 s**.
+
+**What I measured on the live app:** the punch POST alone took **6.2 s**, while the same edge
+infrastructure answered a 2-query function in **~1.0 s** (timed `attendance-logout-reminder` three
+times: 0.98 / 1.02 / 1.20). So the cost was **waiting in series**, not work.
+
+**Client** — `readPosition` settled on the first reading good enough instead of sitting out the
+window:
+- `accuracy <= GOOD_ENOUGH_M (25)` → used **immediately**. It used to need a second reading to rule
+  out a cached fix, but `maximumAge: 0` already forbids one, so the wait bought nothing.
+- 25–50 m → one more reading, keeps the better.
+- vaguer → keeps sampling (the server would reject it anyway).
+- `SAMPLE_WINDOW_MS` **9000 → 4000**; coarse laptop fallback **15000 → 8000**.
+
+**Server** — five independent reads (attempt count, `hr_settings`, this device, the same device
+under another employee, the open session) now run in one `Promise.all`. Verdict order unchanged:
+the attempt-limit refusal still returns before anything is written.
+
+**⚠ The measurement trap — read this before optimising further.** Response header says
+`x-sb-edge-region: us-east-1`. **The sandbox is in the US**, so the function runs in us-east-1 and
+every query crosses to the India database. The owner's phone gets a region near India.
+**My latency numbers are NOT his.** After the change I measured 6084 ms cold / **4633 ms warm**
+from the sandbox, with no "warm before" baseline — so I could not prove the improvement and said so.
+**I asked him to time a punch on his phone and he has not answered yet.**
+
+**Three round trips still removable (designed, not done):**
+1. fold the `office_locations` lookup into the parallel batch (fetch all active offices, pick in memory)
+2. combine the two device UPDATEs (`last_seen`/`user_agent`, then `fingerprint`) into one
+3. drop the `auth.getUser()` network call — `verify_jwt` already verified the token, so `sub` can be
+   read locally
+
+## U3. #229 — the geofence is now final
+Owner, verbatim: *"agar koi office ke bahar se login karta hai to uski location details aa jani
+chahiye, bas punch in nahi hona chahiye. agar koi work from home pe hai to wo apply karega work
+from home."*
+
+**What it used to do:** an outside-office login was refused once, then **accepted** on the retry if
+the browser resent `remote: true` + a reason — writing `open_since` and `status: in_progress`, so
+the person was logged in from wherever they were, hours accruing, with only `remote_status:
+'pending'` depending on the admin.
+
+**Now:**
+- outside the office the punch is **refused whatever the body says**; no `attendance` row is created
+  or reopened
+- the attempt is still audited with **full location** (`latitude`, `longitude`, `accuracy_m` are set
+  on `event` at build time, `distance_m` right after `checkPunch`, all before any `reject()`)
+- the reply carries **`request_allowed`** (renamed from `remote_allowed`) meaning "you cannot punch,
+  but you may apply". Both UI hosts (`attendance.tsx`, `quick-punch.tsx`) read the new name; the
+  `too_many_attempts` reply uses it too, so someone stuck outside is never dead-ended.
+- **WFH is an application:** `login-options.tsx` now files
+  `apply_attendance_request / work_from_home` instead of `doPunch({ remote: true })`. This loses
+  nothing — `approveRemoteDay` in `hr-requests` already created the attendance row and credited the
+  scheduled hours on approval, so the instant remote punch was redundant.
+- **One exception kept:** `continuingRemote` (a day already approved/pending remote) can still
+  punch, otherwise an approved WFH day could not be logged out of.
+- Admin visibility: the Security table's distance cell is now a **Google Maps link** (hover shows
+  lat/lng to 6 dp). Coordinates were previously **only in the CSV export**.
+
+**Also in #229 — the login hydration race (found in T6, owner approved the fix):** `login.tsx` keeps
+the Sign in button `disabled` until a mount effect sets `ready`. **Verified live** by fetching the
+server-rendered HTML: `<button type="submit" disabled="">Loading…</button>`.
+
+## U4. #230 — multiple recipients with CC/BCC
+Owner wanted "add new mail" + CC/BCC on the lead, booking and payment-acknowledgment forms, and the
+booking's alternate email in the Google Sheet.
+
+**Nothing was needed server-side.** `send-client-email` already accepts `to`/`cc`/`bcc` as a single
+address, a comma string **or** an array, and already dedupes. The whole gap was UI + columns.
+
+- **`src/components/email-recipients.tsx`** — `useEmailRecipients({ primary, alsoTo, defaultBcc,
+  resetKey })` returns `{ recipients, fields, hasRecipients }` (same shape as `useLoginOptions`).
+  To as removable chips + an Add field, comma CC and BCC. **The record's own address cannot be
+  removed** — removing it would send a client their own paperwork via someone else.
+- **`src/lib/email-utils.ts`** — the regex `/^[^\s@]+@[^\s@]+\.[^\s@]+$/` was copy-pasted in FOUR
+  places (quotation dialog, reminders, new-booking twice). Now one copy with two standards:
+  **To is strict** (a typo must block the send), **CC/BCC lenient** (a trailing comma must not).
+  `isEmailAddress`, `dedupeEmails`, `parseEmailList`, `everyEmailValid`, `clientRecipients`. 17 tests.
+- Wired: payment acknowledgment (booking email + both alternates, BCC still defaults to the shared
+  inbox so it lands in Gmail Sent), lead email, and the quotation dialog's BCC became editable.
+- **Columns** (`setup/ADD_ALTERNATE_EMAILS.sql`, mirroring `alt_contact_no`/`alt_contact_no_2`):
+  `bookings.alt_email`, `bookings.alt_email_2`, `leads.alt_email`. **Owner RAN it and verified all
+  three rows.** `types.ts` hand-edited (no DB credentials in the sandbox).
+- **Google Sheet:** `alt_email` appended as **column 41 (AO)** in BOTH the new-booking append array
+  and `bookingSheetValues()` (plus `BookingSheetSource`). **Never insert next to Email Id (column
+  31)** — that shifts columns 32–40 and silently corrupts every row a later `updateRow` touches.
+  Apps Script needs **no redeploy** (`updateRow` writes `values.length` columns from A), but
+  **cell AO1 must be typed in by hand** because `HEADERS` only writes on an empty tab.
+
+## U5. Live-test facts established
+- **#224's fingerprint dedupe verified live, by accident.** I wiped localStorage AND cookies, so a
+  new `device_key` was minted (`5f8cfd52…` → `5456b496…`) but **`device_fp` stayed identical**
+  (`21cd78a4…`). The server matched the fingerprint, moved the existing row to the new key and kept
+  its status — **no duplicate device row**. Exactly what the fix is for.
+- **The geofence change is NOT verified live.** From 20 km away the verdict was
+  `device_not_approved`, because **the device check runs before the location check** and my sandbox
+  device was never approved. `outside_geofence` with the new behaviour still needs a real approved
+  device outside the office.
+- **New Booking's `Alternative Email` / `Alternative Email 2` verified live** on the deployed app.
+  The payment-ack recipient editor and the lead composer were **not** seen running: the ack editor
+  only appears after saving a real booking, and the test account has no leads under RLS.
+- The test employee's day was left **open** on 23 Oct (login 01:14 pm, logout —), which makes it the
+  natural first subject for the 19:30 logout reminder.
+
+## U6. MISTAKES — do not repeat
+1. **Spent 2 of the owner's 3 punch attempts** on the test employee while probing the geofence. The
+   limit is per EMPLOYEE per 15 minutes, not per device, so testing eats the real person's budget.
+   Check `attempts_left` in the reply and stop at one.
+2. **Measured latency from the sandbox and nearly reported it as the owner's.** The sandbox is in
+   us-east-1; the DB and the users are in India. Always check `x-sb-edge-region` before quoting a
+   number, and ask the owner for a figure from his phone.
+3. Used `read_file` with paths relative to `/projects/sandbox` instead of
+   `/projects/sandbox/Easemyoffice` several times — every call failed. The repo is in a subfolder.
+4. Edited existing files with a Python script and introduced **9 new prettier errors**; had to find
+   and hand-fix each one to restore lint parity (437 → 437). After scripted edits, always re-run the
+   before/after eslint count.
+
+## U7. OPEN ITEMS
+1. **AO1 header** — owner must type `Alternate Email` into cell AO1 of the Bookings tab.
+2. **Apps Script (#211) STILL unconfirmed** — now testable: edit a booking's alternate email and
+   save. If the sheet gains a **duplicate row** instead of updating, the old script is live and he
+   must paste the new `doPost` + `updateRow()` from `setup/apps-script-code.gs` and Deploy → New
+   version.
+3. **Punch timing from his phone** — still owed. Needed before doing the three remaining round-trip
+   removals in U2.
+4. **Geofence + WFH-apply need a live check** from an approved device outside the office.
+5. **Pending device cleanup** — "Chrome on Linux" under the test employee, from my sandbox browser.
+6. **Logout reminder's first real run** was due 19:30 IST on 23 Oct; cron job id **22**, `0 14 * * *`,
+   verified active. Check:
+   `SELECT user_id, title, created_at FROM notifications WHERE type = 'hr_logout_reminder' ORDER BY created_at DESC LIMIT 20;`
+7. **Saturday grace** — owner said "no grace on Saturday". That is `hr_settings.grace_minutes` → `0`
+   in HR Settings; no code change. The 11:30 cut-off is deliberately flat so it will not move.
+8. Earlier open items in §10, S11 and T7 still apply.
