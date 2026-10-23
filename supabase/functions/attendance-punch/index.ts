@@ -35,6 +35,9 @@ import {
   weekdayOf,
   MAX_SESSION_MINUTES,
   MAX_PUNCH_ATTEMPTS,
+  spoofSignals,
+  SPOOF_SIGNAL_LABELS,
+  type SpoofSignal,
   PUNCH_ATTEMPT_WINDOW_MINUTES,
   REJECTION_MESSAGES,
   REMOTE_ELIGIBLE,
@@ -113,6 +116,10 @@ Deno.serve(async (req) => {
     const wantsRemote = body.remote === true;
     const remoteReason = text(body.remote_reason, 300);
     const lateReason = text(body.late_reason, 300);
+    const deviceFp = text(body.device_fp, 64);
+    const fixTimestamp = num(body.fix_timestamp);
+    const fixSamples = num(body.fix_samples);
+    const fixSpread = num(body.fix_spread_m);
     const userAgent = text(req.headers.get("user-agent"), 400);
     const ip =
       text(req.headers.get("cf-connecting-ip"), 64) ??
@@ -141,8 +148,12 @@ Deno.serve(async (req) => {
     // Failed attempts already made in the current window (set once the
     // employee is known); every rejection tells the user how many are left.
     let priorRejections = 0;
+    // Location-spoofing signal tokens, recorded on the event (accepted or not).
+    let spoofTokens: string[] = [];
     const reject = async (reason: RejectionReason, extra: Record<string, unknown> = {}) => {
-      const flagged = sharedDevice ? `${reason}|shared_device` : reason;
+      const flagged = [reason, sharedDevice ? "shared_device" : null, ...spoofTokens]
+        .filter(Boolean)
+        .join("|");
       await db.from("attendance_events").insert({ ...event, outcome: "rejected", reason: flagged });
       const attempts_left = event.employee_id
         ? Math.max(0, MAX_PUNCH_ATTEMPTS - priorRejections - 1)
@@ -229,16 +240,49 @@ Deno.serve(async (req) => {
           .from("attendance_devices")
           .update({ last_seen_at: nowIso, user_agent: userAgent })
           .eq("id", device.id);
+        // Best-effort: remember the hardware fingerprint (optional column).
+        if (deviceFp) {
+          await db
+            .from("attendance_devices")
+            .update({ fingerprint: deviceFp })
+            .eq("id", device.id)
+            .then(() => undefined, () => undefined);
+        }
       } else {
-        const status = s.require_device_approval ? "pending" : "approved";
-        await db.from("attendance_devices").insert({
+        // Unknown browser key. If the same hardware (fingerprint) is already
+        // approved or blocked for this employee, it is the same phone/laptop
+        // whose browser storage was cleared: keep its decision instead of
+        // asking the admin to approve it again.
+        let inherited: DeviceStatus | null = null;
+        if (deviceFp) {
+          try {
+            const { data: twin, error: twinErr } = await db
+              .from("attendance_devices")
+              .select("status")
+              .eq("employee_id", employee.id)
+              .eq("fingerprint", deviceFp)
+              .in("status", ["approved", "revoked"])
+              .order("last_seen_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (!twinErr && twin) inherited = twin.status as DeviceStatus;
+          } catch {
+            /* fingerprint column not added yet */
+          }
+        }
+        const status = inherited ?? (s.require_device_approval ? "pending" : "approved");
+        const row = {
           employee_id: employee.id,
           device_key: deviceKey,
           label: text(body.device_label, 120),
           user_agent: userAgent,
           status,
-        });
-        deviceStatus = status;
+        };
+        const { error: insErr } = await db
+          .from("attendance_devices")
+          .insert(deviceFp ? { ...row, fingerprint: deviceFp } : row);
+        if (insErr && deviceFp) await db.from("attendance_devices").insert(row);
+        deviceStatus = status as DeviceStatus;
       }
 
       try {
@@ -331,6 +375,81 @@ Deno.serve(async (req) => {
       accuracy,
     });
     event.distance_m = verdict.distance_m;
+
+    // 4b) Location-spoofing signals. "block" ones are near-impossible for a
+    //     real reading (hand-typed coordinates, teleporting); "warn" ones are
+    //     recorded and alerted but allowed, because they can be legitimate.
+    let spoofWarn: SpoofSignal[] = [];
+    if (latitude !== null && longitude !== null) {
+      try {
+        const { data: prev } = await db
+          .from("attendance_events")
+          .select("latitude, longitude, created_at")
+          .eq("employee_id", employee.id)
+          .eq("outcome", "accepted")
+          .not("latitude", "is", null)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const { data: same } = await db
+          .from("attendance_events")
+          .select("id")
+          .eq("employee_id", employee.id)
+          .eq("outcome", "accepted")
+          .eq("latitude", latitude)
+          .eq("longitude", longitude)
+          .lt("created_at", `${today.date}T00:00:00+05:30`)
+          .limit(1);
+        const sig = spoofSignals({
+          latitude,
+          longitude,
+          accuracy,
+          nowMs: now.getTime(),
+          fixTimestampMs: fixTimestamp,
+          samples: fixSamples,
+          spreadM: fixSpread,
+          previous: prev
+            ? {
+                latitude: Number(prev.latitude),
+                longitude: Number(prev.longitude),
+                atMs: Date.parse(String(prev.created_at)),
+              }
+            : null,
+          repeatOfEarlierDay: !!(same && same.length),
+        });
+        spoofWarn = sig.warn;
+        spoofTokens = [...sig.block, ...sig.warn].map((x) => `suspect_${x}`);
+        // Alert on every block; on warnings only when they are not just the
+        // (common, laptop Wi-Fi) exact repeat on its own.
+        const alert =
+          sig.block.length > 0 ||
+          sig.warn.length >= 2 ||
+          sig.warn.some((w) => w !== "exact_repeat");
+        if (alert) {
+          const all = [...sig.block, ...sig.warn];
+          await notifyAdmins(db, {
+            type: "hr_spoof_suspect",
+            title: `${sig.block.length ? "Fake location blocked" : "Suspicious location"} — ${employeeName}`,
+            body: `${employeeName} tried to ${action === "login" ? "log in" : "log out"} at ${timeIST(nowIso)}: ${all
+              .map((x) => SPOOF_SIGNAL_LABELS[x])
+              .join("; ")}.`,
+            details: [
+              ["Employee", `${employeeName} (${employee.employee_code})`],
+              ["Signals", all.map((x) => SPOOF_SIGNAL_LABELS[x]).join("; ")],
+              ["Result", sig.block.length ? "Blocked" : "Allowed, flagged"],
+              ["Location", `${latitude}, ${longitude} (±${accuracy ?? "?"} m)`],
+              ["When", timeIST(nowIso)],
+              ["IP", ip ?? "—"],
+            ],
+            path: "/hrms/attendance",
+            cta: "Open Security",
+          }).catch(() => undefined);
+        }
+        if (sig.block.length) return reject("location_suspicious");
+      } catch {
+        /* detection must never break a genuine punch */
+      }
+    }
 
     let remote = false;
     if (!verdict.ok) {
@@ -504,7 +623,11 @@ Deno.serve(async (req) => {
 
     // Compose the accepted reason: remote_request and/or shared_device.
     const acceptedReason =
-      [remote ? "remote_request" : null, sharedDevice ? "shared_device" : null]
+      [
+        remote ? "remote_request" : null,
+        sharedDevice ? "shared_device" : null,
+        ...spoofWarn.map((x) => `suspect_${x}`),
+      ]
         .filter(Boolean)
         .join("|") || null;
     const { data: acceptedEvent } = await db
