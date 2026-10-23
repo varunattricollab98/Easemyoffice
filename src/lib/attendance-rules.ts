@@ -199,29 +199,28 @@ export function latestOnTimeStart(s: DaySchedule, graceMinutes: number): number 
  * - off: never late.
  */
 /**
- * How long after the latest on-time start a plain "late login" is still on
- * offer. Past that the window can no longer fit the day's required hours — on
- * a flexible weekday the last on-time start is 10:30 (19:30 minus 9h), so the
- * cut-off lands at 11:30 — and the honest choices become a half day, work from
- * home, or leave.
+ * Clock minute (IST) after which a late login can no longer be recorded as a
+ * full day: 11:30, the same on every working day.
+ *
+ * On a flexible weekday the reason is arithmetic — the window closes at 19:30
+ * and needs 9h, so nothing started after 10:30 can complete it and 11:30 is
+ * the hour of leeway past that. Saturday uses the same wall-clock time rather
+ * than its own shorter window, because one time everybody knows beats a rule
+ * that moves with the day, and because the grace then cannot shift it.
  */
-export const LATE_LOGIN_WINDOW_MINUTES = 60;
+export const LATE_LOGIN_CUTOFF_MINUTES = 11 * 60 + 30;
 
-/** Clock minute (IST) after which a late login is no longer offered. */
-export function lateLoginCutoff(s: DaySchedule, graceMinutes: number): number {
-  return latestOnTimeStart(s, graceMinutes) + LATE_LOGIN_WINDOW_MINUTES;
+/** Clock minute after which a late login is no longer offered. */
+export function lateLoginCutoff(s: DaySchedule): number {
+  return s.mode === "off" ? 24 * 60 : LATE_LOGIN_CUTOFF_MINUTES;
 }
 
 /**
  * Whether logging in at `loginMinutes` can still be recorded as a (late) full
  * day. An off day has no start to be late for, so it is always allowed.
  */
-export function lateLoginAllowed(
-  loginMinutes: number,
-  s: DaySchedule,
-  graceMinutes: number,
-): boolean {
-  return loginMinutes < lateLoginCutoff(s, graceMinutes);
+export function lateLoginAllowed(loginMinutes: number, s: DaySchedule): boolean {
+  return loginMinutes < lateLoginCutoff(s);
 }
 
 export function lateMinutes(loginMinutes: number, s: DaySchedule, graceMinutes: number): number {
