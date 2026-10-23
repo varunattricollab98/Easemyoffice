@@ -11,7 +11,9 @@
 //
 // Always replies 200 with either
 //   { ok: true,  action, attendance, remote? }             — accepted
-//   { ok: false, reason, message, remote_allowed? }        — rejected (also audited)
+//   { ok: false, reason, message, request_allowed? }       — rejected (also audited)
+//     request_allowed means: you cannot punch from here, but you may apply
+//     for work from home / half day / leave instead.
 // so the browser can show the reason; non-2xx is reserved for real faults.
 //
 // Security model: the verdict is decided here, never in the browser. The time
@@ -113,7 +115,6 @@ Deno.serve(async (req) => {
     const longitude = num(body.longitude);
     const accuracy = num(body.accuracy);
     const deviceKey = text(body.device_key, 100);
-    const wantsRemote = body.remote === true;
     const remoteReason = text(body.remote_reason, 300);
     const lateReason = text(body.late_reason, 300);
     const deviceFp = text(body.device_fp, 64);
@@ -267,7 +268,7 @@ Deno.serve(async (req) => {
         reason: "too_many_attempts",
         message: REJECTION_MESSAGES.too_many_attempts,
         attempts_left: 0,
-        remote_allowed: true,
+        request_allowed: true,
       });
     }
     const employeeName = [employee.first_name, employee.last_name].filter(Boolean).join(" ");
@@ -516,16 +517,21 @@ Deno.serve(async (req) => {
 
     let remote = false;
     if (!verdict.ok) {
-      const eligible =
+      // A punch from outside the office NEVER creates attendance. The attempt
+      // is recorded with its full location (latitude, longitude, accuracy and
+      // distance are on `event` before this point) so the admin can see where
+      // it came from, and the person applies for work from home instead —
+      // approving that request is what credits the day (approveRemoteDay in
+      // hr-requests). `request_allowed` tells the browser it can offer that.
+      //
+      // The one exception is a day that is ALREADY remote: an approved or
+      // pending work-from-home day is worked from home by definition, so its
+      // own punches must keep working.
+      const canApply =
         action === "login" && allowRemote && REMOTE_ELIGIBLE.includes(verdict.reason);
-      if (!eligible) return reject(verdict.reason);
-      // Outside the office: the browser offers a WFH request. A location is
-      // still required so the admin can see where it came from.
-      if (!wantsRemote && !continuingRemote)
-        return reject(verdict.reason, { remote_allowed: true });
+      if (!continuingRemote)
+        return reject(verdict.reason, canApply ? { request_allowed: true } : {});
       if (latitude === null || longitude === null) return reject("no_location");
-      if (!continuingRemote && (!remoteReason || remoteReason.length < 3))
-        return reject("remote_reason_required", { remote_allowed: true });
       remote = true;
     }
 
