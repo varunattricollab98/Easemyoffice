@@ -379,6 +379,8 @@ export type Database = {
           addon_services: string | null
           alt_contact_no: string | null
           alt_contact_no_2: string | null
+          alt_email: string | null
+          alt_email_2: string | null
           gst_number: string | null
           gst_address: string | null
           zoho_customer_id: string | null
@@ -449,6 +451,8 @@ export type Database = {
           addon_services?: string | null
           alt_contact_no?: string | null
           alt_contact_no_2?: string | null
+          alt_email?: string | null
+          alt_email_2?: string | null
           gst_number?: string | null
           gst_address?: string | null
           zoho_customer_id?: string | null
@@ -519,6 +523,8 @@ export type Database = {
           addon_services?: string | null
           alt_contact_no?: string | null
           alt_contact_no_2?: string | null
+          alt_email?: string | null
+          alt_email_2?: string | null
           gst_number?: string | null
           gst_address?: string | null
           zoho_customer_id?: string | null
@@ -818,6 +824,7 @@ export type Database = {
       }
       leads: {
         Row: {
+          alt_email: string | null
           alt_mobile: string | null
           assigned_agent: string | null
           assigned_to: string | null
@@ -858,6 +865,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          alt_email?: string | null
           alt_mobile?: string | null
           assigned_agent?: string | null
           assigned_to?: string | null
@@ -898,6 +906,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          alt_email?: string | null
           alt_mobile?: string | null
           assigned_agent?: string | null
           assigned_to?: string | null

@@ -31,6 +31,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Send, Loader2, Eye, ArrowLeft, FileText, X, ChevronsUpDown, Plus } from "lucide-react";
+import { parseEmailList } from "@/lib/email-utils";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getSheetPlans, type PlanRow } from "@/lib/bookings-sheet";
@@ -833,6 +834,9 @@ export function SendQuotationDialog({
   const [extraToEmails, setExtraToEmails] = useState<string[]>([]);
   const [newToEmail, setNewToEmail] = useState("");
   const [ccEmails, setCcEmails] = useState("");
+  // BCC was fixed to the shared inbox in code; it is now editable so a
+  // second internal copy can be added, or the copy dropped entirely.
+  const [bccEmails, setBccEmails] = useState(bccEmail);
 
   // Single-state convenience: when exactly one state is chosen we keep the
   // classic single-state + optional-city behavior.
@@ -876,6 +880,7 @@ export function SendQuotationDialog({
     const list = [clientEmail, ...extraToEmails].map((e) => e.trim()).filter(Boolean);
     return Array.from(new Set(list));
   }, [clientEmail, extraToEmails]);
+  const bccList = useMemo(() => parseEmailList(bccEmails), [bccEmails]);
   const ccList = useMemo(
     () => Array.from(new Set(ccEmails.split(",").map((e) => e.trim()).filter((e) => isEmailStr(e)))),
     [ccEmails],
@@ -1059,7 +1064,7 @@ export function SendQuotationDialog({
           from: fromEmail,
           replyTo: user?.email,
           // Keep a BCC so the quotation appears in the sender mailbox's Sent folder.
-          bcc: bccEmail,
+          bcc: bccList.length ? bccList : undefined,
           // Link the send in email_log (the edge function writes the row).
           lead_id: leadId,
           created_by: user?.id,
@@ -1233,6 +1238,16 @@ export function SendQuotationDialog({
                 onChange={(e) => setCcEmails(e.target.value)}
                 placeholder="accounts@company.com, founder@company.com"
                 className="h-9 text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">
+                BCC <span className="text-muted-foreground">(optional, comma-separated)</span>
+              </Label>
+              <Input
+                value={bccEmails}
+                onChange={(e) => setBccEmails(e.target.value)}
+                placeholder="contact@easemyoffice.in"
               />
             </div>
 

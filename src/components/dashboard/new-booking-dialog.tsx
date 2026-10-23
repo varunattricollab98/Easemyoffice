@@ -33,6 +33,8 @@ import { useAuth } from "@/lib/auth";
 import { emailDocAssignee } from "@/lib/documentation-queries";
 import { supabase } from "@/integrations/supabase/client";
 import { getSheetPlans, getNextBookingIdFromSheet, syncBookingToSheet } from "@/lib/bookings-sheet";
+import { isEmailAddress } from "@/lib/email-utils";
+import { useEmailRecipients } from "@/components/email-recipients";
 import { buildPaymentAckEmailHtml } from "@/lib/payment-ack-email";
 import { logAudit } from "@/lib/audit";
 import { getErrorMessage } from "@/lib/utils";
@@ -118,6 +120,8 @@ const initialForm = {
   contact_no: "",
   alt_contact_no: "",
   alt_contact_no_2: "",
+  alt_email: "",
+  alt_email_2: "",
   gst_number: "",
   gst_address: "",
   remarks: "",
@@ -243,6 +247,8 @@ export function NewBookingDialog({
   const [savedBookingData, setSavedBookingData] = useState<{
     client_name: string;
     email_id: string;
+    alt_email: string;
+    alt_email_2: string;
     plan_name: string;
     booking_id: string;
     invoice_number: string;
@@ -259,6 +265,15 @@ export function NewBookingDialog({
     balance_amount: number;
     balance_due_date: string;
   } | null>(null);
+
+  // Payment acknowledgment recipients: the client's own address plus any
+  // alternates on the booking, with CC/BCC the sender can edit.
+  const ack = useEmailRecipients({
+    primary: savedBookingData?.email_id,
+    alsoTo: [savedBookingData?.alt_email, savedBookingData?.alt_email_2],
+    defaultBcc: "contact@easemyoffice.in",
+    resetKey: savedBookingData?.booking_id,
+  });
 
   // Form state
   const [f, setF] = useState<BookingForm>(() => makeInitialForm());
@@ -583,19 +598,25 @@ export function NewBookingDialog({
   // Field validation (email format + phone must be at least 10 digits, so a
   // "+91" prefix is fine). Empty optional fields are allowed.
   const digitsOnly = (v: string) => v.replace(/\D/g, "");
-  const emailOk = !f.email_id.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email_id.trim());
+  const emailOk = !f.email_id.trim() || isEmailAddress(f.email_id);
   const contactOk = digitsOnly(f.contact_no).length >= 10;
   const altOk = !f.alt_contact_no.trim() || digitsOnly(f.alt_contact_no).length >= 10;
   const alt2Ok = !f.alt_contact_no_2.trim() || digitsOnly(f.alt_contact_no_2).length >= 10;
+  // Alternate addresses are optional, but a typo must not reach the client's
+  // payment acknowledgment — these gate the submit alongside emailOk.
+  const altEmailOk = !f.alt_email.trim() || isEmailAddress(f.alt_email);
+  const altEmail2Ok = !f.alt_email_2.trim() || isEmailAddress(f.alt_email_2);
 
   // Whether a given form passes the same rules that gate the Save button.
   // Reused by "Add another booking" and by "Save all" (for the current entry).
   const isFormValid = (form: BookingForm): boolean => {
     const d = deriveBooking(form);
-    const eOk = !form.email_id.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email_id.trim());
+    const eOk = !form.email_id.trim() || isEmailAddress(form.email_id);
     const cOk = digitsOnly(form.contact_no).length >= 10;
     const aOk = !form.alt_contact_no.trim() || digitsOnly(form.alt_contact_no).length >= 10;
     const a2Ok = !form.alt_contact_no_2.trim() || digitsOnly(form.alt_contact_no_2).length >= 10;
+    const aeOk = !form.alt_email.trim() || isEmailAddress(form.alt_email);
+    const ae2Ok = !form.alt_email_2.trim() || isEmailAddress(form.alt_email_2);
     return !!(
       form.client_name &&
       form.contact_no &&
@@ -605,6 +626,8 @@ export function NewBookingDialog({
       cOk &&
       aOk &&
       a2Ok &&
+      aeOk &&
+      ae2Ok &&
       (!d.isPartial || (form.amount_received && form.balance_due_date))
     );
   };
@@ -640,6 +663,8 @@ export function NewBookingDialog({
       contact_no: "",
       alt_contact_no: "",
       alt_contact_no_2: "",
+      alt_email: "",
+      alt_email_2: "",
       gst_number: "",
       gst_address: "",
       remarks: "",
@@ -721,6 +746,8 @@ export function NewBookingDialog({
         contact_no: form.contact_no,
         alt_contact_no: form.alt_contact_no,
         alt_contact_no_2: form.alt_contact_no_2,
+        alt_email: form.alt_email,
+        alt_email_2: form.alt_email_2,
         gst_number: form.gst_number || null,
         gst_address: form.gst_address || null,
         remarks: form.remarks,
@@ -790,6 +817,10 @@ export function NewBookingDialog({
       d.planYears,
       d.planStart || "",
       d.planExpiry || "",
+      // Same reason: appended, never inserted next to Email Id. Keep in step
+      // with bookingSheetValues() in src/lib/bookings-sheet.ts — an append and
+      // a later update must write the same number of columns.
+      form.alt_email,
     ];
     const sheet = await syncBookingToSheet(values);
     return { sheet, bookingId, bookingUuid: insertedBooking?.id ?? null };
@@ -1190,13 +1221,15 @@ export function NewBookingDialog({
 
       const { data, error } = await supabase.functions.invoke("send-client-email", {
         body: {
-          to: email_id,
+          to: ack.recipients.to,
+          cc: ack.recipients.cc.length ? ack.recipients.cc : undefined,
           subject,
           html,
           text,
           from: "EaseMyOffice <contact@easemyoffice.in>",
-          // Keep the shared-inbox BCC so the payment acknowledgment appears in the Gmail Sent folder.
-          bcc: "contact@easemyoffice.in",
+          // Defaults to the shared inbox so the acknowledgment lands in Gmail
+          // Sent, but the sender can change or clear it.
+          bcc: ack.recipients.bcc.length ? ack.recipients.bcc : undefined,
           // Link the send in email_log (the edge function writes the row).
           // docAssignBookingId holds the booking's DB UUID once the row is saved.
           booking_id: docAssignBookingId,
@@ -1298,6 +1331,8 @@ export function NewBookingDialog({
         setSavedBookingData({
           client_name: f.client_name,
           email_id: f.email_id.trim(),
+          alt_email: f.alt_email.trim(),
+          alt_email_2: f.alt_email_2.trim(),
           plan_name: f.plan_name,
           booking_id: bookingId,
           invoice_number: f.invoice_number,
@@ -1707,6 +1742,18 @@ export function NewBookingDialog({
               { inputMode: "tel" },
               !alt2Ok ? "At least 10 digits" : undefined,
             )}
+            {T(
+              "alt_email",
+              "Alternative Email",
+              { type: "email" },
+              !altEmailOk ? "Enter a valid email" : undefined,
+            )}
+            {T(
+              "alt_email_2",
+              "Alternative Email 2",
+              { type: "email" },
+              !altEmail2Ok ? "Enter a valid email" : undefined,
+            )}
             {T("gst_number", "GST Number", { placeholder: "e.g. 06AANFN9510H1Z3" })}
             <div className="md:col-span-2">
               <Label className="text-xs">GST Address (for invoice)</Label>
@@ -1837,6 +1884,8 @@ export function NewBookingDialog({
                   !f.plan_name ||
                   !f.vo_amount ||
                   !emailOk ||
+                  !altEmailOk ||
+                  !altEmail2Ok ||
                   !contactOk ||
                   !altOk ||
                   !alt2Ok ||
@@ -1862,15 +1911,18 @@ export function NewBookingDialog({
           <AlertDialogHeader>
             <AlertDialogTitle>Booking Saved Successfully</AlertDialogTitle>
             <AlertDialogDescription>
-              Would you like to send a payment acknowledgment email to the client
-              {savedBookingData ? ` (${savedBookingData.email_id})` : ""}?
+              Send a payment acknowledgment email? Check the recipients below.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="py-2">{ack.fields}</div>
           <AlertDialogFooter>
             <Button variant="outline" onClick={handleSaveWithoutSending} disabled={sendingEmail}>
               Save without Sending
             </Button>
-            <Button onClick={handleSendAcknowledgment} disabled={sendingEmail}>
+            <Button
+              onClick={handleSendAcknowledgment}
+              disabled={sendingEmail || !ack.hasRecipients}
+            >
               {sendingEmail ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

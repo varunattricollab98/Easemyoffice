@@ -89,6 +89,8 @@ export function BookingDetailDialog({
         contact_no: booking.contact_no ?? "",
         alt_contact_no: booking.alt_contact_no ?? "",
         alt_contact_no_2: booking.alt_contact_no_2 ?? "",
+        alt_email: booking.alt_email ?? "",
+        alt_email_2: booking.alt_email_2 ?? "",
         // Both drive the Zoho invoice: gst_number decides gst_treatment
         // (business_gst vs consumer) and gst_address decides the place of
         // supply, i.e. IGST vs CGST+SGST. They were missing from this form, so
@@ -226,6 +228,8 @@ export function BookingDetailDialog({
           contact_no: f.contact_no,
           alt_contact_no: f.alt_contact_no,
           alt_contact_no_2: f.alt_contact_no_2,
+          alt_email: f.alt_email,
+          alt_email_2: f.alt_email_2,
           // Sent as null when blank so Zoho falls back to "consumer" treatment
           // rather than being handed an empty GSTIN string.
           gst_number: f.gst_number?.trim() || null,
@@ -493,6 +497,8 @@ export function BookingDetailDialog({
               {T("contact_no", "Contact No.")}
               {T("alt_contact_no", "Alternative Contact No.")}
               {T("alt_contact_no_2", "Alternative Contact No. 2")}
+              {T("alt_email", "Alternative Email", { type: "email" })}
+              {T("alt_email_2", "Alternative Email 2", { type: "email" })}
               {T("gst_number", "GSTIN (for invoice)")}
               {T("balance_due_date", "Balance Due Date", { type: "date" })}
             </div>
