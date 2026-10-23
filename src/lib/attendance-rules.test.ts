@@ -29,7 +29,7 @@ import {
   MANUAL_ATTENDANCE_BACKDATE_DAYS,
   DEFAULT_LEAVE_POLICY,
   DEFAULT_SCHEDULES,
-  LATE_LOGIN_WINDOW_MINUTES,
+  LATE_LOGIN_CUTOFF_MINUTES,
   MAX_TRAVEL_KMH,
   MIN_TRAVEL_CHECK_M,
   SPOOF_SIGNAL_LABELS,
@@ -1071,23 +1071,32 @@ describe("spoofSignals", () => {
 
 describe("lateLoginCutoff", () => {
   it("is 11:30 on a flexible weekday — the owner's stated rule", () => {
-    // 19:30 end minus 9h required = 10:30 last on-time start, plus one hour.
+    // The arithmetic behind it: 19:30 close minus the 9h requirement puts the
+    // last on-time start at 10:30, and 11:30 is the hour of leeway past that.
     expect(latestOnTimeStart(FLEX, 15)).toBe(10 * 60 + 30);
-    const cutoff = lateLoginCutoff(FLEX, 15);
-    expect(cutoff).toBe(11 * 60 + 30);
-    expect(minutesToTime(cutoff)).toBe("11:30");
+    expect(minutesToTime(lateLoginCutoff(FLEX))).toBe("11:30");
   });
 
-  it("is one hour after the on-time start on a fixed day", () => {
-    // Saturday is 10:00–17:00, so with the 15-minute grace it lands at 11:15.
-    expect(minutesToTime(lateLoginCutoff(SAT, 15))).toBe("11:15");
-    // The grace carries through on a fixed day.
-    expect(minutesToTime(lateLoginCutoff(SAT, 30))).toBe("11:30");
+  it("is the same 11:30 on Saturday", () => {
+    // Saturday is a shorter fixed day (10:00–17:00) but the cut-off is one
+    // wall-clock time everybody knows, not a per-day calculation.
+    expect(SAT.mode).toBe("fixed");
+    expect(minutesToTime(lateLoginCutoff(SAT))).toBe("11:30");
   });
 
-  it("always sits exactly one hour past the last on-time start", () => {
-    for (const s of DEFAULT_SCHEDULES)
-      expect(lateLoginCutoff(s, 15) - latestOnTimeStart(s, 15)).toBe(LATE_LOGIN_WINDOW_MINUTES);
+  it("is 11:30 on every working day and never binds on an off day", () => {
+    for (const s of DEFAULT_SCHEDULES) {
+      if (s.mode === "off") expect(lateLoginCutoff(s)).toBe(24 * 60);
+      else expect(lateLoginCutoff(s)).toBe(LATE_LOGIN_CUTOFF_MINUTES);
+    }
+  });
+
+  it("does not move when the grace changes", () => {
+    // Setting the grace to 0 to make Saturday strict must not drag the
+    // half-day cut-off earlier with it.
+    expect(lateLoginCutoff(SAT)).toBe(lateLoginCutoff(FLEX));
+    expect(latestOnTimeStart(SAT, 0)).not.toBe(latestOnTimeStart(SAT, 15));
+    expect(minutesToTime(lateLoginCutoff(SAT))).toBe("11:30");
   });
 });
 
@@ -1098,27 +1107,27 @@ describe("lateLoginAllowed", () => {
   };
 
   it("allows a late login right up to the cut-off", () => {
-    expect(lateLoginAllowed(at("10:31"), FLEX, 15)).toBe(true);
-    expect(lateLoginAllowed(at("11:00"), FLEX, 15)).toBe(true);
-    expect(lateLoginAllowed(at("11:29"), FLEX, 15)).toBe(true);
+    expect(lateLoginAllowed(at("10:31"), FLEX)).toBe(true);
+    expect(lateLoginAllowed(at("11:00"), FLEX)).toBe(true);
+    expect(lateLoginAllowed(at("11:29"), FLEX)).toBe(true);
   });
 
   it("refuses it from the cut-off minute onwards", () => {
-    expect(lateLoginAllowed(at("11:30"), FLEX, 15)).toBe(false);
-    expect(lateLoginAllowed(at("11:31"), FLEX, 15)).toBe(false);
-    expect(lateLoginAllowed(at("14:00"), FLEX, 15)).toBe(false);
-    expect(lateLoginAllowed(at("19:00"), FLEX, 15)).toBe(false);
+    expect(lateLoginAllowed(at("11:30"), FLEX)).toBe(false);
+    expect(lateLoginAllowed(at("11:31"), FLEX)).toBe(false);
+    expect(lateLoginAllowed(at("14:00"), FLEX)).toBe(false);
+    expect(lateLoginAllowed(at("19:00"), FLEX)).toBe(false);
   });
 
   it("still allows an on-time login", () => {
     // Not late at all: the popup never opens, but the rule must not say no.
-    expect(lateLoginAllowed(at("09:00"), FLEX, 15)).toBe(true);
-    expect(lateLoginAllowed(at("10:30"), FLEX, 15)).toBe(true);
+    expect(lateLoginAllowed(at("09:00"), FLEX)).toBe(true);
+    expect(lateLoginAllowed(at("10:30"), FLEX)).toBe(true);
   });
 
-  it("uses the Saturday window on Saturday", () => {
-    expect(lateLoginAllowed(at("11:14"), SAT, 15)).toBe(true);
-    expect(lateLoginAllowed(at("11:15"), SAT, 15)).toBe(false);
+  it("uses the same 11:30 on Saturday", () => {
+    expect(lateLoginAllowed(at("11:29"), SAT)).toBe(true);
+    expect(lateLoginAllowed(at("11:30"), SAT)).toBe(false);
   });
 
   it("never blocks a login on an off day", () => {
@@ -1126,21 +1135,30 @@ describe("lateLoginAllowed", () => {
     // overtime anyway.
     const SUN = DEFAULT_SCHEDULES[0];
     expect(SUN.mode).toBe("off");
-    expect(lateLoginAllowed(at("11:30"), SUN, 15)).toBe(true);
-    expect(lateLoginAllowed(at("23:59"), SUN, 15)).toBe(true);
+    expect(lateLoginAllowed(at("11:30"), SUN)).toBe(true);
+    expect(lateLoginAllowed(at("23:59"), SUN)).toBe(true);
   });
 
   it("marks the hour between the two thresholds as late BUT allowed", () => {
     // This is the window where the dialog still offers "Late login".
     for (const t of ["10:31", "11:00", "11:29"]) {
       expect(lateMinutes(at(t), FLEX, 15)).toBeGreaterThan(0);
-      expect(lateLoginAllowed(at(t), FLEX, 15)).toBe(true);
+      expect(lateLoginAllowed(at(t), FLEX)).toBe(true);
     }
     // And past it: still late, no longer a full day.
     for (const t of ["11:30", "13:00"]) {
       expect(lateMinutes(at(t), FLEX, 15)).toBeGreaterThan(0);
-      expect(lateLoginAllowed(at(t), FLEX, 15)).toBe(false);
+      expect(lateLoginAllowed(at(t), FLEX)).toBe(false);
     }
+  });
+
+  it("a strict Saturday (no grace) still gets the full window to 11:30", () => {
+    // With grace 0, arriving at 10:05 on Saturday is late — but it is a late
+    // full day, not a half day, right up to 11:30.
+    expect(lateMinutes(at("10:05"), SAT, 0)).toBe(5);
+    expect(lateLoginAllowed(at("10:05"), SAT)).toBe(true);
+    expect(lateLoginAllowed(at("11:29"), SAT)).toBe(true);
+    expect(lateLoginAllowed(at("11:30"), SAT)).toBe(false);
   });
 
   it("agrees with closeDay: a login at the cut-off cannot complete the day", () => {
