@@ -25,7 +25,8 @@ const BY_TYPE: Record<string, string> = {
   hr_attendance_request: "/hrms/approvals",
   hr_shared_device: "/hrms/attendance",
   hr_spoof_suspect: "/hrms/attendance",
-  // Employee: decision on their own request
+  // Employee: decision on their own request, and the forgot-to-log-out nudge
+  hr_logout_reminder: "/attendance",
   hr_leave_decision: "/attendance",
   hr_remote_decision: "/attendance",
   hr_attendance_decision: "/attendance",

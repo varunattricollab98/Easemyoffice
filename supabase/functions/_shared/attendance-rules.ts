@@ -198,6 +198,32 @@ export function latestOnTimeStart(s: DaySchedule, graceMinutes: number): number 
  *   (after 10:30 for 9h between 09:00 and 19:30); measured from that point.
  * - off: never late.
  */
+/**
+ * How long after the latest on-time start a plain "late login" is still on
+ * offer. Past that the window can no longer fit the day's required hours — on
+ * a flexible weekday the last on-time start is 10:30 (19:30 minus 9h), so the
+ * cut-off lands at 11:30 — and the honest choices become a half day, work from
+ * home, or leave.
+ */
+export const LATE_LOGIN_WINDOW_MINUTES = 60;
+
+/** Clock minute (IST) after which a late login is no longer offered. */
+export function lateLoginCutoff(s: DaySchedule, graceMinutes: number): number {
+  return latestOnTimeStart(s, graceMinutes) + LATE_LOGIN_WINDOW_MINUTES;
+}
+
+/**
+ * Whether logging in at `loginMinutes` can still be recorded as a (late) full
+ * day. An off day has no start to be late for, so it is always allowed.
+ */
+export function lateLoginAllowed(
+  loginMinutes: number,
+  s: DaySchedule,
+  graceMinutes: number,
+): boolean {
+  return loginMinutes < lateLoginCutoff(s, graceMinutes);
+}
+
 export function lateMinutes(loginMinutes: number, s: DaySchedule, graceMinutes: number): number {
   if (s.mode === "fixed") {
     const after = loginMinutes - timeToMinutes(s.start);

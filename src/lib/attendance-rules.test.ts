@@ -10,7 +10,10 @@ import {
   haversineMeters,
   istParts,
   latestOnTimeStart,
+  lateLoginAllowed,
+  lateLoginCutoff,
   lateMinutes,
+  minutesToTime,
   leaveLedger,
   minutesBetween,
   normalizeSchedules,
@@ -26,6 +29,7 @@ import {
   MANUAL_ATTENDANCE_BACKDATE_DAYS,
   DEFAULT_LEAVE_POLICY,
   DEFAULT_SCHEDULES,
+  LATE_LOGIN_WINDOW_MINUTES,
   MAX_TRAVEL_KMH,
   MIN_TRAVEL_CHECK_M,
   SPOOF_SIGNAL_LABELS,
@@ -1053,5 +1057,112 @@ describe("spoofSignals", () => {
       "stale_fix",
     ];
     for (const s of all) expect(SPOOF_SIGNAL_LABELS[s]?.length ?? 0).toBeGreaterThan(5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// When a late login stops being a full day.
+//
+// Owner's rule: the late-login popup may offer "Late login" for an hour after
+// the on-time start, but past that the person must take a half day instead —
+// by then the window cannot fit the required hours, so a full day would be a
+// promise nobody can keep.
+// ---------------------------------------------------------------------------
+
+describe("lateLoginCutoff", () => {
+  it("is 11:30 on a flexible weekday — the owner's stated rule", () => {
+    // 19:30 end minus 9h required = 10:30 last on-time start, plus one hour.
+    expect(latestOnTimeStart(FLEX, 15)).toBe(10 * 60 + 30);
+    const cutoff = lateLoginCutoff(FLEX, 15);
+    expect(cutoff).toBe(11 * 60 + 30);
+    expect(minutesToTime(cutoff)).toBe("11:30");
+  });
+
+  it("is one hour after the on-time start on a fixed day", () => {
+    // Saturday is 10:00–17:00, so with the 15-minute grace it lands at 11:15.
+    expect(minutesToTime(lateLoginCutoff(SAT, 15))).toBe("11:15");
+    // The grace carries through on a fixed day.
+    expect(minutesToTime(lateLoginCutoff(SAT, 30))).toBe("11:30");
+  });
+
+  it("always sits exactly one hour past the last on-time start", () => {
+    for (const s of DEFAULT_SCHEDULES)
+      expect(lateLoginCutoff(s, 15) - latestOnTimeStart(s, 15)).toBe(LATE_LOGIN_WINDOW_MINUTES);
+  });
+});
+
+describe("lateLoginAllowed", () => {
+  const at = (hhmm: string) => {
+    const [h, m] = hhmm.split(":").map(Number);
+    return h * 60 + m;
+  };
+
+  it("allows a late login right up to the cut-off", () => {
+    expect(lateLoginAllowed(at("10:31"), FLEX, 15)).toBe(true);
+    expect(lateLoginAllowed(at("11:00"), FLEX, 15)).toBe(true);
+    expect(lateLoginAllowed(at("11:29"), FLEX, 15)).toBe(true);
+  });
+
+  it("refuses it from the cut-off minute onwards", () => {
+    expect(lateLoginAllowed(at("11:30"), FLEX, 15)).toBe(false);
+    expect(lateLoginAllowed(at("11:31"), FLEX, 15)).toBe(false);
+    expect(lateLoginAllowed(at("14:00"), FLEX, 15)).toBe(false);
+    expect(lateLoginAllowed(at("19:00"), FLEX, 15)).toBe(false);
+  });
+
+  it("still allows an on-time login", () => {
+    // Not late at all: the popup never opens, but the rule must not say no.
+    expect(lateLoginAllowed(at("09:00"), FLEX, 15)).toBe(true);
+    expect(lateLoginAllowed(at("10:30"), FLEX, 15)).toBe(true);
+  });
+
+  it("uses the Saturday window on Saturday", () => {
+    expect(lateLoginAllowed(at("11:14"), SAT, 15)).toBe(true);
+    expect(lateLoginAllowed(at("11:15"), SAT, 15)).toBe(false);
+  });
+
+  it("never blocks a login on an off day", () => {
+    // There is no start time to be late for, and work on an off day is all
+    // overtime anyway.
+    const SUN = DEFAULT_SCHEDULES[0];
+    expect(SUN.mode).toBe("off");
+    expect(lateLoginAllowed(at("11:30"), SUN, 15)).toBe(true);
+    expect(lateLoginAllowed(at("23:59"), SUN, 15)).toBe(true);
+  });
+
+  it("marks the hour between the two thresholds as late BUT allowed", () => {
+    // This is the window where the dialog still offers "Late login".
+    for (const t of ["10:31", "11:00", "11:29"]) {
+      expect(lateMinutes(at(t), FLEX, 15)).toBeGreaterThan(0);
+      expect(lateLoginAllowed(at(t), FLEX, 15)).toBe(true);
+    }
+    // And past it: still late, no longer a full day.
+    for (const t of ["11:30", "13:00"]) {
+      expect(lateMinutes(at(t), FLEX, 15)).toBeGreaterThan(0);
+      expect(lateLoginAllowed(at(t), FLEX, 15)).toBe(false);
+    }
+  });
+
+  it("agrees with closeDay: a login at the cut-off cannot complete the day", () => {
+    // Working flat out from 11:30 to the 19:30 close is 8h against a 9h
+    // requirement, so the day could never be "present".
+    // 11:30 IST is 06:00 UTC; the flexible window closes at 19:30 IST (14:00 UTC).
+    const worked = windowMinutes(
+      "2026-10-23T06:00:00.000Z",
+      "2026-10-23T14:00:00.000Z",
+      "2026-10-23",
+      FLEX,
+    );
+    expect(worked).toBe(8 * 60);
+    expect(worked).toBeLessThan(FLEX.required_minutes);
+    const { status } = closeDay({
+      workedMinutes: worked,
+      windowMinutes: worked,
+      requiredMinutes: FLEX.required_minutes,
+      halfDayMinutes: 240,
+      mode: FLEX.mode,
+    });
+    expect(status).not.toBe("present");
+    expect(status).toBe("short");
   });
 });
