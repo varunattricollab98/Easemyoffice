@@ -7,6 +7,7 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
+import { authErrorMessage, signInWithRetry } from "@/lib/auth-errors";
 import { toast } from "sonner";
 import { Building2 } from "lucide-react";
 
@@ -32,25 +33,11 @@ function LoginPage() {
     // "{}" was shown when the auth server briefly failed (network drop or a
     // 5xx/52x gateway error at the morning peak). Those are retryable: try
     // twice more before giving up, and say what happened in plain words.
-    let { error } = await supabase.auth.signInWithPassword({ email, password });
-    for (const wait of [1500, 3500]) {
-      const retryable =
-        !!error &&
-        (error.name === "AuthRetryableFetchError" || !error.message || error.message === "{}");
-      if (!retryable) break;
-      await new Promise((r) => setTimeout(r, wait));
-      ({ error } = await supabase.auth.signInWithPassword({ email, password }));
-    }
+    const { error } = await signInWithRetry(() =>
+      supabase.auth.signInWithPassword({ email, password }),
+    );
     setBusy(false);
-    if (error) {
-      const retryable =
-        error.name === "AuthRetryableFetchError" || !error.message || error.message === "{}";
-      return toast.error(
-        retryable
-          ? "Could not reach the login server. Check your internet and try again in a minute."
-          : error.message,
-      );
-    }
+    if (error) return toast.error(authErrorMessage(error));
     toast.success("Welcome back");
     navigate({ to: "/dashboard" });
   };

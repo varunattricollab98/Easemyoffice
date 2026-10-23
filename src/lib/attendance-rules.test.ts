@@ -5,6 +5,7 @@ import {
   addDays,
   checkPunch,
   closeDay,
+  decimalPlaces,
   expandLeave,
   haversineMeters,
   istParts,
@@ -15,6 +16,7 @@ import {
   normalizeSchedules,
   regularizedAttendance,
   remoteDayAttendance,
+  spoofSignals,
   summarizeMonth,
   validateAttendanceRequest,
   validateManualAttendanceEntry,
@@ -24,8 +26,12 @@ import {
   MANUAL_ATTENDANCE_BACKDATE_DAYS,
   DEFAULT_LEAVE_POLICY,
   DEFAULT_SCHEDULES,
+  MAX_TRAVEL_KMH,
+  MIN_TRAVEL_CHECK_M,
+  SPOOF_SIGNAL_LABELS,
   type AttendanceDayRecord,
   type PunchCheckInput,
+  type SpoofSignal,
 } from "./attendance-rules";
 
 // ~ Connaught Place, New Delhi.
@@ -868,5 +874,184 @@ describe("remoteDayAttendance", () => {
     expect(r.overtime_minutes).toBe(0);
     expect(r.first_login_at).toBe("2026-10-03T18:30:00.000Z"); // IST midnight of the 4th
     expect(r.last_logout_at).toBe("2026-10-03T18:30:00.000Z");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fake-GPS detection (#220). "block" signals must be near-impossible for a
+// real reading, because blocking a genuine fix stops someone from marking
+// attendance at all; everything merely suspicious is warned about and
+// alerted to the admin instead.
+// ---------------------------------------------------------------------------
+
+describe("decimalPlaces", () => {
+  it("counts the digits as the number prints", () => {
+    expect(decimalPlaces(28.4595)).toBe(4);
+    expect(decimalPlaces(28.631512)).toBe(6);
+    expect(decimalPlaces(28.5)).toBe(1);
+    expect(decimalPlaces(28)).toBe(0);
+    expect(decimalPlaces(-77.2167)).toBe(4);
+  });
+
+  it("treats exponential notation as precise rather than hand-typed", () => {
+    // 1e-7 prints as "1e-7"; counting characters would say 0 decimals and
+    // wrongly read a real (tiny) coordinate as typed by hand.
+    expect(decimalPlaces(1e-7)).toBe(10);
+  });
+});
+
+describe("spoofSignals", () => {
+  const NOW = Date.UTC(2026, 9, 23, 4, 30); // 10:00 IST
+  // A real phone fix near the office: plenty of decimals, several readings.
+  const REAL = {
+    latitude: 28.631512,
+    longitude: 77.216734,
+    accuracy: 12,
+    nowMs: NOW,
+    fixTimestampMs: NOW - 5_000,
+    samples: 4,
+    spreadM: 3.2,
+  };
+
+  it("passes a normal phone fix with nothing flagged", () => {
+    expect(spoofSignals(REAL)).toEqual({ block: [], warn: [] });
+  });
+
+  it("blocks coordinates typed by hand (4 or fewer decimals on both axes)", () => {
+    const { block } = spoofSignals({ ...REAL, latitude: 28.6315, longitude: 77.2167 });
+    expect(block).toContain("low_precision");
+  });
+
+  it("does not block when only one axis is short", () => {
+    // A genuine reading can land on a round value for one axis.
+    expect(spoofSignals({ ...REAL, latitude: 28.6315 }).block).toEqual([]);
+    expect(spoofSignals({ ...REAL, longitude: 77.2167 }).block).toEqual([]);
+  });
+
+  it("blocks whole-number coordinates", () => {
+    expect(spoofSignals({ ...REAL, latitude: 28, longitude: 77 }).block).toContain("low_precision");
+  });
+
+  it("blocks impossible travel since the last accepted punch", () => {
+    // Delhi → Mumbai (~1150 km) an hour after the previous punch.
+    const previous = { latitude: 19.07609, longitude: 72.877426, atMs: NOW - 3_600_000 };
+    const d = haversineMeters(previous.latitude, previous.longitude, REAL.latitude, REAL.longitude);
+    expect(d).toBeGreaterThan(1_000_000);
+    expect(spoofSignals({ ...REAL, previous }).block).toContain("impossible_travel");
+  });
+
+  it("allows the same distance when there was time to travel it", () => {
+    // Same two cities, 12 hours apart — a normal flight or train.
+    const previous = { latitude: 19.07609, longitude: 72.877426, atMs: NOW - 12 * 3_600_000 };
+    expect(spoofSignals({ ...REAL, previous }).block).toEqual([]);
+  });
+
+  it("ignores speed over short distances", () => {
+    // ~11 km in a minute is nonsense as a speed, but short hops are where GPS
+    // error lives, so the rule only looks at jumps of 20 km or more.
+    const previous = {
+      latitude: REAL.latitude + 0.1,
+      longitude: REAL.longitude,
+      atMs: NOW - 60_000,
+    };
+    const d = haversineMeters(previous.latitude, previous.longitude, REAL.latitude, REAL.longitude);
+    expect(d).toBeLessThan(MIN_TRAVEL_CHECK_M);
+    expect(spoofSignals({ ...REAL, previous }).block).toEqual([]);
+  });
+
+  it("floors the elapsed time at a minute so two instant punches still trip", () => {
+    // Without the floor, a near-zero gap divides by ~0 and the speed check
+    // could be skipped or blow up.
+    const previous = {
+      latitude: REAL.latitude + 0.25, // ~27.6 km
+      longitude: REAL.longitude,
+      atMs: NOW - 1_000,
+    };
+    const d = haversineMeters(previous.latitude, previous.longitude, REAL.latitude, REAL.longitude);
+    expect(d).toBeGreaterThan(MIN_TRAVEL_CHECK_M);
+    expect(d / 1000 / (1 / 60)).toBeGreaterThan(MAX_TRAVEL_KMH);
+    expect(spoofSignals({ ...REAL, previous }).block).toContain("impossible_travel");
+  });
+
+  it("has no travel opinion without a previous punch", () => {
+    expect(spoofSignals({ ...REAL, previous: null }).block).toEqual([]);
+    expect(spoofSignals({ ...REAL, previous: undefined }).block).toEqual([]);
+  });
+
+  it("warns about sub-metre accuracy", () => {
+    // Consumer GPS does not do this; a mocking tool reports it happily.
+    expect(spoofSignals({ ...REAL, accuracy: 0.5 }).warn).toContain("too_precise");
+    expect(spoofSignals({ ...REAL, accuracy: 1 }).warn).not.toContain("too_precise");
+  });
+
+  it("warns about an exact repeat only when the fix was sharp", () => {
+    // A laptop's Wi-Fi location repeats to the digit every day and is vague,
+    // so only a precise repeat is worth reporting.
+    expect(spoofSignals({ ...REAL, repeatOfEarlierDay: true, accuracy: 20 }).warn).toContain(
+      "exact_repeat",
+    );
+    expect(spoofSignals({ ...REAL, repeatOfEarlierDay: true, accuracy: 2000 }).warn).not.toContain(
+      "exact_repeat",
+    );
+    expect(spoofSignals({ ...REAL, repeatOfEarlierDay: false }).warn).not.toContain("exact_repeat");
+  });
+
+  it("warns when several readings did not move at all", () => {
+    const frozen = { ...REAL, samples: 3, spreadM: 0, accuracy: 10 };
+    expect(spoofSignals(frozen).warn).toContain("frozen_fix");
+    // Needs at least three readings, real stillness and a sharp fix.
+    expect(spoofSignals({ ...frozen, samples: 2 }).warn).not.toContain("frozen_fix");
+    expect(spoofSignals({ ...frozen, spreadM: 0.4 }).warn).not.toContain("frozen_fix");
+    expect(spoofSignals({ ...frozen, accuracy: 25 }).warn).not.toContain("frozen_fix");
+  });
+
+  it("warns when the reading is older than five minutes", () => {
+    expect(spoofSignals({ ...REAL, fixTimestampMs: NOW - 6 * 60_000 }).warn).toContain("stale_fix");
+    expect(spoofSignals({ ...REAL, fixTimestampMs: NOW - 4 * 60_000 }).warn).not.toContain(
+      "stale_fix",
+    );
+    expect(spoofSignals({ ...REAL, fixTimestampMs: null }).warn).not.toContain("stale_fix");
+  });
+
+  it("stays quiet when the browser reported no accuracy", () => {
+    // Every accuracy-based warning is gated on a real number, so a missing
+    // one must not be treated as 0 (which would look impossibly precise).
+    const { block, warn } = spoofSignals({
+      ...REAL,
+      accuracy: null,
+      repeatOfEarlierDay: true,
+      samples: 5,
+      spreadM: 0,
+    });
+    expect(block).toEqual([]);
+    expect(warn).toEqual([]);
+  });
+
+  it("reports every signal it finds at once", () => {
+    const { block, warn } = spoofSignals({
+      latitude: 28.6315,
+      longitude: 77.2167,
+      accuracy: 0.5,
+      nowMs: NOW,
+      fixTimestampMs: NOW - 10 * 60_000,
+      samples: 4,
+      spreadM: 0,
+      repeatOfEarlierDay: true,
+      previous: { latitude: 19.07609, longitude: 72.877426, atMs: NOW - 600_000 },
+    });
+    expect(block).toEqual(["low_precision", "impossible_travel"]);
+    expect(warn).toEqual(["too_precise", "exact_repeat", "frozen_fix", "stale_fix"]);
+  });
+
+  it("has an admin-readable label for every signal", () => {
+    const all: SpoofSignal[] = [
+      "impossible_travel",
+      "low_precision",
+      "exact_repeat",
+      "frozen_fix",
+      "too_precise",
+      "stale_fix",
+    ];
+    for (const s of all) expect(SPOOF_SIGNAL_LABELS[s]?.length ?? 0).toBeGreaterThan(5);
   });
 });
