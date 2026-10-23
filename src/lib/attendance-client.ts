@@ -199,13 +199,52 @@ export function readPosition(): Promise<Fix> {
   });
 }
 
+async function sha256Short(input: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(digest))
+    .slice(0, 16)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/**
+ * Screen size in physical pixels, orientation- and zoom-independent.
+ *
+ * The first version of this used `width x height @ devicePixelRatio`, which
+ * moves on the same device: screen.width and screen.height SWAP when an
+ * Android phone is rotated, and zooming a page raises devicePixelRatio while
+ * shrinking the CSS dimensions. Either one produced a new fingerprint, so the
+ * phone looked like unknown hardware and asked for device approval again.
+ *
+ * Multiplying by the ratio cancels the zoom, sorting cancels the rotation, and
+ * rounding absorbs the sub-pixel noise that leaves (e.g. 412 x 2.625).
+ */
+function screenSignature(): string {
+  const ratio = window.devicePixelRatio || 1;
+  const sides = [screen.width * ratio, screen.height * ratio]
+    .map((n) => Math.round(n / 10) * 10)
+    .sort((a, b) => a - b);
+  return sides.join("x");
+}
+
+/** The pre-#224 screen part, kept only so an existing row can be matched. */
+function legacyScreenSignature(): string {
+  return `${screen.width}x${screen.height}@${window.devicePixelRatio}`;
+}
+
 /**
  * Stable hardware/OS fingerprint (screen, timezone, CPU, GPU, model). Sent
  * with each punch so the same phone/laptop is recognised after its browser
  * storage is cleared, instead of asking for device approval again.
+ *
+ * `legacy` is the same fingerprint computed the old way. The server falls back
+ * to it when looking a device up, so devices already on file (and already
+ * approved) are recognised and quietly moved to the stable value instead of
+ * needing a fresh approval.
  */
-let fpCache: Promise<string | null> | null = null;
-export function deviceFingerprint(): Promise<string | null> {
+export type DeviceFingerprints = { fp: string | null; legacy: string | null };
+let fpCache: Promise<DeviceFingerprints> | null = null;
+export function deviceFingerprints(): Promise<DeviceFingerprints> {
   if (fpCache) return fpCache;
   fpCache = (async () => {
     try {
@@ -233,22 +272,23 @@ export function deviceFingerprint(): Promise<string | null> {
       } catch {
         /* no WebGL */
       }
-      const parts = [
-        platform,
-        model,
-        `${screen.width}x${screen.height}@${window.devicePixelRatio}`,
-        Intl.DateTimeFormat().resolvedOptions().timeZone,
-        nav.hardwareConcurrency ?? "",
-        nav.deviceMemory ?? "",
-        gpu,
-      ].join("|");
-      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(parts));
-      return Array.from(new Uint8Array(digest))
-        .slice(0, 16)
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
+      const parts = (screenPart: string) =>
+        [
+          platform,
+          model,
+          screenPart,
+          Intl.DateTimeFormat().resolvedOptions().timeZone,
+          nav.hardwareConcurrency ?? "",
+          nav.deviceMemory ?? "",
+          gpu,
+        ].join("|");
+      const [fp, legacy] = await Promise.all([
+        sha256Short(parts(screenSignature())),
+        sha256Short(parts(legacyScreenSignature())),
+      ]);
+      return { fp, legacy: legacy === fp ? null : legacy };
     } catch {
-      return null;
+      return { fp: null, legacy: null };
     }
   })();
   return fpCache;
@@ -276,11 +316,13 @@ export async function punch(
   opts: { remote?: boolean; reason?: string; fix?: Fix; lateReason?: string } = {},
 ): Promise<PunchResult & { fix: Fix }> {
   const fix = opts.fix ?? (await readPosition());
+  const fingerprints = await deviceFingerprints();
   const body: Record<string, unknown> = {
     action,
     device_key: getDeviceKey(),
     device_label: describeDevice(navigator.userAgent),
-    device_fp: await deviceFingerprint(),
+    device_fp: fingerprints.fp,
+    device_fp_legacy: fingerprints.legacy,
   };
   if (fix.ok) {
     body.latitude = fix.latitude;

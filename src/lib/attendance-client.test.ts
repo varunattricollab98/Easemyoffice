@@ -485,3 +485,144 @@ describe("punch", () => {
     await expect(punch("login", { fix: GOOD })).rejects.toThrow("The service is unreachable");
   });
 });
+
+// --- recognising the same hardware ----------------------------------------
+
+/**
+ * A fresh copy of the module (the fingerprint is cached per load) against a
+ * fake device.
+ */
+async function loadClient(
+  device: {
+    width?: number;
+    height?: number;
+    dpr?: number;
+    platform?: string;
+    cores?: number;
+    memory?: number;
+    noScreen?: boolean;
+  } = {},
+) {
+  if (device.noScreen) vi.stubGlobal("screen", undefined);
+  else vi.stubGlobal("screen", { width: device.width ?? 412, height: device.height ?? 915 });
+  vi.stubGlobal("window", { devicePixelRatio: device.dpr ?? 2.625 });
+  vi.stubGlobal("navigator", {
+    userAgent: ANDROID_UA,
+    platform: device.platform ?? "Linux armv8l",
+    hardwareConcurrency: device.cores ?? 8,
+    deviceMemory: device.memory ?? 8,
+  });
+  vi.stubGlobal("document", { createElement: () => ({ getContext: () => null }) });
+  vi.stubGlobal("localStorage", fakeStorage().api);
+  vi.resetModules();
+  return import("./attendance-client");
+}
+
+describe("deviceFingerprints", () => {
+  // A Galaxy S23 in portrait: 412 x 915 CSS pixels at a 2.625 ratio.
+  const PHONE = { width: 412, height: 915, dpr: 2.625 };
+  const PHONE_ROTATED = { width: 915, height: 412, dpr: 2.625 };
+
+  it("does not change when the phone is rotated", async () => {
+    // screen.width and screen.height swap on Android, and the old formula
+    // used them in order — so a landscape punch asked for device approval as
+    // if it came from unknown hardware.
+    const a = await (await loadClient(PHONE)).deviceFingerprints();
+    const b = await (await loadClient(PHONE_ROTATED)).deviceFingerprints();
+    expect(a.fp).toBeTruthy();
+    expect(a.fp).toBe(b.fp);
+  });
+
+  it("does not change when the page is zoomed", async () => {
+    // Zooming raises devicePixelRatio and shrinks the CSS dimensions by the
+    // same factor, so the physical size is the stable quantity.
+    const normal = await (
+      await loadClient({ width: 1920, height: 1080, dpr: 1 })
+    ).deviceFingerprints();
+    const zoomed = await (
+      await loadClient({ width: 1536, height: 864, dpr: 1.25 })
+    ).deviceFingerprints();
+    expect(normal.fp).toBe(zoomed.fp);
+  });
+
+  it("still separates genuinely different hardware", async () => {
+    const phone = await (await loadClient(PHONE)).deviceFingerprints();
+    const tablet = await (
+      await loadClient({ width: 800, height: 1280, dpr: 2 })
+    ).deviceFingerprints();
+    const laptop = await (
+      await loadClient({ width: 1920, height: 1080, dpr: 1, platform: "Win32", cores: 16 })
+    ).deviceFingerprints();
+    expect(new Set([phone.fp, tablet.fp, laptop.fp]).size).toBe(3);
+  });
+
+  it("separates devices that differ only in their specs", async () => {
+    const a = await (await loadClient({ ...PHONE, cores: 8, memory: 8 })).deviceFingerprints();
+    const b = await (await loadClient({ ...PHONE, cores: 4, memory: 4 })).deviceFingerprints();
+    expect(a.fp).not.toBe(b.fp);
+  });
+
+  it("also sends the old fingerprint, which is what moved on rotation", async () => {
+    // The server looks this up as a fallback, so a device approved under the
+    // old value is recognised instead of needing approval again.
+    const a = await (await loadClient(PHONE)).deviceFingerprints();
+    const b = await (await loadClient(PHONE_ROTATED)).deviceFingerprints();
+    expect(a.legacy).toBeTruthy();
+    expect(a.legacy).not.toBe(a.fp);
+    // Proof of the original problem: the old value differs between the two.
+    expect(a.legacy).not.toBe(b.legacy);
+  });
+
+  it("is a short hex digest, not something identifying", async () => {
+    const { fp } = await (await loadClient(PHONE)).deviceFingerprints();
+    expect(fp).toMatch(/^[0-9a-f]{32}$/);
+  });
+
+  it("computes once per page load", async () => {
+    const mod = await loadClient(PHONE);
+    const first = await mod.deviceFingerprints();
+    // Even if the device appears to change (rotation), the cached answer holds
+    // for the rest of the session.
+    vi.stubGlobal("screen", { width: 915, height: 412 });
+    expect(await mod.deviceFingerprints()).toEqual(first);
+  });
+
+  it("gives up quietly when the browser exposes nothing to measure", async () => {
+    const mod = await loadClient({ noScreen: true });
+    expect(await mod.deviceFingerprints()).toEqual({ fp: null, legacy: null });
+  });
+});
+
+describe("punch fingerprints", () => {
+  it("sends both the stable and the legacy fingerprint", async () => {
+    const mod = await loadClient({ width: 412, height: 915, dpr: 2.625 });
+    vi.stubGlobal("document", {
+      createElement: () => ({ getContext: () => null }),
+      cookie: "",
+    });
+    invokeFunction.mockResolvedValue({ ok: true, action: "login", attendance: {} });
+
+    await mod.punch("login", {
+      fix: { ok: true, latitude: 28.631512, longitude: 77.216734, accuracy: 14 },
+    });
+    const body = invokeFunction.mock.calls[0][1] as Record<string, unknown>;
+    expect(body.device_fp).toMatch(/^[0-9a-f]{32}$/);
+    expect(body.device_fp_legacy).toMatch(/^[0-9a-f]{32}$/);
+    expect(body.device_fp).not.toBe(body.device_fp_legacy);
+  });
+
+  it("sends nulls rather than failing when there is nothing to fingerprint", async () => {
+    const mod = await loadClient({ noScreen: true });
+    vi.stubGlobal("document", {
+      createElement: () => ({ getContext: () => null }),
+      cookie: "",
+    });
+    invokeFunction.mockResolvedValue({ ok: true, action: "login", attendance: {} });
+
+    await mod.punch("login", { fix: { ok: false, error: "timeout" } });
+    const body = invokeFunction.mock.calls[0][1] as Record<string, unknown>;
+    expect(body.device_fp).toBeNull();
+    expect(body.device_fp_legacy).toBeNull();
+    expect(body.device_key).toBeTruthy();
+  });
+});
