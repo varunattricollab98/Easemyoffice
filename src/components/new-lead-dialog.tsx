@@ -27,6 +27,7 @@ export function NewLeadDialog({ open, onOpenChange, onCreated }: Props) {
     mobile: "",
     alt_mobile: "",
     email: "",
+    alt_email: "",
     company_name: "",
     city: "",
     state: "",
@@ -57,6 +58,7 @@ export function NewLeadDialog({ open, onOpenChange, onCreated }: Props) {
         mobile: form.mobile.trim(),
         alt_mobile: form.alt_mobile.trim() || null,
         email: form.email.trim() || null,
+        alt_email: form.alt_email.trim() || null,
         company_name: form.company_name.trim() || null,
         city: form.city.trim() || null,
         state: form.state.trim() || null,
@@ -162,6 +164,13 @@ export function NewLeadDialog({ open, onOpenChange, onCreated }: Props) {
           </Field>
           <Field label="Email">
             <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          </Field>
+          <Field label="Alternative Email">
+            <Input
+              type="email"
+              value={form.alt_email}
+              onChange={(e) => setForm({ ...form, alt_email: e.target.value })}
+            />
           </Field>
           <Field label="Budget (₹)">
             <Input type="number" value={form.budget} onChange={(e) => setForm({ ...form, budget: e.target.value })} />

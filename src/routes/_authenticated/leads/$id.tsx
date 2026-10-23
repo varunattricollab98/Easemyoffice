@@ -47,6 +47,7 @@ import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
 import { LeadActivityTimeline, type LeadActivityRow } from "@/components/activity-timeline";
+import { useEmailRecipients } from "@/components/email-recipients";
 
 export const Route = createFileRoute("/_authenticated/leads/$id")({
   head: () => ({ meta: [{ title: "Lead — EaseMyOffice CRM" }] }),
@@ -995,6 +996,12 @@ function EmailComposeDialog({
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
+  // A lead can have a second address; the sender can add more plus CC/BCC.
+  const mail = useEmailRecipients({
+    primary: lead.email,
+    alsoTo: [lead.alt_email],
+    resetKey: open,
+  });
   // Remembered across sessions: anyone who prefers composing full-screen almost
   // certainly wants it that way every time.
   const [expanded, setExpanded] = useState(false);
@@ -1039,11 +1046,14 @@ function EmailComposeDialog({
   const send = async () => {
     if (!subject.trim()) return toast.error("Please add a subject");
     if (!body.trim()) return toast.error("Please write the email body");
+    if (!mail.hasRecipients) return toast.error("Add at least one recipient email");
     setSending(true);
     try {
       const { data, error } = await supabase.functions.invoke("send-client-email", {
         body: {
-          to: lead.email,
+          to: mail.recipients.to,
+          cc: mail.recipients.cc.length ? mail.recipients.cc : undefined,
+          bcc: mail.recipients.bcc.length ? mail.recipients.bcc : undefined,
           subject: subject.trim(),
           html: textToHtml(body),
           text: body,
@@ -1055,7 +1065,7 @@ function EmailComposeDialog({
       });
       if (error) throw new Error(error.message);
       if (!data?.ok) throw new Error(data?.error || "Failed to send email");
-      toast.success(`Email sent to ${lead.email}`);
+      toast.success(`Email sent to ${mail.recipients.to.join(", ")}`);
       onSent(subject.trim());
       onOpenChange(false);
     } catch (e: unknown) {
@@ -1081,7 +1091,7 @@ function EmailComposeDialog({
       >
         <DialogHeader className="shrink-0 space-y-1.5 border-b px-6 py-4 pr-24">
           <DialogTitle>Send email to client</DialogTitle>
-          <DialogDescription>To: {lead.email}</DialogDescription>
+          <DialogDescription>Choose who it goes to below.</DialogDescription>
         </DialogHeader>
 
         {/* Sits left of DialogContent's own close button, which is at right-4. */}
@@ -1109,6 +1119,7 @@ function EmailComposeDialog({
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-1.5 md:col-span-2">{mail.fields}</div>
             <div className="space-y-1.5">
               <Label className="text-xs">Subject</Label>
               <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Email subject" />

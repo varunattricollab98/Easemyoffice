@@ -173,6 +173,7 @@ export interface BookingSheetSource {
   business_name?: string | null;
   client_name?: string | null;
   email_id?: string | null;
+  alt_email?: string | null;
   contact_no?: string | null;
   remarks?: string | null;
   sales_month?: string | null;
@@ -237,6 +238,10 @@ export function bookingSheetValues(b: BookingSheetSource): (string | number)[] {
     b.plan_years == null || b.plan_years === "" ? "" : Number(b.plan_years),
     t(b.plan_start_date),
     t(b.plan_expiry_date),
+    // Column 41. Appended rather than placed next to Email Id (column 31),
+    // because inserting there would shift columns 32-40 on every update and
+    // silently corrupt rows that were written by the old layout.
+    t(b.alt_email),
   ];
 }
 
