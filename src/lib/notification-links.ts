@@ -24,6 +24,7 @@ const BY_TYPE: Record<string, string> = {
   hr_remote_request: "/hrms/approvals",
   hr_attendance_request: "/hrms/approvals",
   hr_shared_device: "/hrms/attendance",
+  hr_spoof_suspect: "/hrms/attendance",
   // Employee: decision on their own request
   hr_leave_decision: "/attendance",
   hr_remote_decision: "/attendance",

@@ -64,10 +64,29 @@ export function detectBrowser(
   return "other";
 }
 
-export type LocationProblem = "blocked_in_browser" | "off_in_device" | "timeout" | "unsupported";
+export type LocationProblem =
+  | "in_app_browser"
+  | "blocked_in_browser"
+  | "off_in_device"
+  | "timeout"
+  | "unsupported";
+
+/**
+ * Link opened inside WhatsApp / Instagram / Facebook / LinkedIn / Gmail etc.
+ * Those built-in browsers usually cannot share location (and lose their
+ * storage, which made every visit a "new device").
+ */
+export function isInAppBrowser(
+  ua = typeof navigator === "undefined" ? "" : navigator.userAgent,
+): boolean {
+  return /WhatsApp|Instagram|FBAN|FBAV|FB_IAB|Line\/|LinkedInApp|GSA\/|Snapchat|Twitter|; wv\)/i.test(
+    ua,
+  );
+}
 
 /** Turns a failed fix + permission state into the problem to explain. */
 export function locationProblem(error: string, permission: LocationPermission): LocationProblem {
+  if (isInAppBrowser()) return "in_app_browser";
   if (error === "geolocation_unsupported") return "unsupported";
   if (error === "timeout") return "timeout";
   // Allowed for the site but still refused = the OS blocks the browser.
@@ -91,6 +110,14 @@ export function locationSteps(
   browser: BrowserName,
 ): string[] {
   const b = BROWSER_LABEL[browser];
+  if (problem === "in_app_browser")
+    return [
+      "This link is open inside an app (WhatsApp, Instagram, Gmail…), which cannot share your location.",
+      platform === "ios"
+        ? 'Tap the ••• or Share icon → "Open in Safari" (or Chrome).'
+        : 'Tap ⋮ (top right) → "Open in Chrome" (or your browser).',
+      "Log in there once and use that browser (or the installed CRM app) every day.",
+    ];
   if (problem === "unsupported")
     return [`This browser cannot share location. Open the CRM in Chrome and try again.`];
   if (problem === "timeout")

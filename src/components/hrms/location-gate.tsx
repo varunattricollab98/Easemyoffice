@@ -21,6 +21,7 @@ import {
 } from "@/lib/location-access";
 
 const TITLES: Record<LocationProblem, string> = {
+  in_app_browser: "Open the CRM in your browser",
   blocked_in_browser: "Allow location to mark attendance",
   off_in_device: "Turn on location",
   timeout: "Could not find your location",

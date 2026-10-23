@@ -29,7 +29,8 @@ export type RejectionReason =
   | "not_logged_in"
   | "session_too_long"
   | "stale_session_closed"
-  | "too_many_attempts";
+  | "too_many_attempts"
+  | "location_suspicious";
 
 export const REJECTION_MESSAGES: Record<RejectionReason, string> = {
   not_linked: "Your CRM login is not linked to an employee record. Ask the admin to link it.",
@@ -49,6 +50,8 @@ export const REJECTION_MESSAGES: Record<RejectionReason, string> = {
     "Your earlier login had no logout, so it is marked 'Missed punch out' for the admin to correct. Press LOGIN to start today.",
   too_many_attempts:
     "3 failed attempts. Wait 15 minutes, or choose Late login, Work from home, Half day or Leave below.",
+  location_suspicious:
+    "Your location looks altered (fake-GPS app or browser override). Turn it off and use your real location. The admin has been notified.",
 };
 
 /** Failed punches allowed per window before the punch button is locked. */
@@ -1083,4 +1086,75 @@ export function summarizeMonth(input: MonthInput): { days: DayCell[]; stats: Mon
     days.push(cell);
   }
   return { days, stats };
+}
+
+// ---------------------------------------------------------------------------
+// Location spoofing signals
+// ---------------------------------------------------------------------------
+//
+// A browser cannot prove a location is real, but fake-GPS apps and DevTools
+// overrides leave traces. "block" signals are near-impossible for a real fix;
+// "warn" signals are suspicious but can happen legitimately (a laptop's Wi-Fi
+// location repeats exactly), so they are recorded and alerted, not blocked.
+
+export type SpoofSignal =
+  | "impossible_travel"
+  | "low_precision"
+  | "exact_repeat"
+  | "frozen_fix"
+  | "too_precise"
+  | "stale_fix";
+
+export const SPOOF_SIGNAL_LABELS: Record<SpoofSignal, string> = {
+  impossible_travel: "Impossible travel since the last punch",
+  low_precision: "Hand-typed coordinates (too few decimals)",
+  exact_repeat: "Exactly the same coordinates as an earlier day",
+  frozen_fix: "GPS did not move at all across readings",
+  too_precise: "Unrealistic accuracy (under 1 m)",
+  stale_fix: "Location reading was old",
+};
+
+export interface SpoofInput {
+  latitude: number;
+  longitude: number;
+  accuracy: number | null;
+  nowMs: number;
+  /** position.timestamp from the browser. */
+  fixTimestampMs?: number | null;
+  /** Readings the browser took and how far apart they were (m). */
+  samples?: number | null;
+  spreadM?: number | null;
+  /** The employee's last accepted punch with a location. */
+  previous?: { latitude: number; longitude: number; atMs: number } | null;
+  /** Same lat/lng (to the last digit) seen on an earlier day. */
+  repeatOfEarlierDay?: boolean;
+}
+
+/** Decimal places as the number prints, e.g. 28.4595 -> 4. */
+export function decimalPlaces(n: number): number {
+  const s = String(n);
+  if (s.includes("e")) return 10;
+  const i = s.indexOf(".");
+  return i < 0 ? 0 : s.length - i - 1;
+}
+
+/** 300 km/h over at least 20 km between two punches = not physically possible. */
+export const MAX_TRAVEL_KMH = 300;
+export const MIN_TRAVEL_CHECK_M = 20_000;
+
+export function spoofSignals(i: SpoofInput): { block: SpoofSignal[]; warn: SpoofSignal[] } {
+  const block: SpoofSignal[] = [];
+  const warn: SpoofSignal[] = [];
+  if (decimalPlaces(i.latitude) <= 4 && decimalPlaces(i.longitude) <= 4) block.push("low_precision");
+  if (i.previous) {
+    const d = haversineMeters(i.previous.latitude, i.previous.longitude, i.latitude, i.longitude);
+    const hours = Math.max(i.nowMs - i.previous.atMs, 60_000) / 3_600_000;
+    if (d >= MIN_TRAVEL_CHECK_M && d / 1000 / hours > MAX_TRAVEL_KMH) block.push("impossible_travel");
+  }
+  if (i.accuracy != null && i.accuracy < 1) warn.push("too_precise");
+  if (i.repeatOfEarlierDay && i.accuracy != null && i.accuracy <= 30) warn.push("exact_repeat");
+  if ((i.samples ?? 0) >= 3 && i.spreadM === 0 && i.accuracy != null && i.accuracy <= 15)
+    warn.push("frozen_fix");
+  if (i.fixTimestampMs != null && i.nowMs - i.fixTimestampMs > 5 * 60_000) warn.push("stale_fix");
+  return { block, warn };
 }
