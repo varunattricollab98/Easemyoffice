@@ -133,7 +133,7 @@ export function QuickPunch() {
               : "Logged in — have a good day"
             : "Logged out",
         );
-      } else if (res.remote_allowed) {
+      } else if (res.request_allowed) {
         options.open({
           mode: "blocked",
           fix: res.fix,

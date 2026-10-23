@@ -314,7 +314,8 @@ export type PunchResult =
       ok: false;
       reason: RejectionReason;
       message: string;
-      remote_allowed?: boolean;
+      /** Cannot punch from here, but may apply for WFH / half day / leave. */
+      request_allowed?: boolean;
       attempts_left?: number;
     };
 

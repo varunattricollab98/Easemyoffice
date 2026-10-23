@@ -292,7 +292,7 @@ function TodayCard({ employee, now, today }: { employee: Employee; now: Date; to
               : "Logged in — have a good day"
             : "Logged out",
         );
-      } else if (res.remote_allowed) {
+      } else if (res.request_allowed) {
         options.open({
           mode: "blocked",
           fix: res.fix,

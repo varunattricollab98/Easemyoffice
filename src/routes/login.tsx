@@ -22,6 +22,16 @@ function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  // The page is server-rendered, so the form exists before React has hydrated.
+  // Pressing Sign in during that gap did a plain browser form submit — no
+  // onSubmit, no preventDefault — which reloaded /login and looked exactly like
+  // "login does nothing". Keep the button out of reach until the handler is
+  // actually attached.
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    setReady(true);
+  }, []);
 
   useEffect(() => {
     if (!loading && isAuthenticated) navigate({ to: "/dashboard" });
@@ -88,8 +98,8 @@ function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                 />
               </div>
-              <Button type="submit" className="w-full" disabled={busy}>
-                {busy ? "Signing in…" : "Sign in"}
+              <Button type="submit" className="w-full" disabled={busy || !ready}>
+                {busy ? "Signing in…" : ready ? "Sign in" : "Loading…"}
               </Button>
               <div className="flex items-center justify-between text-sm">
                 <Link to="/forgot-password" className="text-primary hover:underline">

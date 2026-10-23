@@ -1534,7 +1534,25 @@ function SecurityView() {
                     )}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {e.distance_m != null ? `${e.distance_m} m` : "—"}
+                    {/* A refused attempt now matters more than it used to: a
+                        punch from outside the office is never accepted, so
+                        this is where the admin checks where it came from. The
+                        coordinates were previously only in the CSV. */}
+                    {e.latitude != null && e.longitude != null ? (
+                      <a
+                        href={`https://maps.google.com/?q=${e.latitude},${e.longitude}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-primary hover:underline"
+                        title={`${Number(e.latitude).toFixed(6)}, ${Number(e.longitude).toFixed(6)} — open in Maps`}
+                      >
+                        {e.distance_m != null ? `${e.distance_m} m` : "map"}
+                      </a>
+                    ) : e.distance_m != null ? (
+                      `${e.distance_m} m`
+                    ) : (
+                      "—"
+                    )}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {e.accuracy_m != null ? `±${Math.round(Number(e.accuracy_m))} m` : "—"}

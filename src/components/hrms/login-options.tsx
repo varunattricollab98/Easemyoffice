@@ -63,8 +63,8 @@ const OPTIONS: {
     id: "wfh",
     label: "Work from home",
     hint: {
-      late: "Log in from home; the admin approves the day.",
-      blocked: "Log in from home; the admin approves the day.",
+      late: "Apply for today; the admin approves the day.",
+      blocked: "Apply for today; the admin approves and your hours are credited.",
     },
     icon: Home,
   },
@@ -122,8 +122,18 @@ export function useLoginOptions({
     try {
       setBusy(true);
       if (choice === "wfh") {
+        // Work from home is an APPLICATION, never a punch. A login from
+        // outside the office must not create attendance; the admin approves
+        // the day and that is what credits the hours (approveRemoteDay).
+        await hrRequest({
+          action: "apply_attendance_request",
+          type: "work_from_home",
+          work_date: today,
+          reason: r,
+        });
+        toast.success("Work from home sent to the admin for approval");
+        onRequestSent();
         close();
-        doPunch({ remote: true, reason: r, fix: offer.fix });
       } else if (choice === "late") {
         if (offer.mode === "late") {
           close();
