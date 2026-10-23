@@ -62,8 +62,11 @@ import {
 import {
   expandLeave,
   istParts,
+  lateLoginAllowed,
+  lateLoginCutoff,
   lateMinutes,
   minutesBetween,
+  minutesToTime,
   normalizeSchedules,
   windowMinutes,
   MAX_SESSION_MINUTES,
@@ -258,16 +261,20 @@ function TodayCard({ employee, now, today }: { employee: Employee; now: Date; to
       const action = isIn ? "logout" : "login";
       // First login of the day after the on-time start: ask why first.
       if (action === "login" && !row && !opts.remote && opts.lateReason === undefined) {
-        const lateBy = lateMinutes(
-          istParts(new Date()).minutes,
-          todaySchedule,
-          Number(settings?.grace_minutes ?? 15),
-        );
+        const nowMinutes = istParts(new Date()).minutes;
+        const grace = Number(settings?.grace_minutes ?? 15);
+        const lateBy = lateMinutes(nowMinutes, todaySchedule, grace);
         if (lateBy > 0) {
+          // Past the late-login window the day's hours can no longer be
+          // completed, so a full day is not offered at all.
+          const allowLate = lateLoginAllowed(nowMinutes, todaySchedule, grace);
           options.open({
             mode: "late",
             fix,
-            message: `You are ${formatMinutes(lateBy)} late today.`,
+            allowLate,
+            message: allowLate
+              ? `You are ${formatMinutes(lateBy)} late today.`
+              : `It is past ${minutesToTime(lateLoginCutoff(todaySchedule, grace))}, so today can no longer be a full day.`,
           });
           throw new Error(LOCATION_CANCELLED);
         }
@@ -289,6 +296,11 @@ function TodayCard({ employee, now, today }: { employee: Employee; now: Date; to
         options.open({
           mode: "blocked",
           fix: res.fix,
+          allowLate: lateLoginAllowed(
+            istParts(new Date()).minutes,
+            todaySchedule,
+            Number(settings?.grace_minutes ?? 15),
+          ),
           message: res.message || REJECTION_MESSAGES[res.reason as RejectionReason],
         });
       } else {

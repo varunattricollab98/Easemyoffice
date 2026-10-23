@@ -29,6 +29,12 @@ export interface LoginOptionsOffer {
   mode: LoginOptionsMode;
   fix: Fix;
   message: string;
+  /**
+   * False once it is too late for a full day (see `lateLoginAllowed`): the
+   * "Late login" choice is withdrawn and Half day becomes the default, so
+   * nobody can book a full day they cannot work.
+   */
+  allowLate?: boolean;
 }
 
 export interface PunchOpts {
@@ -103,7 +109,7 @@ export function useLoginOptions({
   const [busy, setBusy] = useState(false);
 
   const open = (o: LoginOptionsOffer) => {
-    setChoice(o.mode === "late" ? "late" : "wfh");
+    setChoice(o.allowLate === false ? "half_day" : o.mode === "late" ? "late" : "wfh");
     setReason("");
     setOffer(o);
   };
@@ -169,12 +175,16 @@ export function useLoginOptions({
           <>
             <DialogHeader>
               <DialogTitle>
-                {offer.mode === "late" ? "You are logging in late" : "Can't log in normally"}
+                {offer.allowLate === false
+                  ? "Too late for a full day"
+                  : offer.mode === "late"
+                    ? "You are logging in late"
+                    : "Can't log in normally"}
               </DialogTitle>
               <DialogDescription>{offer.message} Choose one and add a reason.</DialogDescription>
             </DialogHeader>
             <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Login option">
-              {OPTIONS.map((o) => {
+              {OPTIONS.filter((o) => o.id !== "late" || offer.allowLate !== false).map((o) => {
                 const active = choice === o.id;
                 const Icon = o.icon;
                 return (
