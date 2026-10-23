@@ -1145,11 +1145,13 @@ export const MIN_TRAVEL_CHECK_M = 20_000;
 export function spoofSignals(i: SpoofInput): { block: SpoofSignal[]; warn: SpoofSignal[] } {
   const block: SpoofSignal[] = [];
   const warn: SpoofSignal[] = [];
-  if (decimalPlaces(i.latitude) <= 4 && decimalPlaces(i.longitude) <= 4) block.push("low_precision");
+  if (decimalPlaces(i.latitude) <= 4 && decimalPlaces(i.longitude) <= 4)
+    block.push("low_precision");
   if (i.previous) {
     const d = haversineMeters(i.previous.latitude, i.previous.longitude, i.latitude, i.longitude);
     const hours = Math.max(i.nowMs - i.previous.atMs, 60_000) / 3_600_000;
-    if (d >= MIN_TRAVEL_CHECK_M && d / 1000 / hours > MAX_TRAVEL_KMH) block.push("impossible_travel");
+    if (d >= MIN_TRAVEL_CHECK_M && d / 1000 / hours > MAX_TRAVEL_KMH)
+      block.push("impossible_travel");
   }
   if (i.accuracy != null && i.accuracy < 1) warn.push("too_precise");
   if (i.repeatOfEarlierDay && i.accuracy != null && i.accuracy <= 30) warn.push("exact_repeat");
