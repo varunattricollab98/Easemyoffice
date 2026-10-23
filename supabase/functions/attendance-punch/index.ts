@@ -117,6 +117,10 @@ Deno.serve(async (req) => {
     const remoteReason = text(body.remote_reason, 300);
     const lateReason = text(body.late_reason, 300);
     const deviceFp = text(body.device_fp, 64);
+    // The fingerprint computed the pre-#224 way. Only used to FIND a device
+    // already on file, so a phone that was approved under the old value is
+    // not asked for approval again.
+    const deviceFpLegacy = text(body.device_fp_legacy, 64);
     const fixTimestamp = num(body.fix_timestamp);
     const fixSamples = num(body.fix_samples);
     const fixSpread = num(body.fix_spread_m);
@@ -257,13 +261,14 @@ Deno.serve(async (req) => {
         // the new key (keeps its status, no duplicate "device", no new
         // approval). Needs the optional fingerprint column.
         let twin: { id: string; status: string } | null = null;
-        if (deviceFp) {
+        const fpCandidates = [deviceFp, deviceFpLegacy].filter(Boolean) as string[];
+        if (fpCandidates.length) {
           try {
             const { data, error: twinErr } = await db
               .from("attendance_devices")
               .select("id, status")
               .eq("employee_id", employee.id)
-              .eq("fingerprint", deviceFp)
+              .in("fingerprint", fpCandidates)
               .order("last_seen_at", { ascending: false })
               .limit(1)
               .maybeSingle();
@@ -282,6 +287,18 @@ Deno.serve(async (req) => {
               label: text(body.device_label, 120),
             })
             .eq("id", twin.id);
+          // Move the row onto the stable fingerprint so the legacy value is
+          // needed only once. Best-effort: the column is optional.
+          if (deviceFp) {
+            await db
+              .from("attendance_devices")
+              .update({ fingerprint: deviceFp })
+              .eq("id", twin.id)
+              .then(
+                () => undefined,
+                () => undefined,
+              );
+          }
           deviceStatus = twin.status as DeviceStatus;
         } else {
           const status = s.require_device_approval ? "pending" : "approved";
