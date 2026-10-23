@@ -253,36 +253,51 @@ Deno.serve(async (req) => {
         // approved or blocked for this employee, it is the same phone/laptop
         // whose browser storage was cleared: keep its decision instead of
         // asking the admin to approve it again.
-        let inherited: DeviceStatus | null = null;
+        // Same hardware already on file for this employee: move that row to
+        // the new key (keeps its status, no duplicate "device", no new
+        // approval). Needs the optional fingerprint column.
+        let twin: { id: string; status: string } | null = null;
         if (deviceFp) {
           try {
-            const { data: twin, error: twinErr } = await db
+            const { data, error: twinErr } = await db
               .from("attendance_devices")
-              .select("status")
+              .select("id, status")
               .eq("employee_id", employee.id)
               .eq("fingerprint", deviceFp)
-              .in("status", ["approved", "revoked"])
               .order("last_seen_at", { ascending: false })
               .limit(1)
               .maybeSingle();
-            if (!twinErr && twin) inherited = twin.status as DeviceStatus;
+            if (!twinErr && data) twin = data as { id: string; status: string };
           } catch {
             /* fingerprint column not added yet */
           }
         }
-        const status = inherited ?? (s.require_device_approval ? "pending" : "approved");
-        const row = {
-          employee_id: employee.id,
-          device_key: deviceKey,
-          label: text(body.device_label, 120),
-          user_agent: userAgent,
-          status,
-        };
-        const { error: insErr } = await db
-          .from("attendance_devices")
-          .insert(deviceFp ? { ...row, fingerprint: deviceFp } : row);
-        if (insErr && deviceFp) await db.from("attendance_devices").insert(row);
-        deviceStatus = status as DeviceStatus;
+        if (twin) {
+          await db
+            .from("attendance_devices")
+            .update({
+              device_key: deviceKey,
+              last_seen_at: nowIso,
+              user_agent: userAgent,
+              label: text(body.device_label, 120),
+            })
+            .eq("id", twin.id);
+          deviceStatus = twin.status as DeviceStatus;
+        } else {
+          const status = s.require_device_approval ? "pending" : "approved";
+          const row = {
+            employee_id: employee.id,
+            device_key: deviceKey,
+            label: text(body.device_label, 120),
+            user_agent: userAgent,
+            status,
+          };
+          const { error: insErr } = await db
+            .from("attendance_devices")
+            .insert(deviceFp ? { ...row, fingerprint: deviceFp } : row);
+          if (insErr && deviceFp) await db.from("attendance_devices").insert(row);
+          deviceStatus = status as DeviceStatus;
+        }
       }
 
       try {

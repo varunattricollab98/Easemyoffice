@@ -29,9 +29,28 @@ function LoginPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    // "{}" was shown when the auth server briefly failed (network drop or a
+    // 5xx/52x gateway error at the morning peak). Those are retryable: try
+    // twice more before giving up, and say what happened in plain words.
+    let { error } = await supabase.auth.signInWithPassword({ email, password });
+    for (const wait of [1500, 3500]) {
+      const retryable =
+        !!error &&
+        (error.name === "AuthRetryableFetchError" || !error.message || error.message === "{}");
+      if (!retryable) break;
+      await new Promise((r) => setTimeout(r, wait));
+      ({ error } = await supabase.auth.signInWithPassword({ email, password }));
+    }
     setBusy(false);
-    if (error) return toast.error(error.message);
+    if (error) {
+      const retryable =
+        error.name === "AuthRetryableFetchError" || !error.message || error.message === "{}";
+      return toast.error(
+        retryable
+          ? "Could not reach the login server. Check your internet and try again in a minute."
+          : error.message,
+      );
+    }
     toast.success("Welcome back");
     navigate({ to: "/dashboard" });
   };
@@ -65,11 +84,22 @@ function LoginPage() {
             <form onSubmit={onSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+                <Input
+                  id="email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
-                <PasswordInput id="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+                <PasswordInput
+                  id="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
               </div>
               <Button type="submit" className="w-full" disabled={busy}>
                 {busy ? "Signing in…" : "Sign in"}
