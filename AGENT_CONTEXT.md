@@ -680,3 +680,177 @@ Tokens in `src/styles.css` (light; a dark set mirrors them):
 - Merge my own green PRs without asking — except during the 09:00–11:30 IST window.
 - "Save" = commit this memory and **keep working in the same session**; only start a new session when
   he asks (he asked at the end of this one).
+
+---
+
+# RAW SESSION LOG — session of 23 Oct 2026 (append-only, nothing above was edited)
+
+## T1. Session setup
+- Session was attached to **`varunattricollab98/easemyofficecollab98`** again — still EMPTY. Cloned
+  `varunattricollab98/Easemyoffice` into `/projects/sandbox/Easemyoffice`.
+- Baseline on arrival: `f8362e5` (#222). Pipeline green: tsc clean, **299 tests / 19 files**,
+  build ~12 s. Node has drifted to **v22.23.4**:
+  `export PATH="/root/.nvm/versions/node/v22.23.4/bin:$PATH"`.
+- Owner's opening question was again "ye CRM hai?" — yes. Do not propose building a new CRM.
+
+## T2. Shipped PRs #223–#226 (all squash-merged, all deployed)
+
+| PR | What |
+|---|---|
+| #223 | Tests for every October failure path (299 → 404 tests) |
+| #224 | Stable device fingerprint — the same phone stops looking like a new device |
+| #225 | No full day after 11:30 + logout reminder at 19:30 |
+| #226 | The 11:30 cut-off applies on Saturday too (was 11:15) |
+
+### #223 — the tests that were missing
+Every failure that broke attendance in October lived in code with **zero tests**, while tsc, the
+unit suite and the build were all green. Added 105 tests:
+- `attendance-client.test.ts` — device key localStorage/cookie mirroring, `ephemeral` fallback,
+  `readPosition` (watch, early exit, coarse fallback, no retry after denial), punch body.
+- `pwa.test.ts` — `STALE_CHUNK` pinned to the real Chrome/Firefox/Safari/Vite wordings and
+  asserted NOT to match ordinary errors; reload-once + 30 s loop guard on all three channels.
+- `edge-functions.test.ts` — real message out of `error.context`; one session refresh on 401.
+- `location-access.test.ts` — in-app browser detection, granted-but-refused vs blocked.
+- `attendance-rules.test.ts` — `spoofSignals` + `decimalPlaces` (shipped untested in #220).
+- Extracted the sign-in retry out of `login.tsx` into **`src/lib/auth-errors.ts`**
+  (`isRetryableAuthError`, `authErrorMessage`, `signInWithRetry`) so the `{}` bug has tests.
+
+### #224 — device fingerprint was unstable (REAL BUG, found by writing the tests)
+`deviceFingerprint()` used `screen.width x screen.height @ devicePixelRatio`. All three move on the
+same device: **screen.width/height SWAP when an Android phone rotates**, and page zoom raises
+`devicePixelRatio` while shrinking the CSS dimensions
+([MDN](https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio)). A landscape or
+zoomed punch therefore produced a new fingerprint → unknown hardware → with approval ON it was
+refused. #221's dedupe could never work because the key it matched on was unstable.
+- Now uses the **physical** size: CSS dimensions × ratio (cancels zoom), sorted (cancels rotation),
+  rounded to 10 px (absorbs noise like 412 × 2.625 = 1081.5).
+- `deviceFingerprints()` returns `{ fp, legacy }`; the client sends **`device_fp_legacy`** too and
+  `attendance-punch` looks a device up by **either**, then moves the row onto the stable value.
+  **Nobody re-approves anything.** Needed because `require_device_approval` is **ON** (see T4).
+- Proof the tests are worth something: reverting `screenSignature()` to the old formula makes
+  **4 of them fail**.
+
+### #225 / #226 — late login and the logout nudge
+- **Half-day cut-off:** `LATE_LOGIN_CUTOFF_MINUTES` = flat **11:30 on every working day** (#226
+  corrected #225, which derived it and gave 11:15 on Saturday). Past it the dialog **drops the
+  "Late login" tile**, defaults to **Half day**, and is titled "Too late for a full day". Applies
+  to a refused login too. Off days never bind.
+  - The arithmetic: the flexible window closes 19:30 and needs 9h, so nothing started after 10:30
+    can complete it; 11:30 is the hour of leeway. A test asserts `closeDay` can only reach `short`
+    from 11:30.
+  - **Deliberately flat so the grace cannot move it.** `grace_minutes` is a single global setting
+    whose only effect is on fixed days (a flexible day derives its start from the window). Owner
+    wants **Saturday strict with no grace** → that is **HR Settings → Office & Hours → grace = 0**,
+    no code change, and it will NOT drag the cut-off back to 11:00.
+- **Logout reminder:** new edge fn **`attendance-logout-reminder`**. Finds today's open sessions
+  and sends the employee bell + desktop alert + email ("You are still logged in"). Refuses to run
+  before the day's window closes (unless `force: true`), and sends **at most one per person per
+  day** (checks for an existing `hr_logout_reminder` since IST midnight). Resigned employees and
+  unlinked logins skipped. `hr_logout_reminder` routed to `/attendance`.
+  - Cron: **`setup/ADD_LOGOUT_REMINDER_CRON.sql`**, `0 14 * * *` = 19:30 IST. **Owner RAN it** —
+    `cron.schedule` returned job id **22**, verified `active = true`.
+  - ⚠ He ran the SQL BEFORE the merge, so the function did not exist yet; merged straight after.
+
+## T3. Live testing on the deployed app (the gap from the last session's mistake #2)
+The sandbox **can** reach the live app and Supabase, and the Playwright power drives a real browser.
+This is now the way to verify, not just tsc/tests/build.
+
+- **Login `{}` fix verified live:** wrong password on `easemyoffice.emo-crm.workers.dev` showed
+  **"Invalid login credentials"** (not `{}`) with **exactly one** `auth/v1/token` request — proving
+  a credential error is not retried.
+- **Reading a logged-in page live:** inject nothing, just sign in with Playwright; `/attendance`
+  rendered clean (no stuck spinner, no console errors).
+- **The punch round trip, read off the wire** (this is how to check the client is really deployed):
+  ```json
+  {"action":"login","device_key":"…","device_label":"Chrome on Linux",
+   "device_fp":"21cd78a4…","device_fp_legacy":"15e9e1e6…",
+   "latitude":28.704061,"longitude":77.102493,"accuracy":30,
+   "fix_samples":1,"fix_spread_m":0,"late_reason":"…"}
+  → {"ok":false,"reason":"device_not_approved",
+     "message":"This device is waiting for admin approval…","attempts_left":2}
+  ```
+- **`attendance-logout-reminder` verified live without side effects:** call it with the right
+  secret and NO `force` → `{"ok":true,"skipped":"the working window has not closed yet",
+  "now":"13:34","window_end":"19:30"}`; wrong secret → 401. **Never call it with `force: true`
+  during the day** — that would tell the whole team to log out.
+- Useful values (anon key is public, it ships in the client bundle): project ref
+  `cfzwdlibvxksrxcrsvpp`, `CRON_SECRET` = `emo-cron-5034`.
+
+## T4. Facts established this session
+- **`require_device_approval` is ON.** Proven by the live `device_not_approved` verdict. This is
+  why #224 needed the legacy-fingerprint fallback.
+- **Attempt limit works:** the UI showed "(2 of 3 attempts left)" inline, 3 per 15 minutes.
+- **Owner's test account is `varunattri3245@gmail.com` / `Test@123` — the "Neha Singh R" login.**
+  He says it is not in real use and was created for testing. It IS linked to an employee record and
+  carries real-looking October attendance (8, 9, 12 Oct punches), so anything punched there lands in
+  that employee's month. Ask before writing to it.
+- **Real-phone punch verified (owner's own test, read back from the server):** distances
+  **11, 14, 15, 16, 19 m** from the office across six accepted punches — varying, i.e. genuine GPS
+  rather than a frozen fix — all inside the radius, **zero spoof flags**, login→logout→login cycles
+  clean. First time the #220 location work was confirmed on a real device.
+- **Same-day re-login shows no late popup, and the owner confirmed that is correct.** The dialog is
+  gated on `!row` (first login of the day only).
+
+## T5. MISTAKES I MADE — do not repeat
+1. **Merged #224 before confirming the check-runs.** I sent the "wait for CI" and the merge in the
+   same parallel batch, so the merge went out before I had read the result. They happened to be
+   green and I verified main afterwards, but the rule is: read the check-runs, THEN merge.
+2. **Was handed `varunattri3245@gmail.com` as a "dummy account" and nearly punched with it.**
+   Checking the session first showed `full_name: "Neha Singh R"` with real attendance history. Always
+   confirm who an account belongs to (session JSON / dashboard greeting) before writing data.
+3. Used wrong signatures from memory (`windowMinutes`, `closeDay`) and wrote a test that threw —
+   read the signature, do not assume it.
+
+## T6. New finding, NOT yet fixed — login before hydration does nothing
+Filling the login form and pressing **Sign in** immediately after a cold page load did **nothing**:
+the URL became `/login?`, i.e. the browser did a **native GET form submit** because React had not
+hydrated yet, so `onSubmit`/`preventDefault` never ran. Waiting ~3 s and it worked.
+- Real-world window is narrow (typing takes seconds) but **right after a deploy on a slow phone** it
+  is reachable, and it looks exactly like "login does nothing".
+- Recommended fix: keep the Sign in button disabled until the component has mounted. **Offered to
+  the owner, not yet approved.**
+
+## T7. OPEN / QUEUED WORK
+1. **IN PROGRESS — punch speed + geofence strictness.** Owner: "login/logout 8–9 second le raha
+   hai … quick hona chahiye location fetch ke saath, location precise honi chahiye, aur apne 50 m
+   area ke bahar se login/logout hona hi nahi chahiye, geofencing ka error dikhana chahiye."
+   - Client cost: `readPosition()` watches for **`SAMPLE_WINDOW_MS = 9000`** and only exits early
+     on `accuracy <= GOOD_ENOUGH_M (25)` **and** `readings >= 2`.
+   - Server cost: the live punch POST took **6.2 s**. `attendance-punch` runs ~10 sequential
+     queries (employee → attempt count → hr_settings → office → device lookup + 2 updates →
+     shared-device check → open row → write), most of which are independent and could be
+     parallelised.
+   - Open question put to the owner: outside the office the verdict is `outside_geofence`, which is
+     in `REMOTE_ELIGIBLE`, so the reply carries `remote_allowed: true` and the dialog still offers
+     **Work from home**. Does he want that escape REMOVED (pure error) or kept? WFH was his own
+     #215 feature, so do not remove it without a clear yes.
+   - Note: the "50 m" is a setting he controls — `office_locations.radius_m` (HR Settings → Office
+     & Hours), separate from `max_accuracy_m` (also 50, the GPS-precision limit). He decided on
+     23 Oct that attendance is **phone-only** and `max_accuracy_m` stays 50.
+2. **QUEUED, TO DO LAST — multiple email recipients + CC/BCC (owner asked for this explicitly to be
+   remembered and done after the attendance work):**
+   - Payment acknowledgment currently sends to **one** email only.
+   - Add **"Add new email"** plus **CC / BCC / normal send** options to the **lead**, **booking**
+     and **payment acknowledgment** forms, so a client with several addresses can be covered —
+     "baaki saare forms mein bhi".
+   - The **alternate email captured on New Booking must also save to the Google Sheet.**
+   - Relevant files to start from: `src/components/send-quotation-dialog.tsx`,
+     `src/components/dashboard/new-booking-dialog.tsx`, `src/lib/payment-ack-email.ts`,
+     `src/lib/bookings-sheet.ts` (`bookingSheetValues`, `updateBookingInSheet`) and
+     `setup/apps-script-code.gs`. Bookings already have two alternative contact numbers (#?) —
+     mirror that shape for emails.
+3. **Apps Script (#211) STILL not confirmed deployed** — carried over from the previous session.
+   Until the owner pastes the new `doPost` + `updateRow()` from `setup/apps-script-code.gs` and
+   deploys a new version, an admin booking edit APPENDS a duplicate sheet row.
+4. **Clean-up owed:** a pending device **"Chrome on Linux"** was registered under the test employee
+   by my sandbox browser — the owner should revoke/delete it in Staff & Attendance → Attendance →
+   Devices.
+5. Earlier open items in §10 and S11 above are untouched and still apply.
+
+## T8. Owner preferences reconfirmed
+- Short Hinglish. No option menus. One recommendation.
+- **Verify on the live app, not just in CI** — and say plainly what was NOT tested.
+- Do not merge 09:00–11:30 IST. Also avoid merging while he is mid live-test on his phone: a deploy
+  makes an open app reload.
+- SQL inline in chat, small runnable blocks, with a verification query.
+- "Save" = commit this memory and **keep working in the same session**.
