@@ -99,8 +99,14 @@ export type Fix =
     }
   | { ok: false; error: string };
 
-const SAMPLE_WINDOW_MS = 9000;
+/** Longest we keep sampling before going with the best reading so far. */
+const SAMPLE_WINDOW_MS = 4000;
+/** Sharp enough to punch on straight away. */
 const GOOD_ENOUGH_M = 25;
+/** Inside the server's accuracy limit, but vague enough to want a second look. */
+const ACCEPTABLE_M = 50;
+/** Fallback one-shot read; a laptop locating itself over Wi-Fi is not quick. */
+const COARSE_TIMEOUT_MS = 8000;
 
 function metersBetween(a: GeolocationCoordinates, b: GeolocationCoordinates): number {
   const R = 6371000;
@@ -126,17 +132,23 @@ function readCoarse(): Promise<GeolocationPosition | GeolocationPositionError> {
   return new Promise((resolve) =>
     navigator.geolocation.getCurrentPosition(resolve, resolve, {
       enableHighAccuracy: false,
-      timeout: 15000,
+      timeout: COARSE_TIMEOUT_MS,
       maximumAge: 30000,
     }),
   );
 }
 
 /**
- * A fresh fix. Watches the position for up to ~9 s and keeps the most accurate
- * reading (phones start coarse and sharpen; one-shot reads were often rejected
- * as "too imprecise"), stopping early once it is within 25 m. If high-accuracy
- * mode fails (common on laptops without GPS) it falls back to a normal read.
+ * A fresh fix, as fast as one can be trusted.
+ *
+ * Phones start coarse and sharpen, so a single one-shot read used to get
+ * rejected as "too imprecise". Watching fixes that, but waiting out the whole
+ * window cost every punch several seconds. So: take the FIRST reading that is
+ * sharp enough to decide on (`maximumAge: 0` already rules out a cached fix,
+ * which is what the second reading used to guard against), give a middling
+ * reading one more chance to sharpen, and only sit out the window when nothing
+ * good has arrived. If high-accuracy mode fails altogether (common on laptops
+ * without GPS) fall back to a normal read.
  */
 export function readPosition(): Promise<Fix> {
   return new Promise((resolve) => {
@@ -184,7 +196,9 @@ export function readPosition(): Promise<Fix> {
       watchId = navigator.geolocation.watchPosition(
         (pos) => {
           readings.push(pos);
-          if (pos.coords.accuracy <= GOOD_ENOUGH_M && readings.length >= 2) void finish();
+          const { accuracy } = pos.coords;
+          if (accuracy <= GOOD_ENOUGH_M) void finish();
+          else if (accuracy <= ACCEPTABLE_M && readings.length >= 2) void finish();
         },
         (err) => {
           if (err.code === err.PERMISSION_DENIED || !readings.length) void finish(err);

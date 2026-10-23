@@ -251,7 +251,8 @@ describe("readPosition", () => {
     void readPosition();
     await flush();
     expect(geo.watchOptions).toMatchObject({ enableHighAccuracy: true, maximumAge: 0 });
-    expect(geo.watchOptions?.timeout).toBe(9000);
+    // The sampling window is the worst case a user can be made to wait.
+    expect(geo.watchOptions?.timeout).toBe(4000);
   });
 
   it("keeps the most accurate of several readings and reports the spread", async () => {
@@ -291,20 +292,54 @@ describe("readPosition", () => {
     expect(geo.coarseCalls).toBe(0);
   });
 
-  it("does not stop on a single sharp reading", async () => {
-    // One reading can be a stale cached fix; a second confirms it.
+  it("goes on the very first sharp reading, without waiting", async () => {
+    // This is the whole point of the speed work: a punch used to sit out the
+    // sampling window even when the first fix was already good. `maximumAge:0`
+    // rules out a cached reading, which is what a second one guarded against.
+    const geo = mockGeolocation();
+    const p = readPosition();
+    geo.onPosition(position(8));
+    await flush();
+
+    expect(await p).toMatchObject({ ok: true, accuracy: 8, samples: 1, spreadM: 0 });
+    expect(geo.cleared).toEqual([7]);
+    expect(geo.coarseCalls).toBe(0);
+  });
+
+  it("gives a middling reading one more chance to sharpen", async () => {
+    // 40 m is inside the server's 50 m limit but worth a second look; the
+    // better of the two is used.
     const geo = mockGeolocation();
     let settled = false;
     const p = readPosition().then((f) => {
       settled = true;
       return f;
     });
-    geo.onPosition(position(8));
+    geo.onPosition(position(40));
     await flush();
     expect(settled).toBe(false);
 
-    await vi.advanceTimersByTimeAsync(9000);
-    expect(await p).toMatchObject({ ok: true, accuracy: 8, samples: 1, spreadM: 0 });
+    geo.onPosition(position(34));
+    await flush();
+    expect(await p).toMatchObject({ ok: true, accuracy: 34, samples: 2 });
+  });
+
+  it("waits out the window only while every reading is too vague", async () => {
+    // A fix the server would reject (over 50 m) is never worth settling for
+    // early — keep sampling and hand over the best of a bad lot.
+    const geo = mockGeolocation();
+    let settled = false;
+    const p = readPosition().then((f) => {
+      settled = true;
+      return f;
+    });
+    geo.onPosition(position(900));
+    geo.onPosition(position(400));
+    await flush();
+    expect(settled).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(await p).toMatchObject({ ok: true, accuracy: 400, samples: 2 });
   });
 
   it("falls back to a coarse read when high accuracy times out (laptops)", async () => {
@@ -468,7 +503,6 @@ describe("punch", () => {
     invokeFunction.mockResolvedValue({ ok: true, action: "logout", attendance: {} });
     const p = punch("logout");
     await flush();
-    geo.onPosition(position(20));
     geo.onPosition(position(12));
     await flush();
     await p;

@@ -162,7 +162,13 @@ Deno.serve(async (req) => {
       const attempts_left = event.employee_id
         ? Math.max(0, MAX_PUNCH_ATTEMPTS - priorRejections - 1)
         : undefined;
-      return json({ ok: false, reason, message: REJECTION_MESSAGES[reason], attempts_left, ...extra });
+      return json({
+        ok: false,
+        reason,
+        message: REJECTION_MESSAGES[reason],
+        attempts_left,
+        ...extra,
+      });
     };
 
     // 2) Employee + policy.
@@ -175,11 +181,13 @@ Deno.serve(async (req) => {
     event.employee_id = employee.id;
     if (INACTIVE_STATUSES.has(employee.employment_status)) return reject("inactive_employee");
 
-    // At most MAX_PUNCH_ATTEMPTS failed punches per window. Beyond that the
-    // attempt is refused without another audit row, so repeated tapping no
-    // longer floods the security log. A work-from-home login stays allowed:
-    // it is the way out offered to the user.
-    if (body.remote !== true) {
+    // Everything the verdict needs next is independent of everything else, so
+    // read it in ONE round trip instead of five. A punch used to spend several
+    // seconds queueing behind queries that could have run together, and the
+    // person is standing there holding their phone.
+    const loadAttempts = async (): Promise<number> => {
+      // A work-from-home login is exempt: it is the way out we offer the user.
+      if (body.remote === true) return 0;
       const since = new Date(Date.now() - PUNCH_ATTEMPT_WINDOW_MINUTES * 60_000).toISOString();
       const { count } = await db
         .from("attendance_events")
@@ -187,25 +195,82 @@ Deno.serve(async (req) => {
         .eq("employee_id", employee.id)
         .eq("outcome", "rejected")
         .gte("created_at", since);
-      priorRejections = count ?? 0;
-      if (priorRejections >= MAX_PUNCH_ATTEMPTS) {
-        return json({
-          ok: false,
-          reason: "too_many_attempts",
-          message: REJECTION_MESSAGES.too_many_attempts,
-          attempts_left: 0,
-          remote_allowed: true,
-        });
+      return count ?? 0;
+    };
+    const loadSettings = async (): Promise<Record<string, unknown>> => {
+      const { data } = await db.from("hr_settings").select("*").eq("id", true).maybeSingle();
+      return (data ?? {}) as Record<string, unknown>;
+    };
+    const loadDevice = async (): Promise<{ id: string; status: string } | null> => {
+      if (!deviceKey) return null;
+      const { data } = await db
+        .from("attendance_devices")
+        .select("id, status")
+        .eq("employee_id", employee.id)
+        .eq("device_key", deviceKey)
+        .maybeSingle();
+      return (data ?? null) as { id: string; status: string } | null;
+    };
+    // The user's ask is specifically another employee's APPROVED device, so
+    // the signal is scoped to status = 'approved' (a revoked or pending
+    // registration under someone else is not an active shared device).
+    // Defensive: a detection failure must never block the punch.
+    const loadSharedWith = async (): Promise<string | null> => {
+      if (!deviceKey) return null;
+      try {
+        const { data } = await db
+          .from("attendance_devices")
+          .select("employee_id, status")
+          .eq("device_key", deviceKey)
+          .eq("status", "approved")
+          .neq("employee_id", employee.id)
+          .limit(1);
+        return ((data ?? [])[0]?.employee_id as string) ?? null;
+      } catch {
+        return null;
       }
+    };
+    // The open session decides whether a logout needs the office geofence: a
+    // work-from-home session is logged out of from home.
+    const loadOpen = async () => {
+      const { data } = await db
+        .from("attendance")
+        .select("*")
+        .eq("employee_id", employee.id)
+        .not("open_since", "is", null)
+        .order("work_date", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return data;
+    };
+
+    const [attempts, s, existingDevice, sharedWith, openRow] = await Promise.all([
+      loadAttempts(),
+      loadSettings(),
+      loadDevice(),
+      loadSharedWith(),
+      loadOpen(),
+    ]);
+
+    if (sharedWith) {
+      sharedDevice = true;
+      sharedWithEmployeeId = sharedWith;
+    }
+
+    // At most MAX_PUNCH_ATTEMPTS failed punches per window. Beyond that the
+    // attempt is refused without another audit row, so repeated tapping no
+    // longer floods the security log.
+    priorRejections = attempts;
+    if (body.remote !== true && priorRejections >= MAX_PUNCH_ATTEMPTS) {
+      return json({
+        ok: false,
+        reason: "too_many_attempts",
+        message: REJECTION_MESSAGES.too_many_attempts,
+        attempts_left: 0,
+        remote_allowed: true,
+      });
     }
     const employeeName = [employee.first_name, employee.last_name].filter(Boolean).join(" ");
-
-    const { data: settings } = await db
-      .from("hr_settings")
-      .select("*")
-      .eq("id", true)
-      .maybeSingle();
-    const s = settings ?? {};
     const schedules = normalizeSchedules(s.day_schedules);
     const grace = Number(s.grace_minutes ?? 15);
     const halfDay = Number(s.half_day_minutes ?? 240);
@@ -225,19 +290,13 @@ Deno.serve(async (req) => {
     //    required, so switching the requirement on later does not lock out
     //    devices that were already in use.
     let deviceStatus: DeviceStatus = "new";
-    // Live cross-employee sharing detection. A device_key registered to a
-    // DIFFERENT employee means this machine is shared — we FLAG + ALERT but
-    // never block (families and shared office PCs are legitimate; a false
-    // block would lock a real employee out). Fully defensive: a failure here
-    // must never reject or 500 the punch. The flags are declared earlier so
-    // the reject() helper can mark a rejected attempt as shared too.
+    // Cross-employee sharing was already detected above (sharedDevice /
+    // sharedWithEmployeeId): a device_key registered to a DIFFERENT employee
+    // means this machine is shared, which we FLAG + ALERT but never block
+    // (families and shared office PCs are legitimate; a false block would lock
+    // a real employee out).
     if (deviceKey) {
-      const { data: device } = await db
-        .from("attendance_devices")
-        .select("id, status")
-        .eq("employee_id", employee.id)
-        .eq("device_key", deviceKey)
-        .maybeSingle();
+      const device = existingDevice;
       if (device) {
         deviceStatus = device.status as DeviceStatus;
         await db
@@ -250,7 +309,10 @@ Deno.serve(async (req) => {
             .from("attendance_devices")
             .update({ fingerprint: deviceFp })
             .eq("id", device.id)
-            .then(() => undefined, () => undefined);
+            .then(
+              () => undefined,
+              () => undefined,
+            );
         }
       } else {
         // Unknown browser key. If the same hardware (fingerprint) is already
@@ -316,39 +378,8 @@ Deno.serve(async (req) => {
           deviceStatus = status as DeviceStatus;
         }
       }
-
-      try {
-        // The user's ask is specifically another employee's APPROVED device, so
-        // the alert signal is scoped to status = 'approved' (a revoked or
-        // pending registration under someone else is not an active shared
-        // device). Defensive: a detection failure must never block the punch.
-        const { data: others } = await db
-          .from("attendance_devices")
-          .select("employee_id, status")
-          .eq("device_key", deviceKey)
-          .eq("status", "approved")
-          .neq("employee_id", employee.id)
-          .limit(1);
-        const other = others?.[0] ?? null;
-        if (other?.employee_id) {
-          sharedDevice = true;
-          sharedWithEmployeeId = other.employee_id as string;
-        }
-      } catch {
-        /* best-effort — never block the punch on a detection failure */
-      }
     }
 
-    // The open session decides whether a logout needs the office geofence: a
-    // work-from-home session is logged out of from home.
-    const { data: openRow } = await db
-      .from("attendance")
-      .select("*")
-      .eq("employee_id", employee.id)
-      .not("open_since", "is", null)
-      .order("work_date", { ascending: false })
-      .limit(1)
-      .maybeSingle();
     let open = openRow;
 
     // A session left open on an earlier day (forgot to log out) can never be
