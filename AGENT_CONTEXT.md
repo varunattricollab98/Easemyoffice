@@ -1004,3 +1004,101 @@ address, a comma string **or** an array, and already dedupes. The whole gap was 
 7. **Saturday grace** — owner said "no grace on Saturday". That is `hr_settings.grace_minutes` → `0`
    in HR Settings; no code change. The 11:30 cut-off is deliberately flat so it will not move.
 8. Earlier open items in §10, S11 and T7 still apply.
+
+---
+
+# INCIDENT — 26 Oct 2026: the Supabase project stopped responding
+
+## V1. What the owner reported
+*"Not able to login Into CRM as in admin panel"*, then *"ye login hona is very important & log out too"*.
+
+## V2. What it actually was
+**The Supabase project, not the code.** No deploy had happened for three days (#231 was the last
+merge), and [status.supabase.com](https://status.supabase.com/) reported every system operational.
+
+Measured from outside the app:
+
+| | Afternoon (first check) | An hour later |
+|---|---|---|
+| `auth/v1/health` | 0.6–1.9 s | — |
+| `auth/v1/token` (password grant) | **6.0 s → 7.5 s → 504 after 40 s** | no response |
+| `rest/v1` (Data API) | no response in 25 s | no response |
+| edge functions | no response in 25 s | no response |
+
+**Credentials were never the problem** — a direct `curl` to `/auth/v1/token` returned a valid access
+token while the app could sign nobody in.
+
+**Owner restarted the project and everything came back, faster than it had been all day:**
+auth **0.88 s**, REST **0.7 s**, edge function **0.94 s**, CRM login click-to-dashboard **708 ms**.
+
+## V3. THE LESSON — auth at 6–7 s was a warning we misread
+Earlier the same week the owner complained a punch took **8–9 seconds**, and I treated it purely as
+a code problem (#228: GPS early-exit, 5 queries → 1 round trip). Those changes were right, but
+**much of that 8–9 s was this same backend already degrading.** The punch POST measured 6.2 s then
+and 4.6 s after my change; the same function answers in **0.94 s** on a healthy project.
+
+**Before optimising anything again, first measure the platform:** hit `auth/v1/health`,
+`rest/v1/<table>?select=id&limit=1` and a cheap edge function with `curl -w "%{time_total}"`. If
+those are slow, the application code is not the story. (And remember from U2 that the sandbox runs
+in `us-east-1` while the project is in India, so compare like with like.)
+
+## V4. #232 — making an outage legible
+supabase-js sets **no timeout** on its fetch, so during the outage Sign in sat on "Signing in…" and
+the attendance LOGIN button on "Checking location…" **forever** — no error, no toast, nothing in the
+console, indistinguishable from a wrong password or a broken build. The #223 retry does not help,
+because it only reacts to an error the server *returns*; a hang returns nothing.
+
+- **`src/lib/with-timeout.ts`** — `withTimeout(promise, ms, message)` rejects with a `TimeoutError`
+  and clears its timer.
+- **Sign-in: 12 s per attempt.** A timeout is deliberately **NOT retryable**
+  (`isRetryableAuthError` returns false for `TimeoutError`) — a server silent for 12 s is down, and
+  retrying twice more would make the user wait ~40 s for the same answer. A server that *answers*
+  with a retryable error still gets its two retries.
+- **`invokeFunction`: 15 s** → "The server is not responding…". Covers the punch, leave requests and
+  every client email. The 401 session refresh is wrapped too.
+- 10 tests added (445 → 455).
+
+**Verified live during the real outage:** the message appeared after **12.7 s** and the button
+returned to a usable "Sign in".
+
+## V5. Live verifications after the restart (all previously unverified)
+- **GPS read: 81 ms** — #228's early exit working on a real fix (accuracy 18 m ≤ 25 m, so the first
+  reading was used). It used to sit out a 9-second window.
+- **#225/#226 confirmed live:** pressing LOGIN at 17:30 gave **"Too late for a full day · It is past
+  11:30, so today can no longer be a full day"** with the **"Late login" tile absent** — only Work
+  from home, Half day and Leave.
+- **#229 confirmed live:** the WFH option now reads *"Apply for today; the admin approves the day"* —
+  an application, not a punch.
+- Cancelled without submitting; no attendance or leave data was created.
+
+## V6. GitHub Actions is ALSO down — and it is not the same thing as the CRM
+The `Typecheck and build` check fails **in 2 seconds with no steps executed**, twice, on a repo where
+Actions are enabled with `allowed_actions: all`. That is a runner that never starts — most likely
+**Actions minutes / spending limit** (month end, and 9 PRs ran on 23 Oct). The billing API returns
+403 to this token, so the owner must check **GitHub → Settings → Billing → Actions**.
+
+**What still works while Actions is down** (measured, and worth repeating to the owner, who asked
+"GitHub nahi chal raha to CRM open nahi hoga?"):
+- CRM login page 200 in 1.04 s, dashboard 200 in 0.35 s — the app runs on **Cloudflare**, not GitHub
+- Supabase auth 200 in 0.88 s
+- **`Workers Builds: easemyoffice: success` on the same commit Actions failed on** — Cloudflare builds
+  and deploys independently, so deploys keep working
+
+The only loss is the pre-merge safety net. **Procedure while it is down:** run
+`npx tsc --noEmit`, `bun run test` and `bun run build` in the sandbox, put the results in the PR
+body, and **ask the owner before merging** — do not merge around a red check unsupervised. He
+approved #232 this way with an explicit "kro merge".
+
+## V7. Owner's dashboard checklist, in the order given (restart fixed it this time)
+1. Organization → Billing (a failed payment would explain Supabase *and* Actions at once)
+2. Resume/Restore button on the project page
+3. Settings → General → **Restart project** ← this is what worked
+4. Settings → Database → Disk usage (a full disk produces exactly this signature: Data API and
+   Functions hanging while Auth degrades more slowly)
+
+## V8. Still open after this incident
+1. **GitHub Actions** — billing/minutes unconfirmed; resets on 1 Nov if it is the monthly allowance.
+2. **A real punch timing from the office** — still owed. Expect ~2 s now; the three remaining
+   round-trip removals in U2 are only worth doing if it is still slow.
+3. Sheet **AO1** header, Apps Script **#211** confirmation, and the pending **"Chrome on Linux"**
+   device under the test employee — all unchanged from U7.
