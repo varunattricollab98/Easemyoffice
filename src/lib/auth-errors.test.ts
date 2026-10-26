@@ -139,3 +139,57 @@ describe("signInWithRetry", () => {
     }
   });
 });
+
+describe("signInWithRetry when the server does not answer at all", () => {
+  it("gives up after the timeout instead of hanging", async () => {
+    // The 26 Oct outage: the request never settles. Without this the button
+    // stays on "Signing in…" indefinitely.
+    vi.useFakeTimers();
+    try {
+      const signIn = vi.fn(() => new Promise<{ error: null }>(() => {}));
+      let done: { error: { name?: string; message?: string } | null } | undefined;
+      void signInWithRetry(signIn, { timeoutMs: 12_000 }).then((r) => {
+        done = r;
+      });
+
+      await vi.advanceTimersByTimeAsync(11_999);
+      expect(done).toBeUndefined();
+
+      await vi.advanceTimersByTimeAsync(2);
+      expect(done?.error?.name).toBe("TimeoutError");
+      expect(authErrorMessage(done?.error)).toBe(AUTH_UNREACHABLE);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not retry a timeout — one attempt, then the truth", async () => {
+    // Retrying twice more would make the user wait ~40 s to be told the same
+    // thing about a server that is plainly down.
+    vi.useFakeTimers();
+    try {
+      const signIn = vi.fn(() => new Promise<{ error: null }>(() => {}));
+      void signInWithRetry(signIn, { timeoutMs: 1000 });
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(signIn).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a timeout is final, not retryable", () => {
+    expect(isRetryableAuthError({ name: "TimeoutError", message: AUTH_UNREACHABLE })).toBe(false);
+  });
+
+  it("still retries a genuine transport blip", async () => {
+    // The distinction that matters: a server that ANSWERS with a retryable
+    // error gets another chance; one that says nothing does not.
+    const signIn = vi
+      .fn()
+      .mockResolvedValueOnce({ error: { name: "AuthRetryableFetchError", message: "{}" } })
+      .mockResolvedValueOnce({ error: null });
+    const res = await signInWithRetry(signIn, { sleep: () => Promise.resolve() });
+    expect(signIn).toHaveBeenCalledTimes(2);
+    expect(res.error).toBeNull();
+  });
+});

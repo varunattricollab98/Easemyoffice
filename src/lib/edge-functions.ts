@@ -8,6 +8,17 @@
 // expired token on a laptop left open overnight.
 
 import { supabase } from "@/integrations/supabase/client";
+import { isTimeoutError, withTimeout } from "@/lib/with-timeout";
+
+/**
+ * How long to wait for an edge function. A punch normally answers in a few
+ * seconds; supabase-js sets no timeout at all, so when the project stops
+ * responding the LOGIN / LOGOUT button spins forever with no error.
+ */
+export const EDGE_TIMEOUT_MS = 15_000;
+
+export const EDGE_UNREACHABLE =
+  "The server is not responding. Check your internet, then try again in a minute.";
 
 async function messageFrom(error: unknown): Promise<{ status: number | null; message: string }> {
   const e = error as { message?: string; context?: Response };
@@ -34,13 +45,27 @@ export async function invokeFunction<T = unknown>(
   name: string,
   body: Record<string, unknown>,
 ): Promise<T> {
-  let { data, error } = await supabase.functions.invoke(name, { body });
+  const call = () =>
+    withTimeout(supabase.functions.invoke(name, { body }), EDGE_TIMEOUT_MS, EDGE_UNREACHABLE).catch(
+      (e) => {
+        // A hang becomes a plain error the caller can show, instead of a
+        // promise that never settles.
+        if (isTimeoutError(e)) throw new Error(EDGE_UNREACHABLE);
+        throw e;
+      },
+    );
+
+  let { data, error } = await call();
   if (error) {
     let info = await messageFrom(error);
     if (info.status === 401) {
-      const { error: refreshErr } = await supabase.auth.refreshSession();
+      const { error: refreshErr } = await withTimeout(
+        supabase.auth.refreshSession(),
+        EDGE_TIMEOUT_MS,
+        EDGE_UNREACHABLE,
+      ).catch(() => ({ error: new Error(EDGE_UNREACHABLE) }));
       if (!refreshErr) {
-        ({ data, error } = await supabase.functions.invoke(name, { body }));
+        ({ data, error } = await call());
         if (!error) return data as T;
         info = await messageFrom(error);
       }
