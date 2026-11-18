@@ -35,13 +35,15 @@ function scopeLeads<Q>(q: Q, s: DashboardScope): Q {
 // volume. Safe if the table doesn't exist yet: returns zeros.
 async function callStatsToday(startOfDay: Date): Promise<{ answered: number; missed: number }> {
   try {
-    const [ans, miss] = await Promise.all([
-      supabase.from("telecmi_call_events").select("id", { count: "exact", head: true })
-        .eq("status", "answered").gte("created_at", startOfDay.toISOString()),
-      supabase.from("telecmi_call_events").select("id", { count: "exact", head: true })
-        .eq("status", "missed").gte("created_at", startOfDay.toISOString()),
-    ]);
-    return { answered: ans.count ?? 0, missed: miss.count ?? 0 };
+    const { data, error } = await supabase.rpc("telecmi_call_counts_today", {
+      p_start: startOfDay.toISOString(),
+    });
+    if (error) return { answered: 0, missed: 0 };
+    const row = Array.isArray(data) ? data[0] : data;
+    return {
+      answered: Number(row?.answered ?? 0),
+      missed: Number(row?.missed ?? 0),
+    };
   } catch {
     return { answered: 0, missed: 0 };
   }
