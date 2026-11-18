@@ -54,6 +54,14 @@ const BookingSchema = z.object({
   amount_received: z.number().min(0).default(0),
   balance_amount: z.number().min(0).default(0),
   balance_due_date: z.string().optional().nullable(),
+}).superRefine((booking, ctx) => {
+  if (booking.amount_received + booking.balance_amount > booking.total_amount) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["amount_received"],
+      message: "Amount received plus balance cannot exceed the booking total",
+    });
+  }
 });
 
 const GATEWAY = "https://connector-gateway.lovable.dev/google_sheets/v4";
@@ -131,6 +139,16 @@ export const appendBooking = createServerFn({ method: "POST" })
   .middleware([attachSupabaseAuth, requireSupabaseAuth])
   .inputValidator((d) => BookingSchema.parse(d))
   .handler(async ({ data, context }) => {
+    // This handler uses the service-role client, so mirror the intended
+    // booking INSERT roles explicitly instead of relying on database RLS.
+    const { data: roleRows, error: roleErr } = await supabaseAdmin
+      .from("user_roles").select("role").eq("user_id", context.userId);
+    if (roleErr) throw new Error("Unable to verify booking permissions");
+    const roles = new Set((roleRows ?? []).map((r) => r.role));
+    if (!roles.has("admin") && !roles.has("sales") && !roles.has("bd")) {
+      throw new Error("Forbidden: you do not have permission to create bookings");
+    }
+
     // 1. Save to DB (always)
     const { error: dbErr } = await supabaseAdmin.from("bookings").insert({
       external_booking_id: data.booking_id,
@@ -219,7 +237,14 @@ export const markBalancePaid = createServerFn({ method: "POST" })
     if (!adminRow && row.assigned_to !== context.userId && row.created_by !== context.userId) {
       throw new Error("Forbidden");
     }
-    const paid = data.amount ?? Number(row.balance_amount ?? 0);
+    const outstanding = Number(row.balance_amount ?? 0);
+    const paid = data.amount ?? outstanding;
+    if (!Number.isFinite(paid) || paid <= 0) {
+      throw new Error("Payment amount must be greater than zero");
+    }
+    if (paid > outstanding) {
+      throw new Error("Payment amount cannot exceed the outstanding balance");
+    }
     const { error } = await supabaseAdmin.from("bookings").update({
       amount_received: Number(row.amount_received ?? 0) + paid,
       balance_amount: Math.max(0, Number(row.balance_amount ?? 0) - paid),
