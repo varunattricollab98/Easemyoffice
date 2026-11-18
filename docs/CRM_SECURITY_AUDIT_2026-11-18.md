@@ -1,7 +1,7 @@
 # EaseMyOffice CRM — Security & Architecture Audit
 **Audit date:** 2026-11-18  
 **Scope:** Read-only review of the connected `main` branch and Supabase SQL outputs supplied during the audit.  
-**Status:** Findings documented; no application code or production database changes made.
+**Status:** Initial audit completed. Remediation commits have been added to `main`; migrations are not yet applied to production and application tests/build have not been run.
 
 ## Executive summary
 
@@ -13,18 +13,14 @@ The CRM has a substantial existing foundation (React 19, TanStack Start/Router, 
 
 ### Critical / high priority
 
-1. **Bookings UPDATE policy is effectively unrestricted for authenticated users.**  
-   Live policy `bookings_update_team` has both `USING (auth.uid() IS NOT NULL)` and `WITH CHECK (auth.uid() IS NOT NULL)`. PostgreSQL permissive policies are OR-combined, so this broad policy defeats the narrower booking update policies. Remove/replace only after testing each role's required booking workflow.
+1. **Bookings UPDATE policy was effectively unrestricted for authenticated users.**  
+   Live policy `bookings_update_team` had both `USING (auth.uid() IS NOT NULL)` and `WITH CHECK (auth.uid() IS NOT NULL)`. A committed migration now drops this policy, leaving the narrower booking update and renewal policies in place. Apply and test against staging before production.
 
-2. **Dashboard aggregate RPCs are callable by anon and accept arbitrary user IDs or NULL.**  
-   Live function inspection showed `dashboard_stats_agg(uuid)` and `dashboard_trend_30d(uuid)` are SECURITY DEFINER and executable by anon. Their filters use the supplied `p_user_id`, not `auth.uid()`; NULL produces organization-wide aggregate results. The dashboard frontend scopes users, but frontend scoping is not a security boundary. Revoke anon execution and enforce caller identity/authorized manager scope inside the functions.
+2. **Dashboard aggregate RPCs were callable by anon and accepted arbitrary user IDs or NULL.**  
+   A committed migration revokes EXECUTE from PUBLIC, anon, and authenticated for both SECURITY DEFINER dashboard aggregate functions. The dashboard query has an RLS-scoped client-side fallback. This disables the fast RPC path until caller-identity checks are implemented and tested.
 
-3. **Booking server functions use the service-role client without sufficient role checks.**  
-   In `src/lib/bookings.functions.ts`:
-   - `appendBooking` requires authentication but has no admin/sales/BD role check before inserting via `supabaseAdmin`.
-   - `markBalancePaid` checks admin or booking ownership, but accepts an amount larger than the outstanding balance and increments `amount_received` by that amount. It can therefore record overpayment/inconsistent ledger values.
-   - `listBookings` only gives admins all bookings; every other authenticated user is scoped to their own assigned/created rows, which may conflict with accounts/renewals/documentation workflows.
-   Server functions bypass normal user RLS when using service role, so every handler must authorize explicitly.
+3. **Booking server functions use the service-role client.**  
+   A committed application change adds admin/sales/BD role validation to `appendBooking`, validates received plus outstanding amounts against the booking total, and rejects zero/negative or over-balance payments in `markBalancePaid`. `listBookings` scope remains to be reviewed against accounts/renewals/documentation workflows.
 
 ### Medium priority
 
@@ -34,8 +30,8 @@ The CRM has a substantial existing foundation (React 19, TanStack Start/Router, 
 5. **Unassigned leads can be deleted by any authenticated user.**  
    Live `leads_delete_own_or_admin` allows `assigned_to IS NULL`, so any authenticated user can delete any unassigned lead. The tracked migration instead defines admin-only deletion. Reconcile live policy with intended shared-inbox claim workflow; claiming must not imply delete permission.
 
-6. **TeleCMI call data is readable by every authenticated user.**  
-   `20260516000002_add_telecmi_calls.sql` creates `telecmi_call_events` and policy `telecmi_calls_select_auth` with `USING (true)`. Rows include caller/agent numbers and raw webhook `payload`. Limit access to authorized sales managers/admins and consider column minimization so staff only see calls they need.
+6. **TeleCMI call data was readable by every authenticated user.**  
+   A committed migration replaces the blanket SELECT policy with admin, matched-agent, or linked-lead ownership access. It also adds an authenticated aggregate RPC returning only answered/missed counts and updates the dashboard to use it instead of reading call-event rows directly.
 
 7. **Audit and KPI event rows are user-submitted, not independently verified evidence.**  
    `src/lib/audit.ts` writes audit rows directly from the browser; live policy allows a user to insert when `actor_id = auth.uid()`. The user can still fabricate the action/entity/detail/meta for themselves. `kpi_events_insert_own` similarly validates only `user_id = auth.uid()`. These tables are useful telemetry but should not be treated as tamper-proof performance evidence. Important actions should be logged server-side from trusted handlers/triggers.
@@ -100,3 +96,13 @@ The supplied public-schema trigger list shows expected updated-at triggers, foll
 ## Limitations
 
 This is a static source review plus the SQL outputs supplied in chat. I did not execute the app, run the test suite, authenticate to the live CRM, inspect Supabase Auth signup settings, inspect every live table/policy/function, or deploy any changes. The GitHub connector provided file reads but no local checkout/runtime for running `bun test`, lint, or build. Live schema may have changes not represented in migrations.
+
+
+## Remediation commits (2026-11-18)
+
+- `500efb2` — revoke browser-role execution of the exposed dashboard aggregate RPCs.
+- `683d110` — add booking creation role validation and payment amount guards.
+- `f740ba5` — drop broad booking UPDATE policy; scope TeleCMI row access; add safe call-count aggregate RPC.
+- `8e008e0` — update dashboard call metrics to use the aggregate RPC.
+
+**Not yet done:** migrations have not been run against Supabase; no production deployment, build, lint, unit tests, or end-to-end role tests have been performed. Follow-up policies, lead deletion, audit/KPI trust, role mismatch, and least-privilege grants remain open.
