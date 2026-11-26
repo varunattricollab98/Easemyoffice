@@ -4,7 +4,7 @@
 import {
   Flame, Bell, AlertTriangle, Target, RefreshCcw, Users, CalendarPlus, Phone,
   ThumbsUp, FileText, Handshake, Repeat, Wallet, BadgeCheck, FileClock, PenLine,
-  XCircle, Ban, PhoneIncoming, PhoneMissed, IndianRupee, type LucideIcon,
+  XCircle, Ban, IndianRupee, type LucideIcon,
 } from "lucide-react";
 
 // Shape returned by dashboardStatsQuery — what every KPI resolver reads from.
@@ -18,9 +18,7 @@ export type KpiStats = {
   assignedToday: number;
   renewals: number;
   byStage: Record<string, number>;
-  // TeleCMI call volume (today, org-wide) + this month's bookings/revenue.
-  callsToday: number;
-  callsMissedToday: number;
+  // This month's bookings/revenue.
   monthBookings: number;
   monthRevenue: number;
 };
@@ -83,11 +81,7 @@ export const KPI_CATALOG: KpiDef[] = [
     tooltip: "Follow-ups past their due date.", to: "/follow-ups", search: { filter: "overdue" }, value: (s) => s.overdue },
   { id: "total", label: "Total leads", icon: Users, accent: "primary", hint: "All-time",
     tooltip: "Every lead assigned to you.", to: "/leads", value: (s) => s.total },
-  // Call + booking KPIs (TeleCMI + this month's bookings).
-  { id: "calls_today", label: "Calls today", icon: PhoneIncoming, accent: "success",
-    tooltip: "Helpline calls answered today (via TeleCMI).", to: "/calls", value: (s) => s.callsToday },
-  { id: "calls_missed_today", label: "Missed calls today", icon: PhoneMissed, accent: "destructive",
-    tooltip: "Helpline calls missed today (via TeleCMI).", to: "/calls", value: (s) => s.callsMissedToday },
+  // Booking KPIs.
   { id: "month_bookings", label: "Bookings (mo)", icon: BadgeCheck, accent: "success",
     tooltip: "Bookings created this month.", to: "/bookings", value: (s) => s.monthBookings },
   { id: "month_revenue", label: "Revenue (mo)", icon: IndianRupee, accent: "success", hint: "₹",
@@ -103,6 +97,6 @@ export type KpiId = string;
 // "Total bookings" (payment received) surface the parts of the funnel the team
 // cares about day to day.
 export const DEFAULT_KPIS: KpiId[] = [
-  "calls_today", "calls_missed_today", "new_leads", "hot",
+  "new_leads", "hot",
   "ready_to_pay", "month_bookings", "month_revenue", "closures",
 ];
