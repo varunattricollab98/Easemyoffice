@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { LayoutItem } from "react-grid-layout/legacy";
-import { DEFAULT_KPIS, type KpiId } from "@/lib/dashboard-kpis";
+import { DEFAULT_KPIS, KPI_MAP, type KpiId } from "@/lib/dashboard-kpis";
 
 const LAYOUT_KEY = (uid: string) => `dashboard:layout:v2:${uid}`;
 const VISIBLE_KEY = (uid: string) => `dashboard:visible:v1:${uid}`;
@@ -13,14 +13,16 @@ const QUIET_KEY = "dashboard:quiet:v1";
 // key ensures it runs at most once per new-cards batch (bump the version to
 // introduce a future batch).
 const KPI_MIGRATION_KEY = (uid: string) => `dashboard:kpis:migrated:v2:${uid}`;
-const KPI_ADDED_IN_V2: KpiId[] = ["calls_today", "calls_missed_today", "month_bookings", "month_revenue"];
+const KPI_ADDED_IN_V2: KpiId[] = ["month_bookings", "month_revenue"];
+
+const activeKpis = (ids: KpiId[]) => ids.filter((id) => Object.prototype.hasOwnProperty.call(KPI_MAP, id));
 
 function migrateKpis(uid: string): KpiId[] | null {
   try {
     if (localStorage.getItem(KPI_MIGRATION_KEY(uid)) === "1") return null; // already migrated
     const raw = localStorage.getItem(KPI_KEY(uid));
     if (!raw) { localStorage.setItem(KPI_MIGRATION_KEY(uid), "1"); return null; } // no saved layout -> uses DEFAULT_KPIS anyway
-    const current = JSON.parse(raw) as KpiId[];
+    const current = activeKpis(JSON.parse(raw) as KpiId[]);
     const toAdd = KPI_ADDED_IN_V2.filter((id) => !current.includes(id));
     const next = toAdd.length ? [...current, ...toAdd] : current;
     if (toAdd.length) localStorage.setItem(KPI_KEY(uid), JSON.stringify(next));
@@ -70,7 +72,7 @@ export function useVisibleKpis(uid: string) {
       const migrated = migrateKpis(uid);
       if (migrated) return migrated;
       const raw = localStorage.getItem(KPI_KEY(uid));
-      if (raw) return JSON.parse(raw) as KpiId[];
+      if (raw) return activeKpis(JSON.parse(raw) as KpiId[]);
     } catch { /* ignore */ }
     return DEFAULT_KPIS;
   });
@@ -79,7 +81,7 @@ export function useVisibleKpis(uid: string) {
       const migrated = migrateKpis(uid);
       if (migrated) { setKpis(migrated); return; }
       const raw = localStorage.getItem(KPI_KEY(uid));
-      if (raw) setKpis(JSON.parse(raw) as KpiId[]);
+      if (raw) setKpis(activeKpis(JSON.parse(raw) as KpiId[]));
       else setKpis(DEFAULT_KPIS);
     } catch { /* ignore */ }
   }, [uid]);
