@@ -168,7 +168,7 @@ function LeadDetailPage() {
     queryFn: async () => {
       const { data } = await (supabase as any)
         .from("email_log")
-        .select("id, subject, sent_at, status")
+        .select("id, subject, sent_at, status, error, resend_message_id")
         .eq("lead_id", id)
         .order("sent_at", { ascending: false })
         .limit(50);
@@ -177,6 +177,8 @@ function LeadDetailPage() {
         subject: string | null;
         sent_at: string;
         status: string;
+        error: string | null;
+        resend_message_id: string | null;
       }>;
     },
   });
@@ -950,33 +952,36 @@ function textToHtml(text: string) {
   return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1e293b;line-height:1.6;white-space:normal">${esc.replace(/\n/g, "<br>")}</div>`;
 }
 
-type EmailLogEntry = { id: string; subject: string | null; sent_at: string; status: string };
+type EmailLogEntry = { id: string; subject: string | null; sent_at: string; status: string; error: string | null; resend_message_id: string | null };
 
-// Read-only summary of emails actually delivered to this lead (public.email_log).
-// Mirrors the Badge + Mail-icon styling of EmailStatusRow for visual consistency.
+// Provider acceptance is not proof of delivery to the recipient.
 function EmailLogSummary({ emails }: { emails: EmailLogEntry[] }) {
-  const sent = emails.filter((e) => e.status === "sent");
-  if (sent.length === 0) return null;
-  const last = sent[0]; // query is ordered sent_at DESC
-  const recent = sent.slice(0, 5);
+  if (emails.length === 0) return null;
+  const accepted = emails.filter((e) => e.status === "sent").length;
+  const failed = emails.filter((e) => e.status === "failed").length;
   return (
     <Card>
-      <CardContent className="p-4 space-y-2">
+      <CardContent className="p-4 space-y-3">
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <Badge variant="secondary" className="gap-1 text-xs font-normal">
             <Mail className="h-3 w-3 text-blue-500" />
-            {sent.length} email{sent.length === 1 ? "" : "s"} sent
+            {accepted} accepted for delivery
           </Badge>
-          <span className="text-muted-foreground">
-            &middot; last sent {formatDistanceToNow(new Date(last.sent_at), { addSuffix: true })}
-          </span>
+          {failed > 0 && <Badge variant="destructive">{failed} failed</Badge>}
         </div>
-        <ul className="space-y-1 pl-1">
-          {recent.map((e) => (
-            <li key={e.id} className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Mail className="h-3 w-3 shrink-0" />
-              <span className="truncate" title={e.subject ?? undefined}>{e.subject || "(no subject)"}</span>
-              <span className="shrink-0">&middot; {format(new Date(e.sent_at), "dd MMM")}</span>
+        <p className="text-xs text-muted-foreground">Recent email attempts. Provider acceptance does not confirm receipt.</p>
+        <ul className="space-y-2">
+          {emails.slice(0, 10).map((e) => (
+            <li key={e.id} className="space-y-1 border-b pb-2 last:border-0">
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <Badge variant={e.status === "failed" ? "destructive" : "secondary"}>
+                  {e.status === "sent" ? "Accepted" : e.status === "failed" ? "Failed" : e.status}
+                </Badge>
+                <span className="break-words">{e.subject || "(no subject)"}</span>
+                <span className="text-muted-foreground">{format(new Date(e.sent_at), "dd MMM, h:mm a")}</span>
+              </div>
+              {e.error && <p className="text-xs text-destructive break-words">{e.error}</p>}
+              {e.resend_message_id && <p className="text-xs text-muted-foreground break-all">Message ID: {e.resend_message_id}</p>}
             </li>
           ))}
         </ul>
