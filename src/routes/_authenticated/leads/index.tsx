@@ -174,8 +174,22 @@ function LeadsListPage() {
     if (service !== "all") query = query.eq("service_required", service as never);
     if (owner) query = query.eq("assigned_to", owner);
     if (q.trim()) {
-      const term = `%${q.trim()}%`;
-      query = query.or(`client_name.ilike.${term},mobile.ilike.${term},company_name.ilike.${term},lead_code.ilike.${term},email.ilike.${term}`);
+      // Quote PostgREST values so email addresses and punctuation cannot break the OR filter.
+      const pattern = (value: string) => '"' + '%' + value.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '%' + '"';
+      const raw = q.trim();
+      const term = pattern(raw);
+      const fields = ["client_name", "mobile", "alt_mobile", "company_name", "lead_code", "email"];
+      const filters = fields.map((field) => `${field}.ilike.${term}`);
+      // Also match phone numbers entered with a country code or separators.
+      if (/^[+\d\s().-]+$/.test(raw)) {
+        const digits = raw.replace(/\D/g, "");
+        if (digits.length >= 4) {
+          const local = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
+          const phonePattern = pattern(local.split("").join("%"));
+          filters.push(`mobile.ilike.${phonePattern}`, `alt_mobile.ilike.${phonePattern}`);
+        }
+      }
+      query = query.or(filters.join(","));
     }
     // Date range filter
     if (dateRange !== "all") {
@@ -503,7 +517,7 @@ function LeadsListPage() {
         <CardContent className="p-4 flex flex-wrap gap-2">
           <div className="relative flex-1 min-w-56">
             <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input className="pl-9 focus:ring-2 ring-primary/20 transition-all duration-200 ease-out" placeholder="Search name, mobile, company, code…" value={q} onChange={(e) => onSearchChange(e.target.value)} />
+            <Input className="pl-9 focus:ring-2 ring-primary/20 transition-all duration-200 ease-out" placeholder="Search name, email, contact number, company, code…" value={q} onChange={(e) => onSearchChange(e.target.value)} />
           </div>
           <Select value={stage} onValueChange={setStage}>
             <SelectTrigger className="w-[180px]"><SelectValue placeholder="Stage" /></SelectTrigger>
