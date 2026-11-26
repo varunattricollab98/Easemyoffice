@@ -111,22 +111,22 @@ Deno.serve(async (req) => {
     });
 
     const bodyText = await res.text();
-    if (!res.ok) {
-      // Surface Resend's error message so the UI can show something useful.
-      throw new Error(`Email provider rejected the send (${res.status}): ${bodyText}`);
-    }
-
     let id: string | null = null;
-    try { id = JSON.parse(bodyText)?.id ?? null; } catch { /* ignore */ }
+    let providerMessage = "";
+    try {
+      const parsed = JSON.parse(bodyText);
+      id = res.ok && typeof parsed?.id === "string" ? parsed.id : null;
+      if (typeof parsed?.message === "string") providerMessage = parsed.message.slice(0, 500);
+    } catch { /* non-JSON provider response */ }
+    const rejection = res.ok ? null : `Email provider rejected the send (HTTP ${res.status})${providerMessage ? ": " + providerMessage : ""}`;
 
-    // Record this send in email_log so the CRM has an authoritative sent-mail
-    // record (replacing the old shared-inbox BCC). One row per invocation =
-    // one "send", so to_email holds the comma-joined recipient list. Wrapped in
-    // try/catch: a logging failure must NEVER break the actual email send.
+    // Record both provider acceptance and explicit rejection. A rejected send
+    // is not a bounce; later delivery events require separate provider tracking.
+    // Logging failure must never cause the caller to retry an accepted email.
     try {
       if (SUPABASE_URL && SERVICE_ROLE) {
         const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
-        await supabase.from("email_log").insert({
+        const { error: logError } = await supabase.from("email_log").insert({
           to_email: toList.join(","),
           subject,
           resend_message_id: id,
@@ -134,10 +134,14 @@ Deno.serve(async (req) => {
           booking_id: booking_id ?? null,
           source: "send-client-email",
           created_by: created_by ?? null,
-          status: "sent",
+          status: rejection ? "failed" : "sent",
+          error: rejection,
         });
+        if (logError) console.warn("email_log insert failed", logError.code);
       }
-    } catch (_logErr) { /* logging is best-effort; never fail the send */ }
+    } catch (_logErr) { console.warn("email_log insert failed"); }
+
+    if (rejection) throw new Error(rejection);
 
     return new Response(JSON.stringify({ ok: true, id }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
