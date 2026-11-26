@@ -1007,7 +1007,7 @@ export function SendQuotationDialog({
     switch (serviceType) {
       case "gst": return "GST Registration";
       case "business_reg": return "Business Registration";
-      case "virtual_office": return "Virtual Office";
+      case "virtual_office": return "Mailing Address";
       case "iec": return "IEC (Import Export Code)";
       case "trademark": return "Trademark Registration";
     }
