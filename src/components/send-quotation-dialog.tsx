@@ -114,7 +114,7 @@ function buildQuotationHtml(opts: {
     switch (serviceType) {
       case "gst": return "GST Registration";
       case "business_reg": return "Business Registration";
-      case "virtual_office": return "Virtual Office";
+      case "virtual_office": return "Mailing Address";
       case "iec": return "IEC (Import Export Code)";
       case "trademark": return "Trademark Registration";
     }
@@ -271,7 +271,7 @@ function buildQuotationHtml(opts: {
 <!-- A PERSONAL NOTE + GREETING -->
 <tr><td style="background:#fff;padding:28px 28px 24px" class="pad-lg">
   <div style="font-size:11px;font-weight:800;color:#1E4DB7;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px">&#9997;&#65039; A PERSONAL NOTE</div>
-  <div style="font-size:20px;font-weight:800;color:#0F172A">Hello ${clientName || "there"} &#128075;</div>
+  <div style="font-size:20px;font-weight:800;color:#0F172A">Dear ${clientName.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")},</div>
   <div style="font-size:14px;color:#475569;margin-top:12px;line-height:1.7">
     Thank you for your interest in our <b style="color:#0F172A">Virtual Office for ${serviceLabel}</b> services. We are delighted to present you with our exclusive proposal tailored for <b style="color:#1E4DB7">${location}</b>.
   </div>
@@ -818,6 +818,9 @@ export function SendQuotationDialog({
   const [selectedCity, setSelectedCity] = useState<string>("");
   const [statePopoverOpen, setStatePopoverOpen] = useState(false);
   const [sending, setSending] = useState(false);
+  const [quotationName, setQuotationName] = useState(clientName?.trim() || "");
+  useEffect(() => { if (open) setQuotationName(clientName?.trim() || ""); }, [open, clientName]);
+  const validName = quotationName.trim().length > 0 && !/^(there|unknown|n\/a|na|customer|client|guest|[-]+)$/i.test(quotationName.trim());
   // Price overrides: salesperson can edit base price per plan, keyed by a STABLE
   // plan identity (planKey) so edits stay aligned after rows are removed.
   const [priceOverrides, setPriceOverrides] = useState<Record<string, number>>({});
@@ -1009,7 +1012,7 @@ export function SendQuotationDialog({
       case "trademark": return "Trademark Registration";
     }
   })();
-  const subject = `Virtual Office for ${serviceLabelForSubject} in ${locationLabel}| EaseMyOffice`;
+  const subject = `Virtual Office for ${serviceLabelForSubject} in ${locationLabel} | EaseMyOffice`;
 
   // Generate email HTML
   const quoteId = useMemo(() => generateQuoteId(), [open]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1037,7 +1040,7 @@ export function SendQuotationDialog({
       .map((row) => ({ name: row.name.trim(), amount: Number(row.amount) }))
       .filter((row) => row.name !== "" && Number.isFinite(row.amount) && row.amount > 0);
     return buildQuotationHtml({
-      clientName,
+      clientName: quotationName.trim(),
       serviceType,
       location: locationLabel,
       plans: plansWithOverrides,
@@ -1046,11 +1049,15 @@ export function SendQuotationDialog({
       signatureHtml,
       addons: parsedAddons,
     });
-  }, [clientName, serviceType, locationLabel, displayPlans, priceOverrides, quoteId, validityDate, signatureHtml, addonServices]);
+  }, [quotationName, serviceType, locationLabel, displayPlans, priceOverrides, quoteId, validityDate, signatureHtml, addonServices]);
 
   // Send handler
   const handleSend = async () => {
+    if (!validName) return toast.error("Enter the client’s actual name before sending.");
     if (allToEmails.length === 0) return toast.error("No email address for this client");
+    if (allToEmails.some((email) => !isEmailStr(email))) return toast.error("Correct the invalid recipient email before sending.");
+    if (newToEmail.trim()) return toast.error("Add or clear the pending recipient email before sending.");
+    if (ccEmails.split(",").some((email) => email.trim() && !isEmailStr(email))) return toast.error("Correct the invalid CC email before sending.");
     if (displayPlans.length === 0) return toast.error("No plans found for selected location. Please select a state.");
     setSending(true);
     try {
@@ -1072,7 +1079,7 @@ export function SendQuotationDialog({
       });
       if (error) throw new Error(error.message);
       if (!data?.ok) throw new Error(data?.error || "Failed to send email");
-      toast.success(`Quotation sent to ${allToEmails.join(", ")}`);
+      toast.success(`Quotation accepted for delivery to ${allToEmails.join(", ")}`);
       onSent?.(subject);
       onOpenChange(false);
     } catch (e: unknown) {
@@ -1167,6 +1174,11 @@ export function SendQuotationDialog({
 
         <div className="flex-1 min-h-0 overflow-y-scroll scrollbar-modern">
           <div className="px-6 py-4 space-y-5">
+            <div className="space-y-1.5">
+              <Label htmlFor="quotation-client-name" className="text-xs font-semibold">Client name (required)</Label>
+              <Input id="quotation-client-name" value={quotationName} onChange={(e) => setQuotationName(e.target.value)} placeholder="Enter client name" required />
+              {!validName && <p className="text-xs text-destructive">Enter the actual client name to personalize the quotation.</p>}
+            </div>
             {/* Service Type */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">Service Type</Label>
@@ -1183,7 +1195,7 @@ export function SendQuotationDialog({
                 <SelectContent>
                   <SelectItem value="gst">GST Registration</SelectItem>
                   <SelectItem value="business_reg">Business Registration (MCA)</SelectItem>
-                  <SelectItem value="virtual_office">Virtual Office</SelectItem>
+                  <SelectItem value="virtual_office">Mailing Address</SelectItem>
                   <SelectItem value="iec">IEC (Import Export Code)</SelectItem>
                   <SelectItem value="trademark">Trademark Registration</SelectItem>
                 </SelectContent>
@@ -1490,13 +1502,13 @@ export function SendQuotationDialog({
             <Button
               variant="outline"
               onClick={() => setPreviewing(true)}
-              disabled={displayPlans.length === 0 || selectedStates.length === 0}
+              disabled={!validName || displayPlans.length === 0 || selectedStates.length === 0}
             >
               <Eye className="h-4 w-4 mr-1" /> Preview
             </Button>
             <Button
               onClick={handleSend}
-              disabled={sending || displayPlans.length === 0 || selectedStates.length === 0}
+              disabled={sending || !validName || displayPlans.length === 0 || selectedStates.length === 0}
             >
               {sending ? (
                 <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Sending...</>
