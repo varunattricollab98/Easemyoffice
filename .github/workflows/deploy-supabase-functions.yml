@@ -1,21 +1,10 @@
 name: Deploy Supabase Edge Functions
 
-# Deploys every function under supabase/functions/ to the live Supabase project.
-#
-# Why this exists: three functions (daily-sales-report, notify-stale-followups,
-# send-scheduled-reports) were missing from the live project entirely, because
-# deploys were being run by hand and supabase/config.toml pointed at the wrong
-# project ref. Automating it removes both failure modes — no local setup, and
-# the ref comes from one place.
-#
-# One-time setup (repo owner, in the GitHub UI):
-#   Settings -> Secrets and variables -> Actions -> New repository secret
-#     Name:  SUPABASE_ACCESS_TOKEN
-#     Value: a token from https://supabase.com/dashboard/account/tokens
-#
-# After that this runs automatically on every push to main that touches a
-# function, and can also be triggered by hand from the Actions tab.
-
+# Production deployments are limited to main and the explicit CRM project.
+# SUPABASE_ACCESS_TOKEN must be a repository Actions secret.
+# Pushes deploy changed functions; shared/config changes select all functions.
+# Use workflow_dispatch on main to recover a failed/missed individual deploy.
+# A workflow-only change must not redeploy every production function.
 on:
   push:
     branches: [main]
@@ -24,95 +13,134 @@ on:
       - "supabase/config.toml"
       - ".github/workflows/deploy-supabase-functions.yml"
   workflow_dispatch:
+    inputs:
+      function_name:
+        description: "Exact function folder to deploy from main (one function)"
+        required: true
+        type: string
+        default: send-client-email
 
-# Never let two deploys race each other.
+permissions:
+  contents: read
+
 concurrency:
-  group: supabase-functions-${{ github.ref }}
-  cancel-in-progress: true
+  group: supabase-functions-production
+  cancel-in-progress: false
 
 jobs:
   deploy:
     name: Deploy edge functions
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PROJECT_REF: cfzwdlibvxksrxcrsvpp
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Select functions
+        id: select
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          MANUAL_FUNCTION: ${{ inputs.function_name }}
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re, subprocess, tomllib
+          root = pathlib.Path("supabase/functions")
+          names = {p.name for p in root.iterdir() if p.is_dir() and not p.name.startswith("_") and (p / "index.ts").is_file()}
+          config = tomllib.loads(pathlib.Path("supabase/config.toml").read_text())
+          if config.get("project_id") != os.environ["PROJECT_REF"]:
+              raise SystemExit("Project ref mismatch; refusing production deployment")
+          if os.environ["EVENT_NAME"] == "workflow_dispatch":
+              selected = {os.environ["MANUAL_FUNCTION"]}
+              if not selected <= names:
+                  raise SystemExit("Select an existing function folder")
+          else:
+              before = os.environ["BEFORE_SHA"]
+              if not before or not before.strip("0"):
+                  raise SystemExit("No previous commit; dispatch intended functions manually")
+              paths = subprocess.check_output(["git", "diff", "--name-only", "-z", before, os.environ["GITHUB_SHA"], "--", "supabase/functions", "supabase/config.toml"]).decode().split("\0")
+              selected = set()
+              for path in filter(None, paths):
+                  if path == "supabase/config.toml":
+                      selected.update(names)
+                      continue
+                  parts = path.split("/")
+                  if len(parts) < 4 or parts[2].startswith("_"):
+                      selected.update(names)
+                  elif parts[2] in names:
+                      selected.add(parts[2])
+                  else:
+                      print("Removed function folder; no automatic deletion:", parts[2])
+          for name in selected:
+              if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", name):
+                  raise SystemExit("Unexpected function name")
+          print("Selected:", ", ".join(sorted(selected)) or "none (no function changes)")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              print("functions=" + " ".join(sorted(selected)), file=out)
+          PY
 
       - name: Install Supabase CLI
+        if: steps.select.outputs.functions != ''
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 3.0.0
 
-      - name: Fail early if the access token is missing
-        # Checked inside run rather than via `if:`, because the `secrets`
-        # context is not available in step-level if expressions. Without this
-        # guard the deploy fails later with an opaque auth error.
+      - name: Deploy and verify selected functions
+        if: steps.select.outputs.functions != ''
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SELECTED_FUNCTIONS: ${{ steps.select.outputs.functions }}
         run: |
-          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
-            echo "::error::SUPABASE_ACCESS_TOKEN is not set. Add it under" \
-                 "Settings -> Secrets and variables -> Actions, then re-run."
-            exit 1
-          fi
-          echo "access token is present"
-
-      - name: Deploy all edge functions
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        # --project-ref must match project_id in supabase/config.toml. It is the
-        # public project ref (it appears in the API URL), not a secret.
-        #
-        # --use-api bundles server-side, so the runner needs no Docker. Supabase
-        # explicitly recommends it for CI: it is faster and avoids a race
-        # condition when several functions deploy in parallel.
-        #
-        # Every folder is deployed (so a new function can never be forgotten),
-        # but ONE AT A TIME with retries: a bulk deploy fails the whole run on a
-        # single transient Supabase 500 without saying which function hit it.
-        # Folders starting with "_" are shared imports, not functions.
-        #
-        # per-function settings such as verify_jwt are read from config.toml.
-        run: |
-          failed=""
-          for dir in supabase/functions/*/; do
-            fn="$(basename "$dir")"
-            case "$fn" in _*) continue ;; esac
-            ok=0
-            for attempt in 1 2 3; do
-              if supabase functions deploy "$fn" \
-                   --project-ref cfzwdlibvxksrxcrsvpp \
-                   --use-api; then
-                ok=1; break
-              fi
-              echo "::warning::$fn deploy attempt $attempt failed, retrying"
-              sleep $((attempt * 10))
-            done
-            [ "$ok" = 1 ] || failed="$failed $fn"
-          done
-          if [ -n "$failed" ]; then
-            echo "::error::Failed to deploy:$failed"
-            exit 1
-          fi
-
-      - name: Verify functions respond
-        # A deployed function replies 401 to an unauthenticated POST. A 404
-        # means it is not actually there, which is the exact failure this
-        # workflow was created to catch — so treat it as a hard error.
-        run: |
-          failed=0
-          for dir in supabase/functions/*/; do
-            fn="$(basename "$dir")"
-            # Underscore folders (_shared) are imported helpers, not functions.
-            case "$fn" in _*) continue ;; esac
-            code="$(curl -s -o /dev/null -w '%{http_code}' -X POST \
-              "https://cfzwdlibvxksrxcrsvpp.supabase.co/functions/v1/$fn" \
-              -H 'Content-Type: application/json' -d '{}')"
-            if [ "$code" = "404" ]; then
-              echo "::error::$fn -> HTTP 404 (not deployed)"
-              failed=1
-            else
-              echo "$fn -> HTTP $code (deployed)"
-            fi
-          done
-          exit $failed
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess, time, tomllib, urllib.request
+          project = os.environ["PROJECT_REF"]
+          token = os.environ.get("SUPABASE_ACCESS_TOKEN")
+          if not token:
+              raise SystemExit("SUPABASE_ACCESS_TOKEN is missing from GitHub Actions secrets")
+          selected = os.environ["SELECTED_FUNCTIONS"].split()
+          config = tomllib.loads(pathlib.Path("supabase/config.toml").read_text())
+          if config.get("project_id") != project:
+              raise SystemExit("Project ref mismatch")
+          def metadata():
+              req = urllib.request.Request(
+                  f"https://api.supabase.com/v1/projects/{project}/functions",
+                  headers={"Authorization": "Bearer " + token, "Accept": "application/json"})
+              with urllib.request.urlopen(req, timeout=30) as response:
+                  data = json.load(response)
+              if isinstance(data, dict):
+                  data = data["functions"]
+              return {item["slug"]: item for item in data}
+          before = metadata()
+          # Refuse accidental auth changes to existing functions. In particular,
+          # callbacks/webhooks may have live JWT settings missing from config.toml.
+          expected = {}
+          for fn in selected:
+              expected[fn] = config.get("functions", {}).get(fn, {}).get("verify_jwt", True)
+              if fn in before and before[fn].get("verify_jwt") != expected[fn]:
+                  raise SystemExit(f"{fn}: live JWT setting differs from config.toml; review and reconcile before deploy")
+          # --yes is required by Supabase CLI v3 for unattended hosted changes.
+          # --remote explicitly targets the project. Never pass --prune.
+          for fn in selected:
+              subprocess.run(["supabase", "functions", "deploy", fn,
+                              "--remote=" + project, "--use-api", "--yes"], check=True)
+              # Verify using read-only Management API metadata, not POST requests
+              # to functions which may send mail, create invoices or write data.
+              for attempt in range(5):
+                  item = metadata().get(fn, {})
+                  old_version = before.get(fn, {}).get("version", 0)
+                  if (item.get("status") == "ACTIVE" and
+                      item.get("version", 0) > old_version and
+                      item.get("verify_jwt") == expected[fn]):
+                      print(f"{fn}: ACTIVE version {item['version']}, JWT={item['verify_jwt']}", flush=True)
+                      break
+                  if attempt < 4:
+                      time.sleep(5)
+              else:
+                  raise SystemExit(f"{fn}: deployment metadata verification failed")
+          PY
